@@ -2,13 +2,20 @@
 
 -compile(export_all).
 
--define(ThId, "1404320").
+-export([t/0, t/1,
+         pr/0, pr/1,
+         remove_mnesia/0 ]).
+
+-define(ThId, 1404320).
 -define(UrlBeg, "http://webdiplomacy.net/forum.php?threadID=").
 -define(UrlMid, "&page-thread=").
 -define(UrlEnd, "#threadPager").
 %-define(URL, "http://webdiplomacy.net/forum.php?newsendtothread=1404320").
 -define(Url2, "http://webdiplomacy.net/forum.php?threadID=1404320&page-thread=1#threadPager").
 %-define(FulLURL, "http://webdiplomacy.net/forum.php?newsendtothread=1404320&viewthread=1404320&reply=success#postbox").
+
+
+%% FIX THIS!! Find LAST PAGE READING THIS struct in the beginning of the page  <em>Page <strong>174</strong> of <strong>174</strong></em></div></div><div style="
 
 -record(kv_store,
         {key,
@@ -19,7 +26,7 @@
 -type page_num() :: integer(). 
 -type msg_id() :: integer(). 
 
--record(page,
+-record(page_rec,
         {key :: {thread_id(), page_num()},
          message_ids :: [msg_id()]
         }).
@@ -33,66 +40,158 @@
          message
         }).
 
+-record(s , {page, thread_id, url, body}).
+
 t() ->
-    t(1).
-       
-t(PageNum) ->
     setup_mnesia(),
     inets:start(),
-    Url = make_url(PageNum),
-    case httpc:request(Url) of
+    Page = get_kv(page_to_read),
+    t(#s{page=Page}).
+
+t(S) ->
+    case get_body(S) of
+        {ok, S2} -> print_usr_msgs(S2);
+        error -> error
+    end.
+
+get_body(S) ->
+    S2 = make_url(S),
+    case httpc:request(S2#s.url) of
         {ok, {_StatusLine, _Headers, Body}} ->
-            %io:format("~s\n", [Body]),
-            print_usr_msgs(Body);
+            {ok, S2#s{body = Body}};
         {ok, {_StatusCode, Body}} ->
-            print_usr_msgs(Body);
-        {ok, _ReqId} -> unexp2;
+            {ok, S2#s{body = Body}};
+        {ok, _ReqId} ->
+            error;
         {error, _Reason} ->
             error
     end.
 
-make_url(PageNum) ->
-    ?UrlBeg ++ ?ThId ++ ?UrlMid ++ integer_to_list(PageNum) ++ ?UrlEnd.
+-spec was_this_last_page(S :: #s{}) -> boolean().
+was_this_last_page(S) ->
+    case get_body(S#s{page = S#s.page + 1}) of
+        error -> true;
+        {ok, _S2} -> false
+    end.
 
-print_usr_msgs(Body) ->
-    B2 = get_thread_section(Body),
-    print_usr_msgs2(B2).
+make_url(S) ->
+    Url = ?UrlBeg ++ integer_to_list(?ThId) ++ ?UrlMid ++ integer_to_list(S#s.page) ++ ?UrlEnd,
+    S#s{url = Url, thread_id = ?ThId}.
 
-print_usr_msgs2("") -> done;
-print_usr_msgs2(Body) ->
+print_usr_msgs(S) ->
+    %page_to_read,
+    B2 = get_thread_section(S#s.body),
+    print_usr_msgs2(S, B2).
+
+print_usr_msgs2(S, "") ->
+    case was_this_last_page(S) of
+        true -> ok;
+        false ->
+            Page = S#s.page,
+            set_kv(page_to_read, Page + 1),
+            set_kv(page_complete, Page)
+    end,
+    done;
+print_usr_msgs2(S, Body) ->
     B3 = rm_to_after(Body, ["<div class=\"reply", "<div class=\"message-head", "profile.php?user", ">"]),
     {B4, UserRaw} = read_to_before(B3, "<"),
-    User = strip(UserRaw),
+    UserStr = strip(UserRaw),
     B4a = rm_to_after(B4, "messageID=\""),
     {B4a2, MsgId} = read_to_before(B4a, "\""),
     B4b = rm_to_after(B4a2, "unixtime=\""),
-    {B4c, TimeRaw} = read_to_before(B4b, "\""),
-    Time = fix_time(TimeRaw),
+    {B4c, TimeStr} = read_to_before(B4b, "\""),
     B5 = rm_to_after(B4c, ["<div class=\"message-contents\"", ">"]),
     {B6, MsgRaw} = read_to_before(B5, "</div>"),
     Msg = strip_fix(MsgRaw),
-    if User /= "" -> io:format("\n"
-                               "User : ~s\n"
-                               "MsgId: ~s\n"
-                               "Time : ~s\n"
-                               "Wrote: \"~s\"\n", [User, MsgId, Time, Msg]);
+
+    if UserStr /= "" ->
+            MsgIdInt = list_to_integer(MsgId),
+            MsgR =
+                case mnesia:dirty_read(message, MsgIdInt) of
+                    [] ->
+                        io:format("New ~w - ~w - ~w~n", [S#s.thread_id, S#s.page, MsgIdInt]),
+                        PageRec =
+                            case mnesia:dirty_read(page_rec, {S#s.thread_id, S#s.page}) of
+                                [] -> #page_rec{key = {S#s.thread_id, S#s.page},
+                                                message_ids = [MsgIdInt]};
+                                [P = #page_rec{message_ids = MsgIds}] ->
+                                    P#page_rec{message_ids = MsgIds ++ [MsgIdInt]}
+                            end,
+                        mnesia:dirty_write(PageRec),
+                        mnesia:dirty_write(
+                          M = #message{msg_id = MsgIdInt,
+                                       thread_id = S#s.thread_id,
+                                       page_num = S#s.page,
+                                       user_name = list_to_binary(UserStr),
+                                       time = list_to_integer(TimeStr),
+                                       message = list_to_binary(Msg)
+                                      }
+                         ),
+                        M;
+                    [M] -> M
+                end,
+            print_usr_msg3(MsgR);
        true -> ok
     end,
-    print_usr_msgs2(B6).
+    print_usr_msgs2(S, B6).
+
+pr() ->
+    Page = get_kv(page_to_read),
+    pr(Page).
+
+pr(Page) ->
+    ThId = ?ThId,
+    MsgIds = case mnesia:dirty_read(page_rec, {ThId, Page}) of
+                 [] -> [];
+                 [#page_rec{message_ids = MIds}] -> MIds
+             end,
+    DoPrint =
+        fun(MsgId) ->
+                [Msg] = mnesia:dirty_read(message, MsgId),
+                print_usr_msg3(Msg)
+        end,
+    [DoPrint(MsgId) || MsgId <- MsgIds].
+
+print_usr_msg3(M) ->
+    io:format("User : ~s\n"
+              "MsgId: ~s\n"
+              "Time : ~s\n"
+              "Wrote: \"~s\"\n"
+              "\n",
+              [binary_to_list(M#message.user_name),
+               integer_to_list(M#message.msg_id),
+               fix_time(M#message.time),
+               binary_to_list(M#message.message)]).
+
 
 get_thread_section(Body) ->
     B2 = rm_to_after(Body, "<div class=\"thread threadID1404320"),
     {_, ThreadStr} = read_to_before(B2, "<div class=\"thread thread"),
     ThreadStr.
 
-fix_time(TimeRaw) ->
+fix_time(Time) when is_integer(Time) ->
+    TzH = get_kv(timezone),
+    Dst = true,
+    fix_time(Time, TzH, Dst).
+
+fix_time(Time, TzH, Dst) when is_integer(Time) ->
     %% {17104,{0,3,2}}
     try 
-        {Days1970, {HH,MM,SS}} = calendar:seconds_to_daystime(list_to_integer(TimeRaw)),
+        Time2 = Time + (TzH + if Dst -> 1; true -> 0 end) * 3600,
+        {Days1970, {HH,MM,SS}} = calendar:seconds_to_daystime(Time2),
         {Y, M, D} = calendar:gregorian_days_to_date(calendar:date_to_gregorian_days({1970,1,1}) + Days1970),
-        io_lib:format("~s-~s-~sZ~s:~s:~s", [p(Y), p(M), p(D), p(HH), p(MM), p(SS)])
+        case {TzH, Dst} of
+            {0, false} ->
+                io_lib:format("~s-~s-~sZ~s:~s:~s", [p(Y), p(M), p(D), p(HH), p(MM), p(SS)]);
+            _ ->
+                DstStr = case Dst of false -> "N"; true -> "DST" end,
+                io_lib:format("~s-~s-~sT~s:~s:~s (~s) ~s",
+                              [p(Y), p(M), p(D), p(HH), p(MM), p(SS), i2l(TzH), DstStr])
+        end
     catch _:_ -> ""
     end.
+
+i2l(I) -> integer_to_list(I).
 
 p(I) when I > 9 -> integer_to_list(I);
 p(I) -> string:right(integer_to_list(I), 2, $0).
@@ -123,6 +222,8 @@ strip_fix(Str) ->
     fix(S2).
 
 %% skip unicode for a while
+fix("&gt;" ++ T) -> [ $> | fix(T)];
+fix("&lt;" ++ T) -> [ $< | fix(T)];
 fix("&lsquo;" ++ T) -> [ $' | fix(T)];
 fix("&rsquo;" ++ T) -> [ $' | fix(T)];
 fix("&ldquo;" ++ T) -> [ $\" | fix(T)];
@@ -143,6 +244,90 @@ h_strip(Str) -> Str.
 
 t_strip(Str) ->
     lists:reverse(h_strip(lists:reverse(Str))).
+
+-spec setup_mnesia() -> ok | schema_existed_already | {error, Reason::term()}.
+setup_mnesia() ->
+    case mnesia:create_schema([node()]) of
+        {error,{_,{already_exists,_}}} ->
+            start_mnesia(already_exists),
+            schema_existed_already;
+        Other ->
+            start_mnesia(do_create),
+            Other
+    end.
+
+remove_mnesia() ->
+    mnesia:stop(),
+    mnesia:delete_schema([node()]).
+
+-spec start_mnesia(Op :: already_exists | do_create )
+                  -> mnesia_start_ok | {error, Reason::term()}.
+start_mnesia(Op) ->
+    case mnesia:start() of
+        ok ->
+            if Op == do_create ->
+                    create_tables(),
+                    insert_initial_data();
+               true ->
+                    ok
+            end,
+            mnesia_start_ok;
+        Other ->
+            Other
+    end.
+
+insert_initial_data() ->
+    set_kv(timezone, -5),
+    set_kv(d1_deadline_local, {{2016,10,19},{18,0,0}}),
+    set_kv(day_hours, 48),
+    set_kv(night_hours, 24),
+    set_kv(dst_normal, {{2016,11,06},{2,0,0}}),
+    set_kv(thread_str, ?ThId),
+    set_kv(page_to_read, 172),
+    set_kv(page_complete, 0).
+
+set_kv(Key, Value) ->
+    mnesia:dirty_write(#kv_store{key=Key, value = Value}).
+
+get_kv(Key) -> get_kv(Key, undefined).
+
+get_kv(Key, Default) ->
+    case mnesia:dirty_read(kv_store, Key) of
+        [] -> Default;
+        [#kv_store{value = Value}] -> Value
+    end.
+
+create_tables() ->
+    create_table(kv_store),
+    create_table(page_rec),
+    create_table(message).
+
+create_table(RecName) ->
+    Opts = create_table_opts(RecName),
+    io:format("mnesia:create_table(~p, ~p).", [RecName, Opts]),
+    case mnesia:create_table(RecName, Opts) of
+        {aborted,{already_exists,_Tab}} ->
+            TI = mnesia:table_info(RecName, attributes),
+            RI = rec_info(RecName),
+            if TI /= RI ->
+%%% HERE we should check for upgrade method and stop if upgrade does not exist
+                    io:format("Delete table '~p' due to mismatching attribute list\n",[RecName]),
+                    mnesia:delete_table(RecName),
+                    create_table(RecName);
+               true ->
+                    io:format("Table '~p' is OK!\n",[RecName])
+            end;
+        {atomic, ok} ->
+            io:format("Init create of table '~p'\n",[RecName])
+    end.
+
+create_table_opts(Table) ->
+    [{disc_copies, [node()]},
+     {attributes, rec_info(Table)}].
+
+rec_info(kv_store) -> record_info(fields, kv_store);
+rec_info(page_rec) -> record_info(fields, page_rec);
+rec_info(message) -> record_info(fields, message).
 
 
 %% Find threadid "threadID1404320" 
@@ -209,45 +394,3 @@ t_strip(Str) ->
                                 <div style="clear:both"></div>
 ).
 -endif.
-
-setup_mnesia() ->
-    case mnesia:create_schema([node()]) of
-        {error,{_,{already_exists,_}}} -> schema_existed_already;
-        Other -> Other
-    end,
-    case mnesia:start() of
-        ok -> mnesia_start_ok;
-        Other2 -> Other2
-    end,
-    create_table(kv_store),
-    create_table(page),
-    create_table(message),
-    mnesia:dirty_write(#kv_store{key=thread_str, value = ?ThId}),
-    mnesia:dirty_write(#kv_store{key=last_page, value = 0}).
-
-create_table(RecName) ->
-    Opts = create_table_opts(RecName),
-    io:format("mnesia:create_table(~p, ~p).", [RecName, Opts]),
-    case mnesia:create_table(RecName, Opts) of
-        {aborted,{already_exists,_Tab}} ->
-            TI = mnesia:table_info(RecName, attributes),
-            RI = rec_info(RecName),
-            if TI /= RI ->
-%%% HERE we should check for upgrade method and stop if upgrade does not exist
-                    io:format("Delete table '~p' due to mismatching attribute list\n",[RecName]),
-                    mnesia:delete_table(RecName),
-                    create_table(RecName);
-               true ->
-                    io:format("Table '~p' is OK!\n",[RecName])
-            end;
-        {atomic, ok} ->
-            io:format("Init create of table '~p'\n",[RecName])
-    end.
-
-create_table_opts(Table) ->
-    [{disc_copies, [node()]},
-     {attributes, rec_info(Table)}].
-
-rec_info(kv_store) -> record_info(fields, kv_store);
-rec_info(page) -> record_info(fields, page);
-rec_info(message) -> record_info(fields, message).

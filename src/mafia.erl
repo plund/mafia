@@ -1,5 +1,6 @@
 -module(mafia).
 
+-include("mafia.hrl").
 %% todo:
 %% Day sequencing
 %% Vote finding listing
@@ -15,49 +16,20 @@
          pp/0, pp/1, pp/2,
          pps/1, pps/2,
          remove_mnesia/0,
-         set_kv/2
+         set_kv/2,
+         calc_deadlines/0
         ]).
 
--define(kv_store, kv_store).
--define(DefThId, 1404320).
--define(UrlBeg, "http://webdiplomacy.net/forum.php?threadID=").
--define(UrlMid, "&page-thread=").
--define(UrlEnd, "#threadPager").
+%% -import(mafia_db, [remove_mnesia/0 %set_kv/2, get_kv/1, get_kv/2
+%%                   ]).
 
--type thread_id() :: integer().
--type page_num() :: integer().
--type msg_id() :: integer().
+remove_mnesia() -> mafia_db:remove_mnesia().
+    
+set_kv(K,V) -> mafia_db:set_kv(K,V).
+    
+get_kv(K) -> mafia_db:get_kv(K).
 
--record(s,
-        {page :: page_num(),  %% either page num to get and when got the actual page num
-         is_last_page :: boolean(),
-         page_num_last_read :: page_num(),
-         page_total_last_read :: page_num(),
-         thread_id :: thread_id(),
-         url :: string(),
-         body :: string()
-        }).
-
--record(kv_store,
-        {key,
-         value
-        }).
-
--record(page_rec,
-        {key :: {thread_id(), page_num()},
-         message_ids :: [msg_id()],
-         thread_id :: thread_id(),
-         complete = false :: boolean()
-        }).
-
--record(message,
-        {msg_id :: msg_id(),
-         thread_id :: thread_id(),
-         page_num :: page_num(),
-         user_name,
-         time,
-         message
-        }).
+get_kv(K,V) -> mafia_db:get_kv(K,V).
 
 -spec set_thread_id(ThId :: integer())  -> ok.
 set_thread_id(ThId) when is_integer(ThId) ->
@@ -90,7 +62,7 @@ print_pages_for_thread(ThId) ->
     io:format("Thread ~p has stored Pages ~w\n", [ThId, Pages]).
 
 t() ->
-    setup_mnesia(),
+    mafia_db:setup_mnesia(),
     inets:start(),
     Page = get_kv(page_to_read),
     Thread = get_kv(thread_id),
@@ -312,6 +284,17 @@ fix_time(Time) when is_integer(Time) ->
         end,
     fix_time(Time, TzH, Dst).
 
+-define(GSECS_1970, 62167219200).
+
+calc_deadlines() ->
+    %%DateTime = get_kv(d1_deadline_local),
+    DateTime = {{2016,10,19},{18,0,0}},
+    get_kv(timezone_game, -5),
+    get_kv(dst_game_normal, {{2016,11,06},{2,0,0}}),
+    get_kv(day_hours, 48),
+    get_kv(night_hours, 24),
+    calendar:datetime_to_gregorian_seconds(DateTime).
+
 fix_time(Time, TzH, Dst) when is_integer(Time) ->
     try 
         Time2 = Time + (TzH + if Dst -> 1; true -> 0 end) * 3600,
@@ -385,94 +368,6 @@ h_strip(Str) -> Str.
 
 t_strip(Str) ->
     lists:reverse(h_strip(lists:reverse(Str))).
-
--spec setup_mnesia() -> ok | schema_existed_already | {error, Reason::term()}.
-setup_mnesia() ->
-    case mnesia:create_schema([node()]) of
-        {error,{_,{already_exists,_}}} ->
-            start_mnesia(already_exists),
-            schema_existed_already;
-        Other ->
-            start_mnesia(do_create),
-            Other
-    end.
-
-remove_mnesia() ->
-    mnesia:stop(),
-    mnesia:delete_schema([node()]).
-
--spec start_mnesia(Op :: already_exists | do_create )
-                  -> mnesia_start_ok | {error, Reason::term()}.
-start_mnesia(Op) ->
-    case mnesia:start() of
-        ok ->
-            if Op == do_create ->
-                    create_tables(),
-                    insert_initial_data();
-               true ->
-                    ok
-            end,
-            mnesia_start_ok;
-        Other ->
-            Other
-    end.
-
-insert_initial_data() ->
-    set_kv(d1_deadline_local, {{2016,10,19},{18,0,0}}),
-    set_kv(day_hours, 48),
-    set_kv(night_hours, 24),
-    set_kv(thread_id, ?DefThId),
-    set_kv(page_to_read, 172),
-    set_kv(page_complete, 0),
-    set_kv(dst_normal, {{2016,11,06},{2,0,0}}),
-    set_kv(timezone_game, -5),
-    set_kv(timezone_user, 1),
-    set_kv(dst_game, false),
-    set_kv(dst_user, false),
-    set_kv(print_time, user). % user | game | utc | zulu | gmt
-
-set_kv(Key, Value) ->
-    mnesia:dirty_write(#kv_store{key=Key, value = Value}).
-
-get_kv(Key) -> get_kv(Key, undefined).
-
-get_kv(Key, Default) ->
-    case mnesia:dirty_read(kv_store, Key) of
-        [] -> Default;
-        [#kv_store{value = Value}] -> Value
-    end.
-
-create_tables() ->
-    create_table(kv_store),
-    create_table(page_rec),
-    create_table(message).
-
-create_table(RecName) ->
-    Opts = create_table_opts(RecName),
-    io:format("mnesia:create_table(~p, ~p).", [RecName, Opts]),
-    case mnesia:create_table(RecName, Opts) of
-        {aborted,{already_exists,_Tab}} ->
-            TI = mnesia:table_info(RecName, attributes),
-            RI = rec_info(RecName),
-            if TI /= RI ->
-%%% HERE we should check for upgrade method and stop if upgrade does not exist
-                    io:format("Delete table '~p' due to mismatching attribute list\n",[RecName]),
-                    mnesia:delete_table(RecName),
-                    create_table(RecName);
-               true ->
-                    io:format("Table '~p' is OK!\n",[RecName])
-            end;
-        {atomic, ok} ->
-            io:format("Init create of table '~p'\n",[RecName])
-    end.
-
-create_table_opts(Table) ->
-    [{disc_copies, [node()]},
-     {attributes, rec_info(Table)}].
-
-rec_info(kv_store) -> record_info(fields, kv_store);
-rec_info(page_rec) -> record_info(fields, page_rec);
-rec_info(message) -> record_info(fields, message).
 
 %% Order in page source
 %% 0. threadID1404320

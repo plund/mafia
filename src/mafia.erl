@@ -15,6 +15,7 @@
          pm/1,
          pp/0, pp/1, pp/2,
          pps/1, pps/2,
+         print_votes/0,
          remove_mnesia/0,
          set_kv/2
         ]).
@@ -239,6 +240,51 @@ vote(S, G, User, Time, MsgId, Vote, IsOkVote) ->
             end;
         _ ->
             ignore
+    end.
+
+print_votes() ->
+    ThId = get_kv(thread_id),
+    print_votes(ThId, 1).
+
+print_votes(ThId, DayNum) ->
+    Key = {ThId, DayNum},
+    case mnesia:dirty_read(mafia_day, Key) of
+        [] ->
+            ignore;
+        [#mafia_day{votes = Votes}] ->
+            VoteSummary =
+                lists:foldl(fun({User, UserVotes}, Acc) ->
+                                    case lists:dropwhile(fun(V) -> not element(5, V) end,
+                                                         UserVotes) of
+                                        [VoteInfo|_] ->
+                                            Vote = element(4, VoteInfo),
+                                            add_vote(Vote, {element(1,VoteInfo), User}, Acc);
+                                        [] -> Acc
+                                    end
+                            end,
+                            [],
+                            Votes),
+            %%Fun(A, B) is to return true if A compares less than or equal to B in the ordering
+            GtEq = fun(A, B) -> element(2, A) >= element(2, B) end,
+            VoteSum2 = lists:sort(GtEq, VoteSummary),
+            io:format("Votes day ~p\n"
+                      "------------\n", [DayNum]),
+            [ begin
+                  Voters = [element(2,VI) || VI <- lists:sort(VoteInfos)],
+                  io:format("~s - ~p - ", [binary_to_list(Vote), N]),
+                  io:format("~s\n", [string:join([binary_to_list(Voter) || Voter <- Voters], ", ")])
+              end || {Vote, N, VoteInfos} <- VoteSum2],
+            print_votes(ThId, DayNum + 1)
+    end.
+
+add_vote(Vote, User, Acc) ->
+    case lists:keyfind(Vote, 1, Acc) of
+        false ->
+            [{Vote, 1, [User]} | Acc];
+        {_, _NumV, Voters} ->
+            Voters2 = (Voters -- [User]) ++ [User],
+            NumV2 = length(Voters2),
+            lists:keystore(Vote, 1, Acc, {Vote, NumV2, Voters2})
     end.
 
 waste_spaces(L) -> [E || E <- L, E /= $\s].

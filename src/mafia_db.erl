@@ -62,8 +62,8 @@ start_mnesia(Op) ->
 %% List of lists
 to_bin(LoL = [[_|_]|_]) ->
     [list_to_binary(L) || L <- LoL].
-to_bin_upper(LoL = [[_|_]|_]) ->
-    [list_to_binary(string:to_upper(L)) || L <- LoL].
+%% to_bin_upper(LoL = [[_|_]|_]) ->
+%%     [list_to_binary(string:to_upper(L)) || L <- LoL].
 
 insert_initial_data() ->
     io:format("Adding Mafia Game M24\n", []),

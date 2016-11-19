@@ -2,7 +2,24 @@
 
 -include("mafia.hrl").
 
--export([add_deadline/2]).
+-export([add_deadline/2,
+         calculate_phase/2]).
+
+-spec calculate_phase(Game :: #mafia_game{}, Time::seconds1970()) -> phase().
+calculate_phase(Game, Time) ->
+    if Time > element(3, hd(Game#mafia_game.deadlines)) ->
+            Game2 = add_deadline(Game, 10),
+            mnesia:write(Game2);
+       true ->
+            Game2 = Game
+    end,
+    DLs = Game2#mafia_game.deadlines,
+    {Num,DN,_} =
+        lists:last(
+          lists:takewhile(
+            fun({_,_,DLTime}) -> DLTime > Time end,
+            DLs)),
+    {Num,DN}.
 
 add_deadline(MGame, NumNewDLs) ->
     MGame#mafia_game{
@@ -31,6 +48,7 @@ calc_deadlines(G, NumNewDLs) ->
                 DLsIn,
                 Phases).
 
+-spec inc_phase(phase() | deadline()) -> phase().
 inc_phase({Num, D, _Time}) -> inc_phase({Num, D});
 inc_phase({Num, ?day}) when is_integer(Num) -> {Num, ?night};
 inc_phase({Num, ?night}) when is_integer(Num) -> {Num + 1, ?day}.

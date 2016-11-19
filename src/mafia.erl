@@ -25,8 +25,6 @@ set_kv(K,V) -> mafia_db:set_kv(K,V).
     
 get_kv(K) -> mafia_db:get_kv(K).
 
-%%get_kv(K,V) -> mafia_db:get_kv(K,V).
-
 -spec set_thread_id(ThId :: integer())  -> ok.
 set_thread_id(ThId) when is_integer(ThId) ->
     set_kv(thread_id, ThId),
@@ -141,11 +139,14 @@ print_usr_msgs2(S, Body) ->
 
     if UserStr /= "" ->
             MsgIdInt = list_to_integer(MsgId),
+            Time = list_to_integer(TimeStr),
+            User = list_to_binary(UserStr),
             case mnesia:dirty_read(message, MsgIdInt) of
                 [] ->
                     io:format("New ~w - ~w - ~w~n", [S#s.thread_id, S#s.page, MsgIdInt]),
                     update_page_rec(S, MsgIdInt),
-                    MsgR = write_message_rec(S, MsgIdInt, UserStr, TimeStr, Msg),
+                    MsgR = write_message_rec(S, MsgIdInt, User, Time, Msg),
+                    check_for_vote(S, MsgIdInt, User, Time, Msg),
                     print_message_full(MsgR);
                 [MsgR] ->
                     print_message_summary(MsgR)
@@ -175,17 +176,91 @@ find_pages_for_thread(ThId) ->
     Result = '$2',
     mnesia:dirty_select(page_rec,[{MatchHead, [Guard], [Result]}]).
 
-write_message_rec(S, MsgIdInt, UserStr, TimeStr, Msg) ->
+write_message_rec(S, MsgIdInt, User, Time, Msg) ->
     mnesia:dirty_write(
       M = #message{msg_id = MsgIdInt,
                    thread_id = S#s.thread_id,
                    page_num = S#s.page,
-                   user_name = list_to_binary(UserStr),
-                   time = list_to_integer(TimeStr),
+                   user_name = User,
+                   time = Time,
                    message = list_to_binary(Msg)
                   }
      ),
     M.
+
+check_for_vote(S, MsgId, User, Time, Msg) ->
+    MsgUC = string:to_upper(Msg),
+    case mnesia:dirty_read(mafia_game, S#s.thread_id) of
+        [] -> ignore;
+        [#mafia_game{players_rem = Players} = G] ->
+            case rm_to_after(MsgUC, "##VOTE") of
+                "" -> ignore;
+                RestUC ->
+                    case rank(Players, RestUC) of
+                        [{_,TopP}] ->
+                            vote(S, G, User, Time, MsgId, TopP, true);
+                        [{NumV, _P1}, {NumV, _P2}|_] ->
+                            VoteStr = waste_spaces(
+                                        string:left(
+                                          waste_spaces(RestUC), 15)),
+                            Vote = list_to_binary(VoteStr),
+                            vote(S, G, User, Time, MsgId, Vote, false);
+                        [{NumV1, TopP}, {NumV2, _}|_] when NumV1 > NumV2 ->
+                            vote(S, G, User, Time, MsgId, TopP, true)
+                    end
+            end
+    end.
+
+vote(S, G, User, Time, MsgId, Vote, IsOkVote) ->
+    %% find mafia_day
+    case mafia_time:calculate_phase(G, Time) of
+        {DayNum, ?day} ->
+            Key = {S#s.thread_id, DayNum},
+            case mnesia:dirty_read(mafia_day, Key) of
+                [] ->
+                    Day = #mafia_day{
+                      key = Key,
+                      thread_id = S#s.thread_id,
+                      day = DayNum,
+                      votes = [{User, [{Time, MsgId, S#s.page, Vote, IsOkVote}]}],
+                      complete = false
+                     },
+                    mnesia:dirty_write(Day);
+                [#mafia_day{votes = Votes} = Day] ->
+                    Votes2 =
+                        case lists:keyfind(User, 1, Votes) of
+                            false ->
+                                [{User, [{Time, MsgId, S#s.page, Vote, IsOkVote}]} | Votes];
+                            {User, UVotes} ->
+                                UVotes2 = [{Time, MsgId, S#s.page, Vote, IsOkVote} | UVotes],
+                                lists:keystore(User, 1, Votes, {User, UVotes2})
+                        end,
+                    mnesia:dirty_write(Day#mafia_day{votes = Votes2})
+            end;
+        _ ->
+            ignore
+    end.
+
+waste_spaces(L) -> [E || E <- L, E /= $\s].
+
+rank(Players, RestUC) ->
+    RestUCW = waste_spaces(RestUC),
+    F = fun(P) ->
+                PlayerUCW = string:to_upper(waste_spaces(binary_to_list(P))),
+                r_count(PlayerUCW, RestUCW, 0)
+        end,
+    lists:reverse(lists:sort([{F(P), P} || P <- Players])).
+
+r_count([Hp|Tp], [Hr|Tr], N) when Hp == Hr ->
+    r_count(Tp, Tr, N+1);
+r_count([_Hp|_Tp], [], N) ->
+    N;
+r_count([], [_Hr|_Tr], N) ->
+    N;
+r_count([Hp|_Tp], [Hr|_Tr], N) when Hp /= Hr ->
+    N-1;
+r_count([], [], N) ->
+    N+1.
 
 pm(MsgId) when is_integer(MsgId) ->
     case mnesia:dirty_read(message, MsgId) of

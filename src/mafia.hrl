@@ -20,6 +20,8 @@
 -type seconds1970() :: integer().
 -type message() :: binary().
 -type day_night() :: ?day | ?night.
+-type phase() :: {integer(), day_night()}.
+-type deadline() :: {integer(), day_night(), seconds1970()}.
 
 -record(s,
         {page :: page_num(),  %% either page num to get and when got the actual page num
@@ -56,7 +58,7 @@
         {key :: {thread_id(), day_num()},
          thread_id :: thread_id(),
          day :: day_num(),
-         votes :: [{player(), [{seconds1970(), player(), Valid::boolean()}]}],
+         votes :: [{player(), [{seconds1970(), msg_id(), page_num(), player(), Valid::boolean()}]}],
          complete :: boolean()
         }).
 
@@ -73,6 +75,7 @@
          gms,          %% set_kv(mafia_GMs, ["DemonRHK", "MoscowFleet"]),
          players_orig :: [player()], %% set_kv(mafia_players, ?M24_players),
          players_rem  :: [player()],
+         players_rem_upp = not_used,
          players_dead :: [{player(), {day|night, integer()}}],
          page_to_read, %% set_kv(page_to_read, 1),
          complete :: boolean()

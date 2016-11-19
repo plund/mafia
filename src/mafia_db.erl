@@ -60,7 +60,10 @@ start_mnesia(Op) ->
          "Yoyoyozo", "Zorclex"]).
 
 %% List of lists
-to_bin(LoL = [[_|_]|_]) -> [list_to_binary(L) || L <- LoL].
+to_bin(LoL = [[_|_]|_]) ->
+    [list_to_binary(L) || L <- LoL].
+to_bin_upper(LoL = [[_|_]|_]) ->
+    [list_to_binary(string:to_upper(L)) || L <- LoL].
 
 insert_initial_data() ->
     io:format("Adding Mafia Game M24\n", []),
@@ -77,6 +80,7 @@ insert_initial_data() ->
       gms = to_bin(["DemonRHK", "MoscowFleet"]),
       players_orig = to_bin(?M24_players),
       players_rem = to_bin(?M24_players),
+      %% players_rem_upp = to_bin_upper(?M24_players),
       players_dead = [],
       page_to_read = 1,
       complete = false
@@ -84,15 +88,8 @@ insert_initial_data() ->
     MGame2 = mafia_time:add_deadline(MGame, 16),
     mnesia:dirty_write(MGame2),
     io:format("Adding values to kv_store\n", []),
-    %% set_kv(deadline_info,
-    %%        {-5, true, 48, 24, {{2016,10,19},{18,0,0}},
-    %%         [{{{2016,11,6},{2,0,0}}, false},
-    %%          {{{2017, 4,1},{2,0,0}}, true}]
-    %%        }),
-    %% set_kv(mafia_players, ?M24_players), %%%%
-    %% set_kv(mafia_GMs, ["DemonRHK", "MoscowFleet"]), %%%%
-    %% set_kv(thread_id, ?DefThId), %%%%
-    %% set_kv(page_to_read, 1),     %%%%
+    set_kv(thread_id, ?DefThId),
+    set_kv(page_to_read, 1),
     set_kv(timezone_user, 1),
     set_kv(dst_user, false),
     set_kv(print_time, user). % user | game | utc | zulu | gmt

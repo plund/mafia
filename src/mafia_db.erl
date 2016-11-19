@@ -59,29 +59,54 @@ start_mnesia(Op) ->
          "Rdrivera2005", "Teacon7", "VashtaNeurotic", "Vecna", "Xorxes",
          "Yoyoyozo", "Zorclex"]).
 
+%% List of lists
+to_bin(LoL = [[_|_]|_]) -> [list_to_binary(L) || L <- LoL].
+
 insert_initial_data() ->
-    set_kv(d1_deadline_local, {{2016,10,19},{18,0,0}}),
-    set_kv(dst_game_normal, {{2016,11,06},{2,0,0}}),
-    set_kv(mafia_players, ?M24_players),
-    set_kv(day_hours, 48),
-    set_kv(night_hours, 24),
-    set_kv(thread_id, ?DefThId),
-    set_kv(page_to_read, 1),
-    set_kv(page_complete, 0),
-    set_kv(timezone_game, -5),
+    io:format("Adding Mafia Game M24\n", []),
+    MGame = #mafia_game{
+      key = ?DefThId,
+      name = <<"MAFIA XXIV: Webdiplomacy's Tom Clancy's The Division">>,
+      day_hours = 48,
+      night_hours = 24,
+      time_zone = -5,
+      day1_dl_time = {{2016,10,19},{18,0,0}},
+      is_init_dst = true,
+      dst_changes = [{{{2016,11,6},{2,0,0}}, false},
+                     {{{2017, 4,1},{2,0,0}}, true}],
+      gms = to_bin(["DemonRHK", "MoscowFleet"]),
+      players_orig = to_bin(?M24_players),
+      players_rem = to_bin(?M24_players),
+      players_dead = [],
+      page_to_read = 1,
+      complete = false
+     },
+    MGame2 = mafia_time:add_deadline(MGame, 16),
+    mnesia:dirty_write(MGame2),
+    io:format("Adding values to kv_store\n", []),
+    %% set_kv(deadline_info,
+    %%        {-5, true, 48, 24, {{2016,10,19},{18,0,0}},
+    %%         [{{{2016,11,6},{2,0,0}}, false},
+    %%          {{{2017, 4,1},{2,0,0}}, true}]
+    %%        }),
+    %% set_kv(mafia_players, ?M24_players), %%%%
+    %% set_kv(mafia_GMs, ["DemonRHK", "MoscowFleet"]), %%%%
+    %% set_kv(thread_id, ?DefThId), %%%%
+    %% set_kv(page_to_read, 1),     %%%%
     set_kv(timezone_user, 1),
-    set_kv(dst_game, false),
     set_kv(dst_user, false),
     set_kv(print_time, user). % user | game | utc | zulu | gmt
 
 create_tables() ->
     create_table(kv_store),
     create_table(page_rec),
-    create_table(message).
+    create_table(message),
+    create_table(mafia_day),
+    create_table(mafia_game).
 
 create_table(RecName) ->
     Opts = create_table_opts(RecName),
-    io:format("mnesia:create_table(~p, ~p).", [RecName, Opts]),
+    io:format("mnesia:create_table(~p, ~p).\n", [RecName, Opts]),
     case mnesia:create_table(RecName, Opts) of
         {aborted,{already_exists,_Tab}} ->
             TI = mnesia:table_info(RecName, attributes),
@@ -95,7 +120,7 @@ create_table(RecName) ->
                     io:format("Table '~p' is OK!\n",[RecName])
             end;
         {atomic, ok} ->
-            io:format("Init create of table '~p'\n",[RecName])
+            io:format("Created table '~p'\n",[RecName])
     end.
 
 create_table_opts(Table) ->
@@ -104,4 +129,6 @@ create_table_opts(Table) ->
 
 rec_info(kv_store) -> record_info(fields, kv_store);
 rec_info(page_rec) -> record_info(fields, page_rec);
-rec_info(message) -> record_info(fields, message).
+rec_info(message) -> record_info(fields, message);
+rec_info(mafia_day) -> record_info(fields, mafia_day);
+rec_info(mafia_game) -> record_info(fields, mafia_game).

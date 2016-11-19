@@ -16,12 +16,8 @@
          pp/0, pp/1, pp/2,
          pps/1, pps/2,
          remove_mnesia/0,
-         set_kv/2,
-         calc_deadlines/0
+         set_kv/2
         ]).
-
-%% -import(mafia_db, [remove_mnesia/0 %set_kv/2, get_kv/1, get_kv/2
-%%                   ]).
 
 remove_mnesia() -> mafia_db:remove_mnesia().
     
@@ -29,7 +25,7 @@ set_kv(K,V) -> mafia_db:set_kv(K,V).
     
 get_kv(K) -> mafia_db:get_kv(K).
 
-get_kv(K,V) -> mafia_db:get_kv(K,V).
+%%get_kv(K,V) -> mafia_db:get_kv(K,V).
 
 -spec set_thread_id(ThId :: integer())  -> ok.
 set_thread_id(ThId) when is_integer(ThId) ->
@@ -111,8 +107,8 @@ check_this_page(S) ->
             set_kv(page_to_read, PageLastRead),
             ok;
         false ->
-            set_kv(page_to_read, PageLastRead + 1),
-            set_kv(page_complete, PageLastRead)
+            set_kv(page_to_read, PageLastRead + 1)
+            %% set_kv(page_complete, PageLastRead)
     end,
     S#s{is_last_page = IsLastPage,
         page_num_last_read = PageLastRead,
@@ -284,20 +280,9 @@ fix_time(Time) when is_integer(Time) ->
         end,
     fix_time(Time, TzH, Dst).
 
--define(GSECS_1970, 62167219200).
-
-calc_deadlines() ->
-    %%DateTime = get_kv(d1_deadline_local),
-    DateTime = {{2016,10,19},{18,0,0}},
-    get_kv(timezone_game, -5),
-    get_kv(dst_game_normal, {{2016,11,06},{2,0,0}}),
-    get_kv(day_hours, 48),
-    get_kv(night_hours, 24),
-    calendar:datetime_to_gregorian_seconds(DateTime).
-
 fix_time(Time, TzH, Dst) when is_integer(Time) ->
     try 
-        Time2 = Time + (TzH + if Dst -> 1; true -> 0 end) * 3600,
+        Time2 = Time + (TzH + if Dst -> 1; true -> 0 end) * ?HourSecs,
         {Days1970, {HH,MM,SS}} = calendar:seconds_to_daystime(Time2),
         {Y, M, D} = calendar:gregorian_days_to_date(calendar:date_to_gregorian_days({1970,1,1}) + Days1970),
         case {TzH, Dst} of

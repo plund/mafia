@@ -1,0 +1,1 @@
+erlc mafia.erl mafia_db.erl mafia_time.erl

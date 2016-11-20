@@ -75,7 +75,7 @@
          gms,          %% set_kv(mafia_GMs, ["DemonRHK", "MoscowFleet"]),
          players_orig :: [player()], %% set_kv(mafia_players, ?M24_players),
          players_rem  :: [player()],
-         players_rem_upp = not_used,
+         game_num = 24,
          players_dead :: [{player(), {day|night, integer()}}],
          page_to_read, %% set_kv(page_to_read, 1),
          complete :: boolean()

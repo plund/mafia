@@ -69,6 +69,7 @@ insert_initial_data() ->
     io:format("Adding Mafia Game M24\n", []),
     MGame = #mafia_game{
       key = ?DefThId,
+      game_num = 24,
       name = <<"MAFIA XXIV: Webdiplomacy's Tom Clancy's The Division">>,
       day_hours = 48,
       night_hours = 24,

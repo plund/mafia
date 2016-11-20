@@ -2,10 +2,21 @@
 
 -include("mafia.hrl").
 %% todo:
-%% Day sequencing
-%% Vote finding listing
-
-%%-compile(export_all).
+%% ok - Day sequencing
+%% ok - Vote finding listing
+%% ok - store full pages as files locally "m24_threadid_page.txt"
+%%   ok - use local files as input when then do exist.
+%%   ok - add game_num (24) as game attribute into game record.
+%%   ok - construct filename
+%%   ok - test store a binary/list message.
+%% - fix bug timezone_game
+%%   - move stuff to mafia_time
+%% - redo vote data using page_rec -> message
+%%   - print_vote per voter variant
+%%   - make sure only remaining players votes are counted
+%%   - make sure min 2 letters indicate?
+%%   - add "raw" text for every vote
+%%   - fun to take message record as input
 
 -export([set_thread_id/1,
          show_settings/0,
@@ -20,6 +31,9 @@
          set_kv/2
         ]).
 
+%% =============================================================================
+%% EXPORTED FUNCTIONS
+%% =============================================================================
 remove_mnesia() -> mafia_db:remove_mnesia().
     
 set_kv(K,V) -> mafia_db:set_kv(K,V).
@@ -59,10 +73,10 @@ print_pages_for_thread(ThId) ->
 t() ->
     mafia_db:setup_mnesia(),
     inets:start(),
-    Page = get_kv(page_to_read),
     Thread = get_kv(thread_id),
+    Page = get_kv(page_to_read),
     %% Page = get_kv(page_to_read),
-    t(#s{thread_id = Thread, page=Page}).
+    t(#s{thread_id = Thread, page = Page}).
 
 t(S) ->
     case get_body(S) of
@@ -70,7 +84,46 @@ t(S) ->
         error -> error
     end.
 
+print_votes() ->
+    ThId = get_kv(thread_id),
+    print_votes(ThId, 1).
+
+pm(MsgId) when is_integer(MsgId) ->
+    case mnesia:dirty_read(message, MsgId) of
+        [Msg] ->
+            print_message_full(Msg);
+        [] -> io:format("Message ID ~p not found\n", [MsgId])
+    end.
+
+pp() ->
+    Page = get_kv(page_to_read),
+    pp(Page).
+
+pp({ThId, Page}) ->
+    pp(ThId, Page);
+pp(Page) ->
+    ThId = get_kv(thread_id),
+    pp(ThId, Page).
+
+pp(ThId, Page) ->
+    print_page(ThId, Page, fun print_message_full/1).
+
+pps({ThId, Page}) ->
+    pps(ThId, Page).
+
+pps(ThId, Page) ->
+    print_page(ThId, Page, fun print_message_summary/1).
+
+%% =============================================================================
+%% INTERNAL FUNCTIONS
+%% =============================================================================
+-spec get_body(S :: #s{}) -> {ok, #s{}} | error.
 get_body(S) ->
+    get_body(S, is_page_on_file(S)).
+
+get_body(S, {file, Body}) ->
+    {ok, S#s{body = {stripped, Body}}};
+get_body(S, no_file) ->
     S2 = make_url(S),
     case httpc:request(S2#s.url) of
         {ok, {_StatusLine, _Headers, Body}} ->
@@ -83,6 +136,72 @@ get_body(S) ->
             error
     end.
 
+is_page_on_file(S) ->
+    %% Do we have body on file?
+    %% we only store complete pages on file!
+    %% - store full pages as files locally "m24_threadid_page.txt"
+    FileName = th_filename(S),
+    case file:read_file(FileName) of
+        {ok, BodyBin} ->
+            {file, binary_to_list(BodyBin)};
+        {error,enoent} ->
+            no_file
+    end.
+
+th_filename(#s{thread_id = Thread, page = Page}) ->
+    DirName = "thread_pages",
+    file:make_dir(DirName),
+    ThFileName = i2l(Thread) ++ "_" ++ i2l(Page) ++ ".txt",
+    case mnesia:dirty_read(mafia_game, Thread) of
+        [] ->
+            filename:join(DirName, ThFileName);
+        [G] ->
+            GamePrefix = "m" ++ i2l(G#mafia_game.game_num) ++ "_",
+            filename:join(DirName, GamePrefix ++ ThFileName)
+    end.
+
+%% -> ok | {error, Reason}
+store_page(S, Body) ->
+    FileName = th_filename(S),
+    case file:read_file_info(FileName) of
+        {error, enoent} ->
+            file:write_file(FileName, Body);
+        _ ->
+            {error, efileexist}
+    end.
+
+make_url(S) ->
+    Url = ?UrlBeg ++ i2l(S#s.thread_id) ++ ?UrlMid ++ i2l(S#s.page) ++ ?UrlEnd,
+    S#s{url = Url}.
+
+print_usr_msgs(S) ->
+    B2 = get_thread_section(S#s.body),
+    S2 = check_this_page(S#s{body=B2}),
+    case S#s.body of
+        {stripped, _} -> ok; % page already stored on file
+        _ -> % not stored
+            if not S2#s.is_last_page -> % page complete > STORE IT!
+                    store_page(S2, B2);
+               true -> ok
+            end
+    end,
+    print_usr_msgs2(S2, B2).
+
+get_thread_section({stripped, Body}) ->
+    %% got from file and they are already stripped there.
+    Body;
+get_thread_section(Body) ->
+    ThId = get_kv(thread_id),
+    ThStartStr = "<div class=\"thread threadID" ++ i2l(ThId), %%"1404320",
+    B2 = rm_to_after(Body, ThStartStr),
+    ThEndStr = "<div class=\"thread thread",
+    {_, ThreadStr} = read_to_before(B2, ThEndStr),
+    ThreadStr. %% This should be stored on file, if it is a full page
+
+%% find page nums "Page 177 of 177", if it exists
+%% sets #s.is_last_page,
+%%      #s.page_num_last_read = #s.page = PageLastRead,
+%%      #s.page_total_last_read = PageTotal
 -spec check_this_page(S :: #s{}) -> #s{}.
 check_this_page(S) ->
     {_, Head} = read_to_before(S#s.body, "class=\"message-head"),
@@ -113,16 +232,6 @@ check_this_page(S) ->
         page_num_last_read = PageLastRead,
         page = PageLastRead,
         page_total_last_read = PageTotal}.
-
-make_url(S) ->
-    Url = ?UrlBeg ++ integer_to_list(S#s.thread_id) ++ ?UrlMid ++ integer_to_list(S#s.page) ++ ?UrlEnd,
-    S#s{url = Url}.
-
-print_usr_msgs(S) ->
-    %page_to_read,
-    B2 = get_thread_section(S#s.body),
-    S2 = check_this_page(S#s{body=B2}),
-    print_usr_msgs2(S2, B2).
 
 print_usr_msgs2(_S, "") ->
     done;
@@ -242,10 +351,6 @@ vote(S, G, User, Time, MsgId, Vote, IsOkVote) ->
             ignore
     end.
 
-print_votes() ->
-    ThId = get_kv(thread_id),
-    print_votes(ThId, 1).
-
 print_votes(ThId, DayNum) ->
     Key = {ThId, DayNum},
     case mnesia:dirty_read(mafia_day, Key) of
@@ -308,32 +413,6 @@ r_count([Hp|_Tp], [Hr|_Tr], N) when Hp /= Hr ->
 r_count([], [], N) ->
     N+1.
 
-pm(MsgId) when is_integer(MsgId) ->
-    case mnesia:dirty_read(message, MsgId) of
-        [Msg] ->
-            print_message_full(Msg);
-        [] -> io:format("Message ID ~p not found\n", [MsgId])
-    end.
-
-pp() ->
-    Page = get_kv(page_to_read),
-    pp(Page).
-
-pp({ThId, Page}) ->
-    pp(ThId, Page);
-pp(Page) ->
-    ThId = get_kv(thread_id),
-    pp(ThId, Page).
-
-pp(ThId, Page) ->
-    print_page(ThId, Page, fun print_message_full/1).
-
-pps({ThId, Page}) ->
-    pps(ThId, Page).
-
-pps(ThId, Page) ->
-    print_page(ThId, Page, fun print_message_summary/1).
-
 print_page(ThId, Page, PrintFun) ->
     MsgIds = case mnesia:dirty_read(page_rec, {ThId, Page}) of
                  [] -> [];
@@ -356,10 +435,10 @@ print_message_full(M) ->
               "Wrote : \"~s\"\n"
               "\n",
               [binary_to_list(M#message.user_name),
-               integer_to_list(M#message.page_num),
+               i2l(M#message.page_num),
                fix_time(M#message.time),
-               integer_to_list(M#message.thread_id),
-               integer_to_list(M#message.msg_id),
+               i2l(M#message.thread_id),
+               i2l(M#message.msg_id),
                binary_to_list(M#message.message)
               ]).
 
@@ -376,19 +455,13 @@ print_message_summary(M) ->
               "id: ~s, "
               "\"~s\"\n",
               [string:left(binary_to_list(M#message.user_name), 12),
-               integer_to_list(M#message.page_num),
+               i2l(M#message.page_num),
                fix_time(M#message.time),
-               integer_to_list(M#message.msg_id),
+               i2l(M#message.msg_id),
                MsgShort
               ]).
 
-get_thread_section(Body) ->
-    ThId = get_kv(thread_id),
-    EndStr = "<div class=\"thread threadID" ++ integer_to_list(ThId), %%"1404320",
-    B2 = rm_to_after(Body, EndStr),
-    {_, ThreadStr} = read_to_before(B2, "<div class=\"thread thread"),
-    ThreadStr.
-
+%% half this fun should go to mafia_time
 fix_time(Time) when is_integer(Time) ->
     {TzH, Dst} =
         case get_kv(print_time) of
@@ -419,8 +492,8 @@ fix_time(Time, TzH, Dst) when is_integer(Time) ->
 
 i2l(I) -> integer_to_list(I).
 
-p(I) when I > 9 -> integer_to_list(I);
-p(I) -> string:right(integer_to_list(I), 2, $0).
+p(I) when I > 9 -> i2l(I);
+p(I) -> string:right(i2l(I), 2, $0).
 
 rm_to_after(Str, []) -> Str;
 rm_to_after(Str, [Search|T]) when is_list(Search) ->

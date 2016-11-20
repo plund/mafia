@@ -2,15 +2,7 @@
 
 -include("mafia.hrl").
 %% todo:
-%% ok - Day sequencing
-%% ok - Vote finding listing
-%% ok - store full pages as files locally "m24_threadid_page.txt"
-%%   ok - use local files as input when then do exist.
-%%   ok - add game_num (24) as game attribute into game record.
-%%   ok - construct filename
-%%   ok - test store a binary/list message.
-%% - fix bug timezone_game
-%%   - move stuff to mafia_time
+%% - add set_kv checks
 %% - redo vote data using page_rec -> message
 %%   - print_vote per voter variant
 %%   - make sure only remaining players votes are counted
@@ -20,6 +12,8 @@
 %%   ok - refresh_votes
 %%   ok - fun to take message record as input
 %%   ok - new record #vote{}
+%% ok - fix bug timezone_game
+%%   ok - move stuff to mafia_time
 
 -export([set_thread_id/1,
          show_settings/0,
@@ -31,6 +25,7 @@
          pps/1, pps/2,
          print_votes/0,
          refresh_votes/0,
+         setup_mnesia/0,
          remove_mnesia/0
         ]).
 
@@ -39,6 +34,7 @@
          l2b/1,
          i2l/1,
          l2i/1,
+         get_kv/1,
          set_kv/2
         ]).
 
@@ -53,12 +49,14 @@ l2i(L) -> list_to_integer(L).
 
 b2l(B) -> binary_to_list(B).
 l2b(L) -> list_to_binary(L).
-
-remove_mnesia() -> mafia_db:remove_mnesia().
     
 set_kv(K,V) -> mafia_db:set_kv(K,V).
     
 get_kv(K) -> mafia_db:get_kv(K).
+
+setup_mnesia() -> mafia_db:setup_mnesia().
+
+remove_mnesia() -> mafia_db:remove_mnesia().
 
 -spec set_thread_id(ThId :: integer())  -> ok.
 set_thread_id(ThId) when is_integer(ThId) ->
@@ -506,7 +504,7 @@ print_message_full(M) ->
               "\n",
               [b2l(M#message.user_name),
                i2l(M#message.page_num),
-               fix_time(M#message.time),
+               print_time(M#message.time),
                i2l(M#message.thread_id),
                i2l(M#message.msg_id),
                b2l(M#message.message)
@@ -526,29 +524,19 @@ print_message_summary(M) ->
               "\"~s\"\n",
               [string:left(b2l(M#message.user_name), 12),
                i2l(M#message.page_num),
-               fix_time(M#message.time),
+               print_time(M#message.time),
                i2l(M#message.msg_id),
                MsgShort
               ]).
 
 %% half this fun should go to mafia_time
-fix_time(Time) when is_integer(Time) ->
-    {TzH, Dst} =
-        case get_kv(print_time) of
-            game -> {get_kv(timezone_game), get_kv(dst_game)};
-            user -> {get_kv(timezone_user), get_kv(dst_user)};
-            Loc when Loc == utc;
-                     Loc == zulu;
-                     Loc == gmt ->
-                {0, false}
-        end,
-    fix_time(Time, TzH, Dst).
+print_time(Time) when is_integer(Time) ->
+    {TzH, Dst} = mafia_time:get_tz_dst(),
+    print_time(Time, TzH, Dst).
 
-fix_time(Time, TzH, Dst) when is_integer(Time) ->
-    try 
-        Time2 = Time + (TzH + if Dst -> 1; true -> 0 end) * ?HourSecs,
-        {Days1970, {HH,MM,SS}} = calendar:seconds_to_daystime(Time2),
-        {Y, M, D} = calendar:gregorian_days_to_date(calendar:date_to_gregorian_days({1970,1,1}) + Days1970),
+print_time(Time, TzH, Dst) when is_integer(Time) ->
+    try
+        {{Y, M, D}, {HH,MM,SS}} = mafia_time:local_datetime_for_secs1970(Time, TzH, Dst),
         case {TzH, Dst} of
             {0, false} ->
                 io_lib:format("~s-~s-~sZ~s:~s:~s", [p(Y), p(M), p(D), p(HH), p(MM), p(SS)]);

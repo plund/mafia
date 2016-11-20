@@ -2,8 +2,31 @@
 
 -include("mafia.hrl").
 
--export([add_deadline/2,
+-export([get_tz_dst/0,
+         local_datetime_for_secs1970/3,
+         add_deadline/2,
          calculate_phase/2]).
+
+-import(mafia, [get_kv/1]).
+
+get_tz_dst() ->
+    case get_kv(print_time) of
+        game -> {get_kv(timezone_game), get_kv(dst_game)};
+        user -> {get_kv(timezone_user), get_kv(dst_user)};
+        Loc when Loc == utc;
+                 Loc == zulu;
+                 Loc == gmt ->
+            {0, false}
+    end.
+
+local_datetime_for_secs1970(Time, TzH, Dst) ->
+    Time2 = adjust_secs1970_to_tz_dst(Time, TzH, Dst),
+    {Days1970, {HH,MM,SS}} = calendar:seconds_to_daystime(Time2),
+    {Y, M, D} = calendar:gregorian_days_to_date(?GDAYS_1970 + Days1970),
+    {{Y, M, D}, {HH,MM,SS}}.
+
+adjust_secs1970_to_tz_dst(Time, TzH, Dst) ->
+    Time + (TzH + if Dst -> 1; true -> 0 end) * ?HourSecs.
 
 -spec calculate_phase(Game :: #mafia_game{}, Time::seconds1970()) -> phase().
 calculate_phase(Game, Time) ->

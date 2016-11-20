@@ -3,6 +3,9 @@
 -define(night, night).
 
 -define(GSECS_1970, 62167219200).
+-define(GDAYS_1970, 719528).
+%% calendar:date_to_gregorian_days({1970,1,1}) -> 719528.
+
 -define(HourSecs, 3600).
 -define(DaySecs, 24*3600).
 

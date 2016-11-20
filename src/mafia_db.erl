@@ -93,6 +93,8 @@ insert_initial_data() ->
     set_kv(page_to_read, 1),
     set_kv(timezone_user, 1),
     set_kv(dst_user, false),
+    set_kv(timezone_game, -5),
+    set_kv(dst_game, true),
     set_kv(print_time, user). % user | game | utc | zulu | gmt
 
 create_tables() ->

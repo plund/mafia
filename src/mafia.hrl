@@ -54,11 +54,20 @@
          message :: message()
         }).
 
+-record(vote,
+        {time :: seconds1970(),
+         id :: msg_id(),
+         page :: page_num(),
+         vote :: player(),
+         raw :: binary(),
+         valid :: boolean()
+        }).
+
 -record(mafia_day,
         {key :: {thread_id(), day_num()},
          thread_id :: thread_id(),
          day :: day_num(),
-         votes :: [{player(), [{seconds1970(), msg_id(), page_num(), player(), Valid::boolean()}]}],
+         votes :: [{player(), [#vote{}]}],
          complete :: boolean()
         }).
 

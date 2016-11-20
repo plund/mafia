@@ -15,8 +15,11 @@
 %%   - print_vote per voter variant
 %%   - make sure only remaining players votes are counted
 %%   - make sure min 2 letters indicate?
-%%   - add "raw" text for every vote
-%%   - fun to take message record as input
+%%   - Alias list "HR", "BB", "MEME"
+%%   ok - add "raw" text for every vote
+%%   ok - refresh_votes
+%%   ok - fun to take message record as input
+%%   ok - new record #vote{}
 
 -export([set_thread_id/1,
          show_settings/0,
@@ -27,13 +30,30 @@
          pp/0, pp/1, pp/2,
          pps/1, pps/2,
          print_votes/0,
-         remove_mnesia/0,
+         refresh_votes/0,
+         remove_mnesia/0
+        ]).
+
+%% Libary
+-export([b2l/1,
+         l2b/1,
+         i2l/1,
+         l2i/1,
          set_kv/2
+        ]).
+
+-export([cmp_vote_raw/0
         ]).
 
 %% =============================================================================
 %% EXPORTED FUNCTIONS
 %% =============================================================================
+i2l(I) -> integer_to_list(I).
+l2i(L) -> list_to_integer(L).
+
+b2l(B) -> binary_to_list(B).
+l2b(L) -> list_to_binary(L).
+
 remove_mnesia() -> mafia_db:remove_mnesia().
     
 set_kv(K,V) -> mafia_db:set_kv(K,V).
@@ -114,6 +134,19 @@ pps({ThId, Page}) ->
 pps(ThId, Page) ->
     print_page(ThId, Page, fun print_message_summary/1).
 
+refresh_votes() ->
+    mnesia:clear_table(mafia_day),
+    ThId = get_kv(thread_id),
+    Pages = lists:sort(find_pages_for_thread(ThId)),
+    F = fun(Page) ->
+                Key = {ThId, Page},
+                [PR] = mnesia:dirty_read(page_rec, Key),
+                MsgIds = PR#page_rec.message_ids,
+                lists:foreach(fun check_for_vote/1, MsgIds),
+                Key
+        end,
+    [F(P) || P <- Pages].
+
 %% =============================================================================
 %% INTERNAL FUNCTIONS
 %% =============================================================================
@@ -143,7 +176,7 @@ is_page_on_file(S) ->
     FileName = th_filename(S),
     case file:read_file(FileName) of
         {ok, BodyBin} ->
-            {file, binary_to_list(BodyBin)};
+            {file, b2l(BodyBin)};
         {error,enoent} ->
             no_file
     end.
@@ -211,10 +244,10 @@ check_this_page(S) ->
             "" -> {1, 1};
             B2 ->
                 {B3, PageStr} = read_to_before(B2, "</strong>"),
-                LastRead = list_to_integer(PageStr),
+                LastRead = l2i(PageStr),
                 B4 = rm_to_after(B3, ["</strong> of <strong>"]),
                 {_B5, PageTotStr} = read_to_before(B4, "</strong>"),
-                Total = list_to_integer(PageTotStr),
+                Total = l2i(PageTotStr),
                 {LastRead, Total}
         end,
     IsLastPage = if PageLastRead == PageTotal -> true;
@@ -248,15 +281,15 @@ print_usr_msgs2(S, Body) ->
     Msg = strip_fix(MsgRaw),
 
     if UserStr /= "" ->
-            MsgIdInt = list_to_integer(MsgId),
-            Time = list_to_integer(TimeStr),
-            User = list_to_binary(UserStr),
+            MsgIdInt = l2i(MsgId),
+            Time = l2i(TimeStr),
+            User = l2b(UserStr),
             case mnesia:dirty_read(message, MsgIdInt) of
                 [] ->
                     io:format("New ~w - ~w - ~w~n", [S#s.thread_id, S#s.page, MsgIdInt]),
                     update_page_rec(S, MsgIdInt),
                     MsgR = write_message_rec(S, MsgIdInt, User, Time, Msg),
-                    check_for_vote(S, MsgIdInt, User, Time, Msg),
+                    check_for_vote(MsgR),
                     print_message_full(MsgR);
                 [MsgR] ->
                     print_message_summary(MsgR)
@@ -293,62 +326,95 @@ write_message_rec(S, MsgIdInt, User, Time, Msg) ->
                    page_num = S#s.page,
                    user_name = User,
                    time = Time,
-                   message = list_to_binary(Msg)
+                   message = l2b(Msg)
                   }
      ),
     M.
 
-check_for_vote(S, MsgId, User, Time, Msg) ->
+check_for_vote(MsgId) when is_integer(MsgId) ->
+    case mnesia:dirty_read(message, MsgId) of
+        [] -> ignore;
+        [Msg] -> check_for_vote(Msg)
+    end;
+check_for_vote(M = #message{}) ->
+    Msg = b2l(M#message.message),
     MsgUC = string:to_upper(Msg),
-    case mnesia:dirty_read(mafia_game, S#s.thread_id) of
+    case mnesia:dirty_read(mafia_game, M#message.thread_id) of
         [] -> ignore;
         [#mafia_game{players_rem = Players} = G] ->
-            case rm_to_after(MsgUC, "##VOTE") of
-                "" -> ignore;
-                RestUC ->
+            SearchStr = "##VOTE",
+            case rm_to_after_pos(MsgUC, SearchStr) of
+                {0, ""} -> ignore;
+                {Pos, RestUC} ->
+                    RawVote =
+                        l2b(string:strip(
+                              string:left(
+                                get_after_pos(Pos, length(SearchStr), Msg),
+                                15))),
                     case rank(Players, RestUC) of
                         [{_,TopP}] ->
-                            vote(S, G, User, Time, MsgId, TopP, true);
+                            vote(M, G, TopP, RawVote, true);
                         [{NumV, _P1}, {NumV, _P2}|_] ->
                             VoteStr = waste_spaces(
                                         string:left(
                                           waste_spaces(RestUC), 15)),
-                            Vote = list_to_binary(VoteStr),
-                            vote(S, G, User, Time, MsgId, Vote, false);
+                            Vote = l2b(VoteStr),
+                            vote(M, G, Vote, RawVote, false);
                         [{NumV1, TopP}, {NumV2, _}|_] when NumV1 > NumV2 ->
-                            vote(S, G, User, Time, MsgId, TopP, true)
+                            vote(M, G, TopP, RawVote, true)
                     end
             end
     end.
 
-vote(S, G, User, Time, MsgId, Vote, IsOkVote) ->
+vote(M, G, Vote, RawVote, IsOkVote) ->
     %% find mafia_day
-    case mafia_time:calculate_phase(G, Time) of
+    case mafia_time:calculate_phase(G, M#message.time) of
         {DayNum, ?day} ->
-            Key = {S#s.thread_id, DayNum},
-            case mnesia:dirty_read(mafia_day, Key) of
-                [] ->
-                    Day = #mafia_day{
-                      key = Key,
-                      thread_id = S#s.thread_id,
-                      day = DayNum,
-                      votes = [{User, [{Time, MsgId, S#s.page, Vote, IsOkVote}]}],
-                      complete = false
-                     },
-                    mnesia:dirty_write(Day);
-                [#mafia_day{votes = Votes} = Day] ->
-                    Votes2 =
-                        case lists:keyfind(User, 1, Votes) of
-                            false ->
-                                [{User, [{Time, MsgId, S#s.page, Vote, IsOkVote}]} | Votes];
-                            {User, UVotes} ->
-                                UVotes2 = [{Time, MsgId, S#s.page, Vote, IsOkVote} | UVotes],
-                                lists:keystore(User, 1, Votes, {User, UVotes2})
-                        end,
-                    mnesia:dirty_write(Day#mafia_day{votes = Votes2})
-            end;
+            Key = {M#message.thread_id, DayNum},
+            User = M#message.user_name,
+            NewVote = #vote{time = M#message.time,
+                            id = M#message.msg_id,
+                            page = M#message.page_num,
+                            vote = Vote,
+                            raw = RawVote,
+                            valid = IsOkVote
+                           },
+            Day =
+                case mnesia:dirty_read(mafia_day, Key) of
+                    [] ->
+                        #mafia_day{key = Key,
+                                   thread_id = M#message.thread_id,
+                                   day = DayNum,
+                                   votes = [],
+                                   complete = false
+                                  };
+                    [Day2] -> Day2
+                end,
+            Votes = Day#mafia_day.votes,
+            Votes2 = case lists:keyfind(User, 1, Votes) of
+                         false ->
+                             [{User, [NewVote]} | Votes];
+                         {User, UVotes} ->
+                             UVotes2 = [NewVote | UVotes],
+                             lists:keystore(User, 1, Votes, {User, UVotes2})
+                     end,
+            mnesia:dirty_write(Day#mafia_day{votes = Votes2});
         _ ->
             ignore
+    end.
+
+cmp_vote_raw() ->
+    ThId = get_kv(thread_id),
+    DayNum = 1,
+    Key = {ThId, DayNum},
+    case mnesia:dirty_read(mafia_day, Key) of
+        [] ->
+            ignore;
+        [#mafia_day{votes = GVotes}] ->
+            [begin
+                 VoteSum = [{b2l(V#vote.vote), b2l(V#vote.raw), V#vote.valid} || V <- Votes],
+                 {b2l(User), VoteSum}
+             end || {User, Votes} <- GVotes]
     end.
 
 print_votes(ThId, DayNum) ->
@@ -358,36 +424,40 @@ print_votes(ThId, DayNum) ->
             ignore;
         [#mafia_day{votes = Votes}] ->
             VoteSummary =
-                lists:foldl(fun({User, UserVotes}, Acc) ->
-                                    case lists:dropwhile(fun(V) -> not element(5, V) end,
-                                                         UserVotes) of
-                                        [VoteInfo|_] ->
-                                            Vote = element(4, VoteInfo),
-                                            add_vote(Vote, {element(1,VoteInfo), User}, Acc);
-                                        [] -> Acc
-                                    end
-                            end,
-                            [],
-                            Votes),
-            %%Fun(A, B) is to return true if A compares less than or equal to B in the ordering
+                lists:foldl(
+                  fun({User, UserVotes}, Acc) ->
+                          case lists:dropwhile(
+                                 fun(V) -> not V#vote.valid end,
+                                 UserVotes) of
+                              [V|_] ->
+                                  Vote = V#vote.vote,
+                                  add_vote(Vote, V#vote.time, User, Acc);
+                              [] -> Acc
+                          end
+                  end,
+                  [],
+                  Votes),
+            %% Sort sumary on number of received votes
             GtEq = fun(A, B) -> element(2, A) >= element(2, B) end,
             VoteSum2 = lists:sort(GtEq, VoteSummary),
             io:format("Votes day ~p\n"
                       "------------\n", [DayNum]),
-            [ begin
-                  Voters = [element(2,VI) || VI <- lists:sort(VoteInfos)],
-                  io:format("~s - ~p - ", [binary_to_list(Vote), N]),
-                  io:format("~s\n", [string:join([binary_to_list(Voter) || Voter <- Voters], ", ")])
-              end || {Vote, N, VoteInfos} <- VoteSum2],
+            [begin
+                 Voters = [Voter || {_VoteTime, Voter} <- lists:sort(VoteInfos)],
+                 io:format("~s - ~p - ", [b2l(Vote), N]),
+                 VotersInTimeOrder =
+                     [b2l(Voter) || Voter <- Voters],
+                 io:format("~s\n", [string:join(VotersInTimeOrder, ", ")])
+             end || {Vote, N, VoteInfos} <- VoteSum2],
             print_votes(ThId, DayNum + 1)
     end.
 
-add_vote(Vote, User, Acc) ->
+add_vote(Vote, Time, User, Acc) ->
     case lists:keyfind(Vote, 1, Acc) of
         false ->
-            [{Vote, 1, [User]} | Acc];
+            [{Vote, 1, [{Time, User}]} | Acc];
         {_, _NumV, Voters} ->
-            Voters2 = (Voters -- [User]) ++ [User],
+            Voters2 = Voters ++ [{Time, User}],
             NumV2 = length(Voters2),
             lists:keystore(Vote, 1, Acc, {Vote, NumV2, Voters2})
     end.
@@ -397,7 +467,7 @@ waste_spaces(L) -> [E || E <- L, E /= $\s].
 rank(Players, RestUC) ->
     RestUCW = waste_spaces(RestUC),
     F = fun(P) ->
-                PlayerUCW = string:to_upper(waste_spaces(binary_to_list(P))),
+                PlayerUCW = string:to_upper(waste_spaces(b2l(P))),
                 r_count(PlayerUCW, RestUCW, 0)
         end,
     lists:reverse(lists:sort([{F(P), P} || P <- Players])).
@@ -434,16 +504,16 @@ print_message_full(M) ->
               "Msg id: ~s\n"
               "Wrote : \"~s\"\n"
               "\n",
-              [binary_to_list(M#message.user_name),
+              [b2l(M#message.user_name),
                i2l(M#message.page_num),
                fix_time(M#message.time),
                i2l(M#message.thread_id),
                i2l(M#message.msg_id),
-               binary_to_list(M#message.message)
+               b2l(M#message.message)
               ]).
 
 print_message_summary(M) ->
-    Msg = fix_sum(binary_to_list(M#message.message)),
+    Msg = fix_sum(b2l(M#message.message)),
     MsgLen = length(Msg),
     Max = 30,
     MsgShort = if MsgLen > Max -> string:left(Msg, Max) ++ "...";
@@ -454,7 +524,7 @@ print_message_summary(M) ->
               " ~s, "
               "id: ~s, "
               "\"~s\"\n",
-              [string:left(binary_to_list(M#message.user_name), 12),
+              [string:left(b2l(M#message.user_name), 12),
                i2l(M#message.page_num),
                fix_time(M#message.time),
                i2l(M#message.msg_id),
@@ -490,8 +560,6 @@ fix_time(Time, TzH, Dst) when is_integer(Time) ->
     catch _:_ -> ""
     end.
 
-i2l(I) -> integer_to_list(I).
-
 p(I) when I > 9 -> i2l(I);
 p(I) -> string:right(i2l(I), 2, $0).
 
@@ -500,11 +568,16 @@ rm_to_after(Str, [Search|T]) when is_list(Search) ->
     rm_to_after(rm_to_after(Str, Search), T);
 % return string()
 rm_to_after(Str, Search) ->
+    element(2, rm_to_after_pos(Str, Search)).
+
+rm_to_after_pos(Str, Search) ->
     case string:str(Str, Search) of
-        0 -> "";
-        P ->
-            lists:nthtail(P-1+length(Search), Str)
+        0 -> {0, ""};
+        P -> {P, get_after_pos(P, length(Search), Str)}
     end.
+
+get_after_pos(P, Len, Str) ->
+    lists:nthtail(P - 1 + Len, Str).
 
 % return  {NewStr, ReadText}
 read_to_before(Str, Search) ->

@@ -3,19 +3,22 @@
 -include("mafia.hrl").
 
 -export([
-         set_kv/2,
-         get_kv/1,
-         get_kv/2, 
+         set/2,
+         getv/1,
+         getv/2,
+
          setup_mnesia/0, 
-         remove_mnesia/0
+         remove_mnesia/0,
+         create_tables/0,
+         create_table/1,
+         write_default_table/1
         ]).
 
-set_kv(Key, Value) ->
-    mnesia:dirty_write(#kv_store{key=Key, value = Value}).
+-import(mafia, [l2b/1]).
 
-get_kv(Key) -> get_kv(Key, undefined).
+getv(Key) -> getv(Key, undefined).
 
-get_kv(Key, Default) ->
+getv(Key, Default) ->
     case mnesia:dirty_read(kv_store, Key) of
         [] -> Default;
         [#kv_store{value = Value}] -> Value
@@ -52,13 +55,6 @@ start_mnesia(Op) ->
             Other
     end.
 
--define(M24_players, 
-        ["Bo_sox48", "CaptainMeme", "Chaqa", "Dargorgyel", "Ezio", "Floodgates",
-         "Ghug", "Glen_Alexander", "Goldfinger0303", "Guak", "Hellenic Riot",
-         "Ikaneko", "Jamiet99uk", "Krellin", "Maniac", "Peterlund",
-         "Rdrivera2005", "Teacon7", "VashtaNeurotic", "Vecna", "Xorxes",
-         "Yoyoyozo", "Zorclex"]).
-
 %% List of lists
 to_bin(LoL = [[_|_]|_]) ->
     [list_to_binary(L) || L <- LoL].
@@ -66,6 +62,18 @@ to_bin(LoL = [[_|_]|_]) ->
 %%     [list_to_binary(string:to_upper(L)) || L <- LoL].
 
 insert_initial_data() ->
+    io:format("Adding values to kv_store\n", []),
+    set(thread_id, ?DefThId),
+    set(page_to_read, 1),
+    set(timezone_user, 1),
+    set(dst_user, false),
+    set(timezone_game, -5),
+    set(dst_game, true),
+    set(print_time, user),
+    write_default_table(game),
+    write_default_table(user).
+
+write_default_table(game) ->
     io:format("Adding Mafia Game M24\n", []),
     MGame = #mafia_game{
       key = ?DefThId,
@@ -78,31 +86,45 @@ insert_initial_data() ->
       is_init_dst = true,
       dst_changes = [{{{2016,11,6},{2,0,0}}, false},
                      {{{2017, 4,1},{2,0,0}}, true}],
-      gms = to_bin(["DemonRHK", "MoscowFleet"]),
+      gms = to_bin(?M24_GMs),
       players_orig = to_bin(?M24_players),
       players_rem = to_bin(?M24_players),
-      %% players_rem_upp = to_bin_upper(?M24_players),
       players_dead = [],
       page_to_read = 1,
       complete = false
      },
     MGame2 = mafia_time:add_deadline(MGame, 16),
-    mnesia:dirty_write(MGame2),
-    io:format("Adding values to kv_store\n", []),
-    set_kv(thread_id, ?DefThId),
-    set_kv(page_to_read, 1),
-    set_kv(timezone_user, 1),
-    set_kv(dst_user, false),
-    set_kv(timezone_game, -5),
-    set_kv(dst_game, true),
-    set_kv(print_time, user). % user | game | utc | zulu | gmt
+    mnesia:dirty_write(MGame2);
+
+write_default_table(user) ->
+    [ mnesia:dirty_write(
+        #user{name_upper = l2b(string:to_upper(U)),
+              name = l2b(U),
+              verification_status = ?unverified})
+      || U <- ?M24_players ++ ?M24_GMs],
+    ok.
+
+set(K=thread_id, V) when is_integer(V), V > 0 -> set_kv(K,V);
+set(K=page_to_read, V) when is_integer(V), V > 0 -> set_kv(K,V);
+set(K=timezone_user, V) when is_integer(V), -12 =< V, V =< 12 -> set_kv(K,V);
+set(K=timezone_game, V) when is_integer(V), -12 =< V, V =< 12 -> set_kv(K,V);
+set(K=dst_user, V) when is_boolean(V) -> set_kv(K,V);
+set(K=dst_game, V) when is_boolean(V) -> set_kv(K,V);
+set(K=print_time, V)
+  when V == user; V == game; V == utc;
+       V == zulu; V == gmt ->
+    set_kv(K,V).
+
+set_kv(Key, Value) ->
+    mnesia:dirty_write(#kv_store{key = Key, value = Value}).
 
 create_tables() ->
     create_table(kv_store),
     create_table(page_rec),
     create_table(message),
     create_table(mafia_day),
-    create_table(mafia_game).
+    create_table(mafia_game),
+    create_table(user).
 
 create_table(RecName) ->
     Opts = create_table_opts(RecName),
@@ -131,4 +153,5 @@ rec_info(kv_store) -> record_info(fields, kv_store);
 rec_info(page_rec) -> record_info(fields, page_rec);
 rec_info(message) -> record_info(fields, message);
 rec_info(mafia_day) -> record_info(fields, mafia_day);
-rec_info(mafia_game) -> record_info(fields, mafia_game).
+rec_info(mafia_game) -> record_info(fields, mafia_game);
+rec_info(user) -> record_info(fields, user).

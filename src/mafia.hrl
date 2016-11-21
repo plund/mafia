@@ -1,6 +1,8 @@
 -define(kv_store, kv_store).
 -define(day  , day__).
 -define(night, night).
+-define(verified, verified).
+-define(unverified, unverified).
 
 -define(GSECS_1970, 62167219200).
 -define(GDAYS_1970, 719528).
@@ -14,12 +16,27 @@
 -define(UrlMid, "&page-thread=").
 -define(UrlEnd, "#threadPager").
 
+-define(Extra, ["End", "No-Lynch"]).
+-define(M24_GMs, ["DemonRHK", "MoscowFleet"]).
+-define(M24_players,
+        ["Bo_sox48", "CaptainMeme", "Chaqa", "dargorygel", "Ezio", "Floodgates",
+         "Ghug", "Glen_Alexander", "Goldfinger0303", "Guak", "Hellenic Riot",
+         "Ikaneko", "Jamiet99uk", "Krellin", "Maniac", "Peterlund",
+         "Rdrivera2005", "Teacon7", "VashtaNeurotic", "Vecna", "Xorxes",
+         "Yoyoyozo", "Zorclex"
+        ]).
+-define(Aliases, [{"CaptainMeme", ["Meme"]},
+                  {"Hellenic Riot", ["HR", "H.R."]},
+                  {"Brainbomb", ["BB"]},
+                  {"No-Lynch", ["No Lynch"]}
+                 ]).
+
 -type thread_id() :: integer().
 -type page_num() :: integer().
 -type msg_id() :: integer().
 -type day_num() :: integer().
--type player() :: binary().
 -type user() :: binary().
+-type player() :: user().
 -type seconds1970() :: integer().
 -type message() :: binary().
 -type day_night() :: ?day | ?night.
@@ -91,4 +108,10 @@
          players_dead :: [{player(), {day|night, integer()}}],
          page_to_read, %% set_kv(page_to_read, 1),
          complete :: boolean()
+        }).
+
+-record(user,
+        {name_upper :: user(),
+         name :: user(),
+         verification_status :: ?verified | ?unverified
         }).

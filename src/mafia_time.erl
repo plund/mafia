@@ -7,12 +7,12 @@
          add_deadline/2,
          calculate_phase/2]).
 
--import(mafia, [get_kv/1]).
+-import(mafia, [getv/1]).
 
 get_tz_dst() ->
-    case get_kv(print_time) of
-        game -> {get_kv(timezone_game), get_kv(dst_game)};
-        user -> {get_kv(timezone_user), get_kv(dst_user)};
+    case getv(print_time) of
+        game -> {getv(timezone_game), getv(dst_game)};
+        user -> {getv(timezone_user), getv(dst_user)};
         Loc when Loc == utc;
                  Loc == zulu;
                  Loc == gmt ->

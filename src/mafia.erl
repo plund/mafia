@@ -1,19 +1,22 @@
 -module(mafia).
 
 -include("mafia.hrl").
+
 %% todo:
-%% - add set_kv checks
-%% - redo vote data using page_rec -> message
-%%   - print_vote per voter variant
-%%   - make sure only remaining players votes are counted
-%%   - make sure min 2 letters indicate?
-%%   - Alias list "HR", "BB", "MEME"
-%%   ok - add "raw" text for every vote
-%%   ok - refresh_votes
-%%   ok - fun to take message record as input
-%%   ok - new record #vote{}
-%% ok - fix bug timezone_game
-%%   ok - move stuff to mafia_time
+%% - insert "pagebreakers" when deadlines occur in listings
+%% - count non-voters
+%%    - OR read from file
+%% - print_vote variant for one voter
+%% - webpage with game status:
+%%   - Current phase -current votes -link to vote breakdown
+%%   - if day -Next DL -link to deadline schedule -GMs - Players Living -Dead
+%% - GM orders :
+%%   - expand alias list
+%%   - XXX " has died",
+%%   - XXX replaces YYY
+%%   - Move current deadline, full 24 hours (local time)
+%%   - Move future deadline
+%% - ##Unvote ##UNEND, ##END??
 
 -export([set_thread_id/1,
          show_settings/0,
@@ -34,8 +37,8 @@
          l2b/1,
          i2l/1,
          l2i/1,
-         get_kv/1,
-         set_kv/2
+         getv/1,
+         set/2
         ]).
 
 -export([cmp_vote_raw/0
@@ -50,9 +53,9 @@ l2i(L) -> list_to_integer(L).
 b2l(B) -> binary_to_list(B).
 l2b(L) -> list_to_binary(L).
     
-set_kv(K,V) -> mafia_db:set_kv(K,V).
+set(K,V) -> mafia_db:set(K,V).
     
-get_kv(K) -> mafia_db:get_kv(K).
+getv(K) -> mafia_db:getv(K).
 
 setup_mnesia() -> mafia_db:setup_mnesia().
 
@@ -60,14 +63,14 @@ remove_mnesia() -> mafia_db:remove_mnesia().
 
 -spec set_thread_id(ThId :: integer())  -> ok.
 set_thread_id(ThId) when is_integer(ThId) ->
-    set_kv(thread_id, ThId),
+    set(thread_id, ThId),
     PageToRead =
         case find_pages_for_thread(ThId) of
             [] -> 1;
             Pages ->
                 lists:max(Pages)
         end,
-    set_kv(page_to_read, PageToRead),
+    set(page_to_read, PageToRead),
     ok.
 
 show_settings() ->
@@ -81,7 +84,7 @@ show_settings() ->
     ok.
 
 print_pages_for_thread() ->
-    ThId = get_kv(thread_id),
+    ThId = getv(thread_id),
     print_pages_for_thread(ThId).
 
 print_pages_for_thread(ThId) ->
@@ -91,9 +94,9 @@ print_pages_for_thread(ThId) ->
 t() ->
     mafia_db:setup_mnesia(),
     inets:start(),
-    Thread = get_kv(thread_id),
-    Page = get_kv(page_to_read),
-    %% Page = get_kv(page_to_read),
+    Thread = getv(thread_id),
+    Page = getv(page_to_read),
+    %% Page = getv(page_to_read),
     t(#s{thread_id = Thread, page = Page}).
 
 t(S) ->
@@ -103,7 +106,7 @@ t(S) ->
     end.
 
 print_votes() ->
-    ThId = get_kv(thread_id),
+    ThId = getv(thread_id),
     print_votes(ThId, 1).
 
 pm(MsgId) when is_integer(MsgId) ->
@@ -114,13 +117,13 @@ pm(MsgId) when is_integer(MsgId) ->
     end.
 
 pp() ->
-    Page = get_kv(page_to_read),
+    Page = getv(page_to_read),
     pp(Page).
 
 pp({ThId, Page}) ->
     pp(ThId, Page);
 pp(Page) ->
-    ThId = get_kv(thread_id),
+    ThId = getv(thread_id),
     pp(ThId, Page).
 
 pp(ThId, Page) ->
@@ -134,7 +137,7 @@ pps(ThId, Page) ->
 
 refresh_votes() ->
     mnesia:clear_table(mafia_day),
-    ThId = get_kv(thread_id),
+    ThId = getv(thread_id),
     Pages = lists:sort(find_pages_for_thread(ThId)),
     F = fun(Page) ->
                 Key = {ThId, Page},
@@ -143,7 +146,9 @@ refresh_votes() ->
                 lists:foreach(fun check_for_vote/1, MsgIds),
                 Key
         end,
-    [F(P) || P <- Pages].
+    [F(P) || P <- Pages],
+    "Thread " ++ i2l(ThId) ++ "; Pages: " ++
+        string:join([i2l(P) || P <- Pages],",").
 
 %% =============================================================================
 %% INTERNAL FUNCTIONS
@@ -222,7 +227,7 @@ get_thread_section({stripped, Body}) ->
     %% got from file and they are already stripped there.
     Body;
 get_thread_section(Body) ->
-    ThId = get_kv(thread_id),
+    ThId = getv(thread_id),
     ThStartStr = "<div class=\"thread threadID" ++ i2l(ThId), %%"1404320",
     B2 = rm_to_after(Body, ThStartStr),
     ThEndStr = "<div class=\"thread thread",
@@ -253,11 +258,11 @@ check_this_page(S) ->
                  end,
     case IsLastPage of
         true ->
-            set_kv(page_to_read, PageLastRead),
+            set(page_to_read, PageLastRead),
             ok;
         false ->
-            set_kv(page_to_read, PageLastRead + 1)
-            %% set_kv(page_complete, PageLastRead)
+            set(page_to_read, PageLastRead + 1)
+            %% set(page_complete, PageLastRead)
     end,
     S#s{is_last_page = IsLastPage,
         page_num_last_read = PageLastRead,
@@ -335,11 +340,14 @@ check_for_vote(MsgId) when is_integer(MsgId) ->
         [Msg] -> check_for_vote(Msg)
     end;
 check_for_vote(M = #message{}) ->
+    verify_user(M),
     Msg = b2l(M#message.message),
     MsgUC = string:to_upper(Msg),
     case mnesia:dirty_read(mafia_game, M#message.thread_id) of
         [] -> ignore;
         [#mafia_game{players_rem = Players} = G] ->
+            author_user(M, G),
+            Players2 = add_nolynch_and_aliases(Players),
             SearchStr = "##VOTE",
             case rm_to_after_pos(MsgUC, SearchStr) of
                 {0, ""} -> ignore;
@@ -349,22 +357,132 @@ check_for_vote(M = #message{}) ->
                               string:left(
                                 get_after_pos(Pos, length(SearchStr), Msg),
                                 15))),
-                    case rank(Players, RestUC) of
-                        [{_,TopP}] ->
-                            vote(M, G, TopP, RawVote, true);
-                        [{NumV, _P1}, {NumV, _P2}|_] ->
-                            VoteStr = waste_spaces(
-                                        string:left(
-                                          waste_spaces(RestUC), 15)),
-                            Vote = l2b(VoteStr),
-                            vote(M, G, Vote, RawVote, false);
-                        [{NumV1, TopP}, {NumV2, _}|_] when NumV1 > NumV2 ->
-                            vote(M, G, TopP, RawVote, true)
+                    case rank_options(Players2, RestUC) of
+                        [{NumV, TopP}] when NumV >= 2; NumV >= length(TopP) ->
+                            reg_vote(M, G, TopP, RawVote, true);
+                        [{NumV1, TopP}, {NumV2, _}|_]
+                          when NumV1 > NumV2 andalso
+                               (NumV1 >= 2 orelse
+                                NumV1 >= length(TopP)) ->
+                            reg_vote(M, G, TopP, RawVote, true);
+                        _ ->
+                            Vote = l2b("-"),
+                            reg_vote(M, G, Vote, RawVote, false)
                     end
             end
     end.
 
-vote(M, G, Vote, RawVote, IsOkVote) ->
+add_nolynch_and_aliases(Players) ->
+    Players2 = [b2l(P) || P <- Players] ++ ?Extra,
+    lists:foldl(
+      fun({Na, Als}, PlAcc) ->
+              PlAcc ++
+                  case lists:member(Na, Players2) of
+                      true ->
+                          [{Na, A} || A <- Als];
+                      false -> []
+                  end
+      end,
+      Players2,
+      ?Aliases).
+
+author_user(M, G) ->
+    User = b2l(M#message.user_name),
+    UserU = string:to_upper(User),
+    #mafia_game{gms = GMs,
+                players_rem = Players} = G,
+    UsersU = [string:to_upper(b2l(U))|| U <- GMs ++ Players],
+    case lists:member(UserU, UsersU) of
+        true -> ok;
+        false ->
+            io:format("Message sent by non-player ~p\n", [User])
+    end.
+
+verify_user(M = #message{user_name = User}) ->
+    UserU = l2b(string:to_upper(b2l(User))),
+    CheckRes =
+        case mnesia:dirty_read(user, UserU) of
+            [#user{verification_status = ?verified}] -> ok;
+            [#user{name = User} = U] ->
+                {user, U#user{verification_status = ?verified}};
+            [#user{} = U] ->
+                {user_game,
+                 U#user{name = User,
+                        verification_status = ?verified}};
+            [] ->
+                io:format("Warning: created new user ~p\n", [User]),
+                {user, #user{name_upper = l2b(string:to_upper(b2l(User))),
+                             name = User,
+                             verification_status = ?verified}}
+        end,
+    case CheckRes of
+        ok -> ok;
+        {Type, UserRec} ->
+            mnesia:dirty_write(UserRec),
+            if Type == user_game ->
+                    auto_correct_case(b2l(User), M#message.thread_id);
+               true -> ok
+            end
+    end.
+
+auto_correct_case(CcUser, GId) when is_integer(GId) ->
+    case mnesia:dirty_read(mafia_game, GId) of
+        [] -> ok;
+        [G] -> auto_correct_case(CcUser, G)
+    end;
+auto_correct_case(CcUser, G = #mafia_game{}) ->
+    io:format("Correcting case for user ~p in game M~p\n",
+              [CcUser, G#mafia_game.game_num]),
+    CorrectF = correct_case_fun2(),
+    PsOrigL = [b2l(P) || P <- G#mafia_game.players_orig],
+    PsOrigL2 = [CorrectF(CcUser, P) || P <- PsOrigL],
+    if PsOrigL2 /= PsOrigL ->
+            PsOrigB = [l2b(P) || P <- PsOrigL2],
+            PsRemL = [b2l(P) || P <- G#mafia_game.players_rem],
+            PsRemL2 = [CorrectF(CcUser, P) || P <- PsRemL],
+            if PsRemL2 /= PsRemL ->
+                    PsRemB = [l2b(P) || P <- PsRemL2],
+                    mnesia:dirty_write(
+                      G#mafia_game{players_orig = PsOrigB,
+                                   players_rem = PsRemB});
+               true ->
+                    mnesia:dirty_write(
+                      G#mafia_game{players_orig = PsOrigB})
+            end;
+       true -> ok
+    end.
+
+correct_case_fun2() ->
+    fun (CorrectCaseL, ExistingL) ->
+            CcUC = string:to_upper(CorrectCaseL),
+            ExUC = string:to_upper(ExistingL),
+            if CcUC == ExUC ->
+                    CorrectCaseL;
+               true -> ExistingL
+            end
+    end.
+
+reg_vote(M, G, Vote, RawVote, IsOkVote) ->
+    case is_remaining_player(
+           M#message.user_name,
+           G#mafia_game.players_rem) of
+        true ->
+            vote2(M, G, Vote, RawVote, IsOkVote);
+        false ->
+            io:format("Warning ~s tried to vote in game\n",
+                      [b2l(M#message.user_name)]),
+            ignore
+    end.
+
+-spec is_remaining_player(User :: player(),
+                          Remain :: [player()]) -> boolean().
+is_remaining_player(User, Rem) ->
+    UserL = b2l(User),
+    UserU = string:to_upper(UserL),
+    RemainsU = [string:to_upper(b2l(R)) || R <- Rem],
+    lists:member(UserU, RemainsU).
+
+vote2(M, G, Vote, RawVote, IsOkVote) ->
     %% find mafia_day
     case mafia_time:calculate_phase(G, M#message.time) of
         {DayNum, ?day} ->
@@ -402,7 +520,7 @@ vote(M, G, Vote, RawVote, IsOkVote) ->
     end.
 
 cmp_vote_raw() ->
-    ThId = get_kv(thread_id),
+    ThId = getv(thread_id),
     DayNum = 1,
     Key = {ThId, DayNum},
     case mnesia:dirty_read(mafia_day, Key) of
@@ -462,24 +580,32 @@ add_vote(Vote, Time, User, Acc) ->
 
 waste_spaces(L) -> [E || E <- L, E /= $\s].
 
-rank(Players, RestUC) ->
+rank_options(Players, RestUC) ->
     RestUCW = waste_spaces(RestUC),
     F = fun(P) ->
-                PlayerUCW = string:to_upper(waste_spaces(b2l(P))),
+                PorA = select_alias(P),
+                PlayerUCW = string:to_upper(waste_spaces(PorA)),
                 r_count(PlayerUCW, RestUCW, 0)
         end,
-    lists:reverse(lists:sort([{F(P), P} || P <- Players])).
+    lists:reverse(lists:sort([{F(P), l2b(select_name(P))} || P <- Players])).
+
+select_name({Name, _Alias}) -> Name;
+select_name(Name) -> Name.
+
+select_alias({_Name, Alias}) -> Alias;
+select_alias(Name) -> Name.
+
 
 r_count([Hp|Tp], [Hr|Tr], N) when Hp == Hr ->
     r_count(Tp, Tr, N+1);
 r_count([_Hp|_Tp], [], N) ->
     N;
 r_count([], [_Hr|_Tr], N) ->
-    N;
+    N + 1;
 r_count([Hp|_Tp], [Hr|_Tr], N) when Hp /= Hr ->
-    N-1;
+    N;
 r_count([], [], N) ->
-    N+1.
+    N + 1.
 
 print_page(ThId, Page, PrintFun) ->
     MsgIds = case mnesia:dirty_read(page_rec, {ThId, Page}) of

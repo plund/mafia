@@ -1,3 +1,4 @@
 /src/Mnesia*
+/src/thread_pages
 *beam
 *~

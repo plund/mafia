@@ -3,9 +3,7 @@
 -include("mafia.hrl").
 
 %% todo:
-%% - show raw vote on vote page
-%% - count non-voters
-%%    - OR read from file
+%% - show last raw vote, if there is no 'approved' vote for a user
 %% - print_vote variant for one voter
 %% - webpage with game status:
 %%   - Current phase -current votes -link to vote breakdown
@@ -22,11 +20,12 @@
          show_settings/0,
          print_pages_for_thread/0,
          print_pages_for_thread/1,
-         t/0, t/1,
+         downl/0, downl/1,
          pm/1,
          pp/0, pp/1, pp/2,
          pps/1, pps/2,
          print_votes/0,
+         print_votes/1,
          refresh_votes/0,
          setup_mnesia/0,
          remove_mnesia/0
@@ -91,23 +90,27 @@ print_pages_for_thread(ThId) ->
     Pages = find_pages_for_thread(ThId),
     io:format("Thread ~p has stored Pages ~w\n", [ThId, Pages]).
 
-t() ->
+downl() ->
     mafia_db:setup_mnesia(),
     inets:start(),
     Thread = getv(thread_id),
     Page = getv(page_to_read),
     %% Page = getv(page_to_read),
-    t(#s{thread_id = Thread, page = Page}).
+    downl(#s{thread_id = Thread, page = Page}).
 
-t(S) ->
+downl(S) ->
     case get_body(S) of
-        {ok, S2} -> print_usr_msgs(S2);
+        {ok, S2} ->
+            print_usr_msgs(S2);
         error -> error
     end.
 
 print_votes() ->
+    print_votes(1).
+
+print_votes(DayNum) ->
     ThId = getv(thread_id),
-    print_votes(ThId, 1).
+    print_votes(ThId, DayNum).
 
 pm(MsgId) when is_integer(MsgId) ->
     case mnesia:dirty_read(message, MsgId) of
@@ -155,32 +158,48 @@ refresh_votes() ->
 %% =============================================================================
 -spec get_body(S :: #s{}) -> {ok, #s{}} | error.
 get_body(S) ->
-    get_body(S, is_page_on_file(S)).
+    get_body(S, get_body_from_file(S)).
 
 get_body(S, {file, Body}) ->
-    {ok, S#s{body = {stripped, Body}}};
+    S2 = check_this_page(S#s{body = Body}),
+    {ok, S2};
 get_body(S, no_file) ->
     S2 = make_url(S),
+    get_body2(S2, http_request(S2)).
+
+get_body2(_S2, error) -> error;
+get_body2(S2, {ok, Body}) ->
+    Body2 = get_thread_section(Body),
+    S3 = check_this_page(S2#s{body=Body2}),
+    if not S3#s.is_last_page -> % page complete > STORE IT!
+            store_page(S3, Body2);
+       true -> ok
+    end,
+    {ok, S3}.
+
+http_request(S2) ->
     case httpc:request(S2#s.url) of
         {ok, {_StatusLine, _Headers, Body}} ->
-            {ok, S2#s{body = Body}};
+            {ok, Body};
         {ok, {_StatusCode, Body}} ->
-            {ok, S2#s{body = Body}};
+            {ok, Body};
         {ok, _ReqId} ->
             error;
         {error, _Reason} ->
             error
     end.
 
-is_page_on_file(S) ->
+get_body_from_file(S) ->
     %% Do we have body on file?
     %% we only store complete pages on file!
     %% - store full pages as files locally "m24_threadid_page.txt"
     FileName = th_filename(S),
     case file:read_file(FileName) of
         {ok, BodyBin} ->
+            io:format("Found page ~p on file\n",[S#s.page]),
             {file, b2l(BodyBin)};
         {error,enoent} ->
+            io:format("Did NOT find ~p on file\n",[S#s.page]),
             no_file
     end.
 
@@ -209,19 +228,6 @@ store_page(S, Body) ->
 make_url(S) ->
     Url = ?UrlBeg ++ i2l(S#s.thread_id) ++ ?UrlMid ++ i2l(S#s.page) ++ ?UrlEnd,
     S#s{url = Url}.
-
-print_usr_msgs(S) ->
-    B2 = get_thread_section(S#s.body),
-    S2 = check_this_page(S#s{body=B2}),
-    case S#s.body of
-        {stripped, _} -> ok; % page already stored on file
-        _ -> % not stored
-            if not S2#s.is_last_page -> % page complete > STORE IT!
-                    store_page(S2, B2);
-               true -> ok
-            end
-    end,
-    print_usr_msgs2(S2, B2).
 
 get_thread_section({stripped, Body}) ->
     %% got from file and they are already stripped there.
@@ -269,9 +275,9 @@ check_this_page(S) ->
         page = PageLastRead,
         page_total_last_read = PageTotal}.
 
-print_usr_msgs2(_S, "") ->
-    done;
-print_usr_msgs2(S, Body) ->
+print_usr_msgs(#s{body = ""}) -> ok;
+print_usr_msgs(S) ->
+    Body = S#s.body,
     B3 = rm_to_after(Body, ["<div class=\"reply",
                             "<div class=\"message-head",
                             "profile.php?user", ">"]),
@@ -291,18 +297,19 @@ print_usr_msgs2(S, Body) ->
             User = l2b(UserStr),
             case mnesia:dirty_read(message, MsgIdInt) of
                 [] ->
-                    io:format("New ~w - ~w - ~w~n", [S#s.thread_id, S#s.page,
-                                                     MsgIdInt]),
+                    %% io:format("New ~w - ~w - ~w~n", [S#s.thread_id, S#s.page,
+                    %%                                  MsgIdInt]),
                     update_page_rec(S, MsgIdInt),
                     MsgR = write_message_rec(S, MsgIdInt, User, Time, Msg),
-                    check_for_vote(MsgR),
-                    print_message_full(MsgR);
+                    check_for_vote(MsgR);
                 [MsgR] ->
-                    print_message_summary(MsgR)
-            end;
+                    ok
+            end,
+            %%print_message_full(MsgR);
+            print_message_summary(MsgR);
        true -> ok
     end,
-    print_usr_msgs2(S, B6).
+    print_usr_msgs(S#s{body = B6}).
 
 update_page_rec(S, MsgIdInt) ->
     PageRec =
@@ -539,47 +546,68 @@ cmp_vote_raw() ->
     end.
 
 print_votes(ThId, DayNum) ->
-    Key = {ThId, DayNum},
-    case mnesia:dirty_read(mafia_day, Key) of
-        [] ->
-            ignore;
-        [#mafia_day{votes = Votes}] ->
-            VoteSummary =
-                lists:foldl(
-                  fun({User, UserVotes}, Acc) ->
-                          case lists:dropwhile(
-                                 fun(V) -> not V#vote.valid end,
-                                 UserVotes) of
-                              [V|_] ->
-                                  Vote = V#vote.vote,
-                                  add_vote(Vote, V#vote.time, User, Acc);
-                              [] -> Acc
-                          end
-                  end,
-                  [],
-                  Votes),
-            %% Sort sumary on number of received votes
-            GtEq = fun(A, B) -> element(2, A) >= element(2, B) end,
-            VoteSum2 = lists:sort(GtEq, VoteSummary),
-            io:format("Votes day ~p\n"
-                      "------------\n", [DayNum]),
-            [begin
-                 Voters = [Voter
-                           || {_VoteTime, Voter} <- lists:sort(VoteInfos)],
-                 io:format("~s - ~p - ", [b2l(Vote), N]),
-                 VotersInTimeOrder =
-                     [b2l(Voter) || Voter <- Voters],
-                 io:format("~s\n", [string:join(VotersInTimeOrder, ", ")])
-             end || {Vote, N, VoteInfos} <- VoteSum2],
-            print_votes(ThId, DayNum + 1)
-    end.
+    print_votes(DayNum,
+                mnesia:dirty_read(mafia_game, ThId),
+                mnesia:dirty_read(mafia_day, {ThId, DayNum})).
 
-add_vote(Vote, Time, User, Acc) ->
+print_votes(_DayNum, [], _) -> ok;
+print_votes(_DayNum, _, []) -> ok;
+print_votes(DayNum,
+            [#mafia_game{players_rem = RemPlayers}],
+            [#mafia_day{votes = Votes}]
+           ) ->
+    %% [{Vote, Num, [{Time, User, Raw}]}]
+    VoteSummary =
+        lists:foldl(
+          fun({User, UserVotes}, Acc) ->
+                  case lists:dropwhile(
+                         fun(V) -> not V#vote.valid end,
+                         UserVotes) of
+                      [V|_] ->
+                          Vote = V#vote.vote,
+                          Raw = V#vote.raw,
+                          add_vote(Vote, Raw, V#vote.time, User, Acc);
+                      [] -> Acc
+                  end
+          end,
+          [],
+          Votes),
+    %% Sort summary on number of received votes
+    GtEq = fun(A, B) -> element(2, A) >= element(2, B) end,
+    VoteSum2 = lists:sort(GtEq, VoteSummary),
+    io:format("Votes day ~p\n"
+              "------------\n", [DayNum]),
+    [begin
+         Voters = [{Voter, Raw}
+                   || {_VoteTime, Voter, Raw}
+                          <- lists:sort(VoteInfos)],
+         io:format("~s - ~p - ", [b2l(Vote), N]),
+         VotersInTimeOrder =
+             [b2l(Voter) || {Voter, _Raw3} <- Voters],
+         io:format("~s\n", [string:join(VotersInTimeOrder, ", ")])
+     end || {Vote, N, VoteInfos} <- VoteSum2],
+
+    %% Part 2
+    Unvoted = RemPlayers -- [ Pl || {Pl, _} <- Votes],
+    io:format("\nUnvoted: ~s\n",
+              [string:join([b2l(U) || U <- Unvoted], ",") ] ),
+
+    %% Part 3
+    io:format("\n"
+              "Voting texts:\n"
+              "-------------\n"),
+    [[io:format(b2l(Voter)++": \""++fix_sum(b2l(Raw))++"\"\n")
+      || {_VoteTime, Voter, Raw} <- VoteInfos]
+     || {_Vote, _N, VoteInfos} <- VoteSum2],
+    ok.
+
+%% [{Vote, Num, [{Time, User, Raw}]}]
+add_vote(Vote, Raw, Time, User, Acc) ->
     case lists:keyfind(Vote, 1, Acc) of
         false ->
-            [{Vote, 1, [{Time, User}]} | Acc];
+            [{Vote, 1, [{Time, User, Raw}]} | Acc];
         {_, _NumV, Voters} ->
-            Voters2 = Voters ++ [{Time, User}],
+            Voters2 = Voters ++ [{Time, User, Raw}],
             NumV2 = length(Voters2),
             lists:keystore(Vote, 1, Acc, {Vote, NumV2, Voters2})
     end.
@@ -620,8 +648,12 @@ r_msgs(MsgIds) ->
     [hd(mnesia:dirty_read(message, MsgId)) || MsgId <- MsgIds].
 
 print_page(ThId, PageNum, PrintFun) ->
+    print_page(ThId, PageNum, PrintFun, msgids(ThId, PageNum)).
+
+print_page(_ThId, _PageNum, _PrintFun, []) -> ok;
+print_page(ThId, PageNum, PrintFun, MsgIds) ->
     {Bef, MIdBefore} = getone(lists:reverse(msgids(ThId, PageNum-1))),
-    MsgIds = msgids(ThId, PageNum),
+    %% MsgIds = msgids(ThId, PageNum),
     {Aft, MIdAfter} = getone(msgids(ThId, PageNum+1)),
     %% print starting line with current phase
     %% does this thread have a game?
@@ -635,10 +667,9 @@ print_page(ThId, PageNum, PrintFun) ->
         [] ->
             [PrintFun(M) || M <- MsgsPage];
         [#mafia_game{deadlines = DLs} = G] ->
-            TimeLDl = ?TDl(lists:last(DLs)),
+            TimeLDl = ?TDl(hd(DLs)),
             DLs2 =
                 if TimeLDl < TimeA ->
-                        %% GET MORE DLS
                         lists:reverse(
                           mafia_time:update_deadlines(ThId, 10));
                       true ->
@@ -647,7 +678,6 @@ print_page(ThId, PageNum, PrintFun) ->
             DLsIn = [D || D <- DLs2,
                           TimeB < ?TDl(D),
                           ?TDl(D) < TimeA],
-            io:format("DLs ~p\n",[DLsIn]),
             MixedSort = lists:sort(fun cmp_time/2, Msgs ++ DLsIn),
             MS2 = if Bef -> tl(MixedSort);
                      true -> MixedSort
@@ -664,7 +694,6 @@ print_page(ThId, PageNum, PrintFun) ->
                  D ->
                      print_dl(D, "End of ")
              end || E <- MS3]
-            %% HÄR SKA MixedList SKRIVAS UT !
     end,
     ok.
 
@@ -717,17 +746,19 @@ print_message_summary(M) ->
     MsgShort = if MsgLen > Max -> string:left(Msg, Max) ++ "...";
                   true -> Msg
                end,
-    io:format("~s, "
-              "p ~s, "
-              " ~s, "
-              "id: ~s, "
-              "\"~s\"\n",
-              [string:left(b2l(M#message.user_name), 12),
-               i2l(M#message.page_num),
-               print_time(M#message.time),
-               i2l(M#message.msg_id),
-               MsgShort
-              ]).
+    Str =
+        io_lib:format("~s, "
+                      "p ~s, "
+                      " ~s, "
+                      "id: ~s, "
+                      "\"~s\"\n",
+                      [string:left(b2l(M#message.user_name), 12),
+                       i2l(M#message.page_num),
+                       print_time(M#message.time),
+                       i2l(M#message.msg_id),
+                       MsgShort
+                      ]),
+    io:format("~s", [Str]).
 
 %% half this fun should go to mafia_time
 print_time(Time) when is_integer(Time) ->

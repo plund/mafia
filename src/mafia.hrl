@@ -100,7 +100,7 @@
          day1_dl_time, %% D1DeadLine, % Day 1 deadline in local time
          is_init_dst,  %% IsInitDst,  % true = DST, false = normal time
          dst_changes,  %% DstChanges  % [{date_time(), IsDst::boolean()}]
-         deadlines = [] :: [{integer(), day_night(), seconds1970()}],
+         deadlines = [] :: [deadline()],
          gms,          %% set_kv(mafia_GMs, ["DemonRHK", "MoscowFleet"]),
          players_orig :: [player()], %% set_kv(mafia_players, ?M24_players),
          players_rem  :: [player()],

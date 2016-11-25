@@ -3,7 +3,7 @@
 -include("mafia.hrl").
 
 %% todo:
-%% - insert "pagebreakers" when deadlines occur in listings
+%% - show raw vote on vote page
 %% - count non-voters
 %%    - OR read from file
 %% - print_vote variant for one voter
@@ -52,9 +52,9 @@ l2i(L) -> list_to_integer(L).
 
 b2l(B) -> binary_to_list(B).
 l2b(L) -> list_to_binary(L).
-    
+
 set(K,V) -> mafia_db:set(K,V).
-    
+
 getv(K) -> mafia_db:getv(K).
 
 setup_mnesia() -> mafia_db:setup_mnesia().
@@ -272,7 +272,9 @@ check_this_page(S) ->
 print_usr_msgs2(_S, "") ->
     done;
 print_usr_msgs2(S, Body) ->
-    B3 = rm_to_after(Body, ["<div class=\"reply", "<div class=\"message-head", "profile.php?user", ">"]),
+    B3 = rm_to_after(Body, ["<div class=\"reply",
+                            "<div class=\"message-head",
+                            "profile.php?user", ">"]),
     {B4, UserRaw} = read_to_before(B3, "<"),
     UserStr = strip(UserRaw),
     B4a = rm_to_after(B4, "messageID=\""),
@@ -289,7 +291,8 @@ print_usr_msgs2(S, Body) ->
             User = l2b(UserStr),
             case mnesia:dirty_read(message, MsgIdInt) of
                 [] ->
-                    io:format("New ~w - ~w - ~w~n", [S#s.thread_id, S#s.page, MsgIdInt]),
+                    io:format("New ~w - ~w - ~w~n", [S#s.thread_id, S#s.page,
+                                                     MsgIdInt]),
                     update_page_rec(S, MsgIdInt),
                     MsgR = write_message_rec(S, MsgIdInt, User, Time, Msg),
                     check_for_vote(MsgR),
@@ -528,7 +531,9 @@ cmp_vote_raw() ->
             ignore;
         [#mafia_day{votes = GVotes}] ->
             [begin
-                 VoteSum = [{b2l(V#vote.vote), b2l(V#vote.raw), V#vote.valid} || V <- Votes],
+                 VoteSum =
+                     [{b2l(V#vote.vote), b2l(V#vote.raw), V#vote.valid}
+                      || V <- Votes],
                  {b2l(User), VoteSum}
              end || {User, Votes} <- GVotes]
     end.
@@ -559,7 +564,8 @@ print_votes(ThId, DayNum) ->
             io:format("Votes day ~p\n"
                       "------------\n", [DayNum]),
             [begin
-                 Voters = [Voter || {_VoteTime, Voter} <- lists:sort(VoteInfos)],
+                 Voters = [Voter
+                           || {_VoteTime, Voter} <- lists:sort(VoteInfos)],
                  io:format("~s - ~p - ", [b2l(Vote), N]),
                  VotersInTimeOrder =
                      [b2l(Voter) || Voter <- Voters],
@@ -607,18 +613,86 @@ r_count([Hp|_Tp], [Hr|_Tr], N) when Hp /= Hr ->
 r_count([], [], N) ->
     N + 1.
 
-print_page(ThId, Page, PrintFun) ->
-    MsgIds = case mnesia:dirty_read(page_rec, {ThId, Page}) of
-                 [] -> [];
-                 [#page_rec{message_ids = MIds}] -> MIds
-             end,
-    DoPrint =
-        fun(MsgId) ->
-                [Msg] = mnesia:dirty_read(message, MsgId),
-                PrintFun(Msg)
-        end,
-    [DoPrint(MsgId) || MsgId <- MsgIds],
+-define(TMsg(M), M#message.time).
+-define(TDl(D), element(3, D)).
+
+r_msgs(MsgIds) ->
+    [hd(mnesia:dirty_read(message, MsgId)) || MsgId <- MsgIds].
+
+print_page(ThId, PageNum, PrintFun) ->
+    {Bef, MIdBefore} = getone(lists:reverse(msgids(ThId, PageNum-1))),
+    MsgIds = msgids(ThId, PageNum),
+    {Aft, MIdAfter} = getone(msgids(ThId, PageNum+1)),
+    %% print starting line with current phase
+    %% does this thread have a game?
+    Msgs =
+        (_MsgB = r_msgs(MIdBefore)) ++
+        (MsgsPage = r_msgs(MsgIds)) ++
+        (_MsgA = r_msgs(MIdAfter)),
+    TimeB = ?TMsg((hd(Msgs))),
+    TimeA = ?TMsg((lists:last(Msgs))),
+    case mnesia:dirty_read(mafia_game, ThId) of
+        [] ->
+            [PrintFun(M) || M <- MsgsPage];
+        [#mafia_game{deadlines = DLs} = G] ->
+            TimeLDl = ?TDl(lists:last(DLs)),
+            DLs2 =
+                if TimeLDl < TimeA ->
+                        %% GET MORE DLS
+                        lists:reverse(
+                          mafia_time:update_deadlines(ThId, 10));
+                      true ->
+                           DLs
+                   end,
+            DLsIn = [D || D <- DLs2,
+                          TimeB < ?TDl(D),
+                          ?TDl(D) < TimeA],
+            io:format("DLs ~p\n",[DLsIn]),
+            MixedSort = lists:sort(fun cmp_time/2, Msgs ++ DLsIn),
+            MS2 = if Bef -> tl(MixedSort);
+                     true -> MixedSort
+                  end,
+            MS3 = if Aft -> lists:reverse(tl(lists:reverse(MS2)));
+                     true -> MS2
+                  end,
+            FirstTime = time(hd(MS2)),
+            Phase = mafia_time:calculate_phase(G, FirstTime),
+            print_dl(Phase, ""),
+            [case E of
+                 M = #message{} ->
+                     PrintFun(M);
+                 D ->
+                     print_dl(D, "End of ")
+             end || E <- MS3]
+            %% HÄR SKA MixedList SKRIVAS UT !
+    end,
     ok.
+
+time({_,_,Time}) -> Time;
+time(#message{time = Time}) -> Time.
+
+cmp_time(A, B) -> time(A) =< time(B).
+
+getone([]) -> {false, []};
+getone([One|_]) -> {true, [One]}.
+
+msgids(ThId, PageNum) ->
+    case mnesia:dirty_read(page_rec, {ThId, PageNum}) of
+        [] -> [];
+        [#page_rec{message_ids = MIds}] -> MIds
+    end.
+
+print_dl({Num, DorN, _}, Txt) ->
+    print_dl({Num, DorN}, Txt);
+print_dl({Num, DorN}, Txt) ->
+    io:format("-------------------------------- ~s~s ~p "
+              "--------------------------------\n",
+              [Txt, pr(DorN), Num]).
+
+pr(?day) -> "Day";
+pr(?night) -> "Night".
+
+%%PrintFun(Msg)
 
 print_message_full(M) ->
     io:format("User  : ~s\n"
@@ -662,14 +736,17 @@ print_time(Time) when is_integer(Time) ->
 
 print_time(Time, TzH, Dst) when is_integer(Time) ->
     try
-        {{Y, M, D}, {HH,MM,SS}} = mafia_time:local_datetime_for_secs1970(Time, TzH, Dst),
+        {{Y, M, D}, {HH,MM,SS}} =
+            mafia_time:local_datetime_for_secs1970(Time, TzH, Dst),
         case {TzH, Dst} of
             {0, false} ->
-                io_lib:format("~s-~s-~sZ~s:~s:~s", [p(Y), p(M), p(D), p(HH), p(MM), p(SS)]);
+                io_lib:format("~s-~s-~sZ~s:~s:~s",
+                              [p(Y), p(M), p(D), p(HH), p(MM), p(SS)]);
             _ ->
                 DstStr = case Dst of false -> "N"; true -> "DST" end,
                 io_lib:format("~s-~s-~sT~s:~s:~s (~s ~s)",
-                              [p(Y), p(M), p(D), p(HH), p(MM), p(SS), i2l(TzH), DstStr])
+                              [p(Y), p(M), p(D), p(HH), p(MM), p(SS),
+                               i2l(TzH), DstStr])
         end
     catch _:_ -> ""
     end.
@@ -741,9 +818,9 @@ t_strip(Str) ->
 %% 2. <the thread title>
 %% 3. <em>Page <strong>177</strong> of <strong>177</strong>
 
-%% Find threadid "threadID1404320" 
+%% Find threadid "threadID1404320"
 %% split html on "<div class=\"reply"
-%% inside we should find "<div class=\"message-head", "profile.php?user", ">", 
+%% inside we should find "<div class=\"message-head", "profile.php?user", ">",
 %% copy user name until we find next "<"
 %% find "messageID=\""
 %% copy msgid to next "\""

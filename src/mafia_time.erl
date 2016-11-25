@@ -4,7 +4,9 @@
 
 -export([get_tz_dst/0,
          local_datetime_for_secs1970/3,
+         update_deadlines/2,
          add_deadline/2,
+         calc_deadlines/2,
          calculate_phase/2]).
 
 -import(mafia, [getv/1]).
@@ -44,11 +46,26 @@ calculate_phase(Game, Time) ->
             DLs)),
     {Num,DN}.
 
+%% and it should also update the game in mnesia with it.
+update_deadlines(ThId, NumNewDLs) ->
+    case mnesia:dirty_read(mafia_game, ThId) of
+        [] -> [];
+        [#mafia_game{} = G] ->
+            NewDLs = calc_deadlines(G, NumNewDLs),
+            mnesia:dirty_write(G#mafia_game{deadlines = NewDLs}),
+            NewDLs
+    end.
+
 add_deadline(MGame, NumNewDLs) ->
     MGame#mafia_game{
       deadlines = calc_deadlines(MGame, NumNewDLs)
      }.
 
+%% -----------------------------------------------------------------------------
+%% @doc Return an expanded list of deadlines in reversed order
+-spec calc_deadlines(ThId :: integer() | #mafia_game{},
+                     NumNewDLs :: integer())
+                    -> NewDLs :: [deadline()].
 calc_deadlines(ThId, NumNewDLs) when is_integer(ThId) ->
     case mnesia:dirty_read(mafia_game, ThId) of
         [] -> ignore;
@@ -57,13 +74,13 @@ calc_deadlines(ThId, NumNewDLs) when is_integer(ThId) ->
     end;
 calc_deadlines(G, NumNewDLs) ->
     DLsIn = G#mafia_game.deadlines,
-    First = if DLsIn == [] -> {1, ?day};
-               true -> inc_phase(hd(DLsIn))
-            end,
-    Phases = lists:foldl(fun(_, Acc=[DL|_]) ->
+    FirstNewPh = if DLsIn == [] -> {1, ?day};
+                    true -> inc_phase(hd(DLsIn))
+                 end,
+    Phases = lists:foldl(fun(_, Acc = [DL|_]) ->
                                  [inc_phase(DL) | Acc]
                          end,
-                         [First],
+                         [FirstNewPh],
                          lists:seq(2, NumNewDLs)),
     lists:foldr(fun(Ph, DLs) ->
                         [calc_deadline(Ph, G) | DLs]

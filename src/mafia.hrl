@@ -88,6 +88,7 @@
          thread_id :: thread_id(),
          day :: day_num(),
          votes :: [{player(), [#vote{}]}],
+         players_rem :: [player()],
          complete :: boolean()
         }).
 

@@ -3,8 +3,6 @@
 -include("mafia.hrl").
 
 %% todo:
-%% - WHY so many Unvoted day 2?
-%%       Unvoted: Glen_Alexander,guak,Ikaneko,VashtaNeurotic,zorclex
 %% - print_vote variant for one voter
 %% - webpage with game status:
 %%   - Current phase -current votes -link to vote breakdown
@@ -27,6 +25,7 @@
          pm/1,
          print_votes/0,
          print_votes/1,
+         print_messages/1,
 
          downl/0,
          show_settings/0,
@@ -61,6 +60,8 @@ pps(ThId) -> mafia_print:pps(ThId).
 pps(ThId, Page) -> mafia_print:pps(ThId, Page).
 print_votes() -> mafia_print:print_votes().
 print_votes(DayNum) -> mafia_print:print_votes(DayNum).
+print_messages(User) -> mafia_print:print_messages(User).
+
 
 downl() -> mafia_data:downl().
 

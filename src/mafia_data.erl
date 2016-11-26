@@ -312,6 +312,7 @@ strip_fix(Str) ->
 %% skip unicode for a while
 fix("&gt;" ++ T) -> [ $> | fix(T)];
 fix("&lt;" ++ T) -> [ $< | fix(T)];
+fix("&amp;" ++ T) -> [ $& | fix(T)];
 fix("&lsquo;" ++ T) -> [ $' | fix(T)];
 fix("&rsquo;" ++ T) -> [ $' | fix(T)];
 fix("&ldquo;" ++ T) -> [ $\" | fix(T)];

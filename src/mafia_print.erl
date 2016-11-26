@@ -6,6 +6,8 @@
          pm/1,
          print_votes/0,
          print_votes/1,
+         print_messages/1,
+
          print_message_summary/1,
 
          print_pages_for_thread/0,
@@ -16,6 +18,7 @@
         [
          getv/1,
          b2l/1,
+         l2b/1,
          i2l/1
         ]).
 
@@ -34,7 +37,9 @@ pp(Page) ->
     pp(ThId, Page).
 
 pp(ThId, Page) ->
-    print_page(ThId, Page, fun print_message_full/1).
+    %% Select MsgIds here
+    MsgIds = msgids(ThId, Page),
+    print_page(ThId, MsgIds, fun print_message_full/1).
 
 pps() ->
     ThId = getv(thread_id),
@@ -47,12 +52,13 @@ pps(ThId) when is_integer(ThId) ->
     pps(ThId, LastPage).
 
 pps(ThId, Page) ->
-    print_page(ThId, Page, fun print_message_summary/1).
+    %% Select MsgIds here
+    MsgIds = msgids(ThId, Page),
+    print_page(ThId, MsgIds, fun print_message_summary/1).
 
 pm(MsgId) when is_integer(MsgId) ->
     case mnesia:dirty_read(message, MsgId) of
-        [Msg] ->
-            mafia_print:print_message_full(Msg);
+        [Msg] -> print_message_full(Msg);
         [] -> io:format("Message ID ~p not found\n", [MsgId])
     end.
 
@@ -149,6 +155,35 @@ add_vote(Vote, Raw, Time, User, Acc) ->
 
 %% -----------------------------------------------------------------------------
 
+print_messages(User) when is_list(User) ->
+    print_messages(l2b(User));
+print_messages(User) when is_binary(User) ->
+    ThId = getv(thread_id),
+    Pages = lists:sort(mafia:find_pages_for_thread(ThId)),
+    AllMsgIds =
+        lists:foldl(
+          fun(Page, Acc) ->
+                  case mnesia:dirty_read(page_rec, {ThId, Page}) of
+                      [#page_rec{message_ids = PMids}] -> Acc ++ PMids;
+                      [] -> Acc
+                  end
+          end,
+          [],
+          Pages),
+    UserMsgIds =
+        lists:filter(
+          fun(MsgId) ->
+                  case mnesia:dirty_read(message, MsgId) of
+                      [#message{user_name = U}]
+                        when U == User -> true;
+                      _ -> false
+                  end
+          end,
+          AllMsgIds),
+    print_page(ThId, UserMsgIds, fun print_message_summary/1).
+
+%% -----------------------------------------------------------------------------
+
 print_pages_for_thread() ->
     ThId = getv(thread_id),
     print_pages_for_thread(ThId).
@@ -161,27 +196,21 @@ print_pages_for_thread(ThId) ->
 
 -define(TMsg(M), M#message.time).
 -define(TDl(D), element(3, D)).
+-define(MINUTE, 60).
 
-print_page(ThId, PageNum, PrintFun) ->
-    print_page(ThId, PageNum, PrintFun, msgids(ThId, PageNum)).
-
-print_page(_ThId, _PageNum, _PrintFun, []) -> ok;
-print_page(ThId, PageNum, PrintFun, MsgIds) ->
-    {Bef, MIdBefore} = getone(lists:reverse(msgids(ThId, PageNum-1))),
-    %% MsgIds = msgids(ThId, PageNum),
-    {Aft, MIdAfter} = getone(msgids(ThId, PageNum+1)),
+print_page(_ThId, [], _PrintFun) -> ok;
+print_page(ThId, MsgIds, PrintFun) ->
     %% print starting line with current phase
     %% does this thread have a game?
-    Msgs =
-        (_MsgB = r_msgs(MIdBefore)) ++
-        (MsgsPage = r_msgs(MsgIds)) ++
-        (_MsgA = r_msgs(MIdAfter)),
-    TimeB = ?TMsg((hd(Msgs))),
-    TimeA = ?TMsg((lists:last(Msgs))),
+    MsgsPage = r_msgs(MsgIds),
     case mnesia:dirty_read(mafia_game, ThId) of
         [] ->
             [PrintFun(M) || M <- MsgsPage];
         [#mafia_game{deadlines = DLs} = G] ->
+            TimeB = ?TMsg((hd(MsgsPage))),
+            TimeA = ?TMsg((lists:last(MsgsPage))),
+
+            %% Are more deadlines needed
             TimeLDl = ?TDl(hd(DLs)),
             DLs2 =
                 if TimeLDl < TimeA ->
@@ -190,30 +219,26 @@ print_page(ThId, PageNum, PrintFun, MsgIds) ->
                       true ->
                            DLs
                    end,
+
             DLsIn = [D || D <- DLs2,
-                          TimeB < ?TDl(D),
-                          ?TDl(D) < TimeA],
-            MixedSort = lists:sort(fun cmp_time/2, Msgs ++ DLsIn),
-            MS2 = if Bef -> tl(MixedSort);
-                     true -> MixedSort
-                  end,
-            MS3 = if Aft -> lists:reverse(tl(lists:reverse(MS2)));
-                     true -> MS2
-                  end,
-            FirstTime = time(hd(MS2)),
-            Phase = mafia_time:calculate_phase(G, FirstTime),
-            print_dl(Phase, ""),
+                          TimeB - 3*?MINUTE < ?TDl(D),
+                          ?TDl(D) < TimeA + 3*?MINUTE],
+            MixedSort = lists:sort(fun cmp_time/2, MsgsPage ++ DLsIn),
+            case hd(MixedSort) of
+                Msg = #message{} ->
+                    FirstTime = time(Msg),
+                    Phase = mafia_time:calculate_phase(G, FirstTime),
+                    print_dl(Phase, "");
+                _ -> ok
+            end,
             [case E of
                  M = #message{} ->
                      PrintFun(M);
                  D ->
                      print_dl(D, "End of ")
-             end || E <- MS3]
+             end || E <- MixedSort]
     end,
     ok.
-
-getone([]) -> {false, []};
-getone([One|_]) -> {true, [One]}.
 
 msgids(ThId, PageNum) ->
     case mnesia:dirty_read(page_rec, {ThId, PageNum}) of

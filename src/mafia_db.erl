@@ -7,7 +7,7 @@
          getv/1,
          getv/2,
 
-         setup_mnesia/0, 
+         setup_mnesia/0,
          remove_mnesia/0,
          create_tables/0,
          create_table/1,
@@ -135,7 +135,8 @@ create_table(RecName) ->
             RI = rec_info(RecName),
             if TI /= RI ->
 %%% HERE we should check for upgrade method and stop if upgrade does not exist
-                    io:format("Delete table '~p' due to mismatching attribute list\n",[RecName]),
+                    io:format("Delete table '~p' due to mismatching attribute "
+                              "list\n",[RecName]),
                     mnesia:delete_table(RecName),
                     create_table(RecName);
                true ->

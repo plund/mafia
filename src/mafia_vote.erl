@@ -17,43 +17,102 @@ check_for_vote(MsgId) when is_integer(MsgId) ->
         [Msg] -> check_for_vote(Msg)
     end;
 check_for_vote(M = #message{}) ->
+    check_for_vote(M, mnesia:dirty_read(mafia_game, M#message.thread_id)).
+
+check_for_vote(_M, []) -> ignore;
+check_for_vote(M, [G = #mafia_game{}]) ->
+    G2 = check_for_deathI(M, G),
+    check_for_voteI(M, G2).
+
+%% Removes player from Game if dead
+check_for_deathI(M, G) ->
+    case author_gm(M, G) of
+        false -> G;
+        true ->
+            %% find "has died" on line
+            SearchU = "HAS DIED",
+            Msg = b2l(M#message.message),
+            MsgUC = string:to_upper(Msg),
+            case string:str(MsgUC, SearchU) of
+                0 -> %% no-one has died
+                    G;
+                Pos ->
+                    %% find any remaining players before on the same line.
+                    RevStr =
+                        lists:reverse(
+                          string:left(MsgUC, Pos - 1)),
+                    RevStr2 =
+                        case string:str(RevStr, "\n") of
+                            0 -> RevStr;
+                            PosNL ->
+                                string:left(RevStr, PosNL - 1)
+                        end,
+                    LineU = lists:reverse(RevStr2),
+                    RemUsersU = [b2ul(PremB)
+                                 || PremB <- G#mafia_game.players_rem],
+                    case lists:dropwhile(
+                           fun(UserU) ->
+                                   0 == string:str(LineU, UserU)
+                           end,
+                           RemUsersU) of
+                        [] -> %% no match
+                            G;
+                        [KilledUserU|_] ->
+                            %% remove player from _rem lists.
+                            OldRem = G#mafia_game.players_rem,
+                            NewRem =
+                                lists:filter(
+                                  fun(OldPlB) -> b2ul(OldPlB) /= KilledUserU
+                                  end,
+                                  OldRem),
+                            if NewRem /= OldRem ->
+                                    Dead = b2l(hd(OldRem--NewRem)),
+                                    io:format("Player ~s died\n", [Dead]),
+                                    G2 = G#mafia_game{players_rem = NewRem},
+                                    mnesia:dirty_write(G2),
+                                    G2;
+                               true ->
+                                    G
+                            end
+                    end
+            end
+    end.
+
+check_for_voteI(M, G) ->
     verify_user(M),
     Msg = b2l(M#message.message),
     MsgUC = string:to_upper(Msg),
-    case mnesia:dirty_read(mafia_game, M#message.thread_id) of
-        [] -> ignore;
-        [#mafia_game{players_rem = Players} = G] ->
-            author_user(M, G),
-            Players2 = add_nolynch_and_aliases(Players),
-            SearchStr = "##VOTE",
-            case mafia_data:rm_to_after_pos(MsgUC, SearchStr) of
-                {0, ""} -> ignore;
-                {Pos, RestUC} ->
-                    RawVote =
-                        l2b(string:strip(
-                              string:left(
-                                mafia_data:get_after_pos(
-                                  Pos, length(SearchStr), Msg),
-                                15))),
-                    case rank_options(Players2, RestUC) of
-                        [{NumV, TopP}] when NumV >= 2; NumV >= length(TopP) ->
-                            reg_vote(M, G, TopP, RawVote, true);
-                        [{NumV1, TopP}, {NumV2, _}|_]
-                          when NumV1 > NumV2 andalso
-                               (NumV1 >= 2 orelse
-                                NumV1 >= length(TopP)) ->
-                            reg_vote(M, G, TopP, RawVote, true);
-                        _ ->
-                            Vote = l2b("-"),
-                            reg_vote(M, G, Vote, RawVote, false)
-                    end
+    Players = G#mafia_game.players_rem,
+    author_user(M, G),
+    Players2 = add_nolynch_and_aliases(Players),
+    SearchStr = "##VOTE",
+    case mafia_data:rm_to_after_pos(MsgUC, SearchStr) of
+        {0, ""} -> ignore;
+        {Pos, RestUC} ->
+            RawVote =
+                l2b(string:strip(
+                      string:left(
+                        mafia_data:get_after_pos(
+                          Pos, length(SearchStr), Msg),
+                        15))),
+            case rank_options(Players2, RestUC) of
+                [{NumV, TopP}] when NumV >= 2; NumV >= length(TopP) ->
+                    reg_vote(M, G, TopP, RawVote, true);
+                [{NumV1, TopP}, {NumV2, _}|_]
+                  when NumV1 > NumV2 andalso
+                       (NumV1 >= 2 orelse
+                        NumV1 >= length(TopP)) ->
+                    reg_vote(M, G, TopP, RawVote, true);
+                _ ->
+                    Vote = l2b("-"),
+                    reg_vote(M, G, Vote, RawVote, false)
             end
     end.
 
 %% -----------------------------------------------------------------------------
 
 verify_user(M = #message{user_name = User}) ->
-    UserU = l2b(string:to_upper(b2l(User))),
+    UserU = b2ub(User),
     CheckRes =
         case mnesia:dirty_read(user, UserU) of
             [#user{verification_status = ?verified}] -> ok;
@@ -65,7 +124,7 @@ verify_user(M = #message{user_name = User}) ->
                         verification_status = ?verified}};
             [] ->
                 io:format("Warning: created new user ~p\n", [User]),
-                {user, #user{name_upper = l2b(string:to_upper(b2l(User))),
+                {user, #user{name_upper = b2ub(User),
                              name = User,
                              verification_status = ?verified}}
         end,
@@ -120,17 +179,26 @@ correct_case_fun2() ->
 
 %% -----------------------------------------------------------------------------
 
+author_gm(M, G) ->
+    authorI(M, G#mafia_game.gms).
+
 author_user(M, G) ->
-    User = b2l(M#message.user_name),
-    UserU = string:to_upper(User),
     #mafia_game{gms = GMs,
                 players_rem = Players} = G,
-    UsersU = [string:to_upper(b2l(U))|| U <- GMs ++ Players],
-    case lists:member(UserU, UsersU) of
+    UsersB = GMs ++ Players,
+    case authorI(M, UsersB) of
         true -> ok;
         false ->
-            io:format("Message sent by non-player ~p\n", [User])
+            User = b2l(M#message.user_name),
+            io:format("Message sent by non-player ~p\n",
+                      [User])
     end.
+
+authorI(M, UsersB) ->
+    User = b2l(M#message.user_name),
+    UserU = string:to_upper(User),
+    UsersU = [b2ul(U) || U <- UsersB],
+    lists:member(UserU, UsersU).
 
 %% -----------------------------------------------------------------------------
 
@@ -201,7 +269,7 @@ reg_vote(M, G, Vote, RawVote, IsOkVote) ->
 is_remaining_player(User, Rem) ->
     UserL = b2l(User),
     UserU = string:to_upper(UserL),
-    RemainsU = [string:to_upper(b2l(R)) || R <- Rem],
+    RemainsU = [b2ul(R) || R <- Rem],
     lists:member(UserU, RemainsU).
 
 vote2(M, G, Vote, RawVote, IsOkVote) ->
@@ -240,3 +308,7 @@ vote2(M, G, Vote, RawVote, IsOkVote) ->
         _ ->
             ignore
     end.
+
+b2ub(Binary) -> l2b(b2ul(Binary)).
+
+b2ul(Binary) -> string:to_upper(b2l(Binary)).

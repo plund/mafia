@@ -37,7 +37,9 @@
          i2l/1,
          l2i/1,
          getv/1,
-         set/2
+         set/2,
+         %% utilities
+         compress_txt_files/0
         ]).
 
 -export([cmp_vote_raw/0
@@ -192,14 +194,19 @@ http_request(S2) ->
 get_body_from_file(S) ->
     %% Do we have body on file?
     %% we only store complete pages on file!
-    %% - store full pages as files locally "m24_threadid_page.txt"
+    %% Store full pages as compressed files:
+    %%     thread_pages/m24_threadid_page.txt.tgz
     FileName = th_filename(S),
-    case file:read_file(FileName) of
-        {ok, BodyBin} ->
+    TarBallName = FileName ++ ".tgz",
+    case erl_tar:extract(TarBallName, [memory, compressed]) of
+        {ok,[{_, BodyBin}]} ->
             io:format("Found page ~p on file\n",[S#s.page]),
             {file, b2l(BodyBin)};
-        {error,enoent} ->
+        {error,{TarBallName, enoent}} ->
             io:format("Did NOT find ~p on file\n",[S#s.page]),
+            no_file;
+        Unexp ->
+            io:format("Did NOT find ~p on file ~p\n",[S#s.page, Unexp]),
             no_file
     end.
 
@@ -218,12 +225,28 @@ th_filename(#s{thread_id = Thread, page = Page}) ->
 %% -> ok | {error, Reason}
 store_page(S, Body) ->
     FileName = th_filename(S),
-    case file:read_file_info(FileName) of
+    TarBallName = FileName ++ ".tgz",
+    case file:read_file_info(TarBallName) of
         {error, enoent} ->
-            file:write_file(FileName, Body);
+            file:write_file(FileName, Body),
+            erl_tar:create(TarBallName, [FileName], [compressed, verbose]),
+            file:delete(FileName);
         _ ->
             {error, efileexist}
     end.
+
+%% compressed 1656 K data in less than 0.09 sec
+compress_txt_files() ->
+    Dir = "thread_pages",
+    {ok, Files} = file:list_dir(Dir),
+    Files2 = [ filename:join(Dir, F)
+               || F = "m24_" ++ _ <- Files,
+                  case lists:reverse(F) of
+                        "txt." ++ _ -> true;
+                        _ -> false
+                    end],
+    [erl_tar:create(F++".tgz", [F], [compressed, verbose]) || F <- Files2],
+    [file:delete(F)|| F <- Files2].
 
 make_url(S) ->
     Url = ?UrlBeg ++ i2l(S#s.thread_id) ++ ?UrlMid ++ i2l(S#s.page) ++ ?UrlEnd,

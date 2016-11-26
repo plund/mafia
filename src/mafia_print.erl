@@ -2,7 +2,7 @@
 
 -export([
          pp/0, pp/1, pp/2,
-         pps/1, pps/2,
+         pps/0, pps/1, pps/2,
          pm/1,
          print_votes/0,
          print_votes/1,
@@ -36,8 +36,15 @@ pp(Page) ->
 pp(ThId, Page) ->
     print_page(ThId, Page, fun print_message_full/1).
 
+pps() ->
+    ThId = getv(thread_id),
+    pps(ThId).
+
 pps({ThId, Page}) ->
-    pps(ThId, Page).
+    pps(ThId, Page);
+pps(ThId) when is_integer(ThId) ->
+    LastPage = lists:max(mafia:find_pages_for_thread(ThId)),
+    pps(ThId, LastPage).
 
 pps(ThId, Page) ->
     print_page(ThId, Page, fun print_message_summary/1).
@@ -70,20 +77,28 @@ print_votes(DayNum,
             [#mafia_day{votes = Votes}]
            ) ->
     %% [{Vote, Num, [{Time, User, Raw}]}]
-    VoteSummary =
+    {VoteSummary, InvalidVotes} =
         lists:foldl(
-          fun({User, UserVotes}, Acc) ->
+          fun({User, UserVotes}, {Acc, Acc2}) ->
                   case lists:dropwhile(
                          fun(V) -> not V#vote.valid end,
                          UserVotes) of
                       [V|_] ->
                           Vote = V#vote.vote,
                           Raw = V#vote.raw,
-                          add_vote(Vote, Raw, V#vote.time, User, Acc);
-                      [] -> Acc
+                          {add_vote(Vote, Raw, V#vote.time, User, Acc),
+                           Acc2};
+                      [] ->
+                          %% No valid vote found
+                          case UserVotes of
+                              [LastInvalidVote | _] ->
+                                  {Acc, [{User, LastInvalidVote} | Acc2]};
+                              [] -> % no votes at all
+                                  {Acc, Acc2}
+                          end
                   end
           end,
-          [],
+          {[], []},
           Votes),
     %% Sort summary on number of received votes
     GtEq = fun(A, B) -> element(2, A) >= element(2, B) end,
@@ -112,6 +127,13 @@ print_votes(DayNum,
     [[io:format(b2l(Voter) ++ ": \"" ++ rm_nl(b2l(Raw)) ++ "\"\n")
       || {_VoteTime, Voter, Raw} <- VoteInfos]
      || {_Vote, _N, VoteInfos} <- VoteSum2],
+
+    %% Part 4
+    io:format("\n"
+              "Invalid Vote texts:\n"
+              "-------------------\n"),
+    [io:format(b2l(Voter) ++ ": \"" ++ rm_nl(b2l(Raw)) ++ "\"\n")
+     || {Voter, #vote{raw = Raw}} <- InvalidVotes],
     ok.
 
 %% [{Vote, Num, [{Time, User, Raw}]}]

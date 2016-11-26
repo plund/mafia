@@ -3,7 +3,8 @@
 -include("mafia.hrl").
 
 %% todo:
-%% - show last raw vote, if there is no 'approved' vote for a user
+%% - WHY so many Unvoted day 2?
+%%       Unvoted: Glen_Alexander,guak,Ikaneko,VashtaNeurotic,zorclex
 %% - print_vote variant for one voter
 %% - webpage with game status:
 %%   - Current phase -current votes -link to vote breakdown
@@ -22,7 +23,7 @@
          remove_mnesia/0,
 
          pp/0, pp/1, pp/2,
-         pps/1, pps/2,
+         pps/0, pps/1, pps/2,
          pm/1,
          print_votes/0,
          print_votes/1,
@@ -55,7 +56,8 @@ pm(MsgId) -> mafia_print:pm(MsgId).
 pp() -> mafia_print:pp().
 pp(Page) -> mafia_print:pp(Page).
 pp(ThId, Page) -> mafia_print:pp(ThId, Page).
-pps(Page) -> mafia_print:pps(Page).
+pps() -> mafia_print:pps().
+pps(ThId) -> mafia_print:pps(ThId).
 pps(ThId, Page) -> mafia_print:pps(ThId, Page).
 print_votes() -> mafia_print:print_votes().
 print_votes(DayNum) -> mafia_print:print_votes(DayNum).

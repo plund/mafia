@@ -181,6 +181,9 @@ r_count([], [], N) ->
 %% -----------------------------------------------------------------------------
 
 reg_vote(M, G, Vote, RawVote, IsOkVote) ->
+    io:format("Register Vote: ~s votes ~p ~s\n",
+              [b2l(M#message.user_name), b2l(RawVote),
+               if IsOkVote -> "Approved"; true -> "Rejected" end]),
     case is_remaining_player(
            M#message.user_name,
            G#mafia_game.players_rem) of

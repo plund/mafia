@@ -79,7 +79,8 @@ print_votes(ThId, DayNum) ->
 print_votes(_DayNum, [], _) -> ok;
 print_votes(_DayNum, _, []) -> ok;
 print_votes(DayNum,
-            [#mafia_game{players_rem = RemPlayers}],
+            [#mafia_game{key = ThId,
+                         players_rem = RemPlayers}],
             [#mafia_day{votes = Votes}]
            ) ->
     %% [{Vote, Num, [{Time, User, Raw}]}]
@@ -122,9 +123,11 @@ print_votes(DayNum,
      end || {Vote, N, VoteInfos} <- VoteSum2],
 
     %% Part 2
-    Unvoted = RemPlayers -- [ Pl || {Pl, _} <- Votes],
+    ValidVoters = [ Pl || {Pl, _} <- Votes]
+        -- [User || {User, _} <- InvalidVotes],
+    Unvoted = RemPlayers -- ValidVoters,
     io:format("\nUnvoted: ~s\n",
-              [string:join([b2l(U) || U <- Unvoted], ",") ] ),
+              [string:join([b2l(U) || U <- Unvoted], ", ") ] ),
 
     %% Part 3
     io:format("\n"
@@ -140,6 +143,23 @@ print_votes(DayNum,
               "-------------------\n"),
     [io:format(b2l(Voter) ++ ": \"" ++ rm_nl(b2l(Raw)) ++ "\"\n")
      || {Voter, #vote{raw = Raw}} <- InvalidVotes],
+
+    %% Part 5
+    LastPage = lists:last(
+                 lists:sort(
+                   mafia:find_pages_for_thread(ThId))),
+    LastMsgId = lists:last(
+                  (hd(mnesia:dirty_read(page_rec, {ThId, LastPage})))
+                  #page_rec.message_ids),
+    LastMsgTime = (hd(mnesia:dirty_read(message, LastMsgId)))#message.time,
+
+    {{Days, {HH, MM, _}}, {Num, DoN, _}} =
+        %% mafia_time:get_next_deadline(ThId),
+        mafia_time:get_next_deadline(ThId, LastMsgTime),
+    io:format("\n"
+              "Remaining time to next ~s ~p deadline: "
+              "~p days ~p hours and ~p minutes\n",
+              [pr(DoN), Num, Days, HH, MM]),
     ok.
 
 %% [{Vote, Num, [{Time, User, Raw}]}]

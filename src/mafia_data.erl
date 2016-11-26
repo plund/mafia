@@ -4,8 +4,11 @@
 -export([downl/0]).
 
 %% library
--export([rm_to_after_pos/2,
-         get_after_pos/3]).
+-export([
+         rm_to_after_pos/2,
+         find_pos_and_split/2,
+         get_after_pos/3
+        ]).
 
 %% utilities
 -export([
@@ -43,6 +46,12 @@ downl(S) ->
 refresh_votes() ->
     mnesia:clear_table(mafia_day),
     ThId = getv(thread_id),
+    refresh_votes(ThId, mnesia:dirty_read(mafia_game, ThId)).
+
+refresh_votes(_ThId, []) -> ok;
+refresh_votes(ThId, [G]) ->
+    mnesia:dirty_write(
+      G#mafia_game{players_rem = G#mafia_game.players_orig}),
     Pages = lists:sort(mafia:find_pages_for_thread(ThId)),
     F = fun(Page) ->
                 Key = {ThId, Page},
@@ -250,6 +259,15 @@ rm_to_after_pos(Str, Search) ->
         0 -> {0, ""};
         P -> {P, get_after_pos(P, length(Search), Str)}
     end.
+
+find_pos_and_split(Str, Search) ->
+    case string:str(Str, Search) of
+        0 -> {0, "", ""};
+        P -> {P,
+              string:left(Str, P - 1),
+              get_after_pos(P, length(Search), Str)}
+    end.
+
 
 get_after_pos(P, Len, Str) ->
     lists:nthtail(P - 1 + Len, Str).

@@ -9,7 +9,7 @@
 %% calendar:date_to_gregorian_days({1970,1,1}) -> 719528.
 
 -define(HourSecs, 3600).
--define(DaySecs, 24*3600).
+-define(DaySecs, (24*3600)).
 
 -define(DefThId, 1404320).
 -define(UrlBeg, "http://webdiplomacy.net/forum.php?threadID=").
@@ -31,6 +31,11 @@
                   {"No-Lynch", ["No Lynch"]}
                  ]).
 
+-type hour() :: 0..23.
+-type minute() :: 0..59.
+-type second() :: 0..59.
+-type time() :: {hour(), minute(), second()}.
+
 -type thread_id() :: integer().
 -type page_num() :: integer().
 -type msg_id() :: integer().
@@ -44,7 +49,8 @@
 -type deadline() :: {integer(), day_night(), seconds1970()}.
 
 -record(s,
-        {page :: page_num(),  %% either page num to get and when got the actual page num
+        {page :: page_num(),  %% either page num to get and when got the
+         %%                      actual page num
          is_last_page :: boolean(),
          page_num_last_read :: page_num(),
          page_total_last_read :: page_num(),

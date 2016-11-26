@@ -2,7 +2,10 @@
 
 -include("mafia.hrl").
 
--export([get_tz_dst/0,
+-export([get_next_deadline/1,
+         get_next_deadline/2,
+         utc_secs1970/0,
+         get_tz_dst/0,
          local_datetime_for_secs1970/3,
          update_deadlines/2,
          add_deadline/2,
@@ -10,6 +13,36 @@
          calculate_phase/2]).
 
 -import(mafia, [getv/1]).
+
+-spec get_next_deadline(ThId::integer())
+                       -> {Remain :: {Days :: integer(), time()},
+                           deadline()}.
+get_next_deadline(ThId) when is_integer(ThId) ->
+    NowSecs = utc_secs1970(),
+    get_next_deadline(ThId, NowSecs).
+
+get_next_deadline(ThId, Secs) when is_integer(ThId) ->
+    get_next_deadline(mnesia:dirty_read(mafia_game, ThId), Secs);
+get_next_deadline([], _Secs) -> false;
+get_next_deadline([#mafia_game{key = ThId,
+                               deadlines = DLs}], Secs) ->
+    case lists:dropwhile(
+           fun({_, _, DlSecs}) -> DlSecs =< Secs end,
+           lists:reverse(DLs)) of
+        [DL = {_Num, _DoN, DlSecs}|_] ->
+            SecsLeft = DlSecs - Secs,
+            {{SecsLeft div ?DaySecs,
+              calendar:seconds_to_time(SecsLeft rem ?DaySecs)},
+             DL};
+        [] -> % should get more DLs here
+            update_deadlines(ThId, 10),
+            get_next_deadline(ThId)
+    end.
+
+utc_secs1970() ->
+    calendar:datetime_to_gregorian_seconds(
+      calendar:universal_time())
+        - ?GSECS_1970.
 
 get_tz_dst() ->
     case getv(print_time) of

@@ -3,6 +3,8 @@
 -include("mafia.hrl").
 
 %% todo:
+%% - downl and pps should look similar, Died/Vote messages and deadline markers
+%% - ##Unvote ##UNEND, ##END??
 %% - print_vote variant for one voter
 %% - webpage with game status:
 %%   - Current phase -current votes -link to vote breakdown
@@ -13,7 +15,6 @@
 %%   - XXX replaces YYY
 %%   - Move current deadline, full 24 hours (local time)
 %%   - Move future deadline
-%% - ##Unvote ##UNEND, ##END??
 
 %% interface
 -export([

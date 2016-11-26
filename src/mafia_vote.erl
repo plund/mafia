@@ -29,51 +29,54 @@ check_for_deathI(M, G) ->
     case author_gm(M, G) of
         false -> G;
         true ->
-            %% find "has died" on line
-            SearchU = "HAS DIED",
-            Msg = b2l(M#message.message),
-            MsgUC = string:to_upper(Msg),
-            case string:str(MsgUC, SearchU) of
-                0 -> %% no-one has died
-                    G;
-                Pos ->
-                    %% find any remaining players before on the same line.
-                    RevStr =
-                        lists:reverse(
-                          string:left(MsgUC, Pos - 1)),
-                    RevStr2 =
-                        case string:str(RevStr, "\n") of
-                            0 -> RevStr;
-                            PosNL ->
-                                string:left(RevStr, PosNL - 1)
-                        end,
-                    LineU = lists:reverse(RevStr2),
-                    RemUsersU = [b2ul(PremB)
-                                 || PremB <- G#mafia_game.players_rem],
-                    case lists:dropwhile(
-                           fun(UserU) ->
-                                   0 == string:str(LineU, UserU)
-                           end,
-                           RemUsersU) of
-                        [] -> %% no match
-                            G;
-                        [KilledUserU|_] ->
-                            %% remove player from _rem lists.
-                            OldRem = G#mafia_game.players_rem,
-                            NewRem =
-                                lists:filter(
-                                  fun(OldPlB) -> b2ul(OldPlB) /= KilledUserU
-                                  end,
-                                  OldRem),
-                            if NewRem /= OldRem ->
-                                    Dead = b2l(hd(OldRem--NewRem)),
-                                    io:format("Player ~s died\n", [Dead]),
-                                    G2 = G#mafia_game{players_rem = NewRem},
-                                    mnesia:dirty_write(G2),
-                                    G2;
-                               true ->
-                                    G
-                            end
+            check_for_deathI2(b2ul(M#message.message), G)
+    end.
+
+check_for_deathI2(MsgUC, G) ->
+    %% find "has died" on line
+    SearchU1 = "DIED",
+    SearchU2 = "DEAD",
+    case {mafia_data:find_pos_and_split(MsgUC, SearchU1),
+          mafia_data:find_pos_and_split(MsgUC, SearchU2)} of
+        {{0,_,_}, {0,_,_}} -> %% no-one has died
+            G;
+        {Pos1, Pos2} ->
+            {_, HStr, TStr} =
+                if element(1, Pos1) /= 0 -> Pos1; true -> Pos2 end,
+            %% find any remaining players before on the same line.
+            RevStr = lists:reverse(HStr),
+            RevStr2 =
+                case string:str(RevStr, "\n") of
+                    0 -> RevStr;
+                    PosNL ->
+                        string:left(RevStr, PosNL - 1)
+                end,
+            LineU = lists:reverse(RevStr2),
+            RemUsersU = [b2ul(PremB)
+                         || PremB <- G#mafia_game.players_rem],
+            case lists:dropwhile(
+                   fun(UserU) ->
+                           0 == string:str(LineU, UserU)
+                   end,
+                   RemUsersU) of
+                [] -> %% no match
+                    check_for_deathI2(TStr, G);
+                [KilledUserU|_] ->
+                    %% remove player from _rem lists.
+                    OldRem = G#mafia_game.players_rem,
+                    NewRem =
+                        lists:filter(
+                          fun(OldPlB) -> b2ul(OldPlB) /= KilledUserU
+                          end,
+                          OldRem),
+                    if NewRem /= OldRem ->
+                            Dead = b2l(hd(OldRem--NewRem)),
+                            io:format("Player ~s died\n", [Dead]),
+                            G2 = G#mafia_game{players_rem = NewRem},
+                            mnesia:dirty_write(G2),
+                            check_for_deathI2(TStr, G2);
+                       true ->
+                            check_for_deathI2(TStr, G)
                     end
             end
     end.
@@ -249,9 +252,6 @@ r_count([], [], N) ->
 %% -----------------------------------------------------------------------------
 
 reg_vote(M, G, Vote, RawVote, IsOkVote) ->
-    io:format("Register Vote: ~s votes ~p ~s\n",
-              [b2l(M#message.user_name), b2l(RawVote),
-               if IsOkVote -> "Approved"; true -> "Rejected" end]),
     case is_remaining_player(
            M#message.user_name,
            G#mafia_game.players_rem) of
@@ -276,6 +276,10 @@ vote2(M, G, Vote, RawVote, IsOkVote) ->
     %% find mafia_day
     case mafia_time:calculate_phase(G, M#message.time) of
         {DayNum, ?day} ->
+            io:format(
+              "Register Vote: ~s votes ~p ~s\n",
+              [b2l(M#message.user_name), b2l(RawVote),
+               if IsOkVote -> "Approved"; true -> "Rejected" end]),
             Key = {M#message.thread_id, DayNum},
             User = M#message.user_name,
             NewVote = #vote{time = M#message.time,

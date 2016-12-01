@@ -98,15 +98,20 @@ check_for_voteI(M, G) ->
     Players = G#mafia_game.players_rem,
     author_user(M, G),
     Players2 = add_nolynch_and_aliases(Players),
-    SearchStr = "##VOTE",
-    case mafia_data:rm_to_after_pos(MsgUC, SearchStr) of
-        {0, ""} -> ignore;
-        {Pos, RestUC} ->
+    VoteStr = "##VOTE",
+    UnvoteStr = "##UNVOTE",
+    case {mafia_data:rm_to_after_pos(MsgUC, VoteStr),
+          string:str(MsgUC, UnvoteStr)} of
+        {{0, ""}, 0} -> ignore;
+        {{0, ""}, _} ->
+            Vote = l2b("Unvote"),
+            reg_vote(M, G, Vote, Vote, true);
+        {{Pos, RestUC}, _} ->
             RawVote =
                 l2b(string:strip(
                       string:left(
                         mafia_data:get_after_pos(
-                          Pos, length(SearchStr), Msg),
+                          Pos, length(VoteStr), Msg),
                         15))),
             case rank_options(Players2, RestUC) of
                 [{NumV, TopP}] when NumV >= 2; NumV >= length(TopP) ->

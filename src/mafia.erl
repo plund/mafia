@@ -4,11 +4,9 @@
 
 %% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
 %% todo:
+%% - Implement ##END / ##UNEND
 %% - stats per phase, phase in heading, add totals at end
-%% - Time remaining in heading of print votes
 %% - downl and pps should look similar, Died/Vote messages and deadline markers
-%% - Implement ##Unvote variations
-%% - Implement separate vote ##UNEND, ##END??
 %% - print_vote variant for one voter during one day
 %% - webpage with GM command listing
 %% - webpage with game status:

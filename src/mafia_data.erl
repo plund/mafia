@@ -13,6 +13,7 @@
 %% utilities
 -export([
          refresh_votes/0,
+         refresh_stat/0,
          compress_txt_files/0
         ]).
 
@@ -22,6 +23,7 @@
          set/2,
 
          b2l/1,
+         b2ub/1,
          l2b/1,
          i2l/1,
          l2i/1
@@ -52,17 +54,92 @@ refresh_votes(_ThId, []) -> ok;
 refresh_votes(ThId, [G]) ->
     mnesia:dirty_write(
       G#mafia_game{players_rem = G#mafia_game.players_orig}),
+    iterate_all_msg_ids(ThId, fun mafia_vote:check_for_vote/1),
+    Pages = lists:sort(mafia:find_pages_for_thread(ThId)),
+    "Thread " ++ i2l(ThId) ++ "; Pages: " ++
+        string:join([i2l(P) || P <- Pages],",").
+
+refresh_stat() ->
+    mnesia:clear_table(stat),
+    ThId = getv(thread_id),
+    refresh_stat(ThId, mnesia:dirty_read(mafia_game, ThId)).
+
+refresh_stat(_ThId, []) -> ok;
+refresh_stat(ThId, [_G]) ->
+    iterate_all_msg_ids(ThId, fun update_stat/1),
+    ok.
+
+update_stat(MsgId) ->
+    update_stat(MsgId, mnesia:dirty_read(message, MsgId)).
+
+update_stat(_MsgId, []) -> ok;
+update_stat(MsgId,[M = #message{thread_id = ThId}]) ->
+    update_stat(MsgId, M, mnesia:dirty_read(mafia_game, ThId)).
+
+update_stat(_MsgId, _M, []) -> ok;
+update_stat(MsgId, M, [G = #mafia_game{}]) ->
+    #message{thread_id = ThId,  %% :: thread_id(),
+             user_name = UserB, %% :: user(),
+             time = Time,       %% :: seconds1970(),
+             message = MsgBin   %% :: message()
+            } = M,
+    %% UserB is in correct case in messages!
+    UserUB = b2ub(UserB),
+    Phase = mafia_time:calculate_phase(G, Time),
+    Key1 = {UserUB, ThId},
+    Key2 = {UserUB, ThId, Phase},
+    Msg = b2l(MsgBin),
+    Count = #stat{num_chars = size(MsgBin),
+                  num_words = length(string:tokens(Msg , " ,.\t\r\n")),
+                  num_postings = 1
+                 },
+    upd(Key1, MsgId, Count),
+    upd(Key2, MsgId, Count),
+    ok.
+
+upd(K, MsgId, Count) ->
+    %% check_if_phase_record_exist
+    %% check_if_msg_id_in_record
+    %% if not add stats
+    upd(K, MsgId, Count, mnesia:dirty_read(stat, K)).
+
+upd(K, MsgId, Count, []) ->
+    mnesia:dirty_write(
+      Count#stat{key = K,
+                 msg_ids = [MsgId]});
+upd(_K, MsgId, Count, [S = #stat{}]) ->
+    #stat{num_chars = CNumChars,
+          num_words = CNumWords,
+          num_postings = CNumPostings
+         } = Count,
+    #stat{msg_ids = MsgIds,
+          num_chars = NumChars,
+          num_words = NumWords,
+          num_postings = NumPostings
+         } = S,
+    case lists:member(MsgId, MsgIds) of
+        true ->
+            same;
+        false ->
+            mnesia:dirty_write(
+              S#stat{msg_ids = [MsgId | MsgIds],
+                     num_chars = NumChars + CNumChars,
+                     num_words = NumWords + CNumWords,
+                     num_postings = NumPostings + CNumPostings
+                    })
+    end.
+
+%% Iterate through all message ids in one thread in time order
+iterate_all_msg_ids(ThId, Fun) ->
     Pages = lists:sort(mafia:find_pages_for_thread(ThId)),
     F = fun(Page) ->
                 Key = {ThId, Page},
                 [PR] = mnesia:dirty_read(page_rec, Key),
                 MsgIds = PR#page_rec.message_ids,
-                lists:foreach(fun mafia_vote:check_for_vote/1, MsgIds),
+                lists:foreach(Fun, MsgIds),
                 Key
         end,
-    [F(P) || P <- Pages],
-    "Thread " ++ i2l(ThId) ++ "; Pages: " ++
-        string:join([i2l(P) || P <- Pages],",").
+    [F(P) || P <- Pages].
 
 %% -----------------------------------------------------------------------------
 
@@ -235,11 +312,11 @@ analyse_body(S) ->
                     %%                                  MsgIdInt]),
                     update_page_rec(S, MsgIdInt),
                     MsgR = write_message_rec(S, MsgIdInt, User, Time, Msg),
+                    update_stat(MsgIdInt),
                     mafia_vote:check_for_vote(MsgR);
                 [MsgR] ->
                     ok
             end,
-            %%print_message_full(MsgR);
             mafia_print:print_message_summary(MsgR);
        true -> ok
     end,

@@ -2,10 +2,14 @@
 
 -include("mafia.hrl").
 
+%% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
 %% todo:
+%% - Time remaining in heading of print votes
 %% - downl and pps should look similar, Died/Vote messages and deadline markers
-%% - ##Unvote ##UNEND, ##END??
-%% - print_vote variant for one voter
+%% - Implement ##Unvote variations
+%% - Implement separate vote ##UNEND, ##END??
+%% - print_vote variant for one voter during one day
+%% - webpage with GM command listing
 %% - webpage with game status:
 %%   - Current phase -current votes -link to vote breakdown
 %%   - if day -Next DL -link to deadline schedule -GMs - Players Living -Dead
@@ -28,6 +32,7 @@
          print_votes/1,
          print_messages/1,
 
+         verify_new_user_list/1,
          downl/0,
          show_settings/0,
          set_thread_id/1,
@@ -41,6 +46,7 @@
          set/2,
 
          b2l/1,
+         b2ub/1,
          l2b/1,
          i2l/1,
          l2i/1
@@ -66,11 +72,16 @@ print_messages(User) -> mafia_print:print_messages(User).
 
 downl() -> mafia_data:downl().
 
+l2u(L) -> string:to_upper(L).
 i2l(I) -> integer_to_list(I).
 l2i(L) -> list_to_integer(L).
 
 b2l(B) -> binary_to_list(B).
 l2b(L) -> list_to_binary(L).
+
+l2ub(L) -> l2b(l2u(L)).
+b2ub(B) -> l2b(l2u(b2l(B))).
+
 
 set(K,V) -> mafia_db:set(K,V).
 
@@ -81,6 +92,33 @@ setup_mnesia() -> mafia_db:setup_mnesia().
 remove_mnesia() -> mafia_db:remove_mnesia().
 
 refresh_votes() -> mafia_data:refresh_votes().
+
+%% Pre-check user list given by GM in initial game PM
+verify_new_user_list(25) ->
+    Users = ?M25_GMs ++ ?M25_players,
+    verify_new_user_list2(Users);
+verify_new_user_list(24) ->
+    Users = ?M24_GMs ++ ?M24_players,
+    verify_new_user_list2(Users).
+
+verify_new_user_list2(Users) ->
+    [begin
+         UserB = l2b(U),
+         UserUB = l2ub(U),
+         case mnesia:dirty_read(user, UserUB) of
+             [] ->
+                 io:format("User ~p is new\n",[U]);
+             [#user{name = UserB,
+                    verification_status = Ver}] ->
+                 io:format("User ~p exist with correct case "
+                           "and is ~p\n", [U, Ver]);
+             [#user{name = UserB2,
+                    verification_status = Ver}] ->
+                 io:format("User exist with incorrect case. "
+                           "Correct is ~p and it is ~p\n", [b2l(UserB2), Ver])
+         end
+     end
+     || U <- Users].
 
 -spec set_thread_id(ThId :: integer())  -> ok.
 set_thread_id(ThId) when is_integer(ThId) ->

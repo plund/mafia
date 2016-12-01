@@ -45,18 +45,21 @@ check_for_deathI2(MsgUC, G) ->
                 if element(1, Pos1) /= 0 -> Pos1; true -> Pos2 end,
             %% find any remaining players before on the same line.
             RevStr = lists:reverse(HStr),
-            RevStr2 =
-                case string:str(RevStr, "\n") of
-                    0 -> RevStr;
-                    PosNL ->
-                        string:left(RevStr, PosNL - 1)
-                end,
+            RevStr2 = case string:tokens(RevStr, ".\n") of
+                          [] -> "";
+                          [Head | _] -> Head
+                      end,
             LineU = lists:reverse(RevStr2),
             RemUsersU = [b2ul(PremB)
                          || PremB <- G#mafia_game.players_rem],
             case lists:dropwhile(
                    fun(UserU) ->
-                           0 == string:str(LineU, UserU)
+                           case mafia_data:find_pos_and_split(LineU, UserU) of
+                               {0, _, _} -> true;
+                               {_, HStr2, TStr2} ->
+                                   not is_last_non_letter(HStr2) orelse
+                                       not is_first_non_letter(TStr2)
+                           end
                    end,
                    RemUsersU) of
                 [] -> %% no match
@@ -80,6 +83,13 @@ check_for_deathI2(MsgUC, G) ->
                     end
             end
     end.
+
+is_last_non_letter(HStr) ->
+    is_first_non_letter(lists:reverse(HStr)).
+
+is_first_non_letter([]) -> true;
+is_first_non_letter([H|_]) ->
+    lists:member(H, " ,.;:!\"#€%7&/()=+?´`<>-_\t\r\n").
 
 check_for_voteI(M, G) ->
     verify_user(M),

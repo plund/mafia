@@ -19,12 +19,20 @@
 -define(Extra, ["End", "No-Lynch"]).
 -define(M24_GMs, ["DemonRHK", "MoscowFleet"]).
 -define(M24_players,
-        ["Bo_sox48", "CaptainMeme", "Chaqa", "dargorygel", "Ezio", "Floodgates",
-         "Ghug", "Glen_Alexander", "Goldfinger0303", "Guak", "Hellenic Riot",
-         "Ikaneko", "Jamiet99uk", "Krellin", "Maniac", "Peterlund",
-         "Rdrivera2005", "Teacon7", "VashtaNeurotic", "Vecna", "Xorxes",
-         "Yoyoyozo", "Zorclex"
+        ["bo_sox48", "captainmeme", "Chaqa", "dargorygel", "Ezio", "Floodgates",
+         "ghug", "Glen_Alexander", "goldfinger0303", "guak", "Hellenic Riot",
+         "Ikaneko", "Jamiet99uk", "krellin", "Maniac", "peterlund",
+         "rdrivera2005", "teacon7", "VashtaNeurotic", "Vecna", "xorxes",
+         "Yoyoyozo", "zorclex"
         ]).
+
+-define(M25_GMs, ["VashtaNeurotic", "captainmeme"]).
+-define(M25_players,
+        ["brainbomb", "DemonRHK", "ghug", "Ezio", "Floodgates", "MoscowFleet",
+         "RagingIke297", "DemonOverlord", "guak", "krellin", "Kakarroto", "ND",
+         "teacon7", "Chaqa", "WardenDresden", "xorxes", "Vecna", "rdrivera2005",
+         "Glen_Alexander", "Jamiet99uk", "Maniac", "dargorygel", "zorclex"]).
+
 -define(Aliases, [{"CaptainMeme", ["Meme"]},
                   {"Hellenic Riot", ["HR", "H.R."]},
                   {"Brainbomb", ["BB"]},
@@ -121,4 +129,13 @@
         {name_upper :: user(),
          name :: user(),
          verification_status :: ?verified | ?unverified
+        }).
+
+-record(stat,
+        {key :: {player(), ThId::integer()}
+              | {player(), ThId::integer(), phase()},
+         msg_ids :: [msg_id()],
+         num_chars :: integer(),
+         num_words :: integer(),
+         num_postings :: integer()
         }).

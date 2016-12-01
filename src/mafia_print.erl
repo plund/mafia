@@ -1,6 +1,7 @@
 -module(mafia_print).
 
 -export([
+         print_stats/0, print_stats/3,
          pp/0, pp/1, pp/2,
          pps/0, pps/1, pps/2,
          pm/1,
@@ -160,7 +161,54 @@ print_votes(DayNum,
               "Remaining time to next ~s ~p deadline: "
               "~p days ~p hours and ~p minutes\n",
               [pr(DoN), Num, Days, HH, MM]),
+
+    %% Part 6
+    print_stats(ThId, DayNum, ?day),
     ok.
+
+print_stats() ->
+    %%Phase = {1, day__},
+    print_stats(1420289, 1, ?day).
+
+print_stats(ThId, Day, DoN) ->
+    print_stats(ThId, Day, DoN, mnesia:dirty_read(mafia_game, ThId)).
+
+print_stats(_ThId, _Day, _DoN, []) -> ok;
+print_stats(ThId, Day, DoN, [G]) ->
+    MatchHead = #stat{key = {'$1', '$2', {'$3', '$4'}}, _='_'},
+    Guard = [{'==', '$2', ThId}, {'==', '$3', Day}, {'==', '$4', DoN}],
+    Result = '$_',
+    Stats = mnesia:dirty_select(stat, [{MatchHead, Guard, [Result]}]),
+    StatsSorted = lists:keysort(#stat.num_postings, Stats),
+    UserU = fun(#stat{key = {U,_,_}}) -> U end,
+    NonPosters = [b2l(PRem) || PRem <- G#mafia_game.players_rem]
+        -- [tr(UserU(S)) || S <- Stats],
+    io:format("\n"
+              "Player posting statistics\n"
+              "-------------------------\n"
+              "~s ~s ~s ~s\n", ["Posts", "Words", " Chars", "Player"]),
+    [begin
+         %% UInfo = hd(mnesia:dirty_read(user, UserU(S))),
+         %% Name = b2l(UInfo#user.name),
+         io:format("~s ~s ~s ~s\n",
+                   [i2l(S#stat.num_postings, 5),
+                    i2l(S#stat.num_words, 5),
+                    i2l(S#stat.num_chars, 6),
+                    tr(UserU(S))
+                    ])
+     end || S <- lists:reverse(StatsSorted)],
+    %%io:format("~p\n", [NonPosters]),
+    io:format("\nNon-posters: ~s\n",
+              [case string:join(NonPosters, ",") of
+                   "" -> "-";
+                   Str -> Str
+               end]).
+
+tr(UserUB) ->
+    UInfo = hd(mnesia:dirty_read(user, UserUB)),
+    b2l(UInfo#user.name).
+
+i2l(Int, Size) -> string:right(i2l(Int), Size).
 
 %% [{Vote, Num, [{Time, User, Raw}]}]
 add_vote(Vote, Raw, Time, User, Acc) ->

@@ -11,7 +11,8 @@
          remove_mnesia/0,
          create_tables/0,
          create_table/1,
-         write_default_table/1
+         write_default_table/1,
+         write_default_table/2
         ]).
 
 -import(mafia, [l2b/1]).
@@ -74,6 +75,40 @@ insert_initial_data() ->
     write_default_table(user).
 
 write_default_table(game) ->
+    write_default_table(game, 25),
+    write_default_table(game, 24);
+
+write_default_table(user) ->
+    [ mnesia:dirty_write(
+        #user{name_upper = l2b(string:to_upper(U)),
+              name = l2b(U),
+              verification_status = ?unverified})
+      || U <- ?M24_players ++ ?M24_GMs],
+    ok.
+
+write_default_table(game, 25) ->
+    io:format("Adding Mafia Game M25\n", []),
+    MGame = #mafia_game{
+      key = 1420289,
+      game_num = 25,
+      name = <<"MAFIA XXV: Kanye's Quest">>,
+      day_hours = 48,
+      night_hours = 24,
+      time_zone = -5,
+      day1_dl_time = {{2016,12,1},{18,0,0}},
+      is_init_dst = false,
+      dst_changes = [],
+      gms = to_bin(?M25_GMs),
+      players_orig = to_bin(?M25_players),
+      players_rem = to_bin(?M25_players),
+      players_dead = [],
+      page_to_read = 1,
+      complete = false
+     },
+    MGame2 = mafia_time:add_deadline(MGame, 16),
+    mnesia:dirty_write(MGame2);
+
+write_default_table(game, 24) ->
     io:format("Adding Mafia Game M24\n", []),
     MGame = #mafia_game{
       key = ?DefThId,
@@ -94,15 +129,7 @@ write_default_table(game) ->
       complete = false
      },
     MGame2 = mafia_time:add_deadline(MGame, 16),
-    mnesia:dirty_write(MGame2);
-
-write_default_table(user) ->
-    [ mnesia:dirty_write(
-        #user{name_upper = l2b(string:to_upper(U)),
-              name = l2b(U),
-              verification_status = ?unverified})
-      || U <- ?M24_players ++ ?M24_GMs],
-    ok.
+    mnesia:dirty_write(MGame2).
 
 set(K=thread_id, V) when is_integer(V), V > 0 -> set_kv(K,V);
 set(K=page_to_read, V) when is_integer(V), V > 0 -> set_kv(K,V);
@@ -124,7 +151,8 @@ create_tables() ->
     create_table(message),
     create_table(mafia_day),
     create_table(mafia_game),
-    create_table(user).
+    create_table(user),
+    create_table(stat).
 
 create_table(RecName) ->
     Opts = create_table_opts(RecName),
@@ -155,4 +183,5 @@ rec_info(page_rec) -> record_info(fields, page_rec);
 rec_info(message) -> record_info(fields, message);
 rec_info(mafia_day) -> record_info(fields, mafia_day);
 rec_info(mafia_game) -> record_info(fields, mafia_game);
-rec_info(user) -> record_info(fields, user).
+rec_info(user) -> record_info(fields, user);
+rec_info(stat) -> record_info(fields, stat).

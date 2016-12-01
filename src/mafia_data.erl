@@ -14,7 +14,8 @@
 -export([
          refresh_votes/0,
          refresh_stat/0,
-         compress_txt_files/0
+         compress_txt_files/0,
+         grep/1
         ]).
 
 -import(mafia,
@@ -25,6 +26,7 @@
          b2l/1,
          b2ub/1,
          l2b/1,
+         l2u/1,
          i2l/1,
          l2i/1
         ]).
@@ -128,6 +130,38 @@ upd(_K, MsgId, Count, [S = #stat{}]) ->
                      num_postings = NumPostings + CNumPostings
                     })
     end.
+
+grep(Str) ->
+    ThId = getv(thread_id),
+    StrU = l2u(Str),
+    GrepF =
+        fun(M) ->
+                Msg = b2l(M#message.message),
+                MsgU = l2u(Msg),
+                case string:str(MsgU, StrU) of
+                    0 -> ok;
+                    _P ->
+                        io:format("~s in msg ~p, page ~p wrote ~p\n",
+                                  [b2l(M#message.user_name),
+                                   M#message.msg_id,
+                                   M#message.page_num,
+                                   Msg])
+                end
+        end,
+    iterate_all_msgs(ThId, GrepF),
+    ok.
+
+iterate_all_msgs(ThId, Fun) ->
+    Pages = lists:sort(mafia:find_pages_for_thread(ThId)),
+    F = fun(Page) ->
+                Key = {ThId, Page},
+                [PR] = mnesia:dirty_read(page_rec, Key),
+                Msgs = [hd(mnesia:dirty_read(message, MsgId))
+                        || MsgId <- PR#page_rec.message_ids],
+                lists:foreach(Fun, Msgs),
+                Key
+        end,
+    [F(P) || P <- Pages].
 
 %% Iterate through all message ids in one thread in time order
 iterate_all_msg_ids(ThId, Fun) ->
@@ -295,7 +329,7 @@ analyse_body(S) ->
     {B4, UserRaw} = read_to_before(B3, "<"),
     UserStr = strip(UserRaw),
     B4a = rm_to_after(B4, "messageID=\""),
-    {B4a2, MsgId} = read_to_before(B4a, "\""),
+    {B4a2, MsgIdStr} = read_to_before(B4a, "\""),
     B4b = rm_to_after(B4a2, "unixtime=\""),
     {B4c, TimeStr} = read_to_before(B4b, "\""),
     B5 = rm_to_after(B4c, ["<div class=\"message-contents\"", ">"]),
@@ -303,16 +337,16 @@ analyse_body(S) ->
     Msg = strip_fix(MsgRaw),
 
     if UserStr /= "" ->
-            MsgIdInt = l2i(MsgId),
+            MsgId = l2i(MsgIdStr),
             Time = l2i(TimeStr),
             User = l2b(UserStr),
-            case mnesia:dirty_read(message, MsgIdInt) of
+            case mnesia:dirty_read(message, MsgId) of
                 [] ->
                     %% io:format("New ~w - ~w - ~w~n", [S#s.thread_id, S#s.page,
-                    %%                                  MsgIdInt]),
-                    update_page_rec(S, MsgIdInt),
-                    MsgR = write_message_rec(S, MsgIdInt, User, Time, Msg),
-                    update_stat(MsgIdInt),
+                    %%                                  MsgId]),
+                    update_page_rec(S, MsgId),
+                    MsgR = write_message_rec(S, MsgId, User, Time, Msg),
+                    update_stat(MsgId),
                     mafia_vote:check_for_vote(MsgR);
                 [MsgR] ->
                     ok

@@ -4,6 +4,7 @@
 
 %% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
 %% todo:
+%% - stats per phase, phase in heading, add totals at end
 %% - Time remaining in heading of print votes
 %% - downl and pps should look similar, Died/Vote messages and deadline markers
 %% - Implement ##Unvote variations
@@ -48,8 +49,13 @@
          b2l/1,
          b2ub/1,
          l2b/1,
+         l2u/1,
          i2l/1,
          l2i/1
+        ]).
+
+%% utilities
+-export([grep/1
         ]).
 
 -export([cmp_vote_raw/0
@@ -69,16 +75,15 @@ print_votes() -> mafia_print:print_votes().
 print_votes(DayNum) -> mafia_print:print_votes(DayNum).
 print_messages(User) -> mafia_print:print_messages(User).
 
-
 downl() -> mafia_data:downl().
 
-l2u(L) -> string:to_upper(L).
 i2l(I) -> integer_to_list(I).
 l2i(L) -> list_to_integer(L).
 
 b2l(B) -> binary_to_list(B).
 l2b(L) -> list_to_binary(L).
 
+l2u(L) -> string:to_upper(L).
 l2ub(L) -> l2b(l2u(L)).
 b2ub(B) -> l2b(l2u(b2l(B))).
 
@@ -92,6 +97,8 @@ setup_mnesia() -> mafia_db:setup_mnesia().
 remove_mnesia() -> mafia_db:remove_mnesia().
 
 refresh_votes() -> mafia_data:refresh_votes().
+
+grep(Str) -> mafia_data:grep(Str).
 
 %% Pre-check user list given by GM in initial game PM
 verify_new_user_list(25) ->

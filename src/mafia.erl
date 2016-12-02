@@ -5,7 +5,7 @@
 %% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
 %% todo:
 %% - Implement ##END / ##UNEND
-%% - stats per phase, phase in heading, add totals at end
+%% - sum the stats last line in print_votes
 %% - downl and pps should look similar, Died/Vote messages and deadline markers
 %% - print_vote variant for one voter during one day
 %% - webpage with GM command listing

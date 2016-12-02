@@ -81,7 +81,7 @@ print_votes(_DayNum, [], _) -> ok;
 print_votes(_DayNum, _, []) -> ok;
 print_votes(DayNum,
             [#mafia_game{key = ThId,
-                         players_rem = RemPlayers}],
+                         players_rem = RemPlayers} = G],
             [#mafia_day{votes = Votes}]
            ) ->
     %% [{Vote, Num, [{Time, User, Raw}]}]
@@ -129,7 +129,7 @@ print_votes(DayNum,
     io:format("Remaining time to next ~s ~p deadline: "
               "~p days ~p hours and ~p minutes\n"
               "\n",
-              [pr(DoN), Num, Days, HH, MM]),
+              [pr_don(DoN), Num, Days, HH, MM]),
 
     [begin
          Voters = [{Voter, Raw}
@@ -164,11 +164,11 @@ print_votes(DayNum,
      || {Voter, #vote{raw = Raw}} <- InvalidVotes],
 
     %% Part 6
-    print_stats(ThId, DayNum, ?day),
+    {DayLastMsg, DoN} = mafia_time:calculate_phase(G, LastMsgTime),
+    print_stats(ThId, DayLastMsg, DoN),
     ok.
 
 print_stats() ->
-    %%Phase = {1, day__},
     print_stats(1420289, 1, ?day).
 
 print_stats(ThId, Day, DoN) ->
@@ -185,9 +185,11 @@ print_stats(ThId, Day, DoN, [G]) ->
     NonPosters = [b2l(PRem) || PRem <- G#mafia_game.players_rem]
         -- [tr(UserU(S)) || S <- Stats],
     io:format("\n"
-              "Player posting statistics\n"
-              "-------------------------\n"
-              "~s ~s ~s ~s\n", ["Posts", "Words", " Chars", "Player"]),
+              "Posting statistics (~s ~p)\n"
+              "------------------\n"
+              "~s ~s ~s ~s\n",
+              [pr_don(DoN), Day,
+               "Posts", "Words", " Chars", "Player"]),
     [begin
          %% UInfo = hd(mnesia:dirty_read(user, UserU(S))),
          %% Name = b2l(UInfo#user.name),
@@ -200,7 +202,7 @@ print_stats(ThId, Day, DoN, [G]) ->
      end || S <- lists:reverse(StatsSorted)],
     %%io:format("~p\n", [NonPosters]),
     io:format("\nNon-posters: ~s\n",
-              [case string:join(NonPosters, ",") of
+              [case string:join(NonPosters, ", ") of
                    "" -> "-";
                    Str -> Str
                end]).
@@ -328,10 +330,10 @@ print_dl({Num, DorN, _}, Txt) ->
 print_dl({Num, DorN}, Txt) ->
     io:format("-------------------------------- ~s~s ~p "
               "--------------------------------\n",
-              [Txt, pr(DorN), Num]).
+              [Txt, pr_don(DorN), Num]).
 
-pr(?day) -> "Day";
-pr(?night) -> "Night".
+pr_don(?day) -> "Day";
+pr_don(?night) -> "Night".
 
 %% -----------------------------------------------------------------------------
 

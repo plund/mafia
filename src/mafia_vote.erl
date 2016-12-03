@@ -29,10 +29,10 @@ check_for_deathI(M, G) ->
     case author_gm(M, G) of
         false -> G;
         true ->
-            check_for_deathI2(b2ul(M#message.message), G)
+            check_for_deathI2(b2ul(M#message.message), M, G)
     end.
 
-check_for_deathI2(MsgUC, G) ->
+check_for_deathI2(MsgUC, M, G) ->
     %% find "has died" on line
     SearchU1 = "DIED",
     SearchU2 = "DEAD",
@@ -63,7 +63,7 @@ check_for_deathI2(MsgUC, G) ->
                    end,
                    RemUsersU) of
                 [] -> %% no match
-                    check_for_deathI2(TStr, G);
+                    check_for_deathI2(TStr, M, G);
                 [KilledUserU|_] ->
                     %% remove player from _rem lists.
                     OldRem = G#mafia_game.players_rem,
@@ -73,16 +73,31 @@ check_for_deathI2(MsgUC, G) ->
                           end,
                           OldRem),
                     if NewRem /= OldRem ->
-                            Dead = b2l(hd(OldRem--NewRem)),
+                            DeadB = hd(OldRem -- NewRem),
+                            Dead = b2l(DeadB),
+                            OldDeads = G#mafia_game.players_dead,
                             io:format("Player ~s died\n", [Dead]),
-                            G2 = G#mafia_game{players_rem = NewRem},
+                            NewDeads = [{DeadB, phase_10min_ago(M, G)}
+                                        | OldDeads],
+                            G2 = G#mafia_game{players_rem = NewRem,
+                                              players_dead = NewDeads},
                             mnesia:dirty_write(G2),
-                            check_for_deathI2(TStr, G2);
+                            check_for_deathI2(TStr, M, G2);
                        true ->
-                            check_for_deathI2(TStr, G)
+                            check_for_deathI2(TStr, M, G)
                     end
             end
     end.
+
+-spec phase_10min_ago(M :: #message{}, G :: #mafia_game{})
+                     -> {IsEnd :: boolean(), phase()}.
+phase_10min_ago(M, G) ->
+    TimeMsg = M#message.time,
+    PhaseMsg = mafia_time:calculate_phase(G, TimeMsg),
+    Time10m = TimeMsg - 10 * ?MinuteSecs,
+    Phase10m = mafia_time:calculate_phase(G, Time10m),
+    IsEnd = PhaseMsg /= Phase10m,
+    {IsEnd, Phase10m}.
 
 is_last_non_letter(HStr) ->
     is_first_non_letter(lists:reverse(HStr)).

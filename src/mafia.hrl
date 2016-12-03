@@ -8,6 +8,7 @@
 -define(GDAYS_1970, 719528).
 %% calendar:date_to_gregorian_days({1970,1,1}) -> 719528.
 
+-define(MinuteSecs, 60).
 -define(HourSecs, 3600).
 -define(DaySecs, (24*3600)).
 
@@ -33,7 +34,8 @@
          "teacon7", "Chaqa", "WardenDresden", "xorxes", "Vecna", "rdrivera2005",
          "Glen_Alexander", "Jamiet99uk", "Maniac", "dargorygel", "zorclex"]).
 
--define(Aliases, [{"CaptainMeme", ["Meme"]},
+-define(Aliases, [{"DemonRHK", ["RHK"]},
+                  {"CaptainMeme", ["Meme"]},
                   {"Hellenic Riot", ["HR", "H.R."]},
                   {"Brainbomb", ["BB"]},
                   {"No-Lynch", ["No Lynch"]}

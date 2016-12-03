@@ -5,7 +5,6 @@
 %% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
 %% todo:
 %% - print "global" game stats
-%% - display dead and remaining players on vote page
 %% - add vote tracker
 %%    - create unique 3 letter abbreviations for every player id
 %% - Implement ##END / ##UNEND

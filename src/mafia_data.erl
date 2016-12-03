@@ -56,7 +56,8 @@ refresh_votes() ->
 refresh_votes(_ThId, []) -> ok;
 refresh_votes(ThId, [G]) ->
     mnesia:dirty_write(
-      G#mafia_game{players_rem = G#mafia_game.players_orig}),
+      G#mafia_game{players_rem = G#mafia_game.players_orig,
+                   players_dead = []}),
     iterate_all_msg_ids(ThId, fun mafia_vote:check_for_vote/1),
     Pages = lists:sort(mafia:find_pages_for_thread(ThId)),
     "Thread " ++ i2l(ThId) ++ "; Pages: " ++
@@ -76,7 +77,7 @@ update_stat(MsgId) ->
     update_stat(MsgId, mnesia:dirty_read(message, MsgId)).
 
 update_stat(_MsgId, []) -> ok;
-update_stat(MsgId,[M = #message{thread_id = ThId}]) ->
+update_stat(MsgId, [M = #message{thread_id = ThId}]) ->
     update_stat(MsgId, M, mnesia:dirty_read(mafia_game, ThId)).
 
 update_stat(_MsgId, _M, []) -> ok;
@@ -206,7 +207,7 @@ make_url(S) ->
     Url = ?UrlBeg ++ i2l(S#s.thread_id) ++ ?UrlMid ++ i2l(S#s.page) ++ ?UrlEnd,
     S#s{url = Url}.
 
-get_body2(_S2, error) -> error;
+get_body2(_S2, {error, _} = Error) -> Error;
 get_body2(S2, {ok, Body}) ->
     Body2 = get_thread_section(Body),
     S3 = check_this_page(S2#s{body=Body2}),
@@ -231,9 +232,9 @@ http_request(S2) ->
         {ok, {_StatusCode, Body}} ->
             {ok, Body};
         {ok, _ReqId} ->
-            error;
+            {error, no_body};
         {error, _Reason} ->
-            error
+            {error, http_req}
     end.
 
 get_body_from_file(S) ->

@@ -83,7 +83,7 @@ print_votes(DayNum) when is_integer(DayNum) ->
     print_votes({DayNum, ?day});
 print_votes(Phase = {_, _}) ->
     ThId = getv(thread_id),
-    LastMsgTime = time_for_last_msg(),
+    LastMsgTime = false,
     print_votes(ThId, Phase, LastMsgTime).
 
 print_votes(ThId, Phase, LastMsgTime) ->
@@ -98,6 +98,95 @@ print_votes(Phase, LastMsgTime,
                          players_rem = RemPlayers} = G],
             [#mafia_day{votes = Votes}]
            ) ->
+
+    IsDay = element(2, Phase) == ?day,
+
+    %% Part 1 - Page heading
+    %% Print Game Name
+    GName = b2l(G#mafia_game.name),
+    io:format("\n~s\n~s\n", [GName,
+                            [$= || _ <- GName]]),
+
+    if is_integer(LastMsgTime) ->
+            {{Days, {HH, MM, _}}, {Num, DoN, _}} =
+                mafia_time:get_next_deadline(ThId, LastMsgTime),
+            io:format("Remaining time to next ~s ~p deadline: "
+                      "~p days ~p hours and ~p minutes\n"
+                      "\n",
+                      [pr_don(DoN), Num, Days, HH, MM]);
+       true -> no_print
+    end,
+
+    {VoteSumSort, InvalidVotes} =
+        if IsDay ->
+                %% Part 2 - Votes
+                pr_votes(Votes, Phase);
+           true ->
+                {na, na}
+        end,
+
+    if IsDay ->
+            %% Part 3 - No vote
+            ValidVoters = [ Pl || {Pl, _} <- Votes]
+                -- [User || {User, _} <- InvalidVotes],
+            Unvoted = RemPlayers -- ValidVoters,
+            NoVoteStr =
+                if Unvoted == [] -> "-";
+                   true ->
+                        string:join([b2l(U) || U <- Unvoted], ", ")
+                end,
+            io:format("No vote: ~s\n\n", [NoVoteStr]);
+       true -> ignore
+    end,
+
+    %% Part 4 - Dead players
+    DeadToReport =
+        lists:reverse(
+          [D || D = {_, {_, Ph}} <- G#mafia_game.players_dead,
+                if LastMsgTime == false -> Ph == Phase;
+                   true -> Ph =< Phase
+                end]),
+    {Fmt, Div, PrFun} =
+        if LastMsgTime == false ->
+                {"Dead Players " ++ pr_phase_long(Phase) ++ ": ~s\n\n", ", ",
+                 fun(_, _) -> "" end};
+           true ->
+                {"Dead Players\n"
+                 "------------\n"
+                 "~s\n\n",
+                 "\n",
+                 fun(IsEnd, Ph) -> pr_eodon(IsEnd, Ph) end}
+        end,
+    io:format(
+      Fmt,
+      [string:join(
+         [b2l(DeadPl) ++ PrFun(IsEnd, Ph)
+          || {DeadPl, {IsEnd, Ph={_DoNNum, _DN}}} <- DeadToReport],
+         Div)]),
+
+    if IsDay ->
+            %% Part 4 - Voting texts
+            io:format("Voting texts:\n"
+                      "-------------\n"),
+            [[io:format(b2l(Voter) ++ ": \"" ++ rm_nl(b2l(Raw)) ++ "\"\n")
+              || {_VoteTime, Voter, Raw} <- VoteInfos]
+             || {_Vote, _N, VoteInfos} <- VoteSumSort],
+
+            %% Part 5 - Invalid Vote text
+            io:format("\n"
+                      "Invalid Vote texts:\n"
+                      "-------------------\n"),
+            [io:format(b2l(Voter) ++ ": \"" ++ rm_nl(b2l(Raw)) ++ "\"\n")
+             || {Voter, #vote{raw = Raw}} <- InvalidVotes],
+            io:format("\n");
+       true -> ignore
+    end,
+
+    %% Part 6
+    print_stats(ThId, Phase),
+    ok.
+
+pr_votes(Votes, Phase) ->
     %% [{Vote, Num, [{Time, User, Raw}]}]
     {VoteSummary, InvalidVotes} =
         lists:foldl(
@@ -124,24 +213,10 @@ print_votes(Phase, LastMsgTime,
           Votes),
     %% Sort summary on number of received votes
     GtEq = fun(A, B) -> element(2, A) >= element(2, B) end,
-    VoteSum2 = lists:sort(GtEq, VoteSummary),
+    VoteSumSort = lists:sort(GtEq, VoteSummary),
 
-    %% Part 1 - Page heading
-    %% Print Game Name
-    GName = b2l(G#mafia_game.name),
-    io:format("\n~s\n~s\n", [GName,
-                            [$- || _ <- GName]]),
-    {{Days, {HH, MM, _}}, {Num, DoN, _}} =
-        mafia_time:get_next_deadline(ThId, LastMsgTime),
-    io:format("Remaining time to next ~s ~p deadline: "
-              "~p days ~p hours and ~p minutes\n"
-              "\n",
-              [pr_don(DoN), Num, Days, HH, MM]),
-
-
-    %% Part 2 - Votes
-    io:format("Votes day ~p\n"
-              "------------\n", [element(1, Phase)]),
+    io:format("Votes ~s\n"
+              "------------\n", [pr_phase_long(Phase)]),
     [begin
          Voters = [{Voter, Raw}
                    || {_VoteTime, Voter, Raw}
@@ -150,33 +225,9 @@ print_votes(Phase, LastMsgTime,
          VotersInTimeOrder =
              [b2l(Voter) || {Voter, _Raw3} <- Voters],
          io:format("~s\n", [string:join(VotersInTimeOrder, ", ")])
-     end || {Vote, N, VoteInfos} <- VoteSum2],
-
-    %% Part 3
-    ValidVoters = [ Pl || {Pl, _} <- Votes]
-        -- [User || {User, _} <- InvalidVotes],
-    Unvoted = RemPlayers -- ValidVoters,
-    io:format("\nNo vote: ~s\n",
-              [string:join([b2l(U) || U <- Unvoted], ", ") ] ),
-
-    %% Part 4
-    io:format("\n"
-              "Voting texts:\n"
-              "-------------\n"),
-    [[io:format(b2l(Voter) ++ ": \"" ++ rm_nl(b2l(Raw)) ++ "\"\n")
-      || {_VoteTime, Voter, Raw} <- VoteInfos]
-     || {_Vote, _N, VoteInfos} <- VoteSum2],
-
-    %% Part 5
-    io:format("\n"
-              "Invalid Vote texts:\n"
-              "-------------------\n"),
-    [io:format(b2l(Voter) ++ ": \"" ++ rm_nl(b2l(Raw)) ++ "\"\n")
-     || {Voter, #vote{raw = Raw}} <- InvalidVotes],
-
-    %% Part 6
-    print_stats(ThId, Phase),
-    ok.
+     end || {Vote, N, VoteInfos} <- VoteSumSort],
+    io:format("\n"),
+    {VoteSumSort, InvalidVotes}.
 
 time_for_last_msg() ->
     ThId = getv(thread_id),
@@ -188,6 +239,14 @@ time_for_last_msg() ->
                   #page_rec.message_ids),
     (hd(mnesia:dirty_read(message, LastMsgId)))#message.time.
 
+pr_eodon(true, Phase) -> " died " ++ pr_eodon(Phase);
+pr_eodon(false, {Num, DoN}) -> " died " ++ pr_don(DoN) ++ " " ++ i2l(Num).
+
+pr_eodon({Num, ?day}) -> "EoD"++ i2l(Num);
+pr_eodon({Num, ?night}) -> "EoN"++ i2l(Num).
+
+pr_phase_long({Num, DoN}) -> pr_don(DoN) ++ " " ++ i2l(Num).
+
 print_stats() ->
     print_stats(1420289, {1, ?day}).
 
@@ -195,7 +254,7 @@ print_stats(ThId, Phase) ->
     print_stats(ThId, Phase, mnesia:dirty_read(mafia_game, ThId)).
 
 print_stats(_ThId, _Phase, []) -> ok;
-print_stats(ThId, {Day, DoN}, [G]) ->
+print_stats(ThId, Phase = {Day, DoN}, [G]) ->
     MatchHead = #stat{key = {'$1', '$2', {'$3', '$4'}}, _='_'},
     Guard = [{'==', '$2', ThId}, {'==', '$3', Day}, {'==', '$4', DoN}],
     Result = '$_',
@@ -212,11 +271,10 @@ print_stats(ThId, {Day, DoN}, [G]) ->
     UserU = fun(#stat{key = {U,_,_}}) -> tr(U) end,
     NonPosters = [b2l(PRem) || PRem <- G#mafia_game.players_rem]
         -- [UserU(S) || S <- Stats],
-    io:format("\n"
-              "Posting statistics (~s ~p)\n"
+    io:format("Posting statistics (~s)\n"
               "------------------\n"
               "~s ~s ~s ~s\n",
-              [pr_don(DoN), Day,
+              [pr_phase_long(Phase), %%pr_don(DoN), Day,
                "Posts", "Words", " Chars", "Player"]),
     print_stat_div(),
     SumStat =

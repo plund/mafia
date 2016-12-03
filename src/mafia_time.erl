@@ -63,7 +63,14 @@ local_datetime_for_secs1970(Time, TzH, Dst) ->
 adjust_secs1970_to_tz_dst(Time, TzH, Dst) ->
     Time + (TzH + if Dst -> 1; true -> 0 end) * ?HourSecs.
 
--spec calculate_phase(Game :: #mafia_game{}, Time::seconds1970()) -> phase().
+-spec calculate_phase(Game :: integer() | #mafia_game{},
+                      Time :: seconds1970())
+                     -> phase().
+calculate_phase(ThId, Time) when is_integer(ThId) ->
+    case mnesia:dirty_read(mafia_game, ThId) of
+        [G] -> calculate_phase(G, Time);
+        [] -> false
+    end;
 calculate_phase(Game, Time) ->
     if Time > element(3, hd(Game#mafia_game.deadlines)) ->
             Game2 = add_deadline(Game, 10),
@@ -72,12 +79,12 @@ calculate_phase(Game, Time) ->
             Game2 = Game
     end,
     DLs = Game2#mafia_game.deadlines,
-    {Num,DN,_} =
+    {Num, DN,_} =
         lists:last(
           lists:takewhile(
             fun({_,_,DLTime}) -> DLTime > Time end,
             DLs)),
-    {Num,DN}.
+    {Num, DN}.
 
 %% and it should also update the game in mnesia with it.
 update_deadlines(ThId, NumNewDLs) ->

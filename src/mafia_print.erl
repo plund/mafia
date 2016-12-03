@@ -7,6 +7,7 @@
          pm/1,
          print_votes/0,
          print_votes/1,
+         print_votes/2,
          print_messages/1,
 
          print_message_summary/1,
@@ -66,20 +67,33 @@ pm(MsgId) when is_integer(MsgId) ->
 %% -----------------------------------------------------------------------------
 
 print_votes() ->
-    print_votes(1).
-
-print_votes(DayNum) ->
+    %% Calculate time for last game message
+    LastMsgTime = time_for_last_msg(),
     ThId = getv(thread_id),
-    print_votes(ThId, DayNum).
+    Phase = mafia_time:calculate_phase(ThId, LastMsgTime),
+    print_votes(ThId, Phase, LastMsgTime).
 
-print_votes(ThId, DayNum) ->
-    print_votes(DayNum,
+print_votes(DayNum, DoN) ->
+    DoN2 = if DoN == d; DoN == day -> ?day;
+              DoN == n; DoN == night -> ?night
+           end,
+    print_votes({DayNum, DoN2}).
+
+print_votes(DayNum) when is_integer(DayNum) ->
+    print_votes({DayNum, ?day});
+print_votes(Phase = {_, _}) ->
+    ThId = getv(thread_id),
+    LastMsgTime = time_for_last_msg(),
+    print_votes(ThId, Phase, LastMsgTime).
+
+print_votes(ThId, Phase, LastMsgTime) ->
+    print_votes(Phase, LastMsgTime,
                 mnesia:dirty_read(mafia_game, ThId),
-                mnesia:dirty_read(mafia_day, {ThId, DayNum})).
+                mnesia:dirty_read(mafia_day, {ThId, element(1, Phase)})).
 
-print_votes(_DayNum, [], _) -> ok;
-print_votes(_DayNum, _, []) -> ok;
-print_votes(DayNum,
+print_votes(_Phase, _LastMsgTime, [], _) -> ok;
+print_votes(_Phase, _LastMsgTime, _, []) -> ok;
+print_votes(Phase, LastMsgTime,
             [#mafia_game{key = ThId,
                          players_rem = RemPlayers} = G],
             [#mafia_day{votes = Votes}]
@@ -112,18 +126,11 @@ print_votes(DayNum,
     GtEq = fun(A, B) -> element(2, A) >= element(2, B) end,
     VoteSum2 = lists:sort(GtEq, VoteSummary),
 
-    %% Part 1
-    io:format("Votes day ~p\n"
-              "------------\n", [DayNum]),
-    %% Part 2
-    LastPage = lists:last(
-                 lists:sort(
-                   mafia:find_pages_for_thread(ThId))),
-    LastMsgId = lists:last(
-                  (hd(mnesia:dirty_read(page_rec, {ThId, LastPage})))
-                  #page_rec.message_ids),
-    LastMsgTime = (hd(mnesia:dirty_read(message, LastMsgId)))#message.time,
-
+    %% Part 1 - Page heading
+    %% Print Game Name
+    GName = b2l(G#mafia_game.name),
+    io:format("\n~s\n~s\n", [GName,
+                            [$- || _ <- GName]]),
     {{Days, {HH, MM, _}}, {Num, DoN, _}} =
         mafia_time:get_next_deadline(ThId, LastMsgTime),
     io:format("Remaining time to next ~s ~p deadline: "
@@ -131,6 +138,10 @@ print_votes(DayNum,
               "\n",
               [pr_don(DoN), Num, Days, HH, MM]),
 
+
+    %% Part 2 - Votes
+    io:format("Votes day ~p\n"
+              "------------\n", [element(1, Phase)]),
     [begin
          Voters = [{Voter, Raw}
                    || {_VoteTime, Voter, Raw}
@@ -164,48 +175,81 @@ print_votes(DayNum,
      || {Voter, #vote{raw = Raw}} <- InvalidVotes],
 
     %% Part 6
-    {DayLastMsg, DoN} = mafia_time:calculate_phase(G, LastMsgTime),
-    print_stats(ThId, DayLastMsg, DoN),
+    print_stats(ThId, Phase),
     ok.
 
+time_for_last_msg() ->
+    ThId = getv(thread_id),
+    LastPage = lists:last(
+                 lists:sort(
+                   mafia:find_pages_for_thread(ThId))),
+    LastMsgId = lists:last(
+                  (hd(mnesia:dirty_read(page_rec, {ThId, LastPage})))
+                  #page_rec.message_ids),
+    (hd(mnesia:dirty_read(message, LastMsgId)))#message.time.
+
 print_stats() ->
-    print_stats(1420289, 1, ?day).
+    print_stats(1420289, {1, ?day}).
 
-print_stats(ThId, Day, DoN) ->
-    print_stats(ThId, Day, DoN, mnesia:dirty_read(mafia_game, ThId)).
+print_stats(ThId, Phase) ->
+    print_stats(ThId, Phase, mnesia:dirty_read(mafia_game, ThId)).
 
-print_stats(_ThId, _Day, _DoN, []) -> ok;
-print_stats(ThId, Day, DoN, [G]) ->
+print_stats(_ThId, _Phase, []) -> ok;
+print_stats(ThId, {Day, DoN}, [G]) ->
     MatchHead = #stat{key = {'$1', '$2', {'$3', '$4'}}, _='_'},
     Guard = [{'==', '$2', ThId}, {'==', '$3', Day}, {'==', '$4', DoN}],
     Result = '$_',
     Stats = mnesia:dirty_select(stat, [{MatchHead, Guard, [Result]}]),
-    StatsSorted = lists:keysort(#stat.num_postings, Stats),
-    UserU = fun(#stat{key = {U,_,_}}) -> U end,
+    LE = fun(#stat{num_postings = PA, num_words = WA},
+             #stat{num_postings = PB, num_words = WB}) ->
+                 if PA < PB -> true;
+                    PA > PB -> false;
+                    WA =< WB -> true;
+                    true -> false
+                 end
+         end,
+    StatsSorted = lists:sort(LE, Stats),
+    UserU = fun(#stat{key = {U,_,_}}) -> tr(U) end,
     NonPosters = [b2l(PRem) || PRem <- G#mafia_game.players_rem]
-        -- [tr(UserU(S)) || S <- Stats],
+        -- [UserU(S) || S <- Stats],
     io:format("\n"
               "Posting statistics (~s ~p)\n"
               "------------------\n"
               "~s ~s ~s ~s\n",
               [pr_don(DoN), Day,
                "Posts", "Words", " Chars", "Player"]),
-    [begin
-         %% UInfo = hd(mnesia:dirty_read(user, UserU(S))),
-         %% Name = b2l(UInfo#user.name),
-         io:format("~s ~s ~s ~s\n",
-                   [i2l(S#stat.num_postings, 5),
-                    i2l(S#stat.num_words, 5),
-                    i2l(S#stat.num_chars, 6),
-                    tr(UserU(S))
-                    ])
-     end || S <- lists:reverse(StatsSorted)],
-    %%io:format("~p\n", [NonPosters]),
+    print_stat_div(),
+    SumStat =
+        lists:foldl(
+          fun(S, Sum) ->
+                  print_stat_row(S, UserU),
+                  mafia_data:sum_stat(S, Sum)
+          end,
+          #stat{msg_ids = [],
+                num_chars = 0,
+                num_words = 0,
+                num_postings = 0
+               },
+          lists:reverse(StatsSorted)),
+    print_stat_div(),
+    print_stat_row(SumStat, fun(_) -> "Total Counts" end),
     io:format("\nNon-posters: ~s\n",
               [case string:join(NonPosters, ", ") of
                    "" -> "-";
                    Str -> Str
                end]).
+
+print_stat_div() ->
+    io:format("~s ~s ~s ~s\n",
+              ["-----", "-----", "------", "-----------"]).
+
+print_stat_row(S, UserU) ->
+    io:format("~s ~s ~s ~s\n",
+              [i2l(S#stat.num_postings, 5),
+               i2l(S#stat.num_words, 5),
+               i2l(S#stat.num_chars, 6),
+               UserU(S)
+              ]).
 
 tr(UserUB) ->
     UInfo = hd(mnesia:dirty_read(user, UserUB)),

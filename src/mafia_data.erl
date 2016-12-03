@@ -7,7 +7,8 @@
 -export([
          rm_to_after_pos/2,
          find_pos_and_split/2,
-         get_after_pos/3
+         get_after_pos/3,
+         sum_stat/2
         ]).
 
 %% utilities
@@ -95,41 +96,54 @@ update_stat(MsgId, M, [G = #mafia_game{}]) ->
                   num_words = length(string:tokens(Msg , " ,.\t\r\n")),
                   num_postings = 1
                  },
-    upd(Key1, MsgId, Count),
-    upd(Key2, MsgId, Count),
+    update_stats_db(Key1, MsgId, Count),
+    update_stats_db(Key2, MsgId, Count),
     ok.
 
-upd(K, MsgId, Count) ->
+update_stats_db(K, MsgId, Count) ->
     %% check_if_phase_record_exist
-    %% check_if_msg_id_in_record
-    %% if not add stats
-    upd(K, MsgId, Count, mnesia:dirty_read(stat, K)).
+    update_stats_db(K, MsgId, Count, mnesia:dirty_read(stat, K)).
 
-upd(K, MsgId, Count, []) ->
+update_stats_db(K, MsgId, Count, []) ->
     mnesia:dirty_write(
       Count#stat{key = K,
                  msg_ids = [MsgId]});
-upd(_K, MsgId, Count, [S = #stat{}]) ->
-    #stat{num_chars = CNumChars,
-          num_words = CNumWords,
-          num_postings = CNumPostings
-         } = Count,
-    #stat{msg_ids = MsgIds,
-          num_chars = NumChars,
-          num_words = NumWords,
-          num_postings = NumPostings
-         } = S,
-    case lists:member(MsgId, MsgIds) of
-        true ->
-            same;
-        false ->
-            mnesia:dirty_write(
-              S#stat{msg_ids = [MsgId | MsgIds],
-                     num_chars = NumChars + CNumChars,
-                     num_words = NumWords + CNumWords,
-                     num_postings = NumPostings + CNumPostings
-                    })
+update_stats_db(_K, MsgId, Count, [Stat = #stat{}]) ->
+    %% check if msg_id already is in db
+    %% if not add stats
+    case lists:member(MsgId, Stat#stat.msg_ids) of
+        true -> same;
+        false -> mnesia:dirty_write(sum_stat(Count, Stat))
     end.
+
+sum_stat(#stat{key = KA,
+               msg_ids = MsgIdsA,
+               num_chars = NChA,
+               num_words = NWoA,
+               num_postings = NPoA
+              },
+         #stat{key = KB,
+               msg_ids = MsgIdsB,
+               num_chars = NChB,
+               num_words = NWoB,
+               num_postings = NPoB
+              }) ->
+    Key = if KA == undefined -> KB;
+             true -> KA
+          end,
+    MsgIds =
+        case {is_list(MsgIdsA), is_list(MsgIdsB)} of
+            {true, true} -> MsgIdsA ++ MsgIdsB;
+            {false, true} -> [MsgIdsA | MsgIdsB];
+            {true, false} -> [MsgIdsB | MsgIdsA];
+            {false, false} -> [MsgIdsA, MsgIdsB]
+        end,
+    #stat{key = Key,
+          msg_ids = MsgIds,
+          num_chars = NChA + NChB,
+          num_words = NWoA + NWoB,
+          num_postings = NPoA + NPoB
+         }.
 
 grep(Str) ->
     ThId = getv(thread_id),

@@ -4,8 +4,11 @@
 
 %% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
 %% todo:
+%% - print "global" game stats
+%% - display dead and remaining players on vote page
+%% - add vote tracker
+%%    - create unique 3 letter abbreviations for every player id
 %% - Implement ##END / ##UNEND
-%% - sum the stats last line in print_votes
 %% - downl and pps should look similar, Died/Vote messages and deadline markers
 %% - print_vote variant for one voter during one day
 %% - webpage with GM command listing
@@ -29,6 +32,7 @@
          pm/1,
          print_votes/0,
          print_votes/1,
+         print_votes/2,
          print_messages/1,
 
          verify_new_user_list/1,
@@ -71,6 +75,7 @@ pps(ThId) -> mafia_print:pps(ThId).
 pps(ThId, Page) -> mafia_print:pps(ThId, Page).
 print_votes() -> mafia_print:print_votes().
 print_votes(DayNum) -> mafia_print:print_votes(DayNum).
+print_votes(DayNum, DoN) -> mafia_print:print_votes(DayNum, DoN).
 print_messages(User) -> mafia_print:print_messages(User).
 
 downl() -> mafia_data:downl().

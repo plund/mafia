@@ -24,6 +24,7 @@
          b2l/1,
          l2b/1,
          i2l/1,
+         l2u/1,
          lrev/1,
          rgame/0,
          rgame/1,
@@ -110,16 +111,11 @@ print_votes(Phase, LastMsgTime,
     %% Part 1 - Page heading
     %% Print Game Name
     GName = b2l(G#mafia_game.name),
-    io:format("\n~s\n~s\n", [GName,
+    io:format("\n~s\n~s\n\n", [GName,
                             [$= || _ <- GName]]),
 
     if is_integer(LastMsgTime) ->
-            {{Days, {HH, MM, _}}, {Num, DoN, _}} =
-                mafia_time:get_next_deadline(ThId, LastMsgTime),
-            io:format("Remaining time to next ~s ~p deadline: "
-                      "~p days ~p hours and ~p minutes\n"
-                      "\n",
-                      [pr_don(DoN), Num, Days, HH, MM]);
+            print_time_left_to_dl(ThId, LastMsgTime);
        true -> no_print
     end,
 
@@ -194,6 +190,17 @@ print_votes(Phase, LastMsgTime,
     %% Part 7 - Vote tracker
     print_tracker(ThId, Phase),
     ok.
+
+print_time_left_to_dl(ThId, LastMsgTime) ->
+    {{Days, {HH, MM, _}}, {Num, DoN, _}} =
+        mafia_time:get_next_deadline(ThId, LastMsgTime),
+    DayStr = if Days == 0 -> "";
+                true -> i2l(Days) ++ ", "
+             end,
+    io:format("Remaining time to next ~s ~p deadline:"
+              "  ~s~p hours, ~p minutes\n"
+              "\n",
+              [pr_don(DoN), Num, DayStr, HH, MM]).
 
 pr_votes(Votes, Phase) ->
     %% [{Vote, Num, [{Time, User, Raw}]}]
@@ -387,26 +394,33 @@ print_trackerI(G, [#mafia_day{votes = Votes,
     io:format("\n"
               "Vote tracker\n"
               "------------\n"),
-    io:format("      ~s\n", [pr_ivs(user, IterVotes, A)]),
+    FmtVoter = "Voter: ~s\n",
+    FmtTime = "T left ~s\n",
+    io:format(FmtVoter, [pr_ivs_user(IterVotes, A)]),
+    io:format(FmtTime, [pr_ivs_user(IterVotes, fun(_) -> "===" end)]),
     lists:foldl(
       fun({User, V = #vote{}}, IVs) ->
-              NewVote = if V#vote.valid -> A(b2l(V#vote.vote));
-                           not V#vote.valid -> "INV"
-                        end,
-              %% DEBUG
-              case lists:keyfind(User, 1, IVs) of
-                  false ->
-                      io:format("~s\n", [User]);
-                  _ -> ok
-              end,
-              IVs2 = lists:keyreplace(User, 1, IVs, {User, NewVote}),
+              {NewIVs, PrIVs} =
+                  if V#vote.valid ->
+                          NewVote = A(b2l(V#vote.vote)),
+                          IVs2 =
+                              lists:keyreplace(User, 1, IVs, {User, NewVote}),
+                          {IVs2, IVs2};
+                     not V#vote.valid ->
+                          NewVote =  "INV",
+                          IVs2 =
+                              lists:keyreplace(User, 1, IVs, {User, NewVote}),
+                          {IVs, IVs2}
+                  end,
               io:format("~s ~s\n", [PrTimeF(V#vote.time),
-                                    pr_ivs(vote, IVs2, A)]),
-              IVs2
+                                    pr_ivs_vote(PrIVs, User)]),
+              NewIVs
       end,
       IterVotes,
       Votes3),
     Votes3,
+    io:format(FmtTime, [pr_ivs_user(IterVotes, fun(_) -> "===" end)]),
+    io:format(FmtVoter, [pr_ivs_user(IterVotes, A)]),
     ok.
 
 print_read_key(Abbrs) ->
@@ -429,10 +443,20 @@ prk(CFmt, Abbrs) ->
     io:format(Fmt, AbbrsPrint),
     prk(CFmt, AbbrsRem).
 
-pr_ivs(user, IVs, A) ->
-    string:join([A(U) || {U, _V} <- IVs], " ");
-pr_ivs(vote, IVs, _A) ->
-    string:join([V || {_U, V} <- IVs], " ").
+pr_ivs_user(IVs, A) ->
+    string:join([A(U) || {U, _V} <- IVs], " ").
+
+pr_ivs_vote(IVs, User) ->
+    pr_ivs_vote(IVs, User, "").
+
+pr_ivs_vote([], _User, Acc) ->
+    Acc;
+pr_ivs_vote([{U, V}, {_, V2} | T], User, Acc) when U == User ->
+    pr_ivs_vote(T, User, Acc ++ "["++l2u(V)++"]"++V2);
+pr_ivs_vote([{U, V}], User, Acc) when U == User ->
+    pr_ivs_vote([], User, Acc ++ "["++l2u(V)++"]");
+pr_ivs_vote([{_, V} | T], User, Acc) ->
+    pr_ivs_vote(T, User, Acc ++ " " ++ V).
 
 %% -----------------------------------------------------------------------------
 

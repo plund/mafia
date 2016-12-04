@@ -16,7 +16,7 @@
          refresh_votes/0,
          refresh_stat/0,
          compress_txt_files/0,
-         grep/1
+         grep/1, grep/2
         ]).
 
 -import(mafia,
@@ -148,7 +148,16 @@ sum_stat(#stat{key = KA,
           num_postings = NPoA + NPoB
          }.
 
-grep(Str) ->
+grep(Str) -> grep(Str, summary).
+
+grep(Str, s) -> grep(Str, summary);
+grep(Str, f) -> grep(Str, full);
+grep(Str, summary) ->
+    grepI(Str, fun mafia_print:print_message_summary/1);
+grep(Str, full) ->
+    grepI(Str, fun mafia_print:print_message_full/1).
+
+grepI(Str, PrintF)  ->
     ThId = getv(thread_id),
     StrU = l2u(Str),
     GrepF =
@@ -158,11 +167,7 @@ grep(Str) ->
                 case string:str(MsgU, StrU) of
                     0 -> ok;
                     _P ->
-                        io:format("~s in msg ~p, page ~p wrote ~p\n",
-                                  [b2l(M#message.user_name),
-                                   M#message.msg_id,
-                                   M#message.page_num,
-                                   Msg])
+                        PrintF(M)
                 end
         end,
     iterate_all_msgs(ThId, GrepF),

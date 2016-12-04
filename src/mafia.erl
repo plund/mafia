@@ -58,7 +58,7 @@
         ]).
 
 %% utilities
--export([grep/1,
+-export([grep/1, grep/2,
          l/0
         ]).
 
@@ -107,6 +107,7 @@ remove_mnesia() -> mafia_db:remove_mnesia().
 refresh_votes() -> mafia_data:refresh_votes().
 
 grep(Str) -> mafia_data:grep(Str).
+grep(Str, Mode) -> mafia_data:grep(Str, Mode).
 
 %% load all beams in local dir
 l() ->

@@ -13,6 +13,7 @@
 
          print_messages/1,
          print_message_summary/1,
+         print_message_full/1,
 
          print_pages_for_thread/0,
          print_pages_for_thread/1

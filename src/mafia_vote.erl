@@ -4,7 +4,10 @@
 
 -import(mafia,
         [b2l/1,
-         l2b/1
+         l2b/1,
+         lrev/1,
+         rgame/1,
+         rday/2
         ]).
 
 -include("mafia.hrl").
@@ -17,7 +20,7 @@ check_for_vote(MsgId) when is_integer(MsgId) ->
         [Msg] -> check_for_vote(Msg)
     end;
 check_for_vote(M = #message{}) ->
-    check_for_vote(M, mnesia:dirty_read(mafia_game, M#message.thread_id)).
+    check_for_vote(M, rgame(M#message.thread_id)).
 
 check_for_vote(_M, []) -> ignore;
 check_for_vote(M, [G = #mafia_game{}]) ->
@@ -44,12 +47,12 @@ check_for_deathI2(MsgUC, M, G) ->
             {_, HStr, TStr} =
                 if element(1, Pos1) /= 0 -> Pos1; true -> Pos2 end,
             %% find any remaining players before on the same line.
-            RevStr = lists:reverse(HStr),
+            RevStr = lrev(HStr),
             RevStr2 = case string:tokens(RevStr, ".\n") of
                           [] -> "";
                           [Head | _] -> Head
                       end,
-            LineU = lists:reverse(RevStr2),
+            LineU = lrev(RevStr2),
             RemUsersU = [b2ul(PremB)
                          || PremB <- G#mafia_game.players_rem],
             case lists:dropwhile(
@@ -79,6 +82,7 @@ check_for_deathI2(MsgUC, M, G) ->
                             io:format("Player ~s died\n", [Dead]),
                             NewDeads = [{DeadB, phase_10min_ago(M, G)}
                                         | OldDeads],
+                            remove_deads(M, G, NewDeads),
                             G2 = G#mafia_game{players_rem = NewRem,
                                               players_dead = NewDeads},
                             mnesia:dirty_write(G2),
@@ -99,8 +103,25 @@ phase_10min_ago(M, G) ->
     IsEnd = PhaseMsg /= Phase10m,
     {IsEnd, Phase10m}.
 
+%% in case someone votes before GM annouce dead, the day record
+%% will have too many remaining players
+remove_deads(M, G, Deads)->
+    TimeMsg = M#message.time,
+    case mafia_time:calculate_phase(G, TimeMsg) of
+        {DayNum, ?day} -> %% New day appears with new day record.
+            case rday(G, DayNum) of
+                [] -> ok;
+                [D] ->
+                    Remove = [DeadB || {DeadB, {IsEnd, _Phase}}
+                                           <- Deads, IsEnd],
+                    NewRem = D#mafia_day.players_rem -- Remove,
+                    mnesia:dirty_write(D#mafia_day{players_rem = NewRem})
+            end;
+        _ -> ok
+    end.
+
 is_last_non_letter(HStr) ->
-    is_first_non_letter(lists:reverse(HStr)).
+    is_first_non_letter(lrev(HStr)).
 
 is_first_non_letter([]) -> true;
 is_first_non_letter([H|_]) ->
@@ -119,7 +140,7 @@ check_for_voteI(M, G) ->
           string:str(MsgUC, UnvoteStr)} of
         {{0, ""}, 0} -> ignore;
         {{0, ""}, _} ->
-            Vote = l2b("Unvote"),
+            Vote = l2b(?Unvote),
             reg_vote(M, G, Vote, Vote, true);
         {{Pos, RestUC}, _} ->
             RawVote =
@@ -174,7 +195,7 @@ verify_user(M = #message{user_name = User}) ->
 %% -----------------------------------------------------------------------------
 
 auto_correct_case(CcUser, GId) when is_integer(GId) ->
-    case mnesia:dirty_read(mafia_game, GId) of
+    case rgame(GId) of
         [] -> ok;
         [G] -> auto_correct_case(CcUser, G)
     end;
@@ -258,7 +279,7 @@ rank_options(Players, RestUC) ->
                 PlayerUCW = string:to_upper(waste_spaces(PorA)),
                 r_count(PlayerUCW, RestUCW, 0)
         end,
-    lists:reverse(lists:sort([{F(P), l2b(select_name(P))} || P <- Players])).
+    lrev(lists:sort([{F(P), l2b(select_name(P))} || P <- Players])).
 
 waste_spaces(L) -> [E || E <- L, E /= $\s].
 
@@ -322,10 +343,13 @@ vote2(M, G, Vote, RawVote, IsOkVote) ->
             Day =
                 case mnesia:dirty_read(mafia_day, Key) of
                     [] ->
+                        io:format("CREATING DAY ~p with ~p rems\n",
+                                  [Key, length(G#mafia_game.players_rem)]),
                         #mafia_day{key = Key,
                                    thread_id = M#message.thread_id,
                                    day = DayNum,
                                    votes = [],
+                                   players_rem = G#mafia_game.players_rem,
                                    complete = false
                                   };
                     [Day2] -> Day2

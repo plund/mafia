@@ -5,8 +5,6 @@
 %% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
 %% todo:
 %% - print "global" game stats
-%% - add vote tracker
-%%    - create unique 3 letter abbreviations for every player id
 %% - Implement ##END / ##UNEND
 %% - downl and pps should look similar, Died/Vote messages and deadline markers
 %% - print_vote variant for one voter during one day
@@ -46,17 +44,22 @@
          find_pages_for_thread/1,
          getv/1,
          set/2,
+         rgame/0,
+         rgame/1,
+         rday/2,
 
          b2l/1,
-         b2ub/1,
          l2b/1,
          l2u/1,
          i2l/1,
-         l2i/1
+         l2i/1,
+         b2ub/1,
+         lrev/1
         ]).
 
 %% utilities
--export([grep/1
+-export([grep/1,
+         l/0
         ]).
 
 -export([cmp_vote_raw/0
@@ -79,16 +82,19 @@ print_messages(User) -> mafia_print:print_messages(User).
 
 downl() -> mafia_data:downl().
 
-i2l(I) -> integer_to_list(I).
-l2i(L) -> list_to_integer(L).
-
 b2l(B) -> binary_to_list(B).
 l2b(L) -> list_to_binary(L).
 
 l2u(L) -> string:to_upper(L).
 l2ub(L) -> l2b(l2u(L)).
+
+i2l(I) -> integer_to_list(I).
+l2i(L) -> list_to_integer(L).
+l2a(L) -> list_to_atom(L).
+
 b2ub(B) -> l2b(l2u(b2l(B))).
 
+lrev(L) -> lists:reverse(L).
 
 set(K,V) -> mafia_db:set(K,V).
 
@@ -101,6 +107,29 @@ remove_mnesia() -> mafia_db:remove_mnesia().
 refresh_votes() -> mafia_data:refresh_votes().
 
 grep(Str) -> mafia_data:grep(Str).
+
+%% load all beams in local dir
+l() ->
+    {ok, Files} = file:list_dir("."),
+    Beams = [l2a(lrev(ModRev))
+             || "maeb." ++ ModRev
+                    <- [lrev(F) || F <- Files]],
+    Beams2 = (Beams -- [mafia]) ++ [mafia],
+    [begin code:purge(M), code:load_file(M), M end
+     || M <- Beams2].
+
+%% Read current game
+rgame() ->
+    ThId = getv(thread_id),
+    rgame(ThId).
+
+rgame(ThId) ->
+    mnesia:dirty_read(mafia_game, ThId).
+
+rday(#mafia_game{} = G, DayNum) -> rday(G#mafia_game.key, DayNum);
+rday(ThId, {DayNum, _}) -> rday(ThId, DayNum);
+rday(ThId, DayNum) ->
+    mnesia:dirty_read(mafia_day, {ThId, DayNum}).
 
 %% Pre-check user list given by GM in initial game PM
 verify_new_user_list(25) ->
@@ -129,6 +158,7 @@ verify_new_user_list2(Users) ->
      end
      || U <- Users].
 
+%% Seems to be unused
 -spec set_thread_id(ThId :: integer())  -> ok.
 set_thread_id(ThId) when is_integer(ThId) ->
     set(thread_id, ThId),
@@ -161,6 +191,7 @@ find_pages_for_thread(ThId) ->
 %% INTERNAL FUNCTIONS
 %% =============================================================================
 
+%% No-one seems to use this one.
 cmp_vote_raw() ->
     ThId = getv(thread_id),
     DayNum = 1,

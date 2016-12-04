@@ -17,6 +17,7 @@
 -define(UrlMid, "&page-thread=").
 -define(UrlEnd, "#threadPager").
 
+-define(Unvote, "Unvote").
 -define(Extra, ["End", "No-Lynch"]).
 -define(M24_GMs, ["DemonRHK", "MoscowFleet"]).
 -define(M24_players,

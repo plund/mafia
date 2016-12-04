@@ -4,6 +4,7 @@
 
 -export([get_next_deadline/1,
          get_next_deadline/2,
+         hh_mm_to_deadline/2,
          utc_secs1970/0,
          get_tz_dst/0,
          local_datetime_for_secs1970/3,
@@ -12,7 +13,7 @@
          calc_deadlines/2,
          calculate_phase/2]).
 
--import(mafia, [getv/1]).
+-import(mafia, [getv/1, lrev/1, rgame/1]).
 
 -spec get_next_deadline(ThId::integer())
                        -> {Remain :: {Days :: integer(), time()},
@@ -22,13 +23,16 @@ get_next_deadline(ThId) when is_integer(ThId) ->
     get_next_deadline(ThId, NowSecs).
 
 get_next_deadline(ThId, Secs) when is_integer(ThId) ->
-    get_next_deadline(mnesia:dirty_read(mafia_game, ThId), Secs);
+    get_next_deadline(rgame(ThId), Secs);
 get_next_deadline([], _Secs) -> false;
-get_next_deadline([#mafia_game{key = ThId,
-                               deadlines = DLs}], Secs) ->
+get_next_deadline([#mafia_game{} = G], Secs) ->
+    get_next_deadline(G, Secs);
+get_next_deadline(#mafia_game{key = ThId,
+                              deadlines = DLs},
+                  Secs) ->
     case lists:dropwhile(
            fun({_, _, DlSecs}) -> DlSecs =< Secs end,
-           lists:reverse(DLs)) of
+           lrev(DLs)) of
         [DL = {_Num, _DoN, DlSecs}|_] ->
             SecsLeft = DlSecs - Secs,
             {{SecsLeft div ?DaySecs,
@@ -38,6 +42,10 @@ get_next_deadline([#mafia_game{key = ThId,
             update_deadlines(ThId, 10),
             get_next_deadline(ThId)
     end.
+
+hh_mm_to_deadline(G, Time) ->
+    {{Days, {HH, MM, _SS}}, _} = get_next_deadline(G, Time),
+    {Days * 24 + HH, MM}.
 
 utc_secs1970() ->
     calendar:datetime_to_gregorian_seconds(
@@ -67,7 +75,7 @@ adjust_secs1970_to_tz_dst(Time, TzH, Dst) ->
                       Time :: seconds1970())
                      -> phase().
 calculate_phase(ThId, Time) when is_integer(ThId) ->
-    case mnesia:dirty_read(mafia_game, ThId) of
+    case rgame(ThId) of
         [G] -> calculate_phase(G, Time);
         [] -> false
     end;
@@ -88,7 +96,7 @@ calculate_phase(Game, Time) ->
 
 %% and it should also update the game in mnesia with it.
 update_deadlines(ThId, NumNewDLs) ->
-    case mnesia:dirty_read(mafia_game, ThId) of
+    case rgame(ThId) of
         [] -> [];
         [#mafia_game{} = G] ->
             NewDLs = calc_deadlines(G, NumNewDLs),
@@ -107,7 +115,7 @@ add_deadline(MGame, NumNewDLs) ->
                      NumNewDLs :: integer())
                     -> NewDLs :: [deadline()].
 calc_deadlines(ThId, NumNewDLs) when is_integer(ThId) ->
-    case mnesia:dirty_read(mafia_game, ThId) of
+    case rgame(ThId) of
         [] -> ignore;
         [#mafia_game{} = G] ->
             calc_deadlines(G, NumNewDLs)

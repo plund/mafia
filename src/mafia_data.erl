@@ -29,7 +29,9 @@
          l2b/1,
          l2u/1,
          i2l/1,
-         l2i/1
+         l2i/1,
+         lrev/1,
+         rgame/1
         ]).
 
 -include("mafia.hrl").
@@ -51,7 +53,7 @@ downl(S) ->
 refresh_votes() ->
     mnesia:clear_table(mafia_day),
     ThId = getv(thread_id),
-    refresh_votes(ThId, mnesia:dirty_read(mafia_game, ThId)).
+    refresh_votes(ThId, rgame(ThId)).
 
 refresh_votes(_ThId, []) -> ok;
 refresh_votes(ThId, [G]) ->
@@ -66,7 +68,7 @@ refresh_votes(ThId, [G]) ->
 refresh_stat() ->
     mnesia:clear_table(stat),
     ThId = getv(thread_id),
-    refresh_stat(ThId, mnesia:dirty_read(mafia_game, ThId)).
+    refresh_stat(ThId, rgame(ThId)).
 
 refresh_stat(_ThId, []) -> ok;
 refresh_stat(ThId, [_G]) ->
@@ -78,7 +80,7 @@ update_stat(MsgId) ->
 
 update_stat(_MsgId, []) -> ok;
 update_stat(MsgId, [M = #message{thread_id = ThId}]) ->
-    update_stat(MsgId, M, mnesia:dirty_read(mafia_game, ThId)).
+    update_stat(MsgId, M, rgame(ThId)).
 
 update_stat(_MsgId, _M, []) -> ok;
 update_stat(MsgId, M, [G = #mafia_game{}]) ->
@@ -260,7 +262,7 @@ th_filename(#s{thread_id = Thread, page = Page}) ->
     DirName = "thread_pages",
     file:make_dir(DirName),
     ThFileName = i2l(Thread) ++ "_" ++ i2l(Page) ++ ".txt",
-    case mnesia:dirty_read(mafia_game, Thread) of
+    case rgame(Thread) of
         [] ->
             filename:join(DirName, ThFileName);
         [G] ->
@@ -289,7 +291,7 @@ compress_txt_files() ->
     {ok, Files} = file:list_dir(Dir),
     Files2 = [ filename:join(Dir, F)
                || F = "m24_" ++ _ <- Files,
-                  case lists:reverse(F) of
+                  case lrev(F) of
                         "txt." ++ _ -> true;
                         _ -> false
                     end],
@@ -447,7 +449,7 @@ h_strip([H|T]) when H =< $\s -> strip(T);
 h_strip(Str) -> Str.
 
 t_strip(Str) ->
-    lists:reverse(h_strip(lists:reverse(Str))).
+    lrev(h_strip(lrev(Str))).
 
 strip_fix(Str) ->
     S2 = strip(Str),

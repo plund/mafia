@@ -111,7 +111,7 @@ print_votes(_Phase, _LastMsgTime, _, []) -> ok;
 print_votes(Phase, LastMsgTime,
             [#mafia_game{key = ThId} = G],
             [#mafia_day{votes = Votes0,
-                        players_rem = RemPlayers}]
+                        players_rem = RemPlayers} = Day]
            ) ->
 
     IsDay = element(2, Phase) == ?day,
@@ -136,9 +136,17 @@ print_votes(Phase, LastMsgTime,
            true ->
                 {na, na}
         end,
-
     if IsDay ->
-            %% Part 3 - No vote
+            %% Part 3a - End vote
+            EndVoters = Day#mafia_day.end_votes,
+            EndVoteStr =
+                if EndVoters == [] -> "-";
+                   true ->
+                        string:join([b2l(Ev) || Ev <- EndVoters], ", ")
+                end,
+            io:format("End vote: ~s\n\n", [EndVoteStr]),
+
+            %% Part 3b - No vote
             ValidVoters = [ Pl || {Pl, _} <- Votes]
                 -- [User || {User, _} <- InvalidVotes],
             Unvoted = RemPlayers -- ValidVoters,

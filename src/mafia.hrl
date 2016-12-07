@@ -106,6 +106,7 @@
          thread_id :: thread_id(),
          day :: day_num(),
          votes :: [{player(), [#vote{}]}],
+         end_votes :: [player()],
          players_rem :: [player()],
          players_dead :: [{player(), {day|night, integer()}}]
         }).

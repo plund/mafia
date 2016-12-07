@@ -8,7 +8,6 @@
 %%    - rename to mafia_name
 %% - check if abbrev code can loop forever
 %% - print "global" game stats
-%% - Implement ##END / ##UNEND
 %% - downl and pps should look similar, Died/Vote messages and deadline markers
 %% - print_vote variant for one voter during one day
 %% - webpage with GM command listing
@@ -137,10 +136,27 @@ rgame() ->
 rgame(ThId) ->
     mnesia:dirty_read(mafia_game, ThId).
 
-rday(#mafia_game{} = G, DayNum) -> rday(G#mafia_game.key, DayNum);
-rday(ThId, {DayNum, _}) -> rday(ThId, DayNum);
-rday(ThId, DayNum) ->
-    mnesia:dirty_read(mafia_day, {ThId, DayNum}).
+rday(ThId, {DayNum, _}) ->
+    rday(ThId, DayNum);
+rday(ThId, DayNum) when is_integer(ThId) ->
+    rday(rgame(ThId), DayNum);
+rday([#mafia_game{} = G], DayNum) ->
+    rday(G, DayNum);
+rday(#mafia_game{} = G, DayNum) ->
+    ThId = G#mafia_game.key,
+    case mnesia:dirty_read(mafia_day, Key = {ThId, DayNum}) of
+        [] ->
+            [#mafia_day{key = Key,
+                        thread_id = ThId,
+                        day = DayNum,
+                        votes = [],
+                        end_votes = [],
+                        players_rem = G#mafia_game.players_rem,
+                        players_dead = []
+                       }];
+        [Day] ->
+            [Day]
+    end.
 
 %% Pre-check user list given by GM in initial game PM
 verify_new_user_list(25) ->

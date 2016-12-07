@@ -109,22 +109,19 @@ update_day_rec(M, G, Dead) ->
     TimeMsg = M#message.time,
     case mafia_time:calculate_phase(G, TimeMsg) of
         {DayNum, ?day} -> %% New day appears with new day record.
-            case rday(G, DayNum) of
-                [] -> ok;
-                [D] ->
-                    case Dead of
-                        {DeadB, {true, _Phase}} ->
-                            NewRems = D#mafia_day.players_rem -- [DeadB],
-                            mnesia:dirty_write(
-                              D#mafia_day{players_rem = NewRems});
-                        {DeadB, {false, _Phase}} ->
-                            %% For the "Jamie" case  when Vig kills in mid day
-                            NewDeads = [Dead|D#mafia_day.players_dead],
-                            NewRems = D#mafia_day.players_rem -- [DeadB],
-                            mnesia:dirty_write(
-                              D#mafia_day{players_rem = NewRems,
-                                          players_dead = NewDeads})
-                    end
+            [D] = rday(G, DayNum),
+            case Dead of
+                {DeadB, {true, _Phase}} ->
+                    NewRems = D#mafia_day.players_rem -- [DeadB],
+                    mnesia:dirty_write(
+                      D#mafia_day{players_rem = NewRems});
+                {DeadB, {false, _Phase}} ->
+                    %% For the "Jamie" case  when Vig kills in mid day
+                    NewDeads = [Dead|D#mafia_day.players_dead],
+                    NewRems = D#mafia_day.players_rem -- [DeadB],
+                    mnesia:dirty_write(
+                      D#mafia_day{players_rem = NewRems,
+                                  players_dead = NewDeads})
             end;
         _ -> ok
     end.
@@ -170,6 +167,38 @@ check_for_voteI(M, G) ->
                     Vote = l2b("-"),
                     reg_vote(M, G, Vote, RawVote, false)
             end
+    end,
+    EndStr = "##END",
+    UnendStr = "##UNEND",
+    case {string:str(MsgUC, EndStr),
+          string:str(MsgUC, UnendStr)} of
+        {0, 0} ->
+            ok;
+        {_, 0} -> %% add end
+            reg_end_vote(add, M);
+        {0, _} -> %% remove end
+            reg_end_vote(remove, M);
+        _ -> ok
+    end.
+
+reg_end_vote(Op, M) ->
+    case mafia_time:calculate_phase(M#message.thread_id, M#message.time) of
+        {DayNum, ?day} ->
+            case rday(M#message.thread_id, DayNum) of
+                [Day] ->
+                    OldEndVotes = Day#mafia_day.end_votes,
+                    NewEndVotes =
+                        case Op of
+                            add ->
+                                OldEndVotes ++ [M#message.user_name];
+                            remove ->
+                                OldEndVotes -- [M#message.user_name]
+                        end,
+                    mnesia:dirty_write(Day#mafia_day{end_votes = NewEndVotes});
+                _ -> ok
+            end;
+        _ ->
+            ok
     end.
 
 %% -----------------------------------------------------------------------------
@@ -340,7 +369,6 @@ vote2(M, G, Vote, RawVote, IsOkVote) ->
               "Register Vote: ~s votes ~p ~s\n",
               [b2l(M#message.user_name), b2l(RawVote),
                if IsOkVote -> "Approved"; true -> "Rejected" end]),
-            Key = {M#message.thread_id, DayNum},
             User = M#message.user_name,
             NewVote = #vote{time = M#message.time,
                             id = M#message.msg_id,
@@ -349,20 +377,7 @@ vote2(M, G, Vote, RawVote, IsOkVote) ->
                             raw = RawVote,
                             valid = IsOkVote
                            },
-            Day =
-                case mnesia:dirty_read(mafia_day, Key) of
-                    [] ->
-                        io:format("CREATING DAY ~p with ~p rems\n",
-                                  [Key, length(G#mafia_game.players_rem)]),
-                        #mafia_day{key = Key,
-                                   thread_id = M#message.thread_id,
-                                   day = DayNum,
-                                   votes = [],
-                                   players_rem = G#mafia_game.players_rem,
-                                   players_dead = []
-                                  };
-                    [Day2] -> Day2
-                end,
+            Day = hd(rday(M#message.thread_id, DayNum)),
             Votes = Day#mafia_day.votes,
             Votes2 = case lists:keyfind(User, 1, Votes) of
                          false ->

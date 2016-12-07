@@ -35,7 +35,8 @@
          "teacon7", "Chaqa", "WardenDresden", "xorxes", "Vecna", "rdrivera2005",
          "Glen_Alexander", "Jamiet99uk", "Maniac", "dargorygel", "zorclex"]).
 
--define(Aliases, [{"DemonRHK", ["RHK"]},
+-define(Aliases, [{"Glen_Alexander", ["GA"]},
+                  {"DemonRHK", ["RHK"]},
                   {"CaptainMeme", ["Meme"]},
                   {"Hellenic Riot", ["HR", "H.R."]},
                   {"Brainbomb", ["BB"]},
@@ -106,7 +107,7 @@
          day :: day_num(),
          votes :: [{player(), [#vote{}]}],
          players_rem :: [player()],
-         complete :: boolean()
+         players_dead :: [{player(), {day|night, integer()}}]
         }).
 
 -record(mafia_game,

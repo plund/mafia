@@ -64,6 +64,13 @@ pps(ThId) when is_integer(ThId) ->
 pps(ThId, Page) ->
     %% Select MsgIds here
     MsgIds = msgids(ThId, Page),
+
+    io:format("~-10s "
+              "~-3s"
+              " ~-11s "
+              "~-7s "
+              "~s\n",
+              ["Player", "pg", "Date/Time", "Msg Id", "Message Text"]),
     print_page(ThId, MsgIds, fun print_message_summary/1).
 
 pm(MsgId) when is_integer(MsgId) ->
@@ -102,9 +109,9 @@ print_votes(ThId, Phase, LastMsgTime) ->
 print_votes(_Phase, _LastMsgTime, [], _) -> ok;
 print_votes(_Phase, _LastMsgTime, _, []) -> ok;
 print_votes(Phase, LastMsgTime,
-            [#mafia_game{key = ThId,
-                         players_rem = RemPlayers} = G],
-            [#mafia_day{votes = Votes}]
+            [#mafia_game{key = ThId} = G],
+            [#mafia_day{votes = Votes0,
+                        players_rem = RemPlayers}]
            ) ->
 
     IsDay = element(2, Phase) == ?day,
@@ -120,6 +127,8 @@ print_votes(Phase, LastMsgTime,
        true -> no_print
     end,
 
+    Votes = [V || V <- Votes0,
+                  lists:member(element(1, V), RemPlayers)],
     {VoteSumSort, InvalidVotes} =
         if IsDay ->
                 %% Part 2 - Votes
@@ -196,7 +205,7 @@ print_time_left_to_dl(ThId, LastMsgTime) ->
     {{Days, {HH, MM, _}}, {Num, DoN, _}} =
         mafia_time:get_next_deadline(ThId, LastMsgTime),
     DayStr = if Days == 0 -> "";
-                true -> i2l(Days) ++ ", "
+                true -> i2l(Days) ++ " day, "
              end,
     io:format("Remaining time to next ~s ~p deadline:"
               "  ~s~p hours, ~p minutes\n"
@@ -358,8 +367,12 @@ print_tracker([G]) ->
     print_trackerI(G, rday(ThId, Phase)).
 
 print_trackerI([G], Day) -> print_trackerI(G, Day);
-print_trackerI(G, [#mafia_day{votes = Votes,
-                              players_rem = PlayersRem}]) ->
+print_trackerI(G, [#mafia_day{votes = Votes0,
+                              players_rem = PlayersRem,
+                              players_dead = DeadInfos}]) ->
+    AllPlayers = PlayersRem ++ [DeadB || {DeadB, _} <- DeadInfos],
+    Votes = [V || V <- Votes0,
+                  lists:member(element(1, V), AllPlayers)],
     Votes2 =
         lists:foldl(fun({UserB, UVotes}, Acc) ->
                             [{b2l(UserB), V} || V <- UVotes] ++ Acc
@@ -371,8 +384,8 @@ print_trackerI(G, [#mafia_day{votes = Votes,
                     TimeA =< TimeB
             end,
     Votes3 = lists:sort(SortF, Votes2),
-    %%io:format("Rem: ~p\n", [PlayersRem]),
-    Abbrs = mafia_vote_tracker:get_abbrevs(PlayersRem),
+    %%io:format("Rem: ~p\n", [AllPlayers]),
+    Abbrs = mafia_vote_tracker:get_abbrevs(AllPlayers),
     io:format("\n"),
     print_read_key(Abbrs),
     A = fun("---") -> "---";
@@ -389,7 +402,7 @@ print_trackerI(G, [#mafia_day{votes = Votes,
                 {HH, MM} = mafia_time:hh_mm_to_deadline(G, Time),
                 p(HH) ++ ":" ++ p(MM)
         end,
-    Users = [b2l(UserB) || UserB <- PlayersRem],
+    Users = [b2l(UserB) || UserB <- AllPlayers],
     IterVotes = [{User, "---"} || User <- Users],
 
     io:format("\n"
@@ -593,19 +606,19 @@ print_message_full(M) ->
 print_message_summary(M) ->
     Msg = rm_nl(b2l(M#message.message)),
     MsgLen = length(Msg),
-    Max = 30,
+    Max = 60,
     MsgShort = if MsgLen > Max -> string:left(Msg, Max) ++ "...";
                   true -> Msg
                end,
     Str =
-        io_lib:format("~s, "
-                      "p ~s, "
-                      " ~s, "
-                      "id: ~s, "
-                      "\"~s\"\n",
-                      [string:left(b2l(M#message.user_name), 12),
+        io_lib:format("~-10s "
+                      "~-3s"
+                      " ~-11s "
+                      "~-7s "
+                      "~s\n",
+                      [b2l(M#message.user_name),
                        i2l(M#message.page_num),
-                       print_time(M#message.time),
+                       print_time(M#message.time, short),
                        i2l(M#message.msg_id),
                        MsgShort
                       ]),
@@ -613,24 +626,34 @@ print_message_summary(M) ->
 
 %% -----------------------------------------------------------------------------
 
-%% half this fun should go to mafia_time
-print_time(Time) when is_integer(Time) ->
-    {TzH, Dst} = mafia_time:get_tz_dst(),
-    print_time(Time, TzH, Dst).
+print_time(Time) ->
+    print_time(Time, long).
 
-print_time(Time, TzH, Dst) when is_integer(Time) ->
+print_time(Time, Mode) when is_integer(Time) ->
+    {TzH, Dst} = mafia_time:get_tz_dst(),
+    print_time(Time, TzH, Dst, Mode).
+
+%% half this fun should go to mafia_time
+print_time(Time, TzH, Dst, Mode) when is_integer(Time) ->
     try
         {{Y, M, D}, {HH,MM,SS}} =
             mafia_time:local_datetime_for_secs1970(Time, TzH, Dst),
-        case {TzH, Dst} of
-            {0, false} ->
+        case {TzH, Dst, Mode} of
+            {0, false, long} ->
                 io_lib:format("~s-~s-~sZ~s:~s:~s",
                               [p(Y), p(M), p(D), p(HH), p(MM), p(SS)]);
-            _ ->
+            {0, false, short} ->
+                io_lib:format("~s-~sZ~s:~s",
+                              [p(M), p(D), p(HH), p(MM)]);
+            {_, _, long} ->
                 DstStr = case Dst of false -> "N"; true -> "DST" end,
                 io_lib:format("~s-~s-~sT~s:~s:~s (~s ~s)",
                               [p(Y), p(M), p(D), p(HH), p(MM), p(SS),
-                               i2l(TzH), DstStr])
+                               i2l(TzH), DstStr]);
+            {_, _, short} ->
+                DstStr = case Dst of false -> "N"; true -> "DST" end,
+                io_lib:format("~s-~sT~s:~s",
+                              [p(M), p(D), p(HH), p(MM)])
         end
     catch _:_ -> ""
     end.

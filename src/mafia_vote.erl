@@ -69,21 +69,21 @@ check_for_deathI2(MsgUC, M, G) ->
                     check_for_deathI2(TStr, M, G);
                 [KilledUserU|_] ->
                     %% remove player from _rem lists.
-                    OldRem = G#mafia_game.players_rem,
-                    NewRem =
+                    OldRems = G#mafia_game.players_rem,
+                    NewRems =
                         lists:filter(
                           fun(OldPlB) -> b2ul(OldPlB) /= KilledUserU
                           end,
-                          OldRem),
-                    if NewRem /= OldRem ->
-                            DeadB = hd(OldRem -- NewRem),
-                            Dead = b2l(DeadB),
+                          OldRems),
+                    if NewRems /= OldRems ->
+                            DeadB = hd(OldRems -- NewRems),
+                            DeadStr = b2l(DeadB),
                             OldDeads = G#mafia_game.players_dead,
-                            io:format("Player ~s died\n", [Dead]),
-                            NewDeads = [{DeadB, phase_10min_ago(M, G)}
-                                        | OldDeads],
-                            remove_deads(M, G, NewDeads),
-                            G2 = G#mafia_game{players_rem = NewRem,
+                            io:format("Player ~s died\n", [DeadStr]),
+                            DeadInfo = {DeadB, phase_10min_ago(M, G)},
+                            NewDeads = [DeadInfo | OldDeads],
+                            update_day_rec(M, G, DeadInfo),
+                            G2 = G#mafia_game{players_rem = NewRems,
                                               players_dead = NewDeads},
                             mnesia:dirty_write(G2),
                             check_for_deathI2(TStr, M, G2);
@@ -105,17 +105,26 @@ phase_10min_ago(M, G) ->
 
 %% in case someone votes before GM annouce dead, the day record
 %% will have too many remaining players
-remove_deads(M, G, Deads)->
+update_day_rec(M, G, Dead) ->
     TimeMsg = M#message.time,
     case mafia_time:calculate_phase(G, TimeMsg) of
         {DayNum, ?day} -> %% New day appears with new day record.
             case rday(G, DayNum) of
                 [] -> ok;
                 [D] ->
-                    Remove = [DeadB || {DeadB, {IsEnd, _Phase}}
-                                           <- Deads, IsEnd],
-                    NewRem = D#mafia_day.players_rem -- Remove,
-                    mnesia:dirty_write(D#mafia_day{players_rem = NewRem})
+                    case Dead of
+                        {DeadB, {true, _Phase}} ->
+                            NewRems = D#mafia_day.players_rem -- [DeadB],
+                            mnesia:dirty_write(
+                              D#mafia_day{players_rem = NewRems});
+                        {DeadB, {false, _Phase}} ->
+                            %% For the "Jamie" case  when Vig kills in mid day
+                            NewDeads = [Dead|D#mafia_day.players_dead],
+                            NewRems = D#mafia_day.players_rem -- [DeadB],
+                            mnesia:dirty_write(
+                              D#mafia_day{players_rem = NewRems,
+                                          players_dead = NewDeads})
+                    end
             end;
         _ -> ok
     end.
@@ -350,7 +359,7 @@ vote2(M, G, Vote, RawVote, IsOkVote) ->
                                    day = DayNum,
                                    votes = [],
                                    players_rem = G#mafia_game.players_rem,
-                                   complete = false
+                                   players_dead = []
                                   };
                     [Day2] -> Day2
                 end,

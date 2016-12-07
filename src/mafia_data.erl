@@ -31,7 +31,8 @@
          i2l/1,
          l2i/1,
          lrev/1,
-         rgame/1
+         rgame/1,
+         now_diff/2
         ]).
 
 -include("mafia.hrl").
@@ -233,10 +234,15 @@ get_thread_section(Body) ->
     ThreadStr.
 
 http_request(S2) ->
+    A = now(),
     case httpc:request(S2#s.url) of
         {ok, {_StatusLine, _Headers, Body}} ->
+            B = now(),
+            io:format("Download wait ~w millisecs\n", [now_diff(A, B) div 1000]),
             {ok, Body};
         {ok, {_StatusCode, Body}} ->
+            B = now(),
+            io:format("Download wait ~w microsecs\n", [now_diff(A, B)]),
             {ok, Body};
         {ok, _ReqId} ->
             {error, no_body};
@@ -364,8 +370,6 @@ analyse_body(S) ->
             User = l2b(UserStr),
             case mnesia:dirty_read(message, MsgId) of
                 [] ->
-                    %% io:format("New ~w - ~w - ~w~n", [S#s.thread_id, S#s.page,
-                    %%                                  MsgId]),
                     update_page_rec(S, MsgId),
                     MsgR = write_message_rec(S, MsgId, User, Time, Msg),
                     update_stat(MsgId),
@@ -468,6 +472,7 @@ fix("&lsquo;" ++ T) -> [ $' | fix(T)];
 fix("&rsquo;" ++ T) -> [ $' | fix(T)];
 fix("&ldquo;" ++ T) -> [ $\" | fix(T)];
 fix("&rdquo;" ++ T) -> [ $\" | fix(T)];
+fix("&hellip;" ++ T) -> [ $\., $\., $\. | fix(T)];
 %% fix("&lsquo;" ++ T) -> [ $‘ | fix(T)];
 %% fix("&rsquo;" ++ T) -> [ $’ | fix(T)];
 %% fix("&ldquo;" ++ T) -> [ $“ | fix(T)];

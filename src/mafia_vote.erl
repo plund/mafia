@@ -39,13 +39,18 @@ check_for_deathI2(MsgUC, M, G) ->
     %% find "has died" on line
     SearchU1 = "DIED",
     SearchU2 = "DEAD",
+    SearchU3 = "BEEN LYNCHED",
     case {mafia_data:find_pos_and_split(MsgUC, SearchU1),
-          mafia_data:find_pos_and_split(MsgUC, SearchU2)} of
-        {{0,_,_}, {0,_,_}} -> %% no-one has died
+          mafia_data:find_pos_and_split(MsgUC, SearchU2),
+          mafia_data:find_pos_and_split(MsgUC, SearchU3)} of
+        {{0,_,_}, {0,_,_}, {0,_,_}} -> %% no-one has died
             G;
-        {Pos1, Pos2} ->
+        {Pos1, Pos2, Pos3} ->
             {_, HStr, TStr} =
-                if element(1, Pos1) /= 0 -> Pos1; true -> Pos2 end,
+                if element(1, Pos1) /= 0 -> Pos1;
+                   element(1, Pos2) /= 0 -> Pos2;
+                   true -> Pos3
+                end,
             %% find any remaining players before on the same line.
             RevStr = lrev(HStr),
             RevStr2 = case string:tokens(RevStr, ".\n") of
@@ -186,11 +191,15 @@ reg_end_vote(Op, M) ->
         {DayNum, ?day} ->
             case rday(M#message.thread_id, DayNum) of
                 [Day] ->
+                    User = M#message.user_name,
                     OldEndVotes = Day#mafia_day.end_votes,
                     NewEndVotes =
                         case Op of
                             add ->
-                                OldEndVotes ++ [M#message.user_name];
+                                case lists:member(User, OldEndVotes) of
+                                    false -> OldEndVotes ++ [User];
+                                    true ->  OldEndVotes
+                                end;
                             remove ->
                                 OldEndVotes -- [M#message.user_name]
                         end,

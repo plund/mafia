@@ -127,8 +127,11 @@ print_votes(Phase, LastMsgTime,
        true -> no_print
     end,
 
+    %% votes, from remaining players only
     Votes = [V || V <- Votes0,
                   lists:member(element(1, V), RemPlayers)],
+    UserVotesTS = user_vote_timesort(Votes),
+    InvUserVotesTS = [UV || UV = {_, #vote{valid = false}} <- UserVotesTS],
     {VoteSumSort, InvalidVotes} =
         if IsDay ->
                 %% Part 2 - Votes
@@ -186,27 +189,38 @@ print_votes(Phase, LastMsgTime,
 
     if IsDay ->
             %% Part 4 - Voting texts
+            ValidVotesS =
+                lists:sort(
+                  lists:foldl(fun({_, _, VoteInfos}, Acc) ->
+                                      Acc ++ VoteInfos
+                              end,
+                              [],
+                              VoteSumSort)),
             io:format("Voting texts:\n"
                       "-------------\n"),
-            [[io:format(b2l(Voter) ++ ": \"" ++ rm_nl(b2l(Raw)) ++ "\"\n")
-              || {_VoteTime, Voter, Raw} <- VoteInfos]
-             || {_Vote, _N, VoteInfos} <- VoteSumSort],
+            [io:format("~s ~s : \"~s\"\n",
+                       [print_time_5d(G, VTime),
+                        b2l(Voter),
+                        rm_nl(b2l(Raw))])
+             || {VTime, Voter, Raw} <- ValidVotesS],
 
             %% Part 5 - Invalid Vote text
             io:format("\n"
                       "Invalid Vote texts:\n"
                       "-------------------\n"),
-            [io:format(b2l(Voter) ++ ": \"" ++ rm_nl(b2l(Raw)) ++ "\"\n")
-             || {Voter, #vote{raw = Raw}} <- InvalidVotes],
-            io:format("\n");
+            [io:format("~s ~s: \" ~s\n",
+                       [print_time_5d(G, VTime),
+                        Voter,
+                        rm_nl(b2l(Raw))])
+             || {Voter, #vote{raw = Raw, time = VTime}} <- InvUserVotesTS];
        true -> ignore
     end,
 
-    %% Part 6
-    print_stats(ThId, Phase),
-
-    %% Part 7 - Vote tracker
+    %% Part 6 - Vote tracker
     print_tracker(ThId, Phase),
+
+    %% Part 7 - Posting stats
+    print_stats(ThId, Phase),
     ok.
 
 print_time_left_to_dl(ThId, LastMsgTime) ->
@@ -305,7 +319,8 @@ print_stats(ThId, Phase = {Day, DoN}, [G]) ->
     UserU = fun(#stat{key = {U,_,_}}) -> transl(U) end,
     NonPosters = [b2l(PRem) || PRem <- G#mafia_game.players_rem]
         -- [UserU(S) || S <- Stats],
-    io:format("Posting statistics (~s)\n"
+    io:format("\n"
+              "Posting statistics (~s)\n"
               "------------------\n"
               "~s ~s ~s ~s\n",
               [pr_phase_long(Phase), %%pr_don(DoN), Day,
@@ -381,17 +396,7 @@ print_trackerI(G, [#mafia_day{votes = Votes0,
     AllPlayers = PlayersRem ++ [DeadB || {DeadB, _} <- DeadInfos],
     Votes = [V || V <- Votes0,
                   lists:member(element(1, V), AllPlayers)],
-    Votes2 =
-        lists:foldl(fun({UserB, UVotes}, Acc) ->
-                            [{b2l(UserB), V} || V <- UVotes] ++ Acc
-                    end,
-                    [],
-                    Votes),
-    SortF = fun({_, #vote{time = TimeA}},
-                {_, #vote{time = TimeB}}) ->
-                    TimeA =< TimeB
-            end,
-    Votes3 = lists:sort(SortF, Votes2),
+    Votes3 = user_vote_timesort(Votes),
     %%io:format("Rem: ~p\n", [AllPlayers]),
     Abbrs = mafia_vote_tracker:get_abbrevs(AllPlayers),
     io:format("\n"),
@@ -404,11 +409,6 @@ print_trackerI(G, [#mafia_day{votes = Votes0,
                           "***";
                       {_, _, Abbr, _} -> Abbr
                   end
-        end,
-    PrTimeF =
-        fun(Time) ->
-                {HH, MM} = mafia_time:hh_mm_to_deadline(G, Time),
-                p(HH) ++ ":" ++ p(MM)
         end,
     Users = [b2l(UserB) || UserB <- AllPlayers],
     IterVotes = [{User, "---"} || User <- Users],
@@ -434,7 +434,7 @@ print_trackerI(G, [#mafia_day{votes = Votes0,
                               lists:keyreplace(User, 1, IVs, {User, NewVote}),
                           {IVs, IVs2}
                   end,
-              io:format("~s ~s\n", [PrTimeF(V#vote.time),
+              io:format("~s ~s\n", [print_time_5d(G, V#vote.time),
                                     pr_ivs_vote(PrIVs, User)]),
               NewIVs
       end,
@@ -444,6 +444,24 @@ print_trackerI(G, [#mafia_day{votes = Votes0,
     io:format(FmtTime, [pr_ivs_user(IterVotes, fun(_) -> "===" end)]),
     io:format(FmtVoter, [pr_ivs_user(IterVotes, A)]),
     ok.
+
+print_time_5d(G, Time) ->
+    {HH, MM} = mafia_time:hh_mm_to_deadline(G, Time),
+    p(HH) ++ ":" ++ p(MM).
+
+user_vote_timesort(Votes) ->
+    Votes2 =
+        lists:foldl(
+          fun({UserB, UVotes}, Acc) ->
+                  [{b2l(UserB), V} || V <- UVotes] ++ Acc
+          end,
+          [],
+          Votes),
+    SortF = fun({_, #vote{time = TimeA}},
+                {_, #vote{time = TimeB}}) ->
+                    TimeA =< TimeB
+            end,
+    lists:sort(SortF, Votes2).
 
 print_read_key(Abbrs) ->
     NumCols = 19,

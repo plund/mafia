@@ -15,6 +15,7 @@
 %%   - Current phase -current votes -link to vote breakdown
 %%   - if day -Next DL -link to deadline schedule -GMs - Players Living -Dead
 %% - GM orders :
+%%   - Phase END now (and possibly move deadline -24h)
 %%   - expand alias list
 %%   - XXX " has died",
 %%   - XXX replaces YYY

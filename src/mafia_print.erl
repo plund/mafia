@@ -208,7 +208,7 @@ print_votes(Phase, LastMsgTime,
             io:format("\n"
                       "Invalid Vote texts:\n"
                       "-------------------\n"),
-            [io:format("~s ~s: \" ~s\n",
+            [io:format("~s ~s: \"~s\"\n",
                        [print_time_5d(G, VTime),
                         Voter,
                         rm_nl(b2l(Raw))])

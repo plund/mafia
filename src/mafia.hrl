@@ -35,12 +35,13 @@
          "teacon7", "Chaqa", "WardenDresden", "xorxes", "Vecna", "rdrivera2005",
          "Glen_Alexander", "Jamiet99uk", "Maniac", "dargorygel", "zorclex"]).
 
--define(Aliases, [{"WardenDresden", ["WD"]},
+-define(Aliases, [{"RagingIke297", ["Ike"]},
+                  {"WardenDresden", ["WD"]},
                   {"Glen_Alexander", ["GA"]},
                   {"DemonRHK", ["RHK"]},
                   {"CaptainMeme", ["Meme"]},
                   {"Hellenic Riot", ["HR", "H.R."]},
-                  {"Brainbomb", ["BB"]},
+                  {"brainbomb", ["BB"]},
                   {"No-Lynch", ["No Lynch"]}
                  ]).
 

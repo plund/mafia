@@ -160,6 +160,7 @@ check_for_voteI(M, G) ->
                         mafia_data:get_after_pos(
                           Pos, length(VoteStr), Msg),
                         15))),
+            %%io:format("DBG ~p\n", [Players2]),
             case rank_options(Players2, RestUC) of
                 [{NumV, TopP}] when NumV >= 2; NumV >= length(TopP) ->
                     reg_vote(M, G, TopP, RawVote, true);

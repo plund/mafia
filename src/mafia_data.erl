@@ -14,6 +14,7 @@
 %% utilities
 -export([
          refresh_votes/0,
+         refresh_votes/1,
          refresh_stat/0,
          compress_txt_files/0,
          grep/1, grep/2
@@ -54,14 +55,20 @@ downl(S) ->
 refresh_votes() ->
     mnesia:clear_table(mafia_day),
     ThId = getv(thread_id),
-    refresh_votes(ThId, rgame(ThId)).
+    refresh_votes(ThId, rgame(ThId), all).
 
-refresh_votes(_ThId, []) -> ok;
-refresh_votes(ThId, [G]) ->
+refresh_votes(EndPage) ->
+    mnesia:clear_table(mafia_day),
+    ThId = getv(thread_id),
+    Filter = fun(Page) -> Page =< EndPage end,
+    refresh_votes(ThId, rgame(ThId), Filter).
+
+refresh_votes(_ThId, [], _F) -> ok;
+refresh_votes(ThId, [G], Filter) ->
     mnesia:dirty_write(
       G#mafia_game{players_rem = G#mafia_game.players_orig,
                    players_dead = []}),
-    iterate_all_msg_ids(ThId, fun mafia_vote:check_for_vote/1),
+    iterate_all_msg_ids(ThId, fun mafia_vote:check_for_vote/1, Filter),
     Pages = lists:sort(mafia:find_pages_for_thread(ThId)),
     "Thread " ++ i2l(ThId) ++ "; Pages: " ++
         string:join([i2l(P) || P <- Pages],",").
@@ -188,7 +195,17 @@ iterate_all_msgs(ThId, Fun) ->
 
 %% Iterate through all message ids in one thread in time order
 iterate_all_msg_ids(ThId, Fun) ->
-    Pages = lists:sort(mafia:find_pages_for_thread(ThId)),
+    iterate_all_msg_ids(ThId, Fun, all).
+
+iterate_all_msg_ids(ThId, Fun, Filter) ->
+    All =  lists:sort(mafia:find_pages_for_thread(ThId)),
+    Pages = if Filter == all -> All;
+               is_function(Filter) ->
+                    lists:filter(Filter, All)
+            end,
+    iterate_all_msg_idsI(ThId, Fun, Pages).
+
+iterate_all_msg_idsI(ThId, Fun, Pages) ->
     F = fun(Page) ->
                 Key = {ThId, Page},
                 [PR] = mnesia:dirty_read(page_rec, Key),

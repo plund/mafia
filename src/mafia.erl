@@ -4,6 +4,7 @@
 
 %% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
 %% todo:
+%% - insert alias data into the user table
 %% - fix a better player name recognition
 %%    - rename to mafia_name
 %% - check if abbrev code can loop forever
@@ -39,7 +40,8 @@
          downl/0,
          show_settings/0,
          set_thread_id/1,
-         refresh_votes/0
+         refresh_votes/0,
+         refresh_votes/1
         ]).
 
 %% libary
@@ -115,6 +117,7 @@ setup_mnesia() -> mafia_db:setup_mnesia().
 remove_mnesia() -> mafia_db:remove_mnesia().
 
 refresh_votes() -> mafia_data:refresh_votes().
+refresh_votes(P) -> mafia_data:refresh_votes(P).
 
 grep(Str) -> mafia_data:grep(Str).
 grep(Str, Mode) -> mafia_data:grep(Str, Mode).

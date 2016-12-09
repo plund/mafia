@@ -687,7 +687,6 @@ print_time(Time, TzH, Dst, Mode) when is_integer(Time) ->
                               [p(Y), p(M), p(D), p(HH), p(MM), p(SS),
                                i2l(TzH), DstStr]);
             {_, _, short} ->
-                DstStr = case Dst of false -> "N"; true -> "DST" end,
                 io_lib:format("~s-~sT~s:~s",
                               [p(M), p(D), p(HH), p(MM)])
         end

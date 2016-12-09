@@ -59,9 +59,7 @@
          i2l/1,
          l2i/1,
          b2ub/1,
-         lrev/1,
-
-         now_diff/2
+         lrev/1
         ]).
 
 %% utilities
@@ -102,11 +100,6 @@ l2a(L) -> list_to_atom(L).
 b2ub(B) -> l2b(l2u(b2l(B))).
 
 lrev(L) -> lists:reverse(L).
-
--define(Million, 1000000).
-
-now_diff({A1, A2, A3}, {B1, B2, B3}) ->
-    ((((B1-A1) * ?Million) + B2 - A2) * ?Million) + B3 - A3.
 
 set(K,V) -> mafia_db:set(K,V).
 

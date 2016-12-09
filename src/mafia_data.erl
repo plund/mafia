@@ -32,8 +32,7 @@
          i2l/1,
          l2i/1,
          lrev/1,
-         rgame/1,
-         now_diff/2
+         rgame/1
         ]).
 
 -include("mafia.hrl").
@@ -251,15 +250,15 @@ get_thread_section(Body) ->
     ThreadStr.
 
 http_request(S2) ->
-    A = now(),
+    A = erlang:monotonic_time(millisecond),
     case httpc:request(S2#s.url) of
         {ok, {_StatusLine, _Headers, Body}} ->
-            B = now(),
-            io:format("Download wait ~w millisecs\n", [now_diff(A, B) div 1000]),
+            B = erlang:monotonic_time(millisecond),
+            io:format("Download wait ~w millisecs\n", [B - A]),
             {ok, Body};
         {ok, {_StatusCode, Body}} ->
-            B = now(),
-            io:format("Download wait ~w microsecs\n", [now_diff(A, B)]),
+            B = erlang:monotonic_time(millisecond),
+            io:format("Download wait ~w millisecs\n", [B - A]),
             {ok, Body};
         {ok, _ReqId} ->
             {error, no_body};

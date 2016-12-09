@@ -271,8 +271,8 @@ get_body_from_file(S) ->
     %% we only store complete pages on file!
     %% Store full pages as compressed files:
     %%     thread_pages/m24_threadid_page.txt.tgz
-    FileName = th_filename(S),
-    TarBallName = FileName ++ ".tgz",
+    {_FileName, TarBallName} = th_filenames(S),
+    %% io:format("~s\n",[TarBallName]),
     case erl_tar:extract(TarBallName, [memory, compressed]) of
         {ok,[{_, BodyBin}]} ->
             io:format("Found page ~p on file\n",[S#s.page]),
@@ -285,22 +285,33 @@ get_body_from_file(S) ->
             no_file
     end.
 
+th_filenames(S) ->
+    FileName = th_filename(S),
+    TarBallName = FileName ++ ".tgz",
+    {FileName, TarBallName}.
+
 th_filename(#s{thread_id = Thread, page = Page}) ->
     DirName = "thread_pages",
-    file:make_dir(DirName),
-    ThFileName = i2l(Thread) ++ "_" ++ i2l(Page) ++ ".txt",
-    case rgame(Thread) of
-        [] ->
-            filename:join(DirName, ThFileName);
-        [G] ->
-            GamePrefix = "m" ++ i2l(G#mafia_game.game_num) ++ "_",
-            filename:join(DirName, GamePrefix ++ ThFileName)
+    verify_exist(DirName),
+    GamePrefix = case rgame(Thread) of
+                     [] -> "";
+                     [G] -> "m" ++ i2l(G#mafia_game.game_num) ++ "_"
+                 end,
+    DirName2 = GamePrefix ++ i2l(Thread),
+    verify_exist(filename:join(DirName, DirName2)),
+    BaseName = i2l(Page) ++ ".txt",
+    filename:join([DirName, DirName2, BaseName]).
+
+verify_exist(DirName) ->
+    case file:read_file_info(DirName) of
+        {error, enoent} ->
+            file:make_dir(DirName);
+        _ -> ok
     end.
 
 %% -> ok | {error, Reason}
 store_page(S, Body) ->
-    FileName = th_filename(S),
-    TarBallName = FileName ++ ".tgz",
+    {FileName, TarBallName} = th_filenames(S),
     case file:read_file_info(TarBallName) of
         {error, enoent} ->
             file:write_file(FileName, Body),

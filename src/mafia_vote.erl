@@ -1,6 +1,6 @@
 -module(mafia_vote).
 
--export([check_for_vote/1]).
+-export([check_for_vote/2]).
 
 -import(mafia,
         [b2l/1,
@@ -14,21 +14,21 @@
 
 %% -----------------------------------------------------------------------------
 
-check_for_vote(MsgId) when is_integer(MsgId) ->
+check_for_vote(S, MsgId) when is_integer(MsgId) ->
     case mnesia:dirty_read(message, MsgId) of
         [] -> ignore;
-        [Msg] -> check_for_vote(Msg)
+        [Msg] -> check_for_vote(S, Msg)
     end;
-check_for_vote(M = #message{}) ->
-    check_for_vote(M, rgame(M#message.thread_id)).
+check_for_vote(S, M = #message{}) ->
+    check_for_vote(S, M, rgame(M#message.thread_id)).
 
-check_for_vote(_M, []) -> ignore;
-check_for_vote(M, [G = #mafia_game{}]) ->
-    G2 = check_for_deathI(M, G),
-    check_for_voteI(M, G2).
+check_for_vote(_S, _M, []) -> ignore;
+check_for_vote(S, M, [G = #mafia_game{}]) ->
+    G2 = check_for_deathI(S, M, G),
+    check_for_voteI(S, M, G2).
 
 %% Removes player from Game if dead
-check_for_deathI(M, G) ->
+check_for_deathI(_S, M, G) ->
     case author_gm(M, G) of
         false -> G;
         true ->
@@ -138,7 +138,7 @@ is_first_non_letter([]) -> true;
 is_first_non_letter([H|_]) ->
     lists:member(H, " ,.;:!\"#€%7&/()=+?´`<>-_\t\r\n").
 
-check_for_voteI(M, G) ->
+check_for_voteI(_S, M, G) ->
     verify_user(M),
     Msg = b2l(M#message.message),
     MsgUC = string:to_upper(Msg),

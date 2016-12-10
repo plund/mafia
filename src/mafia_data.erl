@@ -42,9 +42,9 @@ downl() ->
     inets:start(),
     Thread = getv(thread_id),
     Page = getv(page_to_read),
-    downl(#s{thread_id = Thread, page = Page}).
+    download(#s{thread_id = Thread, page = Page}).
 
-downl(S) ->
+download(S) ->
     case get_body(S) of
         {ok, S2} ->
             analyse_body(S2);
@@ -400,7 +400,7 @@ analyse_body(S) ->
                     update_page_rec(S, MsgId),
                     MsgR = write_message_rec(S, MsgId, User, Time, Msg),
                     update_stat(MsgId),
-                    mafia_vote:check_for_vote(MsgR);
+                    mafia_vote:check_for_vote(S, MsgR);
                 [MsgR] ->
                     ok
             end,

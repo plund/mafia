@@ -35,16 +35,6 @@
          "teacon7", "Chaqa", "WardenDresden", "xorxes", "Vecna", "rdrivera2005",
          "Glen_Alexander", "Jamiet99uk", "Maniac", "dargorygel", "zorclex"]).
 
--define(Aliases, [{"RagingIke297", ["Ike"]},
-                  {"WardenDresden", ["WD"]},
-                  {"Glen_Alexander", ["GA"]},
-                  {"DemonRHK", ["RHK"]},
-                  {"CaptainMeme", ["Meme"]},
-                  {"Hellenic Riot", ["HR", "H.R."]},
-                  {"brainbomb", ["BB"]},
-                  {"No-Lynch", ["No Lynch"]}
-                 ]).
-
 -type hour() :: 0..23.
 -type minute() :: 0..59.
 -type second() :: 0..59.

@@ -23,6 +23,17 @@ upgrade() ->
 %% -----------------------------------------------------------------------------
 %% Add aliases to user table
 %% -----------------------------------------------------------------------------
+
+-define(Aliases, [{"RagingIke297", ["Ike"]},
+                  {"WardenDresden", ["WD"]},
+                  {"Glen_Alexander", ["GA"]},
+                  {"DemonRHK", ["RHK"]},
+                  {"CaptainMeme", ["Meme"]},
+                  {"Hellenic Riot", ["HR", "H.R."]},
+                  {"brainbomb", ["BB"]},
+                  {"No-Lynch", ["No Lynch"]}
+                 ]).
+
 upgrade(Tab = user,
         As = [name_upper, name, verification_status],
         Fs = [name_upper, name, aliases, verification_status]) ->

@@ -40,7 +40,13 @@
          show_settings/0,
          set_thread_id/1,
          refresh_votes/0,
-         refresh_votes/1
+         refresh_votes/1,
+
+         show_all_users/0,
+         show_all_users/1,
+         show_aliases/1,
+         add_alias/2,
+         remove_alias/2
         ]).
 
 %% libary
@@ -209,6 +215,83 @@ find_pages_for_thread(ThId) ->
     Guard = {'==', '$1', ThId},
     Result = '$2',
     mnesia:dirty_select(page_rec,[{MatchHead, [Guard], [Result]}]).
+
+
+show_all_users() ->
+    Users = all_users(),
+    io:format("All Users: ~p\n", [Users]).
+
+show_all_users(Search) ->
+    Users = all_users(Search),
+    io:format("All Users: ~999p\n", [Users]).
+
+all_users() ->
+    [b2l(UserUB) || UserUB <- mnesia:dirty_all_keys(user)].
+
+all_users(Search) ->
+    [b2l(UserUB) || UserUB <- mnesia:dirty_all_keys(user),
+                   0 /= string:str(b2l(UserUB), l2u(Search))].
+
+
+-spec show_aliases(User :: string()) -> ok | {error, Reason :: term()}.
+show_aliases(Search) ->
+    io:format("Search: ~s\n", [Search]),
+    Users = all_users(Search),
+    [show_aliasesI(User) || User <- Users],
+    ok.
+
+show_aliasesI(User) ->
+    UserUB = l2ub(User),
+    case mnesia:dirty_read(user, UserUB) of
+        [] -> {error, user_not_found};
+        [#user{} = U] ->
+            io:format("Found: ~s\nAliases: ~p\n",
+                      [b2l(U#user.name),
+                       [b2l(AlB) ||AlB <- U#user.aliases]])
+    end.
+
+-spec add_alias(User :: string(), Alias :: string())
+               -> ok | {error, Reason :: term()}.
+add_alias(User, Alias) ->
+    UserB = l2b(User),
+    UserUB = l2ub(User),
+    AliasB = l2b(Alias),
+    AliasUB = l2ub(Alias),
+    case mnesia:dirty_read(user, UserUB) of
+        [] -> {error, user_not_found};
+        [#user{} = U] when U#user.name /= UserB ->
+            {error, user_case_not_matching};
+        [#user{aliases = AliasesB} = U] ->
+            AliasesUB = [b2ub(AlB) || AlB <- U#user.aliases],
+            case lists:member(AliasUB, AliasesUB) of
+                true ->
+                    {error, alias_exist_already};
+                false ->
+                    mnesia:dirty_write(U#user{aliases = [AliasB|AliasesB]}),
+                    ok
+            end
+    end.
+
+-spec remove_alias(User :: string(), Alias :: string())
+                  -> ok | {error, Reason :: term()}.
+remove_alias(User, Alias) ->
+    UserB = l2b(User),
+    UserUB = l2ub(User),
+    AliasB = l2b(Alias),
+    case mnesia:dirty_read(user, UserUB) of
+        [] -> {error, user_not_found};
+        [#user{} = U] when U#user.name /= UserB ->
+            {error, user_case_not_matching};
+        [#user{aliases = AliasesB} = U] ->
+            case lists:member(AliasB, AliasesB) of
+                true ->
+                    NewAliasesB = AliasesB -- [AliasB],
+                    mnesia:dirty_write(U#user{aliases = NewAliasesB}),
+                    ok;
+                false ->
+                    {error, alias_does_not_exist}
+            end
+    end.
 
 %% =============================================================================
 %% INTERNAL FUNCTIONS

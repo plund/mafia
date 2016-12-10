@@ -134,7 +134,7 @@ print_votes(Phase, LastMsgTime,
     InvUserVotesTS = [UV || UV = {_, #vote{valid = false}} <- UserVotesTS],
     {VoteSumSort, InvalidVotes} =
         if IsDay ->
-                %% Part 2 - Votes
+                %% Part - Votes
                 pr_votes(Votes, Phase);
            true ->
                 {na, na}
@@ -230,9 +230,9 @@ print_time_left_to_dl(ThId, LastMsgTime) ->
     DayStr = if Days == 0 -> "";
                 true -> i2l(Days) ++ " day, "
              end,
-    io:format("Remaining time to next ~s ~p deadline:"
-              "  ~s~p hours, ~p minutes\n"
-              "\n",
+    io:format("\n"
+              "Remaining time to next ~s ~p deadline:"
+              "  ~s~p hours, ~p minutes\n",
               [pr_don(DoN), Num, DayStr, HH, MM]).
 
 pr_votes(Votes, Phase) ->

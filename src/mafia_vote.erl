@@ -305,18 +305,17 @@ authorI(M, UsersB) ->
 %% -----------------------------------------------------------------------------
 
 add_nolynch_and_aliases(Players) ->
-    Players2 = [b2l(P) || P <- Players] ++ ?Extra,
-    lists:foldl(
-      fun({Na, Als}, PlAcc) ->
-              PlAcc ++
-                  case lists:member(Na, Players2) of
-                      true ->
-                          [{Na, A} || A <- Als];
-                      false -> []
-                  end
-      end,
-      Players2,
-      ?Aliases).
+    AddAlias =
+        fun(P, Acc) ->
+                case mnesia:dirty_read(user, b2ub(P)) of
+                    [#user{aliases = AliasesB}] when AliasesB /= [] ->
+                        Acc ++ [{b2l(P), b2l(A)} || A <- AliasesB];
+                    _ -> Acc
+                end
+        end,
+    Aliases = lists:foldl(AddAlias, [], Players),
+    %% io:format("aliases ~p\n", [Aliases]),
+    [b2l(P) || P <- Players] ++ ?Extra ++ Aliases.
 
 %% -----------------------------------------------------------------------------
 

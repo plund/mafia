@@ -1,4 +1,5 @@
 /src/Mnesia*
 /src/thread_pages
+/src/upgrade_bak_files
 *beam
 *~

@@ -4,7 +4,6 @@
 
 %% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
 %% todo:
-%% - insert alias data into the user table
 %% - fix a better player name recognition
 %%    - rename to mafia_name
 %% - check if abbrev code can loop forever

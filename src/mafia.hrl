@@ -54,6 +54,7 @@
 -type page_num() :: integer().
 -type msg_id() :: integer().
 -type day_num() :: integer().
+-type alias() :: binary().
 -type user() :: binary().
 -type player() :: user().
 -type seconds1970() :: integer().
@@ -135,6 +136,7 @@
 -record(user,
         {name_upper :: user(),
          name :: user(),
+         aliases :: [alias()],
          verification_status :: ?verified | ?unverified
         }).
 

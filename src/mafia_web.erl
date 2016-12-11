@@ -42,10 +42,7 @@
 %%%===================================================================
 
 %%--------------------------------------------------------------------
-%% @doc
-%% Starts the server
-%%
-%% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
+%% @doc Starts the server
 %% @end
 %%--------------------------------------------------------------------
 start_link() ->
@@ -54,10 +51,20 @@ start_link() ->
 start() ->
     gen_server:start({local, ?SERVER}, ?MODULE, [], []).
 
+%%--------------------------------------------------------------------
+%% @doc Stops the server
+%% @end
+%%--------------------------------------------------------------------
 stop() -> gen_server:call(?SERVER, 'stop').
 
+%%--------------------------------------------------------------------
+%% @doc Change the poll timer
+%% @end
+%%--------------------------------------------------------------------
 set_interval_minutes(N) when is_integer(N)  ->
     gen_server:call(?SERVER, {set_timer_interval, N}).
+
+
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -79,22 +86,6 @@ init([]) ->
     self() ! check_all,
     {_Reply, S2} = set_timer_interval(State, 2),
     {ok, S2}.
-
-start_web(S) ->
-    inets:start(),
-    %% must create dir first:
-    %% mkdir -p /Users/peter/httpd/mafia.peterlund.se/html
-    os:cmd("mkdir -p " ++ ?SERVER_ROOT),
-    os:cmd("mkdir -p " ++ ?DOC_ROOT),
-    {ok, Pid} =
-        inets:start(
-          httpd,
-          [{port, ?WEBPORT},
-           {server_name, ?SERVER_NAME},
-           {server_root, ?SERVER_ROOT},
-           {document_root, ?DOC_ROOT},
-           {bind_address, "192.168.0.100"}]),
-    S#state{web_pid = Pid}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -187,6 +178,30 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+start_web(S) ->
+    inets:start(),
+    maybe_create_dir(?SERVER_ROOT),
+    maybe_create_dir(?DOC_ROOT),
+    {ok, Pid} =
+        inets:start(
+          httpd,
+          [{port, ?WEBPORT},
+           {server_name, ?SERVER_NAME},
+           {server_root, ?SERVER_ROOT},
+           {document_root, ?DOC_ROOT},
+           {bind_address, "192.168.0.100"}]),
+    S#state{web_pid = Pid}.
+
+%% must create dirs first.
+%% mkdir -p /Users/peter/httpd/mafia.peterlund.se/html
+maybe_create_dir(Dir) ->
+    case file:read_file_info(Dir) of
+        {error,enoent} ->
+            os:cmd("mkdir -p " ++ Dir),
+            io:format("Created ~s\n", [Dir]);
+        _ -> ok
+    end.
 
 set_timer_interval(S, N) when is_integer(N), N >= 1 ->
     if S#state.timer /= undefined ->

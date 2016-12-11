@@ -234,9 +234,9 @@ print_votesI(#pp{game = G,
     print_stats(P, ThId, Phase),
 
     %% Part - Dead players
-    DeadToReport =
+    DeathsToReport =
         lrev(
-          [D || D = {_, {_, Ph}} <- G#mafia_game.players_dead,
+          [D || D = #death{phase = Ph} <- G#mafia_game.player_deaths,
                 if LastMsgTime == false -> Ph == Phase;
                    true -> Ph =< Phase
                 end]),
@@ -256,7 +256,10 @@ print_votesI(#pp{game = G,
               Fmt,
               [string:join(
                  [b2l(DeadPl) ++ PrFun(IsEnd, Ph)
-                  || {DeadPl, {IsEnd, Ph={_DoNNum, _DN}}} <- DeadToReport],
+                  || #death{player = DeadPl,
+                            is_end = IsEnd,
+                            phase = Ph}
+                         <- DeathsToReport],
                  Div)]),
     ok.
 
@@ -437,8 +440,8 @@ print_tracker([G]) ->
 print_trackerI(P, [G], Day) -> print_trackerI(P, G, Day);
 print_trackerI(P, G, [#mafia_day{votes = Votes0,
                                  players_rem = PlayersRem,
-                                 players_dead = DeadInfos}]) ->
-    AllPlayers = PlayersRem ++ [DeadB || {DeadB, _} <- DeadInfos],
+                                 player_deaths = Deaths}]) ->
+    AllPlayers = PlayersRem ++ [DeadB || #death{player = DeadB} <- Deaths],
     Votes = [V || V <- Votes0,
                   lists:member(element(1, V), AllPlayers)],
     Votes3 = user_vote_timesort(Votes),

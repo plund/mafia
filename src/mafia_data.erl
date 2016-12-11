@@ -66,7 +66,7 @@ refresh_votes(_ThId, [], _F) -> ok;
 refresh_votes(ThId, [G], Filter) ->
     mnesia:dirty_write(
       G#mafia_game{players_rem = G#mafia_game.players_orig,
-                   players_dead = []}),
+                   player_deaths = []}),
     iterate_all_msg_ids(ThId, fun mafia_vote:check_for_vote/1, Filter),
     Pages = lists:sort(mafia:find_pages_for_thread(ThId)),
     "Thread " ++ i2l(ThId) ++ "; Pages: " ++

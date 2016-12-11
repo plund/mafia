@@ -4,6 +4,8 @@
 
 -export([
          upgrade/0,
+         update_db_attributes/0,
+
          get_aliases/1,
          save_copy_on_file/2,
          read_file_copy/1
@@ -19,6 +21,18 @@ upgrade() ->
             mnesia:table_info(user, attributes),
             record_info(fields, user)).
 
+
+%% -----------------------------------------------------------------------------
+%% Change to players_mafia_game attribute list
+%% -----------------------------------------------------------------------------
+
+update_db_attributes() ->
+    mnesia:transform_table(mafia_game,
+                           ignore,
+                           record_info(fields, mafia_game)),
+    mnesia:transform_table(mafia_day,
+                           ignore,
+                           record_info(fields, mafia_day)).
 
 %% -----------------------------------------------------------------------------
 %% Add aliases to user table

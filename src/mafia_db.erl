@@ -101,7 +101,7 @@ write_default_table(game, 25) ->
       gms = to_bin(?M25_GMs),
       players_orig = to_bin(?M25_players),
       players_rem = to_bin(?M25_players),
-      players_dead = [],
+      player_deaths = [],
       page_to_read = 1,
       complete = false
      },
@@ -124,7 +124,7 @@ write_default_table(game, 24) ->
       gms = to_bin(?M24_GMs),
       players_orig = to_bin(?M24_players),
       players_rem = to_bin(?M24_players),
-      players_dead = [],
+      player_deaths = [],
       page_to_read = 1,
       complete = false
      },

@@ -94,6 +94,15 @@
          valid :: boolean()
         }).
 
+-record(death,
+        {player :: player(),
+         is_end :: boolean(),
+         phase :: phase(),
+         comment :: binary(),
+         msg_id :: msg_id(),
+         time :: seconds1970()
+        }).
+
 -record(mafia_day,
         {key :: {thread_id(), day_num()},
          thread_id :: thread_id(),
@@ -101,7 +110,7 @@
          votes :: [{player(), [#vote{}]}],
          end_votes :: [player()],
          players_rem :: [player()],
-         players_dead :: [{player(), {day|night, integer()}}]
+         player_deaths :: [#death{}] %% Dead players in mid day
         }).
 
 -record(mafia_game,
@@ -118,7 +127,7 @@
          players_orig :: [player()], %% set_kv(mafia_players, ?M24_players),
          players_rem  :: [player()],
          game_num = 24,
-         players_dead :: [{player(), {day|night, integer()}}],
+         player_deaths :: [#death{}],
          page_to_read, %% set_kv(page_to_read, 1),
          complete :: boolean()
         }).

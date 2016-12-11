@@ -1,6 +1,6 @@
 -module(mafia_vote).
 
--export([check_for_vote/2]).
+-export([check_for_vote/1, check_for_vote/2]).
 
 -import(mafia,
         [b2l/1,
@@ -13,6 +13,8 @@
 -include("mafia.hrl").
 
 %% -----------------------------------------------------------------------------
+
+check_for_vote(MsgId) -> check_for_vote(unused_state, MsgId).
 
 check_for_vote(S, MsgId) when is_integer(MsgId) ->
     case mnesia:dirty_read(message, MsgId) of
@@ -83,13 +85,19 @@ check_for_deathI2(MsgUC, M, G) ->
                     if NewRems /= OldRems ->
                             DeadB = hd(OldRems -- NewRems),
                             DeadStr = b2l(DeadB),
-                            OldDeads = G#mafia_game.players_dead,
+                            OldDeaths = G#mafia_game.player_deaths,
                             io:format("Player ~s died\n", [DeadStr]),
-                            DeadInfo = {DeadB, phase_10min_ago(M, G)},
-                            NewDeads = [DeadInfo | OldDeads],
-                            update_day_rec(M, G, DeadInfo),
+                            {IsEnd, Phase} = phase_10min_ago(M, G),
+                            Death = #death{player = DeadB,
+                                           is_end = IsEnd,
+                                           phase = Phase,
+                                           msg_id = M#message.msg_id,
+                                           time = M#message.time
+                                          },
+                            NewDeaths = [Death | OldDeaths],
+                            update_day_rec(M, G, Death),
                             G2 = G#mafia_game{players_rem = NewRems,
-                                              players_dead = NewDeads},
+                                              player_deaths = NewDeaths},
                             mnesia:dirty_write(G2),
                             check_for_deathI2(TStr, M, G2);
                        true ->
@@ -108,25 +116,25 @@ phase_10min_ago(M, G) ->
     IsEnd = PhaseMsg /= Phase10m,
     {IsEnd, Phase10m}.
 
-%% in case someone votes before GM annouce dead, the day record
+%% In case someone votes before GM annouce dead, the day record
 %% will have too many remaining players
-update_day_rec(M, G, Dead) ->
+update_day_rec(M, G, Death) ->
     TimeMsg = M#message.time,
     case mafia_time:calculate_phase(G, TimeMsg) of
         {DayNum, ?day} -> %% New day appears with new day record.
             [D] = rday(G, DayNum),
-            case Dead of
-                {DeadB, {true, _Phase}} ->
-                    NewRems = D#mafia_day.players_rem -- [DeadB],
+            case Death of
+                #death{is_end = true} ->
+                    NewRems = D#mafia_day.players_rem -- [Death#death.player],
                     mnesia:dirty_write(
                       D#mafia_day{players_rem = NewRems});
-                {DeadB, {false, _Phase}} ->
+                #death{is_end = false} ->
                     %% For the "Jamie" case  when Vig kills in mid day
-                    NewDeads = [Dead|D#mafia_day.players_dead],
-                    NewRems = D#mafia_day.players_rem -- [DeadB],
+                    NewDeads = [Death | D#mafia_day.player_deaths],
+                    NewRems = D#mafia_day.players_rem -- [Death#death.player],
                     mnesia:dirty_write(
                       D#mafia_day{players_rem = NewRems,
-                                  players_dead = NewDeads})
+                                  player_deaths = NewDeads})
             end;
         _ -> ok
     end.

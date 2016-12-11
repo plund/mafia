@@ -4,6 +4,7 @@
 
 %% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
 %% todo:
+%% - Manually add comment for each death from GM death message
 %% - automate faster reads near EoD, 10 normal 1 min last 3 min, 5 min
 %%   - implement "T -7 minutes" time
 %% - fix a better player name recognition
@@ -45,6 +46,7 @@
          downl/0,
          show_settings/0,
          set_thread_id/1,
+         set_death_comment/2,
          refresh_votes/0,
          refresh_votes/1,
 
@@ -160,7 +162,7 @@ rday(#mafia_game{} = G, DayNum) ->
                         votes = [],
                         end_votes = [],
                         players_rem = G#mafia_game.players_rem,
-                        players_dead = []
+                        player_deaths = []
                        }];
         [Day] ->
             [Day]
@@ -204,6 +206,17 @@ set_thread_id(ThId) when is_integer(ThId) ->
                 lists:max(Pages)
         end,
     set(page_to_read, PageToRead),
+    ok.
+
+set_death_comment(_Player, _Comment) ->
+    %% [G] = rgame(),
+    %% Ds2 = [#death{player=Pl, is_end=IsEnd, phase = Phase}
+    %%        || D = {Pl, {IsEnd, Phase = {_,_ }}} <- G#mafia_game.player_deaths
+    %%           %%, Pl == Player
+    %%       ],
+    %% {G#mafia_game.player_deaths,
+    %%  Ds2},
+    %% G2=G#mafia_day{player_deaths = Ds2},
     ok.
 
 show_settings() ->

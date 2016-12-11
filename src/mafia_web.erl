@@ -82,6 +82,7 @@ set_interval_minutes(N) when is_integer(N)  ->
 %% @end
 %%--------------------------------------------------------------------
 init([]) ->
+    mafia:setup_mnesia(),
     State = start_web(#state{}),
     self() ! check_all,
     {_Reply, S2} = set_timer_interval(State, 2),
@@ -187,6 +188,7 @@ start_web(S) ->
         lists:nth(2, lists:dropwhile(
                        fun("inet") -> false; (_) -> true end,
                        string:tokens(os:cmd("ifconfig en1"), "\t\n\s"))),
+    io:format("Starting up a webserver listening on ~s\n", [IP_en1]),
     {ok, Pid} =
         inets:start(
           httpd,

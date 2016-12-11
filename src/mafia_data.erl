@@ -421,11 +421,11 @@ analyse_body(S) ->
                     update_page_rec(S, MsgId),
                     MsgR = write_message_rec(S, MsgId, User, Time, Msg),
                     update_stat(MsgId),
-                    mafia_vote:check_for_vote(S, MsgR);
-                [MsgR] ->
+                    mafia_vote:check_for_vote(S, MsgR),
+                    mafia_print:print_message_summary(MsgR);
+                [_MsgR] ->
                     ok
-            end,
-            mafia_print:print_message_summary(MsgR);
+            end;
        true -> ok
     end,
     analyse_body(S#s{body = B6}).

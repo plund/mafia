@@ -5,6 +5,7 @@
 %% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
 %% todo:
 %% - Fix proper server on lundata
+%%   - start at MacOS reboot
 %% - automate faster reads near EoD, 10 normal 1 min last 3 min, 5 min
 %%   - implement "T -7 minutes" time
 %% - fix a better player name recognition

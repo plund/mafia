@@ -12,7 +12,9 @@
 -define(HourSecs, 3600).
 -define(DaySecs, (24*3600)).
 
--define(DefThId, 1404320).
+-define(M24ThId, 1404320).
+-define(M25ThId, 1420289).
+-define(DefThId, ?M25ThId).
 -define(UrlBeg, "http://webdiplomacy.net/forum.php?threadID=").
 -define(UrlMid, "&page-thread=").
 -define(UrlEnd, "#threadPager").

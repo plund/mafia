@@ -82,7 +82,7 @@ calculate_phase(ThId, Time) when is_integer(ThId) ->
 calculate_phase(Game, Time) ->
     if Time > element(3, hd(Game#mafia_game.deadlines)) ->
             Game2 = add_deadline(Game, 10),
-            mnesia:write(Game2);
+            mnesia:dirty_write(Game2);
        true ->
             Game2 = Game
     end,

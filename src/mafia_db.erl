@@ -69,7 +69,7 @@ insert_initial_data() ->
     set(timezone_user, 1),
     set(dst_user, false),
     set(timezone_game, -5),
-    set(dst_game, true),
+    set(dst_game, false),
     set(print_time, user),
     write_default_table(game),
     write_default_table(user).
@@ -82,6 +82,7 @@ write_default_table(user) ->
     [ mnesia:dirty_write(
         #user{name_upper = l2b(string:to_upper(U)),
               name = l2b(U),
+              aliases = mafia_upgrade:get_aliases(l2b(U)),
               verification_status = ?unverified})
       || U <- ?M24_players ++ ?M24_GMs],
     ok.

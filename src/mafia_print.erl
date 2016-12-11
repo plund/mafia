@@ -94,10 +94,11 @@ print_votes() ->
     print_votes(standard_io).
 print_votes(Dev) ->
     %% Calculate time for last game message
-    LastMsgTime = time_for_last_msg(),
+    %% LastMsgTime = time_for_last_msg(),
+    TimeToUse = mafia_time:utc_secs1970(),
     ThId = getv(thread_id),
-    Phase = mafia_time:calculate_phase(ThId, LastMsgTime),
-    print_votesI(Dev, ThId, Phase, LastMsgTime).
+    Phase = mafia_time:calculate_phase(ThId, TimeToUse),
+    print_votesI(Dev, ThId, Phase, TimeToUse).
 
 print_votes(DayNum, DoN) ->
     print_votes(standard_io, DayNum, DoN).
@@ -147,7 +148,8 @@ print_votesI(#pp{game = G,
     %% Print Game Name
     GName = b2l(G#mafia_game.name),
     io:format(P#pp.dev,
-              "\n~s\n~s\n",
+              "\n~s     History is found at http://mafia.peterlund.se/\n"
+              "~s\n",
               [GName, [$= || _ <- GName]]),
 
     if is_integer(LastMsgTime) ->
@@ -699,7 +701,7 @@ print_message_full(M) ->
 print_message_summary(M) ->
     Msg = rm_nl(b2l(M#message.message)),
     MsgLen = length(Msg),
-    Max = 60,
+    Max = 80,
     MsgShort = if MsgLen > Max -> string:left(Msg, Max) ++ "...";
                   true -> Msg
                end,

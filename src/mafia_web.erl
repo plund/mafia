@@ -21,14 +21,14 @@
 -compile(export_all).
 
 -define(SERVER, ?MODULE).
--define(WEBPORT, 6666).
+-define(WEBPORT, 50666).
 -define(MINUTE_MS, 60000).
 
 -define(SERVER_NAME, "MAFIA TRACKER").
 %% ServerRoot is relative to running path.
--define(SERVER_ROOT, "/Users/peter/httpc/mafia.peterlund.se").
+-define(SERVER_ROOT, "/Users/peter/httpd/mafia.peterlund.se").
 %% DocumentRoot is relative to running path
--define(DOC_ROOT, "/Users/peter/httpc/mafia.peterlund.se/html").
+-define(DOC_ROOT, "/Users/peter/httpd/mafia.peterlund.se/html").
 
 -record(state,
         {timer :: reference(),
@@ -52,6 +52,11 @@ start_link() ->
 start() ->
     gen_server:start({local, ?SERVER}, ?MODULE, [], []).
 
+stop() -> gen_server:call(?SERVER, 'stop').
+
+set_interval_minutes(N) when is_integer(N)  ->
+    gen_server:call(?SERVER, {set_timer_interval, N}).
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -70,13 +75,13 @@ start() ->
 init([]) ->
     State = start_web(#state{}),
     self() ! check_all,
-    {ok, TRef} = timer:send_interval(10 * ?MINUTE_MS, check_all),
+    {ok, TRef} = timer:send_interval(2 * ?MINUTE_MS, check_all),
     {ok, State#state{timer = TRef}}.
 
 start_web(S) ->
     inets:start(),
     %% must create dir first:
-    %% mkdir -p /Users/peter/httpc/mafia.peterlund.se/html
+    %% mkdir -p /Users/peter/httpd/mafia.peterlund.se/html
     os:cmd("mkdir -p " ++ ?SERVER_ROOT),
     os:cmd("mkdir -p " ++ ?DOC_ROOT),
     {ok, Pid} =
@@ -86,7 +91,7 @@ start_web(S) ->
            {server_name, ?SERVER_NAME},
            {server_root, ?SERVER_ROOT},
            {document_root, ?DOC_ROOT},
-           {bind_address, "localhost"}]),
+           {bind_address, "192.168.0.100"}]),
     S#state{web_pid = Pid}.
 
 %%--------------------------------------------------------------------
@@ -103,6 +108,18 @@ start_web(S) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_call(state, _From, State) ->
+    {reply, State, State};
+handle_call({set_timer_interval, N}, _From, State) ->
+    self() ! check_all,
+    timer:cancel(State#state.timer),
+    {ok, TRef} = timer:send_interval(N * ?MINUTE_MS, check_all),
+    {reply, timer_interval_set, State#state{timer = TRef}};
+handle_call('stop', _From, State) ->
+    timer:cancel(State#state.timer),
+    inets:stop(httpd, State#state.web_pid),
+    {stop, stopped, stop_reply, State#state{timer = undefined,
+                                            web_pid = undefined}};
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -131,10 +148,12 @@ handle_cast(_Msg, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_info(check_all, State) ->
+    io:format("check_all ~p\n", [time()]),
     mafia_data:downl(),
-    %% {ok, Fd} = file:open("test",[write]),
-    _NewStatusPage = mafia_print:print_votes(),
-    %% file:close(Fd)
+    FileName = filename:join(?DOC_ROOT, "current_vote.txt"),
+    {ok, Fd} = file:open(FileName, [write]),
+    mafia_print:print_votes(Fd),
+    file:close(Fd),
     {noreply, State};
 handle_info(_Info, State) ->
     {noreply, State}.

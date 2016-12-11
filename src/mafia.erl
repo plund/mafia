@@ -4,6 +4,12 @@
 
 %% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
 %% todo:
+%% - store number of minutes in mafia_web state
+%% - Fix proper server on lundata
+%% - repeat downl if maybe more
+%% - automate faster reads near EoD, 10 normal 1 min last 3 min, 5 min
+%% - make 1st version of History page at deadline, and a new when GM death
+%%    comes in.
 %% - fix a better player name recognition
 %%    - rename to mafia_name
 %% - check if abbrev code can loop forever

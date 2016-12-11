@@ -5,6 +5,7 @@
 -export([
          upgrade/0,
          update_db_attributes/0,
+         fix_deaths_in_games/0,
 
          get_aliases/1,
          save_copy_on_file/2,
@@ -23,9 +24,25 @@ upgrade() ->
 
 
 %% -----------------------------------------------------------------------------
-%% Change to players_mafia_game attribute list
+%% Add field is_deleted into #death{}, 161211
 %% -----------------------------------------------------------------------------
+fix_deaths_in_games() ->
+    AddFalseAtEnd =
+        fun(DT) -> DL = tuple_to_list(DT) ++ [false],
+                   list_to_tuple(DL)
+        end,
+    AddAttr =
+        fun(ThId) ->
+                G = hd(mafia:rgame(ThId)),
+                Deaths = [AddFalseAtEnd(D) || D <- G#mafia_game.player_deaths],
+                mnesia:dirty_write(G#mafia_game{player_deaths = Deaths})
+        end,
+    [ AddAttr(ThId) || ThId <- mnesia:dirty_all_keys(mafia_game)].
 
+
+%% -----------------------------------------------------------------------------
+%% Change to players_mafia_game attribute list, 161211
+%% -----------------------------------------------------------------------------
 update_db_attributes() ->
     mnesia:transform_table(mafia_game,
                            ignore,
@@ -35,7 +52,7 @@ update_db_attributes() ->
                            record_info(fields, mafia_day)).
 
 %% -----------------------------------------------------------------------------
-%% Add aliases to user table
+%% Add aliases to user table, 161210
 %% -----------------------------------------------------------------------------
 
 -define(Aliases, [{"RagingIke297", ["Ike"]},

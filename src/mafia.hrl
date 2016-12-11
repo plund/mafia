@@ -100,7 +100,8 @@
          phase :: phase(),
          comment :: binary(),
          msg_id :: msg_id(),
-         time :: seconds1970()
+         time :: seconds1970(),
+         is_deleted = false :: boolean()
         }).
 
 -record(mafia_day,

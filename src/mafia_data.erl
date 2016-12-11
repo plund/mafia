@@ -54,19 +54,27 @@ download(S) ->
 refresh_votes() ->
     mnesia:clear_table(mafia_day),
     ThId = getv(thread_id),
-    refresh_votes(ThId, rgame(ThId), all).
+    refresh_votes(ThId, rgame(ThId), all, soft).
 
 refresh_votes(EndPage) ->
     mnesia:clear_table(mafia_day),
     ThId = getv(thread_id),
     Filter = fun(Page) -> Page =< EndPage end,
-    refresh_votes(ThId, rgame(ThId), Filter).
+    refresh_votes(ThId, rgame(ThId), Filter, soft).
 
-refresh_votes(_ThId, [], _F) -> ok;
-refresh_votes(ThId, [G], Filter) ->
-    mnesia:dirty_write(
-      G#mafia_game{players_rem = G#mafia_game.players_orig,
-                   player_deaths = []}),
+refresh_votes(_ThId, [], _F, _Method) -> ok;
+refresh_votes(ThId, [G], Filter, Method) ->
+    G2 = if Method == soft ->
+                 G#mafia_game{
+                   players_rem = G#mafia_game.players_orig,
+                   player_deaths = [D#death{is_deleted = true}
+                                    || D <- G#mafia_game.player_deaths]
+                  };
+            Method == hard ->
+                 G#mafia_game{players_rem = G#mafia_game.players_orig,
+                              player_deaths = []}
+         end,
+    mnesia:dirty_write(G2),
     iterate_all_msg_ids(ThId, fun mafia_vote:check_for_vote/1, Filter),
     Pages = lists:sort(mafia:find_pages_for_thread(ThId)),
     "Thread " ++ i2l(ThId) ++ "; Pages: " ++
@@ -495,6 +503,7 @@ strip_fix(Str) ->
 fix("&gt;" ++ T) -> [ $> | fix(T)];
 fix("&lt;" ++ T) -> [ $< | fix(T)];
 fix("&amp;" ++ T) -> [ $& | fix(T)];
+fix("&acute;" ++ T) -> [ $´ | fix(T)];
 fix("&lsquo;" ++ T) -> [ $' | fix(T)];
 fix("&rsquo;" ++ T) -> [ $' | fix(T)];
 fix("&ldquo;" ++ T) -> [ $\" | fix(T)];

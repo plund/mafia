@@ -85,7 +85,6 @@ check_for_deathI2(MsgUC, M, G) ->
                     if NewRems /= OldRems ->
                             DeadB = hd(OldRems -- NewRems),
                             DeadStr = b2l(DeadB),
-                            OldDeaths = G#mafia_game.player_deaths,
                             io:format("Player ~s died\n", [DeadStr]),
                             {IsEnd, Phase} = phase_10min_ago(M, G),
                             Death = #death{player = DeadB,
@@ -94,7 +93,7 @@ check_for_deathI2(MsgUC, M, G) ->
                                            msg_id = M#message.msg_id,
                                            time = M#message.time
                                           },
-                            NewDeaths = [Death | OldDeaths],
+                            NewDeaths = add_death(Death, G),
                             update_day_rec(M, G, Death),
                             G2 = G#mafia_game{players_rem = NewRems,
                                               player_deaths = NewDeaths},
@@ -104,6 +103,23 @@ check_for_deathI2(MsgUC, M, G) ->
                             check_for_deathI2(TStr, M, G)
                     end
             end
+    end.
+
+-spec add_death(#death{}, #mafia_game{} | #mafia_day{})
+               -> NewDeaths :: [#death{}].
+add_death(D, G=#mafia_game{})->
+    Deaths = G#mafia_game.player_deaths,
+    add_deathI(D, Deaths);
+add_death(D, Day=#mafia_day{})->
+    Deaths = Day#mafia_day.player_deaths,
+    add_deathI(D, Deaths).
+
+add_deathI(D, Deaths) ->
+    case lists:keyfind(D#death.player, #death.player, Deaths) of
+        false -> [D | Deaths];
+        D2 -> %% remove delete marking
+            D3 = D2#death{is_deleted = false},
+            lists:keyreplace(D#death.player, #death.player, Deaths, D3)
     end.
 
 -spec phase_10min_ago(M :: #message{}, G :: #mafia_game{})
@@ -130,11 +146,11 @@ update_day_rec(M, G, Death) ->
                       D#mafia_day{players_rem = NewRems});
                 #death{is_end = false} ->
                     %% For the "Jamie" case  when Vig kills in mid day
-                    NewDeads = [Death | D#mafia_day.player_deaths],
+                    NewDeaths = add_death(Death, D),
                     NewRems = D#mafia_day.players_rem -- [Death#death.player],
                     mnesia:dirty_write(
                       D#mafia_day{players_rem = NewRems,
-                                  player_deaths = NewDeads})
+                                  player_deaths = NewDeaths})
             end;
         _ -> ok
     end.

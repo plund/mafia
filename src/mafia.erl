@@ -4,7 +4,6 @@
 
 %% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
 %% todo:
-%% - Manually add comment for each death from GM death message
 %% - automate faster reads near EoD, 10 normal 1 min last 3 min, 5 min
 %%   - implement "T -7 minutes" time
 %% - fix a better player name recognition
@@ -208,16 +207,27 @@ set_thread_id(ThId) when is_integer(ThId) ->
     set(page_to_read, PageToRead),
     ok.
 
-set_death_comment(_Player, _Comment) ->
-    %% [G] = rgame(),
-    %% Ds2 = [#death{player=Pl, is_end=IsEnd, phase = Phase}
-    %%        || D = {Pl, {IsEnd, Phase = {_,_ }}} <- G#mafia_game.player_deaths
-    %%           %%, Pl == Player
-    %%       ],
-    %% {G#mafia_game.player_deaths,
-    %%  Ds2},
-    %% G2=G#mafia_day{player_deaths = Ds2},
-    ok.
+-spec set_death_comment(Player :: string(),
+                        Comment :: string())
+                       -> ok | {error, not_found}.
+set_death_comment(Player, Comment) ->
+    PlayerB = l2b(Player),
+    CommentB = l2b(Comment),
+    [G] = rgame(),
+    case lists:member(PlayerB,
+                      [D#death.player
+                       || D <- G#mafia_game.player_deaths]) of
+        false ->
+            {error, not_found};
+        true ->
+            SetComment =
+                fun(D = #death{}) when PlayerB == D#death.player ->
+                        D#death{comment = CommentB};
+                   (D) -> D
+                end,
+            Deaths2 = [SetComment(D)  || D <- G#mafia_game.player_deaths],
+            mnesia:dirty_write(G#mafia_game{player_deaths = Deaths2})
+    end.
 
 show_settings() ->
     PrintSettings =

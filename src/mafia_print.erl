@@ -223,7 +223,12 @@ print_votesI(#pp{game = G,
                        [print_time_5d(G, VTime),
                         Voter,
                         rm_nl(b2l(Raw))])
-             || {Voter, #vote{raw = Raw, time = VTime}} <- InvUserVotesTS];
+             || {Voter, #vote{raw = Raw, time = VTime}} <- InvUserVotesTS],
+            io:format(P#pp.dev,
+                      "\n"
+                      "\"INVALID\" means that the this program did not"
+                      "recognise the vote. But the GM may.)\n",
+                      []);
        true -> ignore
     end,
 
@@ -255,10 +260,17 @@ print_votesI(#pp{game = G,
     io:format(P#pp.dev,
               Fmt,
               [string:join(
-                 [b2l(DeadPl) ++ PrFun(IsEnd, Ph)
+                 [b2l(DeadPl) ++ PrFun(IsEnd, Ph) ++
+                      if Com == undefined ->
+                              " - msg: " ++ i2l(MsgId);
+                         is_binary(Com) ->
+                              " - " ++ b2l(Com)
+                      end
                   || #death{player = DeadPl,
                             is_end = IsEnd,
-                            phase = Ph}
+                            phase = Ph,
+                            msg_id = MsgId,
+                            comment = Com}
                          <- DeathsToReport],
                  Div)]),
     ok.
@@ -532,11 +544,7 @@ print_read_key(P, Abbrs) ->
               "Read Key\n"
               "--------\n",
               []),
-    prk(P, CFmt, AbbrStrs),
-    io:format(P#pp.dev,
-              "\n(\"INVALID\" means that the this program did not recognise "
-              "the vote. But the GM may.)\n",
-              []).
+    prk(P, CFmt, AbbrStrs).
 
 prk(_P, _CFmt, []) -> ok;
 prk(P, CFmt, Abbrs) ->

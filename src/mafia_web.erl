@@ -84,8 +84,8 @@ set_interval_minutes(N) when is_integer(N)  ->
 init([]) ->
     mafia:setup_mnesia(),
     State = start_web(#state{}),
+    {_Reply, S2} = set_timer_interval(State, 10),
     self() ! check_all,
-    {_Reply, S2} = set_timer_interval(State, 2),
     {ok, S2}.
 
 %%--------------------------------------------------------------------
@@ -147,7 +147,8 @@ handle_info(check_all, State) ->
     {ok, Fd} = file:open(FileName, [write]),
     mafia_print:print_votes(Fd),
     file:close(Fd),
-    {noreply, State};
+    S2 = maybe_change_timer(State),
+    {noreply, S2};
 handle_info(_Info, State) ->
     {noreply, State}.
 
@@ -209,6 +210,17 @@ maybe_create_dir(Dir) ->
         _ -> ok
     end.
 
+-spec maybe_change_timer(#state{}) -> #state{}.
+maybe_change_timer(S = #state{timer_minutes = TMins}) ->
+    case mafia_time:timer_minutes() of
+        Mins when is_integer(Mins), Mins /= TMins ->
+            {_, S2} = set_timer_interval(S, Mins),
+            self() ! check_all,
+            S2;
+        _ -> S
+    end.
+
+-spec set_timer_interval(#state{}, integer()) -> {Reply :: term(), #state{}}.
 set_timer_interval(S, N) when is_integer(N), N >= 1 ->
     if S#state.timer /= undefined ->
             timer:cancel(S#state.timer),

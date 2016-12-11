@@ -10,7 +10,9 @@
          local_datetime_for_secs1970/3,
          update_deadlines/1,
          add_deadlines/1,
-         calculate_phase/2]).
+         calculate_phase/2,
+         timer_minutes/0
+        ]).
 
 -import(mafia, [getv/1, lrev/1, rgame/1]).
 
@@ -185,3 +187,42 @@ dst_change_adapt(TZ, IsInitDst, DstChanges, UtcGS) ->
 utc_gs(DateTime, TZ, Dst) ->
     calendar:datetime_to_gregorian_seconds(DateTime)
         - (TZ + if Dst -> 1; true -> 0 end) * ?HourSecs.
+
+
+-spec timer_minutes() -> none | integer().
+timer_minutes() ->
+    ThId = getv(thread_id),
+    case nearest_deadline(ThId) of
+        none -> none;
+        {RelTimeSecs, {_, DoN, _}} ->
+            t_mins(DoN, RelTimeSecs)
+    end.
+
+-define(m2s(Min), (Min * ?MinuteSecs)).
+%%   Day nearest
+t_mins(?day, T) when T < ?m2s(-90) -> 10;
+t_mins(?day, T) when T < ?m2s(-30) -> 5;
+t_mins(?day, T) when T < ?m2s(-7) -> 2;
+t_mins(?day, T) when T < ?m2s(7) -> 1;
+t_mins(?day, T) when T < ?m2s(20) -> 2;
+t_mins(?day, T) when T >= ?m2s(20) -> 10;
+%%  Night nearest
+t_mins(?night, T) when T < ?m2s(-4) -> 10;
+t_mins(?night, T) when T < ?m2s(10) -> 2;
+t_mins(?night, T) when T < ?m2s(80) -> 4;
+t_mins(?night, T) when T >= ?m2s(80) -> 10.
+
+-spec nearest_deadline(integer() | #mafia_game{})
+                      -> none | {integer(), deadline()}.
+nearest_deadline(ThId) when is_integer(ThId) ->
+    nearest_deadline(mafia:rgame(ThId));
+nearest_deadline([]) -> none;
+nearest_deadline([G = #mafia_game{}]) ->
+    nearest_deadline(G);
+nearest_deadline(G = #mafia_game{}) ->
+    DLs = G#mafia_game.deadlines,
+    Now = utc_secs1970(),
+    {_, TDiff, NearestDL} =
+        hd(lists:sort([{abs(Now - Time), Now - Time, DL}
+                       || DL = {_, _, Time} <- DLs])),
+    {TDiff, NearestDL}.

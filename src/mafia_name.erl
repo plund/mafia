@@ -1,4 +1,4 @@
--module(mafia_vote_tracker).
+-module(mafia_name).
 
 -include("mafia.hrl").
 

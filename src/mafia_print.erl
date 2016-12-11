@@ -443,7 +443,7 @@ print_trackerI(P, G, [#mafia_day{votes = Votes0,
                   lists:member(element(1, V), AllPlayers)],
     Votes3 = user_vote_timesort(Votes),
     %%io:format(P#pp.dev, "Rem: ~p\n", [AllPlayers]),
-    Abbrs = mafia_vote_tracker:get_abbrevs(AllPlayers),
+    Abbrs = mafia_name:get_abbrevs(AllPlayers),
     io:format(P#pp.dev, "\n", []),
     print_read_key(P, Abbrs),
     A = fun("---") -> "---";

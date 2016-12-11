@@ -59,6 +59,7 @@
         {page :: page_num(),  %% either page num to get and when got the
          %%                      actual page num
          is_last_page :: boolean(),
+         body_on_file = false :: boolean(),
          page_num_last_read :: page_num(),
          page_total_last_read :: page_num(),
          thread_id :: thread_id(),

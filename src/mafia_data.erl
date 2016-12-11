@@ -49,8 +49,11 @@ download(S) ->
         {ok, S2} ->
             analyse_body(S2),
             if not S2#s.is_last_page ->
+                    if not S2#s.body_on_file ->
+                            sleep(10000);
+                       true -> ok
+                    end,
                     Page = getv(page_to_read),
-                    sleep(10000),
                     download(S2#s{page = Page});
                true -> ok
             end;
@@ -238,10 +241,11 @@ get_body(S) ->
     get_body(S, get_body_from_file(S)).
 
 get_body(S, {file, Body}) ->
-    S2 = check_this_page(S#s{body = Body}),
+    S2 = check_this_page(S#s{body = Body,
+                             body_on_file = true}),
     {ok, S2};
 get_body(S, no_file) ->
-    S2 = make_url(S),
+    S2 = make_url(S#s{body_on_file = false}),
     get_body2(S2, http_request(S2)).
 
 make_url(S) ->

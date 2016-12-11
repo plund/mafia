@@ -183,6 +183,10 @@ start_web(S) ->
     inets:start(),
     maybe_create_dir(?SERVER_ROOT),
     maybe_create_dir(?DOC_ROOT),
+    IP_en1 =
+        lists:nth(2, lists:dropwhile(
+                       fun("inet") -> false; (_) -> true end,
+                       string:tokens(os:cmd("ifconfig en1"), "\t\n\s"))),
     {ok, Pid} =
         inets:start(
           httpd,
@@ -190,7 +194,7 @@ start_web(S) ->
            {server_name, ?SERVER_NAME},
            {server_root, ?SERVER_ROOT},
            {document_root, ?DOC_ROOT},
-           {bind_address, "192.168.0.100"}]),
+           {bind_address, IP_en1}]),
     S#state{web_pid = Pid}.
 
 %% must create dirs first.

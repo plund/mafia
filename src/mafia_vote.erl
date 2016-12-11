@@ -252,6 +252,7 @@ verify_user(M = #message{user_name = User}) ->
                 io:format("Warning: created new user ~p\n", [User]),
                 {user, #user{name_upper = b2ub(User),
                              name = User,
+                             aliases = [],
                              verification_status = ?verified}}
         end,
     case CheckRes of

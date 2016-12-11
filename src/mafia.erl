@@ -4,22 +4,16 @@
 
 %% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
 %% todo:
+%% - Fix proper server on lundata
 %% - automate faster reads near EoD, 10 normal 1 min last 3 min, 5 min
 %%   - implement "T -7 minutes" time
 %% - fix a better player name recognition
-%% - store number of minutes in mafia_web state
-%% - Fix proper server on lundata
-%% - repeat downl if maybe more
 %% - make 1st version of History page at deadline, and a new when GM death
 %%    comes in.
 %% - check if abbrev code can loop forever
 %% - print "global" game stats
 %% - downl and pps should look similar, Died/Vote messages and deadline markers
-%% - print_vote variant for one voter during one day
 %% - webpage with GM command listing
-%% - webpage with game status:
-%%   - Current phase -current votes -link to vote breakdown
-%%   - if day -Next DL -link to deadline schedule -GMs - Players Living -Dead
 %% - GM orders :
 %%   - Phase END now (and possibly move deadline -24h)
 %%   - expand alias list

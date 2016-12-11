@@ -12,13 +12,14 @@
 
 %% API
 -export([start_link/0,
-         start/0]).
+         start/0,
+         stop/0,
+         set_interval_minutes/1
+        ]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
-
--compile(export_all).
 
 -define(SERVER, ?MODULE).
 -define(WEBPORT, 50666).
@@ -32,6 +33,7 @@
 
 -record(state,
         {timer :: reference(),
+         timer_minutes :: integer(),
          web_pid :: pid()
         }).
 
@@ -75,8 +77,8 @@ set_interval_minutes(N) when is_integer(N)  ->
 init([]) ->
     State = start_web(#state{}),
     self() ! check_all,
-    {ok, TRef} = timer:send_interval(2 * ?MINUTE_MS, check_all),
-    {ok, State#state{timer = TRef}}.
+    {_Reply, S2} = set_timer_interval(State, 2),
+    {ok, S2}.
 
 start_web(S) ->
     inets:start(),
@@ -111,10 +113,9 @@ start_web(S) ->
 handle_call(state, _From, State) ->
     {reply, State, State};
 handle_call({set_timer_interval, N}, _From, State) ->
+    {Reply, S2} = set_timer_interval(State, N),
     self() ! check_all,
-    timer:cancel(State#state.timer),
-    {ok, TRef} = timer:send_interval(N * ?MINUTE_MS, check_all),
-    {reply, timer_interval_set, State#state{timer = TRef}};
+    {reply, Reply, S2};
 handle_call('stop', _From, State) ->
     timer:cancel(State#state.timer),
     inets:stop(httpd, State#state.web_pid),
@@ -186,3 +187,21 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+set_timer_interval(S, N) when is_integer(N), N >= 1 ->
+    if S#state.timer /= undefined ->
+            timer:cancel(S#state.timer),
+            flush(check_all);
+       true -> ok
+    end,
+    {ok, TRef} = timer:send_interval(N * ?MINUTE_MS, check_all),
+    Reply = {interval_changed,
+             {old, S#state.timer_minutes},
+             {new, N}},
+    {Reply, S#state{timer = TRef,
+                    timer_minutes = N}}.
+
+flush(Msg) ->
+    receive Msg -> flush(Msg)
+    after 0 -> ok
+    end.

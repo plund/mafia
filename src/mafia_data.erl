@@ -47,7 +47,12 @@ downl() ->
 download(S) ->
     case get_body(S) of
         {ok, S2} ->
-            analyse_body(S2);
+            analyse_body(S2),
+            if not S2#s.is_last_page ->
+                    Page = getv(page_to_read),
+                    download(S2#s{page = Page});
+               true -> ok
+            end;
         error -> error
     end.
 

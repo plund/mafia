@@ -8,9 +8,8 @@
          utc_secs1970/0,
          get_tz_dst/0,
          local_datetime_for_secs1970/3,
-         update_deadlines/2,
-         add_deadline/2,
-         calc_deadlines/2,
+         update_deadlines/1,
+         add_deadlines/1,
          calculate_phase/2]).
 
 -import(mafia, [getv/1, lrev/1, rgame/1]).
@@ -39,7 +38,7 @@ get_next_deadline(#mafia_game{key = ThId,
               calendar:seconds_to_time(SecsLeft rem ?DaySecs)},
              DL};
         [] -> % should get more DLs here
-            update_deadlines(ThId, 10),
+            update_deadlines(ThId),
             get_next_deadline(ThId)
     end.
 
@@ -81,7 +80,7 @@ calculate_phase(ThId, Time) when is_integer(ThId) ->
     end;
 calculate_phase(Game, Time) ->
     if Time > element(3, hd(Game#mafia_game.deadlines)) ->
-            Game2 = add_deadline(Game, 10),
+            Game2 = add_deadlines(Game),
             mnesia:dirty_write(Game2);
        true ->
             Game2 = Game
@@ -95,57 +94,55 @@ calculate_phase(Game, Time) ->
     {Num, DN}.
 
 %% and it should also update the game in mnesia with it.
-update_deadlines(ThId, NumNewDLs) ->
+update_deadlines(ThId) ->
     case rgame(ThId) of
         [] -> [];
         [#mafia_game{} = G] ->
-            NewDLs = calc_deadlines(G, NumNewDLs),
+            NewDLs = calc_deadlines(G),
             mnesia:dirty_write(G#mafia_game{deadlines = NewDLs}),
             NewDLs
     end.
 
-add_deadline(MGame, NumNewDLs) ->
+add_deadlines(MGame) ->
     MGame#mafia_game{
-      deadlines = calc_deadlines(MGame, NumNewDLs)
+      deadlines = calc_deadlines(MGame)
      }.
 
 %% -----------------------------------------------------------------------------
 %% @doc Return an expanded list of deadlines in reversed order
--spec calc_deadlines(ThId :: integer() | #mafia_game{},
-                     NumNewDLs :: integer())
+-spec calc_deadlines(ThId :: integer() | #mafia_game{})
                     -> NewDLs :: [deadline()].
-calc_deadlines(ThId, NumNewDLs) when is_integer(ThId) ->
+calc_deadlines(ThId) when is_integer(ThId) ->
     case rgame(ThId) of
         [] -> ignore;
         [#mafia_game{} = G] ->
-            calc_deadlines(G, NumNewDLs)
+            calc_deadlines(G)
     end;
-calc_deadlines(G, NumNewDLs) ->
+calc_deadlines(G) ->
     DLsIn = G#mafia_game.deadlines,
     FirstNewPh = if DLsIn == [] -> {1, ?day};
                     true -> inc_phase(hd(DLsIn))
                  end,
-    Phases = lists:foldl(fun(_, Acc = [DL|_]) ->
-                                 [inc_phase(DL) | Acc]
-                         end,
-                         [FirstNewPh],
-                         lists:seq(2, NumNewDLs)),
-    lists:foldr(fun(Ph, DLs) ->
-                        [calc_deadline(Ph, G) | DLs]
-                end,
-                DLsIn,
-                Phases).
+    TargetTime = utc_secs1970() + 7 * ?DaySecs,
+    calc_deadlinesI(G, TargetTime, [], calc_one_deadlineI(FirstNewPh, G)).
+
+calc_deadlinesI(_G, TargetTime, Dls, Dl = {_, _, Time})
+  when Time > TargetTime ->
+    [Dl|Dls];
+calc_deadlinesI(G, TargetTime, Dls, Dl) ->
+    Ph = inc_phase(Dl),
+    calc_deadlinesI(G, TargetTime, [Dl|Dls], calc_one_deadlineI(Ph, G)).
 
 -spec inc_phase(phase() | deadline()) -> phase().
 inc_phase({Num, D, _Time}) -> inc_phase({Num, D});
 inc_phase({Num, ?day}) when is_integer(Num) -> {Num, ?night};
 inc_phase({Num, ?night}) when is_integer(Num) -> {Num + 1, ?day}.
 
--spec calc_deadline({Num :: integer(),
+-spec calc_one_deadlineI({Num :: integer(),
                      DayNight::day_night()},
                     Game :: #mafia_game{})
                    -> seconds1970().
-calc_deadline({Num, DayNight}, Game)
+calc_one_deadlineI({Num, DayNight}, Game)
   when DayNight == ?day;
        DayNight == ?night ->
     #mafia_game{

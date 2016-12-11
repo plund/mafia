@@ -640,7 +640,7 @@ print_page(ThId, MsgIds, PrintFun) ->
             DLs2 =
                 if TimeLDl < TimeA ->
                         lrev(
-                          mafia_time:update_deadlines(ThId, 10));
+                          mafia_time:update_deadlines(ThId));
                       true ->
                            DLs
                    end,

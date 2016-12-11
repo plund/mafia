@@ -106,7 +106,7 @@ write_default_table(game, 25) ->
       page_to_read = 1,
       complete = false
      },
-    MGame2 = mafia_time:add_deadline(MGame, 16),
+    MGame2 = mafia_time:add_deadlines(MGame),
     mnesia:dirty_write(MGame2);
 
 write_default_table(game, 24) ->
@@ -129,7 +129,7 @@ write_default_table(game, 24) ->
       page_to_read = 1,
       complete = false
      },
-    MGame2 = mafia_time:add_deadline(MGame, 16),
+    MGame2 = mafia_time:add_deadlines(MGame),
     mnesia:dirty_write(MGame2).
 
 set(K=thread_id, V) when is_integer(V), V > 0 -> set_kv(K,V);

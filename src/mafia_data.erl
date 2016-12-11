@@ -8,7 +8,8 @@
          rm_to_after_pos/2,
          find_pos_and_split/2,
          get_after_pos/3,
-         sum_stat/2
+         sum_stat/2,
+         game_file_prefix/1
         ]).
 
 %% utilities
@@ -316,12 +317,15 @@ th_filename(#s{thread_id = Thread, page = Page}) ->
     verify_exist(DirName),
     GamePrefix = case rgame(Thread) of
                      [] -> "";
-                     [G] -> "m" ++ i2l(G#mafia_game.game_num) ++ "_"
+                     [G] -> game_file_prefix(G)
                  end,
     DirName2 = GamePrefix ++ i2l(Thread),
     verify_exist(filename:join(DirName, DirName2)),
     BaseName = i2l(Page) ++ ".txt",
     filename:join([DirName, DirName2, BaseName]).
+
+game_file_prefix(G) ->
+    "m" ++ i2l(G#mafia_game.game_num) ++ "_".
 
 verify_exist(DirName) ->
     case file:read_file_info(DirName) of

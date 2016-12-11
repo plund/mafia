@@ -14,12 +14,17 @@
 -export([start_link/0,
          start/0,
          stop/0,
-         set_interval_minutes/1
+         set_interval_minutes/1,
+         regenerate_history/1
         ]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
+
+-import(mafia, [i2l/1]).
+
+-include("mafia.hrl").
 
 -define(SERVER, ?MODULE).
 -define(WEBPORT, 50666).
@@ -64,7 +69,10 @@ stop() -> gen_server:call(?SERVER, 'stop').
 set_interval_minutes(N) when is_integer(N)  ->
     gen_server:call(?SERVER, {set_timer_interval, N}).
 
-
+regenerate_history({DNum, DoN, _}) ->
+    regenerate_history({DNum, DoN});
+regenerate_history(Phase) ->
+    gen_server:cast(?SERVER, {regenerate_history, Phase}).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -127,6 +135,23 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_cast({regenerate_history, {DNum, DoN}}, State) ->
+    case mafia:rgame() of
+        [] -> ok;
+        [G] ->
+            Prefix = mafia_data:game_file_prefix(G),
+            PhStr = case DoN of
+                        ?day -> "d";
+                        ?night -> "n"
+                    end ++ i2l(DNum),
+            %% calculate "m25_d1.txt"
+            PhaseFN = Prefix ++ PhStr ++ ".txt",
+            FileName = filename:join(?DOC_ROOT, PhaseFN),
+            {ok, Fd} = file:open(FileName, [write]),
+            mafia_print:print_votes(Fd, DNum, DoN),
+            file:close(Fd)
+    end,
+    {noreply, State};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -215,7 +240,6 @@ maybe_change_timer(S = #state{timer_minutes = TMins}) ->
     case mafia_time:timer_minutes() of
         Mins when is_integer(Mins), Mins /= TMins ->
             {_, S2} = set_timer_interval(S, Mins),
-            self() ! check_all,
             S2;
         _ -> S
     end.

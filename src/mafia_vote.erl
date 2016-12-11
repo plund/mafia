@@ -34,7 +34,25 @@ check_for_deathI(_S, M, G) ->
     case author_gm(M, G) of
         false -> G;
         true ->
-            check_for_deathI2(b2ul(M#message.message), M, G)
+            RemBefore = G#mafia_game.players_rem,
+
+            check_for_deathI2(b2ul(M#message.message), M, G),
+
+            G2 = hd(mafia:rgame(G#mafia_game.key)),
+            RemAfter = G2#mafia_game.players_rem,
+            %% if someone died
+            if RemAfter /= RemBefore ->
+                    %% and if time is 0 - 10 min after a deadline
+                    {RelTimeSecs, DL} = mafia_time:nearest_deadline(G2),
+                    if RelTimeSecs >= 0,
+                       RelTimeSecs =< 10 * ?MinuteSecs ->
+                            %% if so generate a history page
+                            mafia_web:regenerate_history(DL);
+                       true -> ok
+                    end;
+               true ->
+                    ok
+            end
     end.
 
 check_for_deathI2(MsgUC, M, G) ->

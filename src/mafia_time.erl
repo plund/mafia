@@ -11,6 +11,7 @@
          update_deadlines/1,
          add_deadlines/1,
          calculate_phase/2,
+         nearest_deadline/1,
          timer_minutes/0
         ]).
 

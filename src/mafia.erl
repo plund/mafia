@@ -4,8 +4,6 @@
 
 %% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
 %% todo:
-%% - make 1st version of History page at deadline, and a new when GM death
-%%    comes in.
 %% - Fix proper server on lundata - start at MacOS reboot
 %% - fix a better player name recognition
 %% - check if abbrev code can loop forever
@@ -214,6 +212,7 @@ set_death_comment(Player, Comment) ->
         true ->
             SetComment =
                 fun(D = #death{}) when PlayerB == D#death.player ->
+                        mafia_web:regenerate_history(D#death.phase),
                         D#death{comment = CommentB};
                    (D) -> D
                 end,
@@ -334,22 +333,3 @@ cmp_vote_raw() ->
                  {b2l(User), VoteSum}
              end || {User, Votes} <- GVotes]
     end.
-
-%%PrintFun(Msg)
-
-%% Order in page source
-%% 0. threadID1404320
-%% 1. threadID="1404320"
-%% 2. <the thread title>
-%% 3. <em>Page <strong>177</strong> of <strong>177</strong>
-
-%% Find threadid "threadID1404320"
-%% split html on "<div class=\"reply"
-%% inside we should find "<div class=\"message-head", "profile.php?user", ">",
-%% copy user name until we find next "<"
-%% find "messageID=\""
-%% copy msgid to next "\""
-%% find "unixtime=\""
-%% copy unixtime to next "\""
-%% find "<div class=\"message-contents\"", ">"
-%% copy message text unit next "</div>" BUT ignore "<b />"

@@ -8,6 +8,7 @@
          print_votes/0,
          print_votes/1,
          print_votes/2,
+         print_votes/3,
 
          print_tracker/0,
 
@@ -102,6 +103,7 @@ print_votes(Dev) ->
 
 print_votes(DayNum, DoN) ->
     print_votes(standard_io, DayNum, DoN).
+
 print_votes(Dev, DayNum, DoN) ->
     DoN2 = if DoN == d; DoN == day -> ?day;
               DoN == n; DoN == night -> ?night
@@ -109,7 +111,7 @@ print_votes(Dev, DayNum, DoN) ->
     print_votesI(Dev, {DayNum, DoN2}).
 
 print_votesI(Dev, DayNum) when is_integer(DayNum) ->
-    print_votes(Dev, {DayNum, ?day});
+    print_votesI(Dev, {DayNum, ?day});
 print_votesI(Dev, Phase = {_, _}) ->
     ThId = getv(thread_id),
     LastMsgTime = false,

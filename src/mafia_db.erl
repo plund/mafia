@@ -59,12 +59,10 @@ start_mnesia(Op) ->
 %% List of lists
 to_bin(LoL = [[_|_]|_]) ->
     [list_to_binary(L) || L <- LoL].
-%% to_bin_upper(LoL = [[_|_]|_]) ->
-%%     [list_to_binary(string:to_upper(L)) || L <- LoL].
 
 insert_initial_data() ->
     io:format("Adding values to kv_store\n", []),
-    set(thread_id, ?DefThId),
+    set(thread_id, ?M25ThId),
     set(page_to_read, 1),
     set(timezone_user, 1),
     set(dst_user, false),
@@ -90,7 +88,7 @@ write_default_table(user) ->
 write_default_table(game, 25) ->
     io:format("Adding Mafia Game M25\n", []),
     MGame = #mafia_game{
-      key = 1420289,
+      key = ?M25ThId,
       game_num = 25,
       name = <<"MAFIA XXV: Kanye's Quest">>,
       day_hours = 48,
@@ -112,7 +110,7 @@ write_default_table(game, 25) ->
 write_default_table(game, 24) ->
     io:format("Adding Mafia Game M24\n", []),
     MGame = #mafia_game{
-      key = ?DefThId,
+      key = ?M24ThId,
       game_num = 24,
       name = <<"MAFIA XXIV: Webdiplomacy's Tom Clancy's The Division">>,
       day_hours = 48,

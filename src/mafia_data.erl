@@ -50,11 +50,15 @@ download(S) ->
             analyse_body(S2),
             if not S2#s.is_last_page ->
                     Page = getv(page_to_read),
+                    sleep(10000),
                     download(S2#s{page = Page});
                true -> ok
             end;
         error -> error
     end.
+
+sleep(MilliSecs) ->
+    receive after MilliSecs -> ok end.
 
 refresh_votes() ->
     mnesia:clear_table(mafia_day),

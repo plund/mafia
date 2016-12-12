@@ -385,11 +385,17 @@ r_count([], [], N) ->
 %% -----------------------------------------------------------------------------
 
 reg_vote(M, G, Vote, RawVote, IsOkVote) ->
+    %% io:format("REGVOTE ~p, ~p\n",[M#message.user_name, Vote]),
     case is_remaining_player(
            M#message.user_name,
            G#mafia_game.players_rem) of
         true ->
-            vote2(M, G, Vote, RawVote, IsOkVote);
+            case b2l(Vote) of
+                ?END -> reg_end_vote(add, M);
+                ?UNEND -> reg_end_vote(remove, M);
+                _ ->
+                    vote2(M, G, Vote, RawVote, IsOkVote)
+            end;
         false ->
             io:format("Warning ~s tried to vote in game\n",
                       [b2l(M#message.user_name)]),

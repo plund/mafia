@@ -22,7 +22,9 @@
 -define(UrlEnd, "#threadPager").
 
 -define(Unvote, "Unvote").
--define(Extra, ["End", "No-Lynch"]).
+-define(END, "End").
+-define(UNEND, "Unend").
+-define(Extra, [?END, ?UNEND, "No-Lynch"]).
 -define(M24_GMs, ["DemonRHK", "MoscowFleet"]).
 -define(M24_players,
         ["bo_sox48", "captainmeme", "Chaqa", "dargorygel", "Ezio", "Floodgates",

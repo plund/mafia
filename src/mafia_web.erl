@@ -14,6 +14,7 @@
 -export([start_link/0,
          start/0,
          stop/0,
+         stop_httpd/1,
          set_interval_minutes/1,
          regenerate_history/1
         ]).
@@ -61,6 +62,9 @@ start() ->
 %% @end
 %%--------------------------------------------------------------------
 stop() -> gen_server:call(?SERVER, 'stop').
+
+stop_httpd(a) -> inets:stop(httpd, {{192,168,0,100}, ?WEBPORT});
+stop_httpd(b) -> inets:stop(httpd, {{192,168,0,3}, ?WEBPORT}).
 
 %%--------------------------------------------------------------------
 %% @doc Change the poll timer
@@ -148,7 +152,7 @@ handle_cast({regenerate_history, {DNum, DoN}}, State) ->
             PhaseFN = Prefix ++ PhStr ++ ".txt",
             FileName = filename:join(?DOC_ROOT, PhaseFN),
             {ok, Fd} = file:open(FileName, [write]),
-            mafia_print:print_votes(Fd, DNum, DoN),
+            mafia_print:print_votes(DNum, DoN, [{fd, Fd}]),
             file:close(Fd)
     end,
     {noreply, State};
@@ -169,10 +173,10 @@ handle_info(check_all, State) ->
     io:format("check_all ~p\n", [time()]),
     mafia_data:downl(),
     FileName = filename:join(?DOC_ROOT, "current_vote.txt"),
-    {ok, Fd} = file:open(FileName, [write]),
-    mafia_print:print_votes(Fd),
-    file:close(Fd),
     S2 = maybe_change_timer(State),
+    {ok, Fd} = file:open(FileName, [write]),
+    mafia_print:print_votes([{fd, Fd}, {next, S2#state.timer_minutes}]),
+    file:close(Fd),
     {noreply, S2};
 handle_info(_Info, State) ->
     {noreply, State}.

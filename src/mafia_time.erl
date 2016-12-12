@@ -12,6 +12,7 @@
          add_deadlines/1,
          calculate_phase/2,
          nearest_deadline/1,
+         nearest_deadline/2,
          timer_minutes/0
         ]).
 
@@ -215,15 +216,21 @@ t_mins(?night, T) when T >= ?m2s(80) -> 10.
 
 -spec nearest_deadline(integer() | #mafia_game{})
                       -> none | {integer(), deadline()}.
-nearest_deadline(ThId) when is_integer(ThId) ->
-    nearest_deadline(mafia:rgame(ThId));
-nearest_deadline([]) -> none;
-nearest_deadline([G = #mafia_game{}]) ->
-    nearest_deadline(G);
-nearest_deadline(G = #mafia_game{}) ->
-    DLs = G#mafia_game.deadlines,
+nearest_deadline(G) ->
     Now = utc_secs1970(),
+    nearest_deadline(G, Now).
+
+-spec nearest_deadline(integer() | #mafia_game{},
+                       seconds1970())
+                      -> none | {integer(), deadline()}.
+nearest_deadline(ThId, Time) when is_integer(ThId) ->
+    nearest_deadline(mafia:rgame(ThId), Time);
+nearest_deadline([], _) -> none;
+nearest_deadline([G = #mafia_game{}], Time) ->
+    nearest_deadline(G, Time);
+nearest_deadline(G = #mafia_game{}, Time) ->
+    DLs = G#mafia_game.deadlines,
     {_, TDiff, NearestDL} =
-        hd(lists:sort([{abs(Now - Time), Now - Time, DL}
-                       || DL = {_, _, Time} <- DLs])),
+        hd(lists:sort([{abs(Time - DlTime), Time - DlTime, DL}
+                       || DL = {_, _, DlTime} <- DLs])),
     {TDiff, NearestDL}.

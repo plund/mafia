@@ -254,11 +254,24 @@ all_users(Search) ->
 
 
 -spec show_aliases(User :: string()) -> ok | {error, Reason :: term()}.
+show_aliases(all) ->
+    [begin
+         U = hd(mnesia:dirty_read(user, UserUB)),
+         if U#user.aliases /= [] ->
+                 io:format("Found: ~s\nAliases: ~p\n",
+                           [b2l(U#user.name),
+                            [b2l(AlB) || AlB <- U#user.aliases]]);
+            true -> ok
+         end
+     end
+     || UserUB <- mnesia:dirty_all_keys(user)],
+    ok;
 show_aliases(Search) ->
     io:format("Search: ~s\n", [Search]),
     Users = all_users(Search),
     [show_aliasesI(User) || User <- Users],
     ok.
+
 
 show_aliasesI(User) ->
     UserUB = l2ub(User),
@@ -267,7 +280,7 @@ show_aliasesI(User) ->
         [#user{} = U] ->
             io:format("Found: ~s\nAliases: ~p\n",
                       [b2l(U#user.name),
-                       [b2l(AlB) ||AlB <- U#user.aliases]])
+                       [b2l(AlB) || AlB <- U#user.aliases]])
     end.
 
 -spec add_alias(User :: string(), Alias :: string())

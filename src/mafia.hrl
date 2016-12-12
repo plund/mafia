@@ -12,6 +12,8 @@
 -define(HourSecs, 3600).
 -define(DaySecs, (24*3600)).
 
+-define(MAX_GM_DL_MINS, 15).
+
 -define(M24ThId, 1404320).
 -define(M25ThId, 1420289).
 %% -define(DefThId, ?M25ThId).

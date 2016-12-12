@@ -82,63 +82,75 @@ pm(MsgId) when is_integer(MsgId) ->
 
 %% -----------------------------------------------------------------------------
 
-%% print params
--record(pp,
-        {dev = standard_io,
-         game,
-         day,
-         phase,
-         last_time
-        }).
-
+%% /0 human
 print_votes() ->
-    print_votes(standard_io).
-print_votes(Dev) ->
+    print_votes([{fd, standard_io}]).
+
+%% /1 mafia_web
+print_votes(Opts) ->
     %% Calculate time for last game message
     %% LastMsgTime = time_for_last_msg(),
-    TimeToUse = mafia_time:utc_secs1970(),
+    Time = mafia_time:utc_secs1970(),
+    Opts2 = [{time, Time} | Opts],
     ThId = getv(thread_id),
-    Phase = mafia_time:calculate_phase(ThId, TimeToUse),
-    print_votesI(Dev, ThId, Phase, TimeToUse).
+    Phase = mafia_time:calculate_phase(ThId, Time),
+    print_votesI3(ThId, Phase, Opts2).
 
+%% /2 human
 print_votes(DayNum, DoN) ->
-    print_votes(standard_io, DayNum, DoN).
+    print_votes(DayNum, DoN, [{fd, standard_io}]).
 
-print_votes(Dev, DayNum, DoN) ->
-    DoN2 = if DoN == d; DoN == day -> ?day;
-              DoN == n; DoN == night -> ?night
+%% /3 mafia_web
+print_votes(DayNum, DoN, Opts) ->
+    DoN2 = if DoN == d; DoN == day; DoN == ?day -> ?day;
+              DoN == n; DoN == night; DoN == ?night -> ?night
            end,
-    print_votesI(Dev, {DayNum, DoN2}).
+    print_votesI2({DayNum, DoN2}, Opts).
 
-print_votesI(Dev, DayNum) when is_integer(DayNum) ->
-    print_votesI(Dev, {DayNum, ?day});
-print_votesI(Dev, Phase = {_, _}) ->
+print_votesI2(DayNum, Opts) when is_integer(DayNum) ->
+    print_votesI2({DayNum, ?day}, Opts);
+print_votesI2(Phase = {_, _}, Opts) ->
     ThId = getv(thread_id),
-    LastMsgTime = false,
-    print_votesI(Dev, ThId, Phase, LastMsgTime).
+    Opts2 = [{time, false} | Opts],
+    print_votesI3(ThId, Phase, Opts2).
 
-print_votesI(Dev, ThId, Phase, LastMsgTime) ->
-    print_votesI(Dev, Phase, LastMsgTime,
+print_votesI3(ThId, Phase, Opts) ->
+    print_votesI4(Phase,
                  rgame(ThId),
-                 rday(ThId, Phase)).
+                 rday(ThId, Phase),
+                 Opts).
 
-print_votesI(_Dev, _Phase, _LastMsgTime, [], _) -> ok;
-print_votesI(_Dev, _Phase, _LastMsgTime, _, []) -> ok;
-print_votesI(Dev, Phase, LastMsgTime,
+%% print params
+-record(pp, {game,
+             day,
+             phase,
+             dev,
+             next :: integer(),
+             time :: false | seconds1970()
+            }).
+
+print_votesI4(_Phase, [], _, _Opts) -> ok;
+print_votesI4(_Phase, _, [], _Opts) -> ok;
+print_votesI4(Phase,
              [#mafia_game{} = G],
-             [#mafia_day{} = Day]
+             [#mafia_day{} = Day],
+             Opts
             ) ->
-    print_votesI(#pp{dev = Dev,
-                     game = G,
-                     day = Day,
-                     phase = Phase,
-                     last_time = LastMsgTime
-                    }).
+    P = #pp{game = G,
+            day = Day,
+            phase = Phase
+           },
+    print_votesI(po(P, Opts)).
+
+po(P, [{time, Time} | T]) -> po(P#pp{time = Time}, T);
+po(P, [{fd,   Fd  } | T]) -> po(P#pp{dev = Fd}, T);
+po(P, [{next, Mins} | T]) -> po(P#pp{next = Mins}, T);
+po(P, []) -> P.
 
 print_votesI(#pp{game = G,
                  day = Day,
                  phase = Phase,
-                 last_time = LastMsgTime
+                 time = LastMsgTime
                 } = P) ->
     ThId = G#mafia_game.key,
     #mafia_day{votes = Votes0,
@@ -150,8 +162,10 @@ print_votesI(#pp{game = G,
     %% Print Game Name
     GName = b2l(G#mafia_game.name),
     io:format(P#pp.dev,
-              "\n~s     History is found at http://mafia.peterlund.se/\n"
-              "~s\n",
+              "\n"
+              "~s\n"
+              "~s\n"
+              "Previous days found at http://mafia.peterlund.se/\n",
               [GName, [$= || _ <- GName]]),
 
     if is_integer(LastMsgTime) ->
@@ -228,7 +242,7 @@ print_votesI(#pp{game = G,
              || {Voter, #vote{raw = Raw, time = VTime}} <- InvUserVotesTS],
             io:format(P#pp.dev,
                       "\n"
-                      "\"INVALID\" means that the this program did not"
+                      "\"INVALID\" means that the this program did not "
                       "recognise the vote. But the GM may.)\n",
                       []);
        true -> ignore
@@ -275,7 +289,14 @@ print_votesI(#pp{game = G,
                             comment = Com}
                          <- DeathsToReport],
                  Div)]),
-    ok.
+    if is_integer(P#pp.next) ->
+            io:format(P#pp.dev,
+                      "\n"
+                      "Updates currently every ~p minutes "
+                      "(more often near deadlines).\n",
+                      [P#pp.next]);
+       true -> ok
+    end.
 
 print_time_left_to_dl(P, ThId, LastMsgTime) ->
     {{Days, {HH, MM, _}}, {Num, DoN, _}} =

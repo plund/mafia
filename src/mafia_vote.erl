@@ -34,25 +34,17 @@ check_for_deathI(_S, M, G) ->
     case author_gm(M, G) of
         false -> G;
         true ->
-            RemBefore = G#mafia_game.players_rem,
+            G2 = check_for_deathI2(b2ul(M#message.message), M, G),
 
-            check_for_deathI2(b2ul(M#message.message), M, G),
-
-            G2 = hd(mafia:rgame(G#mafia_game.key)),
-            RemAfter = G2#mafia_game.players_rem,
-            %% if someone died
-            if RemAfter /= RemBefore ->
-                    %% and if time is 0 - 10 min after a deadline
-                    {RelTimeSecs, DL} = mafia_time:nearest_deadline(G2),
-                    if RelTimeSecs >= 0,
-                       RelTimeSecs =< 10 * ?MinuteSecs ->
-                            %% if so generate a history page
-                            mafia_web:regenerate_history(DL);
-                       true -> ok
-                    end;
-               true ->
-                    ok
-            end
+            %% if time is 0 - 15 min after a deadline generate a history page
+            Time = M#message.time,
+            {RelTimeSecs, DL} = mafia_time:nearest_deadline(G2, Time),
+            if RelTimeSecs >= 0,
+               RelTimeSecs =< ?MAX_GM_DL_MINS * ?MinuteSecs ->
+                    mafia_web:regenerate_history(DL);
+               true -> ok
+            end,
+            G2
     end.
 
 check_for_deathI2(MsgUC, M, G) ->
@@ -104,7 +96,7 @@ check_for_deathI2(MsgUC, M, G) ->
                             DeadB = hd(OldRems -- NewRems),
                             DeadStr = b2l(DeadB),
                             io:format("Player ~s died\n", [DeadStr]),
-                            {IsEnd, Phase} = phase_10min_ago(M, G),
+                            {IsEnd, Phase} = is_end_of_phase(M, G),
                             Death = #death{player = DeadB,
                                            is_end = IsEnd,
                                            phase = Phase,
@@ -140,12 +132,12 @@ add_deathI(D, Deaths) ->
             lists:keyreplace(D#death.player, #death.player, Deaths, D3)
     end.
 
--spec phase_10min_ago(M :: #message{}, G :: #mafia_game{})
+-spec is_end_of_phase(M :: #message{}, G :: #mafia_game{})
                      -> {IsEnd :: boolean(), phase()}.
-phase_10min_ago(M, G) ->
+is_end_of_phase(M, G) ->
     TimeMsg = M#message.time,
     PhaseMsg = mafia_time:calculate_phase(G, TimeMsg),
-    Time10m = TimeMsg - 10 * ?MinuteSecs,
+    Time10m = TimeMsg - ?MAX_GM_DL_MINS * ?MinuteSecs,
     Phase10m = mafia_time:calculate_phase(G, Time10m),
     IsEnd = PhaseMsg /= Phase10m,
     {IsEnd, Phase10m}.
@@ -201,7 +193,7 @@ check_for_voteI(_S, M, G) ->
                       string:left(
                         mafia_data:get_after_pos(
                           Pos, length(VoteStr), Msg),
-                        15))),
+                        60))),
             %%io:format("DBG ~p\n", [Players2]),
             case rank_options(Players2, RestUC) of
                 [{NumV, TopP}] when NumV >= 2; NumV >= length(TopP) ->

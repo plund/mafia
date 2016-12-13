@@ -1,13 +1,11 @@
 -module(mafia_time).
 
--include("mafia.hrl").
-
 -export([get_next_deadline/1,
          get_next_deadline/2,
          hh_mm_to_deadline/2,
          utc_secs1970/0,
          get_tz_dst/0,
-         local_datetime_for_secs1970/3,
+         secs1970_to_local_datetime/3,
          update_deadlines/1,
          add_deadlines/1,
          calculate_phase/2,
@@ -15,9 +13,17 @@
          nearest_deadline/2,
          timer_minutes/0,
 
+         end_phase/2,
+
          inc_phase/1,
-         conv_gtime_secs1970/2
+         conv_gtime_secs1970/2,
+
+         test/0
         ]).
+
+-include("mafia.hrl").
+
+-include_lib("eunit/include/eunit.hrl").
 
 -import(mafia, [getv/1, lrev/1, rgame/1]).
 
@@ -53,11 +59,6 @@ hh_mm_to_deadline(G, Time) ->
     {{Days, {HH, MM, _SS}}, _} = get_next_deadline(G, Time),
     {Days * 24 + HH, MM}.
 
-utc_secs1970() ->
-    calendar:datetime_to_gregorian_seconds(
-      calendar:universal_time())
-        - ?GSECS_1970.
-
 get_tz_dst() ->
     case getv(print_time) of
         game -> {getv(timezone_game), getv(dst_game)};
@@ -67,12 +68,6 @@ get_tz_dst() ->
                  Loc == gmt ->
             {0, false}
     end.
-
-local_datetime_for_secs1970(Time, TzH, Dst) ->
-    Time2 = adjust_secs1970_to_tz_dst(Time, TzH, Dst),
-    {Days1970, {HH,MM,SS}} = calendar:seconds_to_daystime(Time2),
-    {Y, M, D} = calendar:gregorian_days_to_date(?GDAYS_1970 + Days1970),
-    {{Y, M, D}, {HH,MM,SS}}.
 
 adjust_secs1970_to_tz_dst(Time, TzH, Dst) ->
     Time + (TzH + if Dst -> 1; true -> 0 end) * ?HourSecs.
@@ -138,11 +133,6 @@ calc_deadlinesI(G, TargetTime, Dls, Dl) ->
     Ph = inc_phase(Dl),
     calc_deadlinesI(G, TargetTime, [Dl|Dls], calc_one_deadlineI(Ph, G)).
 
--spec inc_phase(phase() | deadline()) -> phase().
-inc_phase({Num, D, _Time}) -> inc_phase({Num, D});
-inc_phase({Num, ?day}) when is_integer(Num) -> {Num, ?night};
-inc_phase({Num, ?night}) when is_integer(Num) -> {Num + 1, ?day}.
-
 -spec calc_one_deadlineI({Num :: integer(),
                      DayNight::day_night()},
                     Game :: #mafia_game{})
@@ -165,19 +155,104 @@ calc_one_deadlineI({Num, DayNight}, Game)
     UtcGS = utc_gs(DeadD1LocalDateTime, TZ, IsInitDst),  %% D1 utc secs
     UtcGS2 = UtcGS + (Num-1) * (DayHours + NightHours) * ?HourSecs,
     UtcGS2b = UtcGS2 + if DayNight == ?night ->
-                               NightHours * ?HourSecs;  %% 
+                               NightHours * ?HourSecs;
                           true -> 0
                        end,
-    UtcGS3 = dst_change_adapt(TZ, IsInitDst, DstChanges, UtcGS2b), %% Target DL utc secs
+    UtcGS3 = dst_change_adapt(TZ,
+                              IsInitDst,
+                              DstChanges,
+                              UtcGS2b), %% Target DL utc secs
     _UtcDLTime = calendar:gregorian_seconds_to_datetime(UtcGS3),
     io:format("Calculated UTC DL for ~p ~p to be ~p\n",
               [DayNight, Num, _UtcDLTime]),
     {Num, DayNight, UtcGS3 - ?GSECS_1970}.
 
-conv_gtime_secs1970(G, DateTime) ->
-    IsDst = is_dst(DateTime, G),
-    TZ=G#mafia_game.time_zone,
-    utc_gs(DateTime, TZ, IsDst) - ?GSECS_1970.
+%% -----------------------------------------------------------------------------
+
+end_phase(MsgId, TimeNextDL) ->
+    case mnesia:dirty_read(message, MsgId) of
+        [] -> ok;
+        [M] -> end_phase2(M, TimeNextDL, rgame(M#message.thread_id))
+    end.
+
+end_phase2(_M, _TimeNextDL, []) -> ok;
+end_phase2(#message{time = MsgTime}, DateTime, [G]) ->
+    %% remove all DLs after msg time
+    %% DstChanges = G#mafia_game.dst_changes,
+    OrigDLs = G#mafia_game.deadlines,
+    DLs2 = lists:dropwhile(fun({_, _, T}) -> T >= MsgTime end,
+                           OrigDLs),
+    %% Insert new DL at message time
+    MsgPhase = {DNum, DoN} = inc_phase(hd(DLs2)),
+    EarlyDL = {DNum, DoN, MsgTime},
+    io:format("Early ~p\n", [EarlyDL]),
+    DLs3 = [EarlyDL | DLs2],
+
+    %% Add next DL for time given in message
+    {NextDNum, NextDoN} = inc_phase(MsgPhase),
+    NextTime = conv_gtime_secs1970(G, DateTime),
+    NextDL = {NextDNum, NextDoN, NextTime},
+    DLs4 = [NextDL | DLs3],
+
+    %% Add more DLs at end.
+    TargetTime = utc_secs1970() + 11 * ?DaySecs,
+    NewDLs = get_some_extra_dls(G, DLs4, TargetTime),
+    io:format("NewDLs ~p\n", [NewDLs]),
+    mnesia:dirty_write(G#mafia_game{deadlines = NewDLs}),
+    ok.
+
+get_some_extra_dls(_G, DLs=[{_,_, Time} | _], Target) when Time > Target -> DLs;
+get_some_extra_dls(G, DLs = [DL | _], Target) ->
+    NewDL = inc_deadline(G, DL),
+    get_some_extra_dls(G, [NewDL | DLs], Target).
+
+
+-spec inc_phase(phase() | deadline()) -> phase().
+inc_phase({Num, D, _Time}) -> inc_phase({Num, D});
+inc_phase({Num, ?day}) when is_integer(Num) -> {Num, ?night};
+inc_phase({Num, ?night}) when is_integer(Num) -> {Num + 1, ?day}.
+
+inc_deadline(G, DL = {_DNum, _DoN, Time}) ->
+    {NDNum, NDoN} = inc_phase(DL),
+    NHours = case NDoN of
+                 ?day   -> G#mafia_game.day_hours;
+                 ?night -> G#mafia_game.night_hours
+             end,
+    %% If move from DST to normal +3600
+    %% If move from normal to DST -3600
+    DiffSecs = NHours * ?HourSecs,
+    NTime = Time + DiffSecs,
+    Adjust = case dst_change(Time,
+                             NTime,
+                             G#mafia_game.dst_changes,
+                             G#mafia_game.time_zone) of
+                 same -> 0;
+                 to_normal -> ?HourSecs;
+                 to_dst -> -?HourSecs
+             end,
+    {NDNum, NDoN, NTime + Adjust}.
+
+-spec dst_change(Start :: seconds1970(),
+                 End :: seconds1970(),
+                 DstChanges :: [{datetime(), boolean()}],
+                 TZ :: integer())
+                -> same | to_normal | to_dst.
+dst_change(Start, End, DstChanges, TZ) ->
+    %% dst_changes = [{{{2016,11,6},{2,0,0}}, false},
+    %%                {{{2017, 4,1},{2,0,0}}, true}],
+    StartDT = secs1970_to_local_datetime(Start, TZ, false),
+    EndDT   = secs1970_to_local_datetime(End,   TZ, false),
+    do_dst_change(DstChanges, StartDT, EndDT).
+
+do_dst_change([{DT, _IsDst} | _T], _StartDT, EndDT) when EndDT =< DT ->
+    same;
+do_dst_change([{DT, _IsDst} | T], StartDT, EndDT) when DT =< StartDT ->
+    do_dst_change(T, StartDT, EndDT);
+do_dst_change([{_DT, IsDst} | _DstChanges], _StartDT, _EndDT) ->
+    if IsDst == false -> to_normal;
+       IsDst == true  -> to_dst
+    end;
+do_dst_change([], _, _) -> same.
 
 is_dst(DateTime, G) ->
     #mafia_game{
@@ -213,9 +288,25 @@ dst_change_adapt(TZ, IsInitDst, DstChanges, UtcGS) ->
         _ -> UtcGS
     end.
 
+secs1970_to_local_datetime(Time, TzH, Dst) ->
+    Time2 = adjust_secs1970_to_tz_dst(Time, TzH, Dst),
+    {Days1970, {HH,MM,SS}} = calendar:seconds_to_daystime(Time2),
+    {Y, M, D} = calendar:gregorian_days_to_date(?GDAYS_1970 + Days1970),
+    {{Y, M, D}, {HH,MM,SS}}.
+
+conv_gtime_secs1970(G, DateTime) ->
+    IsDst = is_dst(DateTime, G),
+    TZ = G#mafia_game.time_zone,
+    utc_gs(DateTime, TZ, IsDst) - ?GSECS_1970.
+
 utc_gs(DateTime, TZ, Dst) ->
     calendar:datetime_to_gregorian_seconds(DateTime)
         - (TZ + if Dst -> 1; true -> 0 end) * ?HourSecs.
+
+utc_secs1970() ->
+    calendar:datetime_to_gregorian_seconds(
+      calendar:universal_time())
+        - ?GSECS_1970.
 
 
 -spec timer_minutes() -> none | integer().
@@ -261,3 +352,44 @@ nearest_deadline(G = #mafia_game{}, Time) ->
         hd(lists:sort([{abs(Time - DlTime), Time - DlTime, DL}
                        || DL = {_, _, DlTime} <- DLs])),
     {TDiff, NearestDL}.
+
+
+%% -------------------------------------------------
+
+test() ->
+    eunit:test(?MODULE).
+
+-define(D1, {{2016,12,21},{18,0,0}}).
+-define(D2, {{2016,12,22},{18,0,0}}).
+
+-define(DST0, {{{2016,11,22},{2,0,0}}, false}).
+-define(DST1, {{{2016,11,30},{2,0,0}}, false}).
+-define(DST2, {{{2016,12,22},{2,0,0}}, true}).
+-define(DST3, {{{2016,12,22},{2,0,0}}, false}).
+-define(DST4, {{{2016,12,25},{2,0,0}}, true}).
+-define(DST5, {{{2016,12,28},{2,0,0}}, false}).
+
+do_dst_change_test_() ->
+    [?_assert(same == do_dst_change([?DST0, ?DST1], ?D1, ?D2)),
+     ?_assert(to_dst == do_dst_change([?DST1, ?DST2], ?D1, ?D2)),
+     ?_assert(to_normal == do_dst_change([?DST1, ?DST3], ?D1, ?D2)),
+     ?_assert(same == do_dst_change([?DST1, ?DST5], ?D1, ?D2)),
+     ?_assert(same == do_dst_change([?DST4, ?DST5], ?D1, ?D2)),
+     ?_assert(to_normal == do_dst_change([?DST3], ?D1, ?D2)),
+     ?_assert(same == do_dst_change([], ?D1, ?D2))
+    ].
+
+-define(Time1, 1481655677). % ca 2000 CET 161213
+-define(Time0, ?Time1 + ?DaySecs). % ca 2000 CET 161212
+-define(Time2, ?Time1 + ?DaySecs). % ca 2000 CET 161214
+-define(Time3, ?Time1 + 2*?DaySecs). % ca 2000 CET 161215
+-define(DST6, {{{2016,12,14},{2,0,0}}, true}).
+-define(DST7, {{{2016,12,14},{2,0,0}}, false}).
+
+dst_change_test_() ->
+    [
+     ?_assert(same == dst_change(?Time0, ?Time1, [?DST6], -5)),
+     ?_assert(to_dst == dst_change(?Time1, ?Time2, [?DST6], -5)),
+     ?_assert(to_normal == dst_change(?Time1, ?Time2, [?DST7], -5)),
+     ?_assert(same == dst_change(?Time2, ?Time3, [?DST7], -5))
+    ].

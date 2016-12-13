@@ -263,7 +263,8 @@ print_votesI(#pp{game = G,
                 end]),
     {Fmt, Div, PrFun} =
         if LastMsgTime == false ->
-                {"\nDead Players " ++ pr_phase_long(Phase) ++ ": ~s\n", ", ",
+                {"\nDead Players " ++ pr_phase_long(Phase) ++ ":\n~s\n",
+                 "\n",
                  fun(_, _) -> "" end};
            true ->
                 {"\n"
@@ -293,8 +294,9 @@ print_votesI(#pp{game = G,
             io:format(P#pp.dev,
                       "\n"
                       "Updates currently every ~p minutes "
-                      "(more often near deadlines).\n",
-                      [P#pp.next]);
+                      "(more often near deadlines).\n"
+                      "Mafia game thread at: ~s\n",
+                      [P#pp.next, ?UrlBeg ++ i2l(ThId)]);
        true -> ok
     end.
 
@@ -766,7 +768,7 @@ print_time(Time, Mode) when is_integer(Time) ->
 print_time(Time, TzH, Dst, Mode) when is_integer(Time) ->
     try
         {{Y, M, D}, {HH,MM,SS}} =
-            mafia_time:local_datetime_for_secs1970(Time, TzH, Dst),
+            mafia_time:secs1970_to_local_datetime(Time, TzH, Dst),
         case {TzH, Dst, Mode} of
             {0, false, long} ->
                 io_lib:format("~s-~s-~sZ~s:~s:~s",

@@ -41,10 +41,16 @@
          "teacon7", "Chaqa", "WardenDresden", "xorxes", "Vecna", "rdrivera2005",
          "Glen_Alexander", "Jamiet99uk", "Maniac", "dargorygel", "zorclex"]).
 
+-type year()     :: non_neg_integer().
+-type month()    :: 1..12.
+-type day()      :: 1..31.
 -type hour() :: 0..23.
 -type minute() :: 0..59.
 -type second() :: 0..59.
+
 -type time() :: {hour(), minute(), second()}.
+-type date() :: {year(), month(), day()}.
+-type datetime() :: {date(), time()}.
 
 -type thread_id() :: integer().
 -type page_num() :: integer().

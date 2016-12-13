@@ -13,7 +13,10 @@
          calculate_phase/2,
          nearest_deadline/1,
          nearest_deadline/2,
-         timer_minutes/0
+         timer_minutes/0,
+
+         inc_phase/1,
+         conv_gtime_secs1970/2
         ]).
 
 -import(mafia, [getv/1, lrev/1, rgame/1]).
@@ -108,9 +111,7 @@ update_deadlines(ThId) ->
     end.
 
 add_deadlines(MGame) ->
-    MGame#mafia_game{
-      deadlines = calc_deadlines(MGame)
-     }.
+    MGame#mafia_game{deadlines = calc_deadlines(MGame)}.
 
 %% -----------------------------------------------------------------------------
 %% @doc Return an expanded list of deadlines in reversed order
@@ -157,18 +158,44 @@ calc_one_deadlineI({Num, DayNight}, Game)
       is_init_dst = IsInitDst,
       dst_changes = DstChanges
      } = Game,
-    UtcGS = utc_gs(DeadD1LocalDateTime, TZ, IsInitDst),
+
+    %% know time and phase D1
+    %% know where we want to go
+
+    UtcGS = utc_gs(DeadD1LocalDateTime, TZ, IsInitDst),  %% D1 utc secs
     UtcGS2 = UtcGS + (Num-1) * (DayHours + NightHours) * ?HourSecs,
-    UtcGS2b = UtcGS2 + if DayNight == ?night -> NightHours * ?HourSecs;
+    UtcGS2b = UtcGS2 + if DayNight == ?night ->
+                               NightHours * ?HourSecs;  %% 
                           true -> 0
                        end,
-    UtcGS3 = dst_change_adapt(TZ, IsInitDst, DstChanges, UtcGS2b),
-    UtcDLTime = calendar:gregorian_seconds_to_datetime(UtcGS3),
+    UtcGS3 = dst_change_adapt(TZ, IsInitDst, DstChanges, UtcGS2b), %% Target DL utc secs
+    _UtcDLTime = calendar:gregorian_seconds_to_datetime(UtcGS3),
     io:format("Calculated UTC DL for ~p ~p to be ~p\n",
-              [DayNight, Num, UtcDLTime]),
+              [DayNight, Num, _UtcDLTime]),
     {Num, DayNight, UtcGS3 - ?GSECS_1970}.
 
+conv_gtime_secs1970(G, DateTime) ->
+    IsDst = is_dst(DateTime, G),
+    TZ=G#mafia_game.time_zone,
+    utc_gs(DateTime, TZ, IsDst) - ?GSECS_1970.
+
+is_dst(DateTime, G) ->
+    #mafia_game{
+            is_init_dst = IsInitDst,
+            dst_changes = DstChanges
+           } = G,
+    lists:foldl(fun({DT, Dst}, Acc) ->
+                        if DT < DateTime -> Dst;
+                           true  -> Acc
+                        end
+                end,
+                IsInitDst,
+                DstChanges).
+
+
 dst_change_adapt(TZ, IsInitDst, DstChanges, UtcGS) ->
+    %% dst_changes = [{{{2016,11,6},{2,0,0}},false},
+    %%                {{{2017,4,1},{2,0,0}},true}],
     IsDstAtDL =
         lists:foldl(fun({SwitchDT, IsDstSw}, IsDstAcc) ->
                             SwiGS = utc_gs(SwitchDT, TZ, false),

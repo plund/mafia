@@ -2,8 +2,14 @@
 
 -include("mafia.hrl").
 
+%%Chaqa died Day 5 - msg: 1427082
+%%guak  died Day 5 - msg: 1427098  - DAY 5 END !
+
 %% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
 %% todo:
+%% - USE NEW DEADLINE CALCULATION !!
+%%   - Fix so it adopts to DST CHANGES.
+%%   - Move some code to mafia_time.
 %% - Fix proper server on lundata - start at MacOS reboot
 %% - fix a better player name recognition
 %% - check if abbrev code can loop forever
@@ -22,6 +28,8 @@
 -export([
          setup_mnesia/0,
          remove_mnesia/0,
+
+         end_phase/2,
 
          pp/0, pp/1, pp/2,
          pps/0, pps/1, pps/2,
@@ -116,6 +124,56 @@ refresh_votes(P) -> mafia_data:refresh_votes(P).
 
 grep(Str) -> mafia_data:grep(Str).
 grep(Str, Mode) -> mafia_data:grep(Str, Mode).
+
+%% mafia:end_phase(1427098, {{2016, 12, 13}, {18,0,0}}).
+end_phase(MsgId, TimeNextDL) ->
+    case mnesia:dirty_read(message, MsgId) of
+        [] -> ok;
+        [M] ->
+            end_phase2(M, TimeNextDL, rgame(M#message.thread_id))
+    end.
+
+end_phase2(_M, _TimeNextDL, []) -> ok;
+end_phase2(M, DateTime, [G]) ->
+    %% remove all DLs after msg time
+    OrigDLs = G#mafia_game.deadlines,
+    DLs2 = lists:dropwhile(fun({_,_,T}) ->
+                                   T >= M#message.time
+                           end,
+                           OrigDLs),
+
+    %% Insert new DL at message time
+    MsgPhase = {DNum, DoN} = mafia_time:inc_phase(hd(DLs2)),
+    EarlyDL = {DNum, DoN, M#message.time},
+    io:format("Early ~p\n", [EarlyDL]),
+    DLs3 = [EarlyDL | DLs2],
+
+    %% Add next DL for time given in message
+    {NextDNum, NextDoN} = mafia_time:inc_phase(MsgPhase),
+    NextTime = mafia_time:conv_gtime_secs1970(G, DateTime),
+    NextDL = {NextDNum, NextDoN, NextTime},
+    DLs4 = [NextDL | DLs3],
+
+    %% Add more DLs at end.
+    TargetTime = mafia_time:utc_secs1970() + 11 * ?DaySecs,
+    NewDLs = get_some_extra_dls(G, DLs4, TargetTime),
+    io:format("NewDLs ~p\n", [NewDLs]),
+    mnesia:dirty_write(G#mafia_game{deadlines = NewDLs}),
+    ok.
+
+get_some_extra_dls(_G, DLs=[{_,_, Time} | _], Target) when Time > Target -> DLs;
+get_some_extra_dls(G, DLs = [DL | _], Target) ->
+    NewDL = inc_deadline(G, DL),
+    get_some_extra_dls(G, [NewDL | DLs], Target).
+
+inc_deadline(G, DL = {_DNum, _DoN, Time}) ->
+    {NDNum, NDoN} = mafia_time:inc_phase(DL),
+    NHours = case NDoN of
+                 ?day -> G#mafia_game.day_hours;
+                 ?night -> G#mafia_game.night_hours
+             end,
+    DiffSecs = NHours * ?HourSecs,
+    {NDNum, NDoN, Time + DiffSecs}.
 
 %% load all beams in local dir
 l() ->

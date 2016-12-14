@@ -5,6 +5,12 @@
 %%Chaqa died Day 5 - msg: 1427082
 %%guak  died Day 5 - msg: 1427098  - DAY 5 END !
 
+%% M25 Game END msg id 1427800
+%% Time  : 2016-12-14T04:50:58 (1 N)
+%% "THE GAME HAS ENDED! TOWN WINS!
+%% THANK YOU ALL FOR PLAYING!"
+%% https://www.quicktopic.com/52/H/gBqFhw3Bidb
+
 %% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
 %% todo:
 %% - Use new DL calc and remove old calculation

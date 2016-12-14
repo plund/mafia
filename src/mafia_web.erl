@@ -13,7 +13,9 @@
 %% API
 -export([start_link/0,
          start/0,
+         start_web/0,
          stop/0,
+         stop_polling/0,
          stop_httpd/1,
          set_interval_minutes/1,
          regenerate_history/1
@@ -57,11 +59,16 @@ start_link() ->
 start() ->
     gen_server:start({local, ?SERVER}, ?MODULE, [], []).
 
+start_web() ->
+    gen_server:call(?SERVER, start_web).
+
 %%--------------------------------------------------------------------
 %% @doc Stops the server
 %% @end
 %%--------------------------------------------------------------------
 stop() -> gen_server:call(?SERVER, 'stop').
+
+stop_polling() -> gen_server:call(?SERVER, 'stop_polling').
 
 stop_httpd(a) -> inets:stop(httpd, {{192,168,0,100}, ?WEBPORT});
 stop_httpd(b) -> inets:stop(httpd, {{192,168,0,3}, ?WEBPORT}).
@@ -125,6 +132,13 @@ handle_call('stop', _From, State) ->
     inets:stop(httpd, State#state.web_pid),
     {stop, stopped, stop_reply, State#state{timer = undefined,
                                             web_pid = undefined}};
+handle_call('stop_polling', _From, State) ->
+    timer:cancel(State#state.timer),
+    {reply, ok, State#state{timer = undefined}};
+
+handle_call(start_web, _From, State) ->
+    S = start_web(State),
+    {reply, ok, S};
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -220,13 +234,12 @@ start_web(S) ->
                        string:tokens(os:cmd("ifconfig en1"), "\t\n\s"))),
     io:format("Starting up a webserver listening on ~s\n", [IP_en1]),
     {ok, Pid} =
-        inets:start(
-          httpd,
-          [{port, ?WEBPORT},
-           {server_name, ?SERVER_NAME},
-           {server_root, ?SERVER_ROOT},
-           {document_root, ?DOC_ROOT},
-           {bind_address, IP_en1}]),
+        inets:start(httpd,
+                    [{port, ?WEBPORT},
+                     {server_name, ?SERVER_NAME},
+                     {server_root, ?SERVER_ROOT},
+                     {document_root, ?DOC_ROOT},
+                     {bind_address, IP_en1}]),
     S#state{web_pid = Pid}.
 
 %% must create dirs first.

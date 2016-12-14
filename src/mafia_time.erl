@@ -327,10 +327,10 @@ t_mins(?day, T) when T < ?m2s(7) -> 1;
 t_mins(?day, T) when T < ?m2s(20) -> 2;
 t_mins(?day, T) when T >= ?m2s(20) -> 10;
 %%  Night nearest
-t_mins(?night, T) when T < ?m2s(-4) -> 10;
+t_mins(?night, T) when T < ?m2s(-20) -> 10;
 t_mins(?night, T) when T < ?m2s(10) -> 2;
-t_mins(?night, T) when T < ?m2s(80) -> 4;
-t_mins(?night, T) when T >= ?m2s(80) -> 10.
+t_mins(?night, T) when T < ?m2s(90) -> 4;
+t_mins(?night, T) when T >= ?m2s(90) -> 10.
 
 -spec nearest_deadline(integer() | #mafia_game{})
                       -> none | {integer(), deadline()}.

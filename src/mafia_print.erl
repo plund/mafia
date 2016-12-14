@@ -150,7 +150,7 @@ po(P, []) -> P.
 print_votesI(#pp{game = G,
                  day = Day,
                  phase = Phase,
-                 time = LastMsgTime
+                 time = DispTime
                 } = P) ->
     ThId = G#mafia_game.key,
     #mafia_day{votes = Votes0,
@@ -168,8 +168,8 @@ print_votesI(#pp{game = G,
               "Previous days found at http://mafia.peterlund.se/\n",
               [GName, [$= || _ <- GName]]),
 
-    if is_integer(LastMsgTime) ->
-            print_time_left_to_dl(P, ThId, LastMsgTime);
+    if is_integer(DispTime) ->
+            print_time_left_to_dl(P, ThId, DispTime);
        true -> no_print
     end,
 
@@ -258,22 +258,15 @@ print_votesI(#pp{game = G,
     DeathsToReport =
         lrev(
           [D || D = #death{phase = Ph} <- G#mafia_game.player_deaths,
-                if LastMsgTime == false -> Ph == Phase;
+                if DispTime == false -> Ph == Phase;
                    true -> Ph =< Phase
                 end]),
-    {Fmt, Div, PrFun} =
-        if LastMsgTime == false ->
-                {"\nDead Players " ++ pr_phase_long(Phase) ++ ":\n~s\n",
-                 "\n",
-                 fun(_, _) -> "" end};
-           true ->
-                {"\n"
-                 "Dead Players\n"
-                 "------------\n"
-                 "~s\n",
-                 "\n",
-                 fun(IsEnd, Ph) -> pr_eodon(IsEnd, Ph) end}
-        end,
+    {Fmt, Div, PrFun} = {"\n"
+                         "Dead Players\n"
+                         "------------\n"
+                         "~s\n",
+                         "\n",
+                         fun(IsEnd, Ph) -> pr_eodon(IsEnd, Ph) end},
     io:format(P#pp.dev,
               Fmt,
               [string:join(
@@ -300,9 +293,9 @@ print_votesI(#pp{game = G,
        true -> ok
     end.
 
-print_time_left_to_dl(P, ThId, LastMsgTime) ->
+print_time_left_to_dl(P, ThId, DispTime) ->
     {{Days, {HH, MM, _}}, {Num, DoN, _}} =
-        mafia_time:get_next_deadline(ThId, LastMsgTime),
+        mafia_time:get_next_deadline(ThId, DispTime),
     DayStr = if Days == 0 -> "";
                 true -> i2l(Days) ++ " day, "
              end,

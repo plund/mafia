@@ -17,15 +17,18 @@
          stop/0,
          stop_polling/0,
          stop_httpd/1,
+         get_state/0,
          set_interval_minutes/1,
          regenerate_history/1
         ]).
+
+-export([msg_search_result/3]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--import(mafia, [i2l/1]).
+-import(mafia, [i2l/1, l2b/1, b2l/1, l2u/1, getv/1]).
 
 -include("mafia.hrl").
 
@@ -72,6 +75,13 @@ stop_polling() -> gen_server:call(?SERVER, 'stop_polling').
 
 stop_httpd(a) -> inets:stop(httpd, {{192,168,0,100}, ?WEBPORT});
 stop_httpd(b) -> inets:stop(httpd, {{192,168,0,3}, ?WEBPORT}).
+
+%%--------------------------------------------------------------------
+%% @doc Show gen_server internal state
+%% @end
+%%--------------------------------------------------------------------
+get_state()  ->
+    gen_server:call(?SERVER, get_state).
 
 %%--------------------------------------------------------------------
 %% @doc Change the poll timer
@@ -121,8 +131,10 @@ init([]) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_call(state, _From, State) ->
-    {reply, State, State};
+handle_call(get_state, _From, State) ->
+    Fields = record_info(fields, state),
+    Values = tl(tuple_to_list(State)),
+    {reply, lists:zip(Fields, Values), State};
 handle_call({set_timer_interval, N}, _From, State) ->
     {Reply, S2} = set_timer_interval(State, N),
     self() ! check_all,
@@ -228,19 +240,42 @@ start_web(S) ->
     inets:start(),
     maybe_create_dir(?SERVER_ROOT),
     maybe_create_dir(?DOC_ROOT),
+    os:cmd("cp ../priv/search_form.html " ++ ?DOC_ROOT),
     IP_en1 =
         lists:nth(2, lists:dropwhile(
                        fun("inet") -> false; (_) -> true end,
                        string:tokens(os:cmd("ifconfig en1"), "\t\n\s"))),
     io:format("Starting up a webserver listening on ~s\n", [IP_en1]),
-    {ok, Pid} =
-        inets:start(httpd,
-                    [{port, ?WEBPORT},
-                     {server_name, ?SERVER_NAME},
-                     {server_root, ?SERVER_ROOT},
-                     {document_root, ?DOC_ROOT},
-                     {bind_address, IP_en1}]),
-    S#state{web_pid = Pid}.
+    os:cmd("cp mafia_web.beam "++ ?SERVER_ROOT),
+    os:cmd("cp mafia_web.beam "++ ?DOC_ROOT),
+    case inets:start(httpd,
+                     [{port, ?WEBPORT},
+                      {server_name, "mafia_test.peterlund.se"},
+                      {server_root, ?SERVER_ROOT},
+                      {document_root, ?DOC_ROOT},
+                      {bind_address, IP_en1},
+%%% specifying modules removes the default list in where
+%%% mod_esi and mod_dir already are included by default
+%%                       {modules, [
+%%                                  %% mod_alias,
+%%                                  %% mod_auth,
+%% %%% mod_esi - http://mafia_test.peterlund.se/esi/mafia_web/msg_search_result
+%%                                  mod_esi,
+%%                                  %% mod_actions,
+%%                                  %% mod_cgi, %mod_include,
+%% %%% mod_dir - browse directories
+%%                                  mod_dir
+%%                                  %% mod_get,
+%%                                  %% mod_head, mod_log, mod_disk_log
+%%                                 ]},
+                      {erl_script_alias, {"/esi", [mafia_web, io]}}
+                     ]) of
+        {ok, Pid} ->
+            S#state{web_pid = Pid};
+        Else ->
+            io:format("Else ~p\n", [Else]),
+            S
+    end.
 
 %% must create dirs first.
 %% mkdir -p /Users/peter/httpd/mafia.peterlund.se/html
@@ -279,3 +314,97 @@ flush(Msg) ->
     receive Msg -> flush(Msg)
     after 0 -> ok
     end.
+
+%% http://mafia_test.peterlund.se/esi/mafia_web/msg_search_result
+msg_search_result(Sid, _Env, In) ->
+    ThId = getv(thread_id),
+    PQ = httpd:parse_query(In),
+    mod_esi:deliver(Sid, ["Content-type: text/html\r\n",
+                          "Transfer-Encoding: chunked\r\n",
+                          "\r\n"]),
+    {_, UsersText} = lists:keyfind("user names", 1, PQ),
+    {_, WordText} = lists:keyfind("contained words", 1, PQ),
+    {_, DayNumText} = lists:keyfind("day numbers", 1, PQ),
+    DayCond =
+        try
+            case string:tokens(DayNumText, "-") of
+                [LoStr, HiStr] ->
+                    {list_to_integer(string:strip(LoStr)),
+                     list_to_integer(string:strip(HiStr))};
+                [Str] ->
+                    Num = list_to_integer(string:strip(Str)),
+                    {Num, Num};
+                _ -> all
+            end
+        catch _:_ -> all
+        end,
+    UsersU = [l2u(U) || U <- string:tokens(UsersText, " ")],
+    WordsU = [l2u(W) || W <- string:tokens(WordText, " ")],
+    %% io:format("~p-~s-~s-\n", [ThId, UsersU, WordsU]),
+    Fun =
+        fun(
+          #message{user_name = UserB,
+                   page_num = PageNum,
+                   time = Time,
+                   message = MsgB}) ->
+                case lists:member(l2u(b2l(UserB)), UsersU) of
+                    true ->
+                        MsgU = l2u(b2l(MsgB)),
+                        AllIn =
+                            lists:all(
+                              fun(WordU) ->
+                                      case string:str(MsgU, WordU) of
+                                          0 -> false;
+                                          _ -> true
+                                      end
+                              end,
+                              WordsU),
+                        {DNum, DoN} = mafia_time:calculate_phase(ThId, Time),
+                        IsDayNumOk = case DayCond of
+                                         all -> true;
+                                         {NLo, NHi}
+                                           when NLo =< DNum,
+                                                DNum =< NHi -> true;
+                                         _ -> false
+                                     end,
+                        if AllIn, IsDayNumOk ->
+                                DayStr = case DoN of
+                                             ?day -> "D";
+                                             ?night -> "N"
+                                         end
+                                    ++ i2l(DNum),
+                                mod_esi:deliver(
+                                  Sid, ["<tr><td valign=\"top\">", UserB, " ",
+                                        "p", i2l(PageNum), ", ", DayStr,
+                                        "</td><td valign=\"top\">", MsgB,
+                                        "</td></tr>"]);
+                           true -> ok
+                        end;
+                    false -> ok
+                end;
+           (_) ->
+                ok
+        end,
+    del_start(Sid),
+    mafia_data:iterate_all_msgs(ThId, Fun),
+    del_end(Sid).
+
+-define(RES_START, "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\">
+<html>
+  <head>
+    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">
+    <title>Mafia Result</title>
+  </head>
+  <body bgcolor=\"#cfffaf\">
+    <center>
+      <h3>Mafia Search Result</h3>
+      <table border=\"1\">").
+
+-define(RES_END, "
+      </table>
+    </center>
+  </body>
+</html>").
+
+del_start(Sid) -> mod_esi:deliver(Sid, ?RES_START).
+del_end(Sid) -> mod_esi:deliver(Sid, ?RES_END).

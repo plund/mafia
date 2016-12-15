@@ -18,7 +18,9 @@
          refresh_votes/1,
          refresh_stat/0,
          compress_txt_files/0,
-         grep/1, grep/2
+         grep/1, grep/2,
+         iterate_all_msgs/2,
+         iterate_all_msg_ids/3
         ]).
 
 -import(mafia,
@@ -201,14 +203,17 @@ grepI(Str, PrintF)  ->
     iterate_all_msgs(ThId, GrepF),
     ok.
 
-iterate_all_msgs(ThId, Fun) ->
+-spec iterate_all_msgs(ThId :: integer(),
+                       MsgFun :: function())
+                      -> term().
+iterate_all_msgs(ThId, MsgFun) ->
     Pages = lists:sort(mafia:find_pages_for_thread(ThId)),
     F = fun(Page) ->
                 Key = {ThId, Page},
                 [PR] = mnesia:dirty_read(page_rec, Key),
                 Msgs = [hd(mnesia:dirty_read(message, MsgId))
                         || MsgId <- PR#page_rec.message_ids],
-                lists:foreach(Fun, Msgs),
+                lists:foreach(MsgFun, Msgs),
                 Key
         end,
     [F(P) || P <- Pages].
@@ -217,6 +222,10 @@ iterate_all_msgs(ThId, Fun) ->
 iterate_all_msg_ids(ThId, Fun) ->
     iterate_all_msg_ids(ThId, Fun, all).
 
+-spec iterate_all_msg_ids(ThId :: integer(),
+                          MsgIdFun :: function(),
+                          PageFilter:: all | function())
+                         -> term().
 iterate_all_msg_ids(ThId, Fun, Filter) ->
     All =  lists:sort(mafia:find_pages_for_thread(ThId)),
     Pages = if Filter == all -> All;

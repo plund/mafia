@@ -55,6 +55,10 @@ get_next_deadline(#mafia_game{key = ThId,
             get_next_deadline(ThId)
     end.
 
+-spec hh_mm_to_deadline(G :: integer() | #mafia_game{},
+                        Time :: seconds1970())
+                       -> {Hours::integer(),
+                           Minutes :: minute()}.
 hh_mm_to_deadline(G, Time) ->
     {{Days, {HH, MM, _SS}}, _} = get_next_deadline(G, Time),
     {Days * 24 + HH, MM}.

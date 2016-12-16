@@ -403,9 +403,11 @@ msg_search_result(Sid, _Env, In) ->
                         Hash = erlang:phash2(UserB, 16#1000000),
                         Color = Hash bor 16#C0C0C0,
                         ColorStr = integer_to_list(Color, 16),
+                        {HH, MM} = mafia_time:hh_mm_to_deadline(ThId, Time),
                         OutB = l2b(["<tr bgcolor=\"#", ColorStr,
-                                    "\"><td valign=\"top\">", UserB, " ",
-                                    "p", i2l(PageNum), ", ", DayStr,
+                                    "\"><td valign=\"top\">", UserB, "<br>",
+                                    "Time: ", p(HH), ":", p(MM),
+                                    "<br> p", i2l(PageNum), ", ", DayStr,
                                     "</td><td valign=\"top\">", MsgBr,
                                     "</td></tr>\r\n"]),
                         mod_esi:deliver(Sid, OutB),
@@ -433,6 +435,9 @@ msg_search_result(Sid, _Env, In) ->
     MilliSecs = TimeB - TimeA,
     io:format("Sent ~p bytes in ~p millisecs, search=~s|~s|~s|\n",
               [NumBytes, MilliSecs, UsersText, WordsText, DayNumText]).
+
+p(I) when I > 9 -> i2l(I);
+p(I) -> string:right(i2l(I), 2, $0).
 
 -define(RES_START, "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\">
 <html>

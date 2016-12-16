@@ -543,8 +543,9 @@ t_strip(Str) ->
     lrev(h_strip(lrev(Str))).
 
 strip_fix(Str) ->
-    S2 = strip(Str),
-    fix(S2).
+    strip(Str).
+    %% S2 = strip(Str),
+    %% fix(S2).
 
 %% skip unicode for a while
 fix("&gt;" ++ T) -> [ $> | fix(T)];

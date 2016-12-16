@@ -68,7 +68,7 @@ sleep(MilliSecs) ->
 refresh_messages() ->
     mafia:set(page_to_read, 1),
     mnesia:clear_table(message),
-    mnesia:clear_table(stat)
+    mnesia:clear_table(stat),
     mafia:downl().
 
 refresh_votes() ->

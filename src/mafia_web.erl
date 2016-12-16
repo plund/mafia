@@ -349,7 +349,8 @@ msg_search_result(Sid, _Env, In) ->
                    message = MsgB}) ->
                 case lists:member(l2u(b2l(UserB)), UsersU) of
                     true ->
-                        MsgU = l2u(b2l(MsgB)),
+                        Msg = b2l(MsgB),
+                        MsgU = l2u(Msg),
                         AllIn =
                             lists:all(
                               fun(WordU) ->
@@ -373,10 +374,16 @@ msg_search_result(Sid, _Env, In) ->
                                              ?night -> "N"
                                          end
                                     ++ i2l(DNum),
+                                MsgBr = lists:foldr(
+                                          fun($\n, Acc) -> "<br>" ++Acc;
+                                             (Ch, Acc) -> [Ch|Acc]
+                                          end,
+                                          "",
+                                          Msg),
                                 mod_esi:deliver(
                                   Sid, ["<tr><td valign=\"top\">", UserB, " ",
                                         "p", i2l(PageNum), ", ", DayStr,
-                                        "</td><td valign=\"top\">", MsgB,
+                                        "</td><td valign=\"top\">", MsgBr,
                                         "</td></tr>"]);
                            true -> ok
                         end;

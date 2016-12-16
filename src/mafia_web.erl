@@ -323,7 +323,7 @@ msg_search_result(Sid, _Env, In) ->
                           "Transfer-Encoding: chunked\r\n",
                           "\r\n"]),
     {_, UsersText} = lists:keyfind("user names", 1, PQ),
-    {_, WordText} = lists:keyfind("contained words", 1, PQ),
+    {_, WordsText} = lists:keyfind("contained words", 1, PQ),
     {_, DayNumText} = lists:keyfind("day numbers", 1, PQ),
     DayCond =
         try
@@ -339,62 +339,96 @@ msg_search_result(Sid, _Env, In) ->
         catch _:_ -> all
         end,
     UsersU = [l2u(U) || U <- string:tokens(UsersText, " ")],
-    WordsU = [l2u(W) || W <- string:tokens(WordText, " ")],
-    %% io:format("~p-~s-~s-\n", [ThId, UsersU, WordsU]),
+    WordsU = [l2u(W) || W <- string:tokens(WordsText, " ")],
+
+    IsDayCondSingle = case DayCond of {DNumC, DNumC} -> true; _ -> false end,
+    IsUserCond = UsersU /= [],
+    DoCont = if IsUserCond -> true;
+                not IsUserCond, IsDayCondSingle -> true;
+                true -> false
+             end,
     Fun =
-        fun(
-          #message{user_name = UserB,
-                   page_num = PageNum,
-                   time = Time,
-                   message = MsgB}) ->
-                case lists:member(l2u(b2l(UserB)), UsersU) of
-                    true ->
-                        Msg = b2l(MsgB),
-                        MsgU = l2u(Msg),
-                        AllIn =
-                            lists:all(
-                              fun(WordU) ->
-                                      case string:str(MsgU, WordU) of
-                                          0 -> false;
-                                          _ -> true
-                                      end
-                              end,
-                              WordsU),
-                        {DNum, DoN} = mafia_time:calculate_phase(ThId, Time),
-                        IsDayNumOk = case DayCond of
-                                         all -> true;
-                                         {NLo, NHi}
-                                           when NLo =< DNum,
-                                                DNum =< NHi -> true;
-                                         _ -> false
-                                     end,
-                        if AllIn, IsDayNumOk ->
-                                DayStr = case DoN of
-                                             ?day -> "D";
-                                             ?night -> "N"
-                                         end
-                                    ++ i2l(DNum),
-                                MsgBr = lists:foldr(
-                                          fun($\n, Acc) -> "<br>" ++Acc;
-                                             (Ch, Acc) -> [Ch|Acc]
-                                          end,
-                                          "",
-                                          Msg),
-                                mod_esi:deliver(
-                                  Sid, ["<tr><td valign=\"top\">", UserB, " ",
-                                        "p", i2l(PageNum), ", ", DayStr,
-                                        "</td><td valign=\"top\">", MsgBr,
-                                        "</td></tr>"]);
-                           true -> ok
-                        end;
-                    false -> ok
+        fun(acc, init) -> 0;
+           (#message{user_name = UserB,
+                     page_num = PageNum,
+                     time = Time,
+                     message = MsgB},
+            Acc) ->
+                {DNum, DoN} = mafia_time:calculate_phase(ThId, Time),
+                Msg = b2l(MsgB),
+                TestFuns =
+                    [
+                     %% 1. Test UserB only if UsersU /= []
+                     fun() ->
+                             UsersU == [] orelse
+                                 lists:member(l2u(b2l(UserB)), UsersU)
+                     end,
+
+                     %% 2. Test Words with ANY instead of all
+                     fun() ->
+                             MsgU = l2u(Msg),
+                             lists:all(
+                               fun(WordU) ->
+                                       case string:str(MsgU, WordU) of
+                                           0 -> false;
+                                           _ -> true
+                                       end
+                               end,
+                               WordsU)
+                     end,
+
+                     %% 3. Test Day
+                     fun() ->
+                             case DayCond of
+                                 all -> true;
+                                 {NLo, NHi}
+                                   when NLo =< DNum,
+                                        DNum =< NHi -> true;
+                                 _ -> false
+                             end
+                     end],
+                AllTestsOk = lists:all(fun(F) -> F() end, TestFuns),
+                if AllTestsOk ->
+                        DayStr = case DoN of
+                                     ?day -> "D";
+                                     ?night -> "N"
+                                 end
+                            ++ i2l(DNum),
+                        MsgBr = lists:foldr(
+                                  fun($\n, Acc2) -> "<br>" ++ Acc2;
+                                     (Ch, Acc2) -> [Ch | Acc2]
+                                  end,
+                                  "",
+                                  Msg),
+                        OutB = l2b(["<tr><td valign=\"top\">", UserB, " ",
+                                    "p", i2l(PageNum), ", ", DayStr,
+                                    "</td><td valign=\"top\">", MsgBr,
+                                    "</td></tr>"]),
+                        mod_esi:deliver(Sid, OutB),
+                        Acc + size(OutB);
+                   true -> Acc
                 end;
-           (_) ->
-                ok
+           (_, Acc) ->
+                Acc
         end,
-    del_start(Sid),
-    mafia_data:iterate_all_msgs(ThId, Fun),
-    del_end(Sid).
+    TimeA = erlang:monotonic_time(millisecond),
+    A = del_start(Sid),
+    B = if DoCont ->
+                mafia_data:iterate_all_msgs(ThId, Fun);
+           true ->
+                MsgB = l2b(["<tr><td valign=\"top\">",
+                            "Error: Minimum one user needs to be "
+                            "specified or a single day number.",
+                            "</td></tr>"]),
+                mod_esi:deliver(Sid, MsgB),
+                size(MsgB)
+        end,
+    C = del_end(Sid),
+    TimeB = erlang:monotonic_time(millisecond),
+    NumBytes = A + B + C,
+    MilliSecs = TimeB - TimeA,
+    io:format("Sent ~p bytes in ~p millisecs, search=~s|~s|~s|\n",
+              [NumBytes, MilliSecs, UsersText, WordsText, DayNumText]).
 
 -define(RES_START, "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\">
 <html>
@@ -413,5 +447,5 @@ msg_search_result(Sid, _Env, In) ->
   </body>
 </html>").
 
-del_start(Sid) -> mod_esi:deliver(Sid, ?RES_START).
-del_end(Sid) -> mod_esi:deliver(Sid, ?RES_END).
+del_start(Sid) -> mod_esi:deliver(Sid, ?RES_START), size(l2b(?RES_START)).
+del_end(Sid) -> mod_esi:deliver(Sid, ?RES_END), size(l2b(?RES_END)).

@@ -2,7 +2,6 @@
 
 %% interface
 -export([downl/0]).
-
 %% library
 -export([
          rm_to_after_pos/2,
@@ -13,7 +12,7 @@
         ]).
 
 %% utilities
--export([
+-export([refresh_messages/0,
          refresh_votes/0,
          refresh_votes/1,
          refresh_stat/0,
@@ -65,6 +64,12 @@ download(S) ->
 
 sleep(MilliSecs) ->
     receive after MilliSecs -> ok end.
+
+refresh_messages() ->
+    mafia:set(page_to_read, 1),
+    mnesia:clear_table(message),
+    mnesia:clear_table(stat)
+    mafia:downl().
 
 refresh_votes() ->
     mnesia:clear_table(mafia_day),

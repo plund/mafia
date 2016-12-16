@@ -400,10 +400,14 @@ msg_search_result(Sid, _Env, In) ->
                                   end,
                                   "",
                                   Msg),
-                        OutB = l2b(["<tr><td valign=\"top\">", UserB, " ",
+                        Hash = erlang:phash2(UserB, 16#1000000),
+                        Color = Hash bor 16#C0C0C0,
+                        ColorStr = integer_to_list(Color, 16),
+                        OutB = l2b(["<tr bgcolor=\"#", ColorStr,
+                                    "\"><td valign=\"top\">", UserB, " ",
                                     "p", i2l(PageNum), ", ", DayStr,
                                     "</td><td valign=\"top\">", MsgBr,
-                                    "</td></tr>"]),
+                                    "</td></tr>\r\n"]),
                         mod_esi:deliver(Sid, OutB),
                         Acc + size(OutB);
                    true -> Acc

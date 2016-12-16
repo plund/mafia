@@ -433,7 +433,11 @@ vote2(M, G, Vote, RawVote, IsOkVote) ->
                          false ->
                              [{User, [NewVote]} | Votes];
                          {User, UVotes} ->
-                             UVotes2 = [NewVote | UVotes],
+                             UVotes2 =
+                                 lists:keystore(NewVote#vote.id,
+                                                #vote.id,
+                                                UVotes,
+                                                NewVote),
                              lists:keystore(User, 1, Votes, {User, UVotes2})
                      end,
             mnesia:dirty_write(Day#mafia_day{votes = Votes2});

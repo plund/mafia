@@ -68,8 +68,10 @@ sleep(MilliSecs) ->
 refresh_messages() ->
     mafia:set(page_to_read, 1),
     mnesia:clear_table(message),
+    mnesia:clear_table(page_rec),
     mnesia:clear_table(stat),
-    mafia:downl().
+    mafia:downl(),
+    refresh_votes().
 
 refresh_votes() ->
     mnesia:clear_table(mafia_day),
@@ -519,7 +521,11 @@ update_page_rec(S, MsgIdInt) ->
                             thread_id = S#s.thread_id,
                             complete = false};
             [P = #page_rec{message_ids = MsgIds, complete = Comp}] ->
-                MsgIds2 = MsgIds ++ [MsgIdInt],
+                MsgIds2 = MsgIds ++
+                    case lists:member(MsgIdInt, MsgIds) of
+                        false -> [MsgIdInt];
+                        true -> []
+                    end,
                 Comp2 = Comp orelse not S#s.is_last_page,
                 P#page_rec{message_ids = MsgIds2,
                            complete = Comp2}

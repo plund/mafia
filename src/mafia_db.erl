@@ -101,8 +101,7 @@ write_default_table(game, 25) ->
       players_orig = to_bin(?M25_players),
       players_rem = to_bin(?M25_players),
       player_deaths = [],
-      page_to_read = 1,
-      complete = false
+      page_to_read = 1
      },
     MGame2 = mafia_time:add_deadlines(MGame),
     mnesia:dirty_write(MGame2);
@@ -124,8 +123,7 @@ write_default_table(game, 24) ->
       players_orig = to_bin(?M24_players),
       players_rem = to_bin(?M24_players),
       player_deaths = [],
-      page_to_read = 1,
-      complete = false
+      page_to_read = 1
      },
     MGame2 = mafia_time:add_deadlines(MGame),
     mnesia:dirty_write(MGame2).

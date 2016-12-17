@@ -145,7 +145,7 @@
          game_num = 24,
          player_deaths :: [#death{}],
          page_to_read, %% set_kv(page_to_read, 1),
-         complete :: boolean()
+         game_end :: undefined | {seconds1970(), msg_id()}
         }).
 
 -record(user,
@@ -162,4 +162,9 @@
          num_chars :: integer(),
          num_words :: integer(),
          num_postings :: integer()
+        }).
+
+-record(cmd,
+        { time :: seconds1970(),
+          mfa :: mfa()
         }).

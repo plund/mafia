@@ -19,7 +19,8 @@
          compress_txt_files/0,
          grep/1, grep/2,
          iterate_all_msgs/2,
-         iterate_all_msg_ids/3
+         iterate_all_msg_ids/3,
+         manual_cmd_to_file/2
         ]).
 
 -import(mafia,
@@ -354,15 +355,26 @@ th_filenames(S) ->
 th_filename(#s{thread_id = Thread, page = Page}) ->
     DirName = "thread_pages",
     verify_exist(DirName),
-    GamePrefix = case rgame(Thread) of
-                     [] -> "";
-                     [G] -> game_file_prefix(G)
-                 end,
+    GamePrefix = game_file_prefix(Thread),
     DirName2 = GamePrefix ++ i2l(Thread),
     verify_exist(filename:join(DirName, DirName2)),
     BaseName = i2l(Page) ++ ".txt",
     filename:join([DirName, DirName2, BaseName]).
 
+cmd_filename(#s{thread_id = Thread}) ->
+    cmd_filename(Thread);
+cmd_filename(Thread) ->
+    DirName =  "command_files",
+    verify_exist(DirName),
+    GamePrefix = game_file_prefix(Thread),
+    BaseName = GamePrefix ++ i2l(Thread) ++ "_manual_cmds.txt",
+    filename:join([DirName, BaseName]).
+
+game_file_prefix(ThId) when is_integer(ThId) ->
+    game_file_prefix(rgame(ThId));
+game_file_prefix([]) -> "";
+game_file_prefix([G]) ->
+    game_file_prefix(G);
 game_file_prefix(G) ->
     "m" ++ i2l(G#mafia_game.game_num) ++ "_".
 
@@ -383,6 +395,21 @@ store_page(S, Body) ->
             file:delete(FileName);
         _ ->
             {error, efileexist}
+    end.
+
+manual_cmd_to_file(ThId, Cmd) ->
+    FN = cmd_filename(ThId),
+    DoAppend =
+        case file:consult(FN) of
+            {error,enoent} -> true;
+            {ok, CmdsOnFile} ->
+                not lists:member(Cmd, CmdsOnFile)
+        end,
+    if DoAppend ->
+            {ok, Fd} = file:open(FN, [append]),
+            io:format(Fd, "~999p.\n", [Cmd]),
+            file:close(Fd);
+       not DoAppend -> ok
     end.
 
 %% -----------------------------------------------------------------------------

@@ -2,13 +2,7 @@
 
 -export([check_for_vote/1, check_for_vote/2]).
 
--import(mafia,
-        [b2l/1,
-         l2b/1,
-         lrev/1,
-         rgame/1,
-         rday/2
-        ]).
+-import(mafia, [b2l/1, l2b/1, l2u/1, lrev/1, rgame/1, rday/2]).
 
 -include("mafia.hrl").
 
@@ -34,7 +28,10 @@ check_for_deathI(_S, M, G) ->
     case author_gm(M, G) of
         false -> G;
         true ->
-            G2 = check_for_deathI2(b2ul(M#message.message), M, G),
+            G2 = check_for_deathI2(
+                   l2u(
+                     mafia_print:html2txt(
+                       b2l(M#message.message))), M, G),
 
             %% if time is 0 - 15 min after a deadline generate a history page
             Time = M#message.time,

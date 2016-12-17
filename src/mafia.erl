@@ -5,6 +5,15 @@
 %%Chaqa died Day 5 - msg: 1427082
 %%guak  died Day 5 - msg: 1427098  - DAY 5 END !
 
+%% What does it mean that the game has ended?
+%% 1 Stop look for votes, set the game_end marker
+%% 2 Change the looks of current_vote.txt
+
+%% Content of the END GAME PAGE:
+%% Global stats
+%% Full game end message from GM
+%% insert of DL {game_end, seconds1970()} remove all after that one.
+
 %% M25 Game END msg id 1427800
 %% Time  : 2016-12-14T04:50:58 (1 N)
 %% "THE GAME HAS ENDED! TOWN WINS!
@@ -13,9 +22,10 @@
 
 %% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
 %% todo:
+%% - Easier seaches on player ids!!!
 %% - Some new mafia_web code should probably be elsewhere
 %% - Use new DL calc and remove old calculation
-%% - define deadline() :: {phase(), secs1970()} and change at all places.
+%% ***** - define deadline() :: {phase(), secs1970()} and change at all places.
 %%    - make proper interface fun for deadline() -> phase().
 %% - Fix proper server on lundata - start at MacOS reboot
 %% - fix a better player name recognition
@@ -37,6 +47,9 @@
          remove_mnesia/0,
 
          end_phase/2,
+         end_game/1,
+         unend_game/1,
+         set_death_comment/2,
 
          pp/0, pp/1, pp/2,
          pps/0, pps/1, pps/2,
@@ -50,7 +63,6 @@
          downl/0,
          show_settings/0,
          set_thread_id/1,
-         set_death_comment/2,
          refresh_votes/0,
          refresh_votes/1,
 
@@ -142,8 +154,77 @@ grep(Str, Mode) -> mafia_data:grep(Str, Mode).
 -spec end_phase(MsgId :: msg_id(),
                 TimeNextDL :: datetime()) -> ok.
 end_phase(MsgId, TimeNextDL) ->
-    mafia_time:end_phase(MsgId, TimeNextDL).
+    case rmess(MsgId) of
+        [] -> msg_not_found;
+        [M] ->
+            Cmd = #cmd{time = M#message.time,
+                       mfa = {mafia_time, end_phase, [MsgId, TimeNextDL]}},
+            mafia_data:manual_cmd_to_file(M#message.thread_id, Cmd),
+            mafia_time:end_phase(M, TimeNextDL)
+    end.
 
+%% -----------------------------------------------------------------------------
+%% @doc End the whole game by giving GM msg_id where game end was proclaimed.
+%% @end
+%% -----------------------------------------------------------------------------
+%% Example: mafia:end_game(1427800).
+-spec end_game(MsgId :: msg_id()) -> term().
+end_game(MsgId) ->
+    case rmess(MsgId) of
+        [] -> no_message_found;
+        [M = #message{thread_id = ThId,
+                      time = Time}] ->
+            Cmd = #cmd{time = Time,
+                       mfa = {mafia_time, end_game, [MsgId]}},
+            mafia_data:manual_cmd_to_file(ThId, Cmd),
+            mafia_time:end_game(M)
+    end.
+
+%% -----------------------------------------------------------------------------
+%% @doc Unend the whole game by giving GM msg_id where game end was proclaimed.
+%% @end
+%% -----------------------------------------------------------------------------
+%% Example: mafia:unend_game(1427800).
+-spec unend_game(MsgId :: msg_id()) -> term().
+unend_game(MsgId) ->
+    case rmess(MsgId) of
+        [] -> no_message_found;
+        [M = #message{thread_id = ThId,
+                      time = Time}] ->
+            Cmd = #cmd{time = Time,
+                       mfa = {mafia_time, unend_game, [MsgId]}},
+            mafia_data:manual_cmd_to_file(ThId, Cmd),
+            mafia_time:unend_game(M)
+    end.
+
+%% -----------------------------------------------------------------------------
+%% @doc Read the GM message and add good comment about who the dead player was.
+%% @end
+%% -----------------------------------------------------------------------------
+-spec set_death_comment(Player :: string(),
+                        Comment :: string())
+                       -> ok | {error, not_found}.
+set_death_comment(Player, Comment) ->
+    PlayerB = l2b(Player),
+    CommentB = l2b(Comment),
+    [G] = rgame(),
+    case lists:member(PlayerB,
+                      [D#death.player
+                       || D <- G#mafia_game.player_deaths]) of
+        false ->
+            {error, not_found};
+        true ->
+            SetComment =
+                fun(D = #death{}) when PlayerB == D#death.player ->
+                        mafia_web:regenerate_history(D#death.phase),
+                        D#death{comment = CommentB};
+                   (D) -> D
+                end,
+            Deaths2 = [SetComment(D)  || D <- G#mafia_game.player_deaths],
+            mnesia:dirty_write(G#mafia_game{player_deaths = Deaths2})
+    end.
+
+%% -----------------------------------------------------------------------------
 
 %% load all beams in local dir
 l() ->
@@ -154,6 +235,9 @@ l() ->
     Beams2 = (Beams -- [mafia]) ++ [mafia],
     [begin code:purge(M), code:load_file(M), M end
      || M <- Beams2].
+
+rmess(MsgId) ->
+    mnesia:dirty_read(message, MsgId).
 
 %% Read current game
 rgame() ->
@@ -224,29 +308,6 @@ set_thread_id(ThId) when is_integer(ThId) ->
         end,
     set(page_to_read, PageToRead),
     ok.
-
--spec set_death_comment(Player :: string(),
-                        Comment :: string())
-                       -> ok | {error, not_found}.
-set_death_comment(Player, Comment) ->
-    PlayerB = l2b(Player),
-    CommentB = l2b(Comment),
-    [G] = rgame(),
-    case lists:member(PlayerB,
-                      [D#death.player
-                       || D <- G#mafia_game.player_deaths]) of
-        false ->
-            {error, not_found};
-        true ->
-            SetComment =
-                fun(D = #death{}) when PlayerB == D#death.player ->
-                        mafia_web:regenerate_history(D#death.phase),
-                        D#death{comment = CommentB};
-                   (D) -> D
-                end,
-            Deaths2 = [SetComment(D)  || D <- G#mafia_game.player_deaths],
-            mnesia:dirty_write(G#mafia_game{player_deaths = Deaths2})
-    end.
 
 show_settings() ->
     PrintSettings =
@@ -362,8 +423,7 @@ remove_alias(User, Alias) ->
 cmp_vote_raw() ->
     ThId = getv(thread_id),
     DayNum = 1,
-    Key = {ThId, DayNum},
-    case mnesia:dirty_read(mafia_day, Key) of
+    case rday(ThId, DayNum) of
         [] ->
             ignore;
         [#mafia_day{votes = GVotes}] ->

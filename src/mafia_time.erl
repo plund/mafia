@@ -14,6 +14,8 @@
          timer_minutes/0,
 
          end_phase/2,
+         end_game/1,
+         unend_game/1,
 
          inc_phase/1,
          conv_gtime_secs1970/2,
@@ -173,14 +175,16 @@ calc_one_deadlineI({Num, DayNight}, Game)
 
 %% -----------------------------------------------------------------------------
 
-end_phase(MsgId, TimeNextDL) ->
-    case mnesia:dirty_read(message, MsgId) of
-        [] -> ok;
-        [M] -> end_phase2(M, TimeNextDL, rgame(M#message.thread_id))
-    end.
+end_phase(M = #message{}, TimeNextDL) ->
+    end_phase(M, TimeNextDL, rgame(M#message.thread_id)).
 
-end_phase2(_M, _TimeNextDL, []) -> ok;
-end_phase2(#message{time = MsgTime}, DateTime, [G]) ->
+end_phase(_M, _TimeNextDL, []) -> ok;
+end_phase(#message{time = MsgTime}, DateTime, [G]) ->
+    %% Early test. Is MsgTime already present
+    end_phase(#message{time = MsgTime}, DateTime, [G],
+              lists:keyfind(MsgTime, 3, G#mafia_game.deadlines)).
+
+end_phase(#message{time = MsgTime}, DateTime, [G], false) ->
     %% remove all DLs after msg time
     %% DstChanges = G#mafia_game.dst_changes,
     OrigDLs = G#mafia_game.deadlines,
@@ -203,13 +207,69 @@ end_phase2(#message{time = MsgTime}, DateTime, [G]) ->
     NewDLs = get_some_extra_dls(G, DLs4, TargetTime),
     io:format("NewDLs ~p\n", [NewDLs]),
     mnesia:dirty_write(G#mafia_game{deadlines = NewDLs}),
-    ok.
+    inserted;
+end_phase(_, _, _, _) ->
+    already_inserted.
 
 get_some_extra_dls(_G, DLs=[{_,_, Time} | _], Target) when Time > Target -> DLs;
 get_some_extra_dls(G, DLs = [DL | _], Target) ->
     NewDL = inc_deadline(G, DL),
     get_some_extra_dls(G, [NewDL | DLs], Target).
 
+%% -----------------------------------------------------------------------------
+
+end_game(M) ->
+    end_game(M, rgame(M#message.thread_id)).
+
+end_game(_M, []) -> no_game;
+end_game(M, [G]) ->
+    end_game(M, G, lists:keyfind(end_game, 1, G#mafia_game.deadlines)).
+
+end_game(M, G, false) ->
+    EndTime = M#message.time,
+    MsgId = M#message.msg_id,
+
+    %% remove all DLs after EndTime
+    DLs2 = lists:foldr(
+             fun(DL = {_, _, DlTime}, Acc)
+                   when DlTime < EndTime -> [DL | Acc];
+                (_, Acc) -> Acc
+             end,
+             [],
+             G#mafia_game.deadlines),
+
+    %% Re-add current phase with end of game time
+    {DNum, DoN} = inc_phase(hd(DLs2)),
+    DLs3 = [{DNum, DoN, EndTime} | DLs2],
+    mnesia:dirty_write(G#mafia_game{deadlines = DLs3,
+                                    game_end = {EndTime, MsgId}}),
+    game_ended;
+end_game(_, _, _) ->
+    already_game_ended.
+
+%% -----------------------------------------------------------------------------
+
+unend_game(M) ->
+    unend_game(M, rgame(M#message.thread_id)).
+
+unend_game(_M, []) -> no_game;
+unend_game(M, [G]) ->
+    MsgTime = M#message.time,
+    unend_game2(G, lists:keyfind(MsgTime, 3, G#mafia_game.deadlines)).
+
+unend_game2(G, EndDL) ->
+    G2 = if EndDL == false ->
+                 G;
+            true ->
+                 [EndDL|DLs] = G#mafia_game.deadlines,
+                 TargetTime = utc_secs1970() + 11 * ?DaySecs,
+                 NewDLs = get_some_extra_dls(G, DLs, TargetTime),
+                 G#mafia_game{deadlines = NewDLs}
+         end,
+    mnesia:dirty_write(G2#mafia_game{game_end = undefined}),
+    game_unended.
+
+%% -----------------------------------------------------------------------------
 
 -spec inc_phase(phase() | deadline()) -> phase().
 inc_phase({Num, D, _Time}) -> inc_phase({Num, D});

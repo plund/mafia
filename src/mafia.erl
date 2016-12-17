@@ -113,7 +113,8 @@ i2l(I) -> integer_to_list(I).
 l2i(L) -> list_to_integer(L).
 l2a(L) -> list_to_atom(L).
 
-b2ub(B) -> l2b(l2u(b2l(B))).
+b2ul(B) -> l2u(b2l(B)).
+b2ub(B) -> l2b(b2ul(B)).
 
 lrev(L) -> lists:reverse(L).
 

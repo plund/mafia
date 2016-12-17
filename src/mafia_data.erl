@@ -44,10 +44,11 @@ downl() ->
     inets:start(),
     Thread = getv(thread_id),
     Page = getv(page_to_read),
-    download(#s{thread_id = Thread, page = Page}).
+    download(#s{thread_id = Thread,
+                page = Page}).
 
 download(S) ->
-    case get_body(S) of
+    case get_body(S#s{dl_time = undefined}) of
         {ok, S2} ->
             analyse_body(S2),
             if not S2#s.is_last_page ->
@@ -59,7 +60,7 @@ download(S) ->
                     download(S2#s{page = Page});
                true -> ok
             end;
-        error -> error
+        {error, _Error} -> error
     end.
 
 sleep(MilliSecs) ->
@@ -274,10 +275,11 @@ iterate_all_msg_idsI(ThId, Fun, Pages) ->
 
 %% -----------------------------------------------------------------------------
 
--spec get_body(S :: #s{}) -> {ok, #s{}} | error.
+-spec get_body(S :: #s{}) -> {ok, #s{}} | {error, term()}.
 get_body(S) ->
     get_body(S, get_body_from_file(S)).
 
+-spec get_body(#s{}, term()) -> {ok, Body::term()} | {error, term()}.
 get_body(S, {file, Body}) ->
     S2 = check_this_page(S#s{body = Body,
                              body_on_file = true}),
@@ -290,6 +292,7 @@ make_url(S) ->
     Url = ?UrlBeg ++ i2l(S#s.thread_id) ++ ?UrlMid ++ i2l(S#s.page) ++ ?UrlEnd,
     S#s{url = Url}.
 
+-spec get_body2(#s{}, term()) -> {ok, Body::term()} | {error, term()}.
 get_body2(_S2, {error, _} = Error) -> Error;
 get_body2(S2, {ok, Body}) ->
     Body2 = get_thread_section(Body),
@@ -331,13 +334,12 @@ get_body_from_file(S) ->
     %% Store full pages as compressed files:
     %%     thread_pages/m24_threadid_page.txt.tgz
     {_FileName, TarBallName} = th_filenames(S),
-    %% io:format("~s\n",[TarBallName]),
     case erl_tar:extract(TarBallName, [memory, compressed]) of
-        {ok,[{_, BodyBin}]} ->
-            io:format("Found page ~p on file\n",[S#s.page]),
+        {ok, [{_, BodyBin}]} ->
+            %% io:format("Found page ~p on file\n",[S#s.page]),
             {file, b2l(BodyBin)};
-        {error,{TarBallName, enoent}} ->
-            io:format("Did NOT find ~p on file\n",[S#s.page]),
+        {error, {TarBallName, enoent}} ->
+            %% io:format("Did NOT find ~p on file\n",[S#s.page]),
             no_file;
         Unexp ->
             io:format("Did NOT find ~p on file ~p\n",[S#s.page, Unexp]),

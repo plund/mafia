@@ -13,16 +13,23 @@
 %% API
 -export([start_link/0,
          start/0,
-         start_web/0,
          stop/0,
+
+         start_polling/0,
          stop_polling/0,
+
+         start_web/0,
          stop_httpd/1,
+
          get_state/0,
-         set_interval_minutes/1,
-         regenerate_history/1
+         regenerate_history/1  % not used very much
         ]).
 
+%% web
 -export([msg_search_result/3]).
+
+%% deprecated
+-export([set_interval_minutes/1]).
 
 %% test
 %% -export([is_word/2, allpos/2, find_word_searches/1]).
@@ -31,7 +38,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--import(mafia, [i2l/1, l2b/1, b2l/1, l2u/1, getv/1]).
+-import(mafia, [i2l/1, l2b/1, b2l/1, l2u/1, b2ul/1, getv/1]).
 
 -include("mafia.hrl").
 
@@ -74,6 +81,7 @@ start_web() ->
 %%--------------------------------------------------------------------
 stop() -> gen_server:call(?SERVER, 'stop').
 
+start_polling() -> gen_server:call(?SERVER, 'start_polling').
 stop_polling() -> gen_server:call(?SERVER, 'stop_polling').
 
 stop_httpd(a) -> inets:stop(httpd, {{192,168,0,100}, ?WEBPORT});
@@ -88,11 +96,13 @@ get_state()  ->
 
 %%--------------------------------------------------------------------
 %% @doc Change the poll timer
+%%      Old do not work since we go on schedule now.
 %% @end
 %%--------------------------------------------------------------------
 set_interval_minutes(N) when is_integer(N)  ->
     gen_server:call(?SERVER, {set_timer_interval, N}).
 
+%% rewrite one history txt file
 regenerate_history({DNum, DoN, _}) ->
     regenerate_history({DNum, DoN});
 regenerate_history(Phase) ->
@@ -117,7 +127,7 @@ init([]) ->
     mafia:setup_mnesia(),
     State = start_web(#state{}),
     {_Reply, S2} = set_timer_interval(State, 10),
-    self() ! check_all,
+    self() ! do_polling,
     {ok, S2}.
 
 %%--------------------------------------------------------------------
@@ -140,13 +150,17 @@ handle_call(get_state, _From, State) ->
     {reply, lists:zip(Fields, Values), State};
 handle_call({set_timer_interval, N}, _From, State) ->
     {Reply, S2} = set_timer_interval(State, N),
-    self() ! check_all,
+    self() ! do_polling,
     {reply, Reply, S2};
 handle_call('stop', _From, State) ->
     timer:cancel(State#state.timer),
     inets:stop(httpd, State#state.web_pid),
     {stop, stopped, stop_reply, State#state{timer = undefined,
                                             web_pid = undefined}};
+handle_call('start_polling', _From, State) ->
+    {Reply, S2} = maybe_change_timer(State),
+    self() ! do_polling,
+    {reply, Reply, S2};
 handle_call('stop_polling', _From, State) ->
     timer:cancel(State#state.timer),
     {reply, ok, State#state{timer = undefined}};
@@ -168,6 +182,8 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+
+%% rewrite one history txt file
 handle_cast({regenerate_history, {DNum, DoN}}, State) ->
     case mafia:rgame() of
         [] -> ok;
@@ -198,11 +214,12 @@ handle_cast(_Msg, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_info(check_all, State) ->
-    io:format("check_all ~p\n", [time()]),
+handle_info(do_polling, State) ->
+    TimeStr = mafia_print:print_time(current_time, short),
+    io:format("~s poll for new messages\n", [TimeStr]),
     mafia_data:downl(),
     FileName = filename:join(?DOC_ROOT, "current_vote.txt"),
-    S2 = maybe_change_timer(State),
+    {_Reply, S2} = maybe_change_timer(State),
     {ok, Fd} = file:open(FileName, [write]),
     mafia_print:print_votes([{fd, Fd}, {next, S2#state.timer_minutes}]),
     file:close(Fd),
@@ -290,23 +307,25 @@ maybe_create_dir(Dir) ->
         _ -> ok
     end.
 
--spec maybe_change_timer(#state{}) -> #state{}.
-maybe_change_timer(S = #state{timer_minutes = TMins}) ->
+-spec maybe_change_timer(#state{}) -> {Reply::term(), #state{}}.
+maybe_change_timer(S = #state{timer = TRef,
+                              timer_minutes = TMins}) ->
     case mafia_time:timer_minutes() of
         Mins when is_integer(Mins), Mins /= TMins ->
-            {_, S2} = set_timer_interval(S, Mins),
-            S2;
-        _ -> S
+            set_timer_interval(S, Mins);
+        Mins when TRef == undefined ->
+            set_timer_interval(S, Mins);
+        _ -> {no_change, S}
     end.
 
 -spec set_timer_interval(#state{}, integer()) -> {Reply :: term(), #state{}}.
 set_timer_interval(S, N) when is_integer(N), N >= 1 ->
     if S#state.timer /= undefined ->
             timer:cancel(S#state.timer),
-            flush(check_all);
+            flush(do_polling);
        true -> ok
     end,
-    {ok, TRef} = timer:send_interval(N * ?MINUTE_MS, check_all),
+    {ok, TRef} = timer:send_interval(N * ?MINUTE_MS, do_polling),
     Reply = {interval_changed,
              {old, S#state.timer_minutes},
              {new, N}},
@@ -361,7 +380,7 @@ msg_search_result(Sid, _Env, In) ->
                      %% 1. Test UserB only if UsersU /= []
                      fun() ->
                              UsersU == [] orelse
-                                 lists:member(l2u(b2l(UserB)), UsersU)
+                                 lists:member(b2ul(UserB), UsersU)
                      end,
 
                      %% 2. Test Words with ANY instead of all
@@ -435,7 +454,7 @@ msg_search_result(Sid, _Env, In) ->
     TimeB = erlang:monotonic_time(millisecond),
     NumBytes = A + B + C,
     MilliSecs = TimeB - TimeA,
-    TimeStr = mafia_print:print_time(mafia_time:utc_secs1970(), short),
+    TimeStr = mafia_print:print_time(current_time, short),
     io:format("~s Sent ~p bytes in ~p millisecs, search =*~s*=*~s*=*~s*=\n",
               [TimeStr, NumBytes, MilliSecs, UsersText, WordsText, DayNumText]).
 

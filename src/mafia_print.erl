@@ -758,6 +758,9 @@ print_message_summary(M) ->
 print_time(Time) ->
     print_time(Time, long).
 
+print_time(current_time, Mode) ->
+    Time = mafia_time:utc_secs1970(),
+    print_time(Time, Mode);
 print_time(Time, Mode) when is_integer(Time) ->
     {TzH, Dst} = mafia_time:get_tz_dst(),
     print_time(Time, TzH, Dst, Mode).

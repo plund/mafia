@@ -191,8 +191,9 @@ check_for_voteI(_S, M, G) ->
             RawVote =
                 l2b(string:strip(
                       string:left(
-                        mafia_data:get_after_pos(
-                          Pos, length(VoteStr), Msg),
+                        mafia_print:html2txt(
+                          mafia_data:get_after_pos(
+                            Pos, length(VoteStr), Msg)),
                         60))),
             %%io:format("DBG ~p\n", [Players2]),
             case rank_options(Players2, RestUC) of

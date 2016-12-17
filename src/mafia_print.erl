@@ -19,7 +19,9 @@
          print_time/2,
 
          print_pages_for_thread/0,
-         print_pages_for_thread/1
+         print_pages_for_thread/1,
+
+         html2txt/1
         ]).
 
 -import(mafia,
@@ -727,13 +729,13 @@ print_message_full(M) ->
                print_time(M#message.time),
                i2l(M#message.thread_id),
                i2l(M#message.msg_id),
-               b2l(M#message.message)
+               html2txt(b2l(M#message.message))
               ]).
 
 %% -----------------------------------------------------------------------------
 
 print_message_summary(M) ->
-    Msg = rm_nl(b2l(M#message.message)),
+    Msg = rm_nl(html2txt(b2l(M#message.message))),
     MsgLen = length(Msg),
     Max = 80,
     MsgShort = if MsgLen > Max -> string:left(Msg, Max) ++ "...";
@@ -797,3 +799,21 @@ i2l(Int, Size) -> string:right(i2l(Int), Size).
 rm_nl([$\n|T]) -> [$\s|rm_nl(T)];
 rm_nl([H|T]) -> [H|rm_nl(T)];
 rm_nl("") -> "".
+
+%% skip unicode for a while
+html2txt("&gt;" ++ T) -> [ $> | html2txt(T)];
+html2txt("&lt;" ++ T) -> [ $< | html2txt(T)];
+html2txt("&amp;" ++ T) -> [ $& | html2txt(T)];
+html2txt("&acute;" ++ T) -> [ $´ | html2txt(T)];
+html2txt("&lsquo;" ++ T) -> [ $' | html2txt(T)];
+html2txt("&rsquo;" ++ T) -> [ $' | html2txt(T)];
+html2txt("&ldquo;" ++ T) -> [ $\" | html2txt(T)];
+html2txt("&rdquo;" ++ T) -> [ $\" | html2txt(T)];
+html2txt("&hellip;" ++ T) -> [ $\., $\., $\. | html2txt(T)];
+%% html2txt("&lsquo;" ++ T) -> [ $‘ | html2txt(T)];
+%% html2txt("&rsquo;" ++ T) -> [ $’ | html2txt(T)];
+%% html2txt("&ldquo;" ++ T) -> [ $“ | html2txt(T)];
+%% html2txt("&rdquo;" ++ T) -> [ $” | html2txt(T)];
+html2txt("<br />" ++ T) ->  [ $\n | html2txt(T)];
+html2txt([H|T]) -> [H|html2txt(T)];
+html2txt("") -> "".

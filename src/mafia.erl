@@ -13,6 +13,7 @@
 
 %% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
 %% todo:
+%% - Some new mafia_web code should probably be elsewhere
 %% - Use new DL calc and remove old calculation
 %% - define deadline() :: {phase(), secs1970()} and change at all places.
 %%    - make proper interface fun for deadline() -> phase().

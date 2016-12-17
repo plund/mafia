@@ -453,7 +453,7 @@ analyse_body(S) ->
     {B4c, TimeStr} = read_to_before(B4b, "\""),
     B5 = rm_to_after(B4c, ["<div class=\"message-contents\"", ">"]),
     {B6, MsgRaw} = read_to_before(B5, "</div>"),
-    Msg = strip_fix(MsgRaw),
+    Msg = strip(MsgRaw),
 
     if UserStr /= "" ->
             MsgId = l2i(MsgIdStr),
@@ -554,26 +554,3 @@ h_strip(Str) -> Str.
 
 t_strip(Str) ->
     lrev(h_strip(lrev(Str))).
-
-strip_fix(Str) ->
-    strip(Str).
-    %% S2 = strip(Str),
-    %% fix(S2).
-
-%% skip unicode for a while
-fix("&gt;" ++ T) -> [ $> | fix(T)];
-fix("&lt;" ++ T) -> [ $< | fix(T)];
-fix("&amp;" ++ T) -> [ $& | fix(T)];
-fix("&acute;" ++ T) -> [ $´ | fix(T)];
-fix("&lsquo;" ++ T) -> [ $' | fix(T)];
-fix("&rsquo;" ++ T) -> [ $' | fix(T)];
-fix("&ldquo;" ++ T) -> [ $\" | fix(T)];
-fix("&rdquo;" ++ T) -> [ $\" | fix(T)];
-fix("&hellip;" ++ T) -> [ $\., $\., $\. | fix(T)];
-%% fix("&lsquo;" ++ T) -> [ $‘ | fix(T)];
-%% fix("&rsquo;" ++ T) -> [ $’ | fix(T)];
-%% fix("&ldquo;" ++ T) -> [ $“ | fix(T)];
-%% fix("&rdquo;" ++ T) -> [ $” | fix(T)];
-fix("<br />" ++ T) ->  [ $\n | fix(T)];
-fix([H|T]) -> [H|fix(T)];
-fix("") -> "".

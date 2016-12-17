@@ -24,6 +24,9 @@
 
 -export([msg_search_result/3]).
 
+%% test
+%% -export([is_word/2, allpos/2, find_word_searches/1]).
+
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
@@ -320,7 +323,7 @@ msg_search_result(Sid, _Env, In) ->
     ThId = getv(thread_id),
     PQ = httpd:parse_query(In),
     mod_esi:deliver(Sid, ["Content-type: text/html\r\n",
-                          "Transfer-Encoding: chunked\r\n",
+                          "Transfer-Encoding: chunked\r\n", %% maybe not needed
                           "\r\n"]),
     {_, UsersText} = lists:keyfind("user names", 1, PQ),
     {_, WordsText} = lists:keyfind("contained words", 1, PQ),
@@ -338,15 +341,12 @@ msg_search_result(Sid, _Env, In) ->
             end
         catch _:_ -> all
         end,
-    UsersU = [l2u(U) || U <- string:tokens(UsersText, " ")],
-    WordsU = [l2u(W) || W <- string:tokens(WordsText, " ")],
-
+    UsersU = find_word_searches(UsersText),
+    WordsU = find_word_searches(WordsText),
     IsDayCondSingle = case DayCond of {DNumC, DNumC} -> true; _ -> false end,
+    IsWordCond = WordsU /= [],
     IsUserCond = UsersU /= [],
-    DoCont = if IsUserCond -> true;
-                not IsUserCond, IsDayCondSingle -> true;
-                true -> false
-             end,
+    DoCont = IsUserCond orelse IsWordCond orelse IsDayCondSingle,
     Fun =
         fun(acc, init) -> 0;
            (#message{user_name = UserB,
@@ -369,10 +369,11 @@ msg_search_result(Sid, _Env, In) ->
                              MsgU = l2u(Msg),
                              lists:all(
                                fun(WordU) ->
-                                       case string:str(MsgU, WordU) of
-                                           0 -> false;
-                                           _ -> true
-                                       end
+                                       lists:any(
+                                         fun(OrWordU) ->
+                                                 is_word(MsgU, OrWordU)
+                                         end,
+                                         string:tokens(WordU, "|"))
                                end,
                                WordsU)
                      end,
@@ -423,8 +424,9 @@ msg_search_result(Sid, _Env, In) ->
                 mafia_data:iterate_all_msgs(ThId, Fun);
            true ->
                 MsgB = l2b(["<tr><td valign=\"top\">",
-                            "Error: Minimum one user needs to be "
-                            "specified or a single day number.",
+                            "Error: Minimum one condition needs to be "
+                            "specified: User name, Word or a "
+                            "single Day number!",
                             "</td></tr>"]),
                 mod_esi:deliver(Sid, MsgB),
                 size(MsgB)
@@ -433,13 +435,71 @@ msg_search_result(Sid, _Env, In) ->
     TimeB = erlang:monotonic_time(millisecond),
     NumBytes = A + B + C,
     MilliSecs = TimeB - TimeA,
-    io:format("Sent ~p bytes in ~p millisecs, search=~s|~s|~s|\n",
-              [NumBytes, MilliSecs, UsersText, WordsText, DayNumText]).
+    TimeStr = mafia_print:print_time(mafia_time:utc_secs1970(), short),
+    io:format("~s Sent ~p bytes in ~p millisecs, search =*~s*=*~s*=*~s*=\n",
+              [TimeStr, NumBytes, MilliSecs, UsersText, WordsText, DayNumText]).
+
+find_word_searches(WordText) ->
+    [l2u(Str) || Str <- fws(WordText,
+                            _InQuotes = false,
+                            _QStrs = [],
+                            _CharAcc = "")].
+
+fws("", _IsInQ, QStrs, Acc) ->
+    QStrs2 = add_cond(QStrs, Acc),
+    lists:reverse(QStrs2);
+fws("\""++T, true, QStrs, Acc) ->
+    fws(T, false, QStrs, Acc);
+fws("\""++T, false, QStrs, Acc) ->
+    fws(T, true, QStrs, Acc);
+fws(" "++T, false, QStrs, Acc) ->
+    QStr2 = add_cond(QStrs, Acc),
+    fws(T, false, QStr2, "");
+fws([H|T], IsInQ, QStrs, Acc) ->
+    fws(T, IsInQ, QStrs, [H|Acc]).
+
+add_cond(QStrs, Acc) ->
+    if Acc /= "" -> [lists:reverse(Acc)|QStrs];
+       true -> QStrs
+    end.
+
+is_word(MsgU, Search) ->
+    AllPos = allpos(MsgU, Search),
+    LenMsg = length(MsgU),
+    LenSea = length(Search),
+    lists:any(fun(P) -> is_word(MsgU, P, LenMsg, LenSea) end,
+              AllPos).
+
+allpos(MsgU, Search) -> allpos(MsgU, Search, 0, []).
+
+allpos(MsgU, Search, Offset, Acc) ->
+    case string:str(MsgU, Search) of
+        0 ->
+            lists:reverse(Acc);
+        P ->
+            MsgU2 = lists:nthtail(P, MsgU),
+            FoundAt = P + Offset,
+            allpos(MsgU2, Search, FoundAt, [FoundAt | Acc])
+    end.
+
+-define(BoundaryChars, " !\"@#€$%&/\\|()[]{}=≈≠´`^*'™’-_.:…·,;‚„<>≥≤").
+
+is_word(MsgU, Pos, LenMsg, LenSea) ->
+    IsAtBeg = Pos == 1,
+    NextPosAfterSearch = Pos + LenSea,
+    LastPosInSearch = NextPosAfterSearch - 1,
+    IsAtEnd = LenMsg == LastPosInSearch,
+    IsBoundA = IsAtBeg orelse
+        lists:member(lists:nth(Pos - 1, MsgU), ?BoundaryChars),
+    IsBoundB = IsAtEnd orelse
+        lists:member(lists:nth(NextPosAfterSearch, MsgU), ?BoundaryChars),
+    IsBoundA and IsBoundB.
 
 p(I) when I > 9 -> i2l(I);
 p(I) -> string:right(i2l(I), 2, $0).
 
--define(RES_START, "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\">
+-define(RES_START, "
+<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\">
 <html>
   <head>
     <meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">

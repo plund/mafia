@@ -10,25 +10,51 @@
       <p><b>Search in M25</b>
       </p>
       <form method="post" action="esi/mafia_web/msg_search_result">
-        <table cellspan="10">
+        <table cellspan="10" width="700">
           <tr>
             <td>User Names</td>
             <td><input name="user names" type="text" size="40"></td>
-            <td>One or more user names or a single day number must be entered</td>
+            <td>Zero, one or more correctly spelled user names</td>
           </tr>
           <tr>
             <td>Contained words</td>
             <td><input name="contained words" type="text" size="40"></td>
-            <td>One or more words. All must be found in the message if they<br>
-              are separated by space. If separated by | it is either or</td>
+            <td>Zero, one or more words, separated either by space or "|". </td>
           </tr>
           <tr>
             <td>Day/Night numbers</td>
             <td><input name="day numbers" type="text" size="7"></td>
             <td>examples: "3" or "2-5"</td>
           </tr>
-          <tr><td colspan="2">
+          <tr>
+            <td></td>
+            <td>
               <center><input name="button" type="submit" value="Search"></center>
+            </td>
+            <td></td>
+          </tr>
+          <tr>
+            <td colspan="3">
+              <br>
+              <br>
+              <p>
+                Quotes must be used to search for user names containing a space.
+                Normally spaces divide up words so then you may need to use quotes ("")
+                For example to search for "Hellenic Riot" quotes are needed.
+              <p>
+                Minimum one search condition must be specified.
+                Either a one or more user names or
+                one or more words that must be found in the message or
+                one single day number.
+              <p>
+                Spaces (and) between words in the word condition, means that
+                all words must be found in the message.
+                If "|" (or) is used between the words only one of the words
+                must be found in the message.
+              <p>
+                Spaces in the User name fields is "or". Do not use "|" here.
+              <p>
+                 Upper or lower case does not matter in user name and word searches.
             </td>
           </tr>
         </table>

@@ -15,6 +15,8 @@
          print_messages/1,
          print_message_summary/1,
          print_message_full/1,
+         print_time/1,
+         print_time/2,
 
          print_pages_for_thread/0,
          print_pages_for_thread/1
@@ -125,6 +127,7 @@ print_votesI3(ThId, Phase, Opts) ->
              day,
              phase,
              dev,
+             mode :: text | html,
              next :: integer(),
              time :: false | seconds1970()
             }).
@@ -151,7 +154,7 @@ print_votesI(#pp{game = G,
                  day = Day,
                  phase = Phase,
                  time = DispTime
-                } = P) ->
+                } = PP) ->
     ThId = G#mafia_game.key,
     #mafia_day{votes = Votes0,
                players_rem = RemPlayers} = Day,
@@ -161,7 +164,7 @@ print_votesI(#pp{game = G,
     %% Part - Page heading
     %% Print Game Name
     GName = b2l(G#mafia_game.name),
-    io:format(P#pp.dev,
+    io:format(PP#pp.dev,
               "\n"
               "~s\n"
               "~s\n"
@@ -169,7 +172,7 @@ print_votesI(#pp{game = G,
               [GName, [$= || _ <- GName]]),
 
     if is_integer(DispTime) ->
-            print_time_left_to_dl(P, ThId, DispTime);
+            print_time_left_to_dl(PP, ThId, DispTime);
        true -> no_print
     end,
 
@@ -181,7 +184,7 @@ print_votesI(#pp{game = G,
     {VoteSumSort, InvalidVotes} =
         if IsDay ->
                 %% Part - Votes
-                pr_votes(P, Votes, Phase);
+                pr_votes(PP, Votes, Phase);
            true ->
                 {na, na}
         end,
@@ -193,7 +196,7 @@ print_votesI(#pp{game = G,
                    true ->
                         string:join([b2l(Ev) || Ev <- EndVoters], ", ")
                 end,
-            io:format(P#pp.dev, "\nEnd votes: ~s\n", [EndVoteStr]),
+            io:format(PP#pp.dev, "\nEnd votes: ~s\n", [EndVoteStr]),
 
             %% Part - Non-votes
             ValidVoters = [ Pl || {Pl, _} <- Votes]
@@ -204,7 +207,7 @@ print_votesI(#pp{game = G,
                    true ->
                         string:join([b2l(U) || U <- Unvoted], ", ")
                 end,
-            io:format(P#pp.dev, "\nNon-votes: ~s\n", [NoVoteStr]);
+            io:format(PP#pp.dev, "\nNon-votes: ~s\n", [NoVoteStr]);
        true -> ignore
     end,
 
@@ -217,11 +220,11 @@ print_votesI(#pp{game = G,
                               end,
                               [],
                               VoteSumSort)),
-            io:format(P#pp.dev,
+            io:format(PP#pp.dev,
                       "\nVoting texts:\n"
                       "-------------\n",
                       []),
-            [io:format(P#pp.dev,
+            [io:format(PP#pp.dev,
                        "~s ~s : \"~s\"\n",
                        [print_time_5d(G, VTime),
                         b2l(Voter),
@@ -229,18 +232,18 @@ print_votesI(#pp{game = G,
              || {VTime, Voter, Raw} <- ValidVotesS],
 
             %% Part - Invalid Vote text
-            io:format(P#pp.dev,
+            io:format(PP#pp.dev,
                       "\n"
                       "Invalid Vote texts:\n"
                       "-------------------\n",
                       []),
-            [io:format(P#pp.dev,
+            [io:format(PP#pp.dev,
                        "~s ~s: \"~s\"\n",
                        [print_time_5d(G, VTime),
                         Voter,
                         rm_nl(b2l(Raw))])
              || {Voter, #vote{raw = Raw, time = VTime}} <- InvUserVotesTS],
-            io:format(P#pp.dev,
+            io:format(PP#pp.dev,
                       "\n"
                       "\"INVALID\" means that the this program did not "
                       "recognise the vote. But the GM may.)\n",
@@ -249,10 +252,10 @@ print_votesI(#pp{game = G,
     end,
 
     %% Part - Vote tracker
-    print_tracker(P, ThId, Phase),
+    print_tracker(PP, ThId, Phase),
 
     %% Part - Posting stats
-    print_stats(P, ThId, Phase),
+    print_stats(PP, ThId, Phase),
 
     %% Part - Dead players
     DeathsToReport =
@@ -267,7 +270,7 @@ print_votesI(#pp{game = G,
                          "~s\n",
                          "\n",
                          fun(IsEnd, Ph) -> pr_eodon(IsEnd, Ph) end},
-    io:format(P#pp.dev,
+    io:format(PP#pp.dev,
               Fmt,
               [string:join(
                  [b2l(DeadPl) ++ PrFun(IsEnd, Ph) ++
@@ -283,29 +286,29 @@ print_votesI(#pp{game = G,
                             comment = Com}
                          <- DeathsToReport],
                  Div)]),
-    if is_integer(P#pp.next) ->
-            io:format(P#pp.dev,
+    if is_integer(PP#pp.next) ->
+            io:format(PP#pp.dev,
                       "\n"
                       "Updates currently every ~p minutes "
                       "(more often near deadlines).\n"
                       "Mafia game thread at: ~s\n",
-                      [P#pp.next, ?UrlBeg ++ i2l(ThId)]);
+                      [PP#pp.next, ?UrlBeg ++ i2l(ThId)]);
        true -> ok
     end.
 
-print_time_left_to_dl(P, ThId, DispTime) ->
+print_time_left_to_dl(PP, ThId, DispTime) ->
     {{Days, {HH, MM, _}}, {Num, DoN, _}} =
         mafia_time:get_next_deadline(ThId, DispTime),
     DayStr = if Days == 0 -> "";
                 true -> i2l(Days) ++ " day, "
              end,
-    io:format(P#pp.dev,
+    io:format(PP#pp.dev,
               "\n"
               "Remaining time to next ~s ~p deadline:"
               "  ~s~p hours, ~p minutes\n",
               [pr_don(DoN), Num, DayStr, HH, MM]).
 
-pr_votes(P, Votes, Phase) ->
+pr_votes(PP, Votes, Phase) ->
     %% [{Vote, Num, [{Time, User, Raw}]}]
     {VoteSummary, InvalidVotes} =
         lists:foldl(
@@ -334,7 +337,7 @@ pr_votes(P, Votes, Phase) ->
     GtEq = fun(A, B) -> element(2, A) >= element(2, B) end,
     VoteSumSort = lists:sort(GtEq, VoteSummary),
 
-    io:format(P#pp.dev,
+    io:format(PP#pp.dev,
               "\nVotes ~s\n"
               "------------\n",
               [pr_phase_long(Phase)]),
@@ -342,10 +345,10 @@ pr_votes(P, Votes, Phase) ->
          Voters = [{Voter, Raw}
                    || {_VoteTime, Voter, Raw}
                           <- lists:sort(VoteInfos)],
-         io:format(P#pp.dev, "~p ~s - ", [N, b2l(Vote)]),
+         io:format(PP#pp.dev, "~p ~s - ", [N, b2l(Vote)]),
          VotersInTimeOrder =
              [b2l(Voter) || {Voter, _Raw3} <- Voters],
-         io:format(P#pp.dev,
+         io:format(PP#pp.dev,
                    "~s\n",
                    [string:join(VotersInTimeOrder, ", ")])
      end || {Vote, N, VoteInfos} <- VoteSumSort],
@@ -372,11 +375,11 @@ pr_phase_long({Num, DoN}) -> pr_don(DoN) ++ " " ++ i2l(Num).
 print_stats() ->
     print_stats(#pp{}, 1420289, {1, ?day}).
 
-print_stats(P, ThId, Phase) ->
-    print_stats(P, ThId, Phase, rgame(ThId)).
+print_stats(PP, ThId, Phase) ->
+    print_stats(PP, ThId, Phase, rgame(ThId)).
 
-print_stats(_P, _ThId, _Phase, []) -> ok;
-print_stats(P, ThId, Phase = {Day, DoN}, [G]) ->
+print_stats(_PP, _ThId, _Phase, []) -> ok;
+print_stats(PP, ThId, Phase = {Day, DoN}, [G]) ->
     MatchHead = #stat{key = {'$1', '$2', {'$3', '$4'}}, _='_'},
     Guard = [{'==', '$2', ThId}, {'==', '$3', Day}, {'==', '$4', DoN}],
     Result = '$_',
@@ -393,18 +396,18 @@ print_stats(P, ThId, Phase = {Day, DoN}, [G]) ->
     UserU = fun(#stat{key = {U,_,_}}) -> transl(U) end,
     NonPosters = [b2l(PRem) || PRem <- G#mafia_game.players_rem]
         -- [UserU(S) || S <- Stats],
-    io:format(P#pp.dev,
+    io:format(PP#pp.dev,
               "\n"
               "Posting statistics (~s)\n"
               "------------------\n"
               "~s ~s ~s ~s\n",
               [pr_phase_long(Phase), %%pr_don(DoN), Day,
                "Posts", "Words", " Chars", "Player"]),
-    print_stat_div(P),
+    print_stat_div(PP),
     SumStat =
         lists:foldl(
           fun(S, Sum) ->
-                  print_stat_row(P, S, UserU),
+                  print_stat_row(PP, S, UserU),
                   mafia_data:sum_stat(S, Sum)
           end,
           #stat{msg_ids = [],
@@ -413,22 +416,22 @@ print_stats(P, ThId, Phase = {Day, DoN}, [G]) ->
                 num_postings = 0
                },
           lrev(StatsSorted)),
-    print_stat_div(P),
-    print_stat_row(P, SumStat, fun(_) -> "Total Counts" end),
-    io:format(P#pp.dev,
+    print_stat_div(PP),
+    print_stat_row(PP, SumStat, fun(_) -> "Total Counts" end),
+    io:format(PP#pp.dev,
               "\nNon-posters: ~s\n",
               [case string:join(NonPosters, ", ") of
                    "" -> "-";
                    Str -> Str
                end]).
 
-print_stat_div(P) ->
-    io:format(P#pp.dev,
+print_stat_div(PP) ->
+    io:format(PP#pp.dev,
               "~s ~s ~s ~s\n",
               ["-----", "-----", "------", "-----------"]).
 
-print_stat_row(P, S, UserU) ->
-    io:format(P#pp.dev,
+print_stat_row(PP, S, UserU) ->
+    io:format(PP#pp.dev,
               "~s ~s ~s ~s\n",
               [i2l(S#stat.num_postings, 5),
                i2l(S#stat.num_words, 5),
@@ -457,9 +460,11 @@ add_vote(Vote, Raw, Time, User, Acc) ->
 print_tracker() ->
     print_tracker(rgame()).
 
-print_tracker(_P, _ThId, {_, ?night}) -> ok;
-print_tracker(P, ThId, Phase) ->
-    print_trackerI(P, rgame(ThId), rday(ThId, Phase)).
+print_tracker(_PP, _ThId, {_, ?night}) -> ok;
+print_tracker(PP, ThId, Phase) when is_integer(ThId) ->
+    print_trackerI(PP, rgame(ThId), rday(ThId, Phase));
+print_tracker(PP, G = #mafia_game{}, Phase) ->
+    print_trackerI(PP, G = #mafia_game{}, Phase).
 
 print_tracker([G]) ->
     ThId = G#mafia_game.key,
@@ -467,23 +472,23 @@ print_tracker([G]) ->
     Phase = mafia_time:calculate_phase(G, LastMsgTime),
     print_trackerI(#pp{}, G, rday(ThId, Phase)).
 
-print_trackerI(P, [G], Day) -> print_trackerI(P, G, Day);
-print_trackerI(P, G, [#mafia_day{votes = Votes0,
-                                 players_rem = PlayersRem,
-                                 player_deaths = Deaths}]) ->
+print_trackerI(PP, [G], Day) -> print_trackerI(PP, G, Day);
+print_trackerI(PP, G, [#mafia_day{votes = Votes0,
+                                  players_rem = PlayersRem,
+                                  player_deaths = Deaths}]) ->
     AllPlayers = PlayersRem ++ [DeadB || #death{player = DeadB} <- Deaths],
     Votes = [V || V <- Votes0,
                   lists:member(element(1, V), AllPlayers)],
     Votes3 = user_vote_timesort(Votes),
-    %%io:format(P#pp.dev, "Rem: ~p\n", [AllPlayers]),
+    %%io:format(PP#pp.dev, "Rem: ~p\n", [AllPlayers]),
     Abbrs = mafia_name:get_abbrevs(AllPlayers),
-    io:format(P#pp.dev, "\n", []),
-    print_read_key(P, Abbrs),
+    io:format(PP#pp.dev, "\n", []),
+    print_read_key(PP, Abbrs),
     A = fun("---") -> "---";
            ("INV") -> "INV";
            (V) -> case lists:keyfind(V, 2, Abbrs) of
                       false ->
-                          io:format(P#pp.dev, "~s\n", [V]),
+                          io:format(PP#pp.dev, "~s\n", [V]),
                           "***";
                       {_, _, Abbr, _} -> Abbr
                   end
@@ -491,15 +496,15 @@ print_trackerI(P, G, [#mafia_day{votes = Votes0,
     Users = [b2l(UserB) || UserB <- AllPlayers],
     IterVotes = [{User, "---"} || User <- Users],
 
-    io:format(P#pp.dev,
+    io:format(PP#pp.dev,
               "\n"
               "Vote tracker\n"
               "------------\n",
               []),
     FmtVoter = "Voter ~s\n",
     FmtTime = "Time  ~s\n",
-    io:format(P#pp.dev, FmtVoter, [pr_ivs_user(IterVotes, A)]),
-    io:format(P#pp.dev,
+    io:format(PP#pp.dev, FmtVoter, [pr_ivs_user(IterVotes, A)]),
+    io:format(PP#pp.dev,
               FmtTime,
               [pr_ivs_user(IterVotes, fun(_) -> "===" end)]),
     lists:foldl(
@@ -517,7 +522,7 @@ print_trackerI(P, G, [#mafia_day{votes = Votes0,
                           {IVs, IVs2}
                   end,
               TimeStr = print_time_5d(G, V#vote.time),
-              io:format(P#pp.dev,
+              io:format(PP#pp.dev,
                         "~s~s~s\n",
                         [TimeStr,
                          pr_ivs_vote(PrIVs, User),
@@ -528,10 +533,10 @@ print_trackerI(P, G, [#mafia_day{votes = Votes0,
       IterVotes,
       Votes3),
     Votes3,
-    io:format(P#pp.dev,
+    io:format(PP#pp.dev,
               FmtTime,
               [pr_ivs_user(IterVotes, fun(_) -> "===" end)]),
-    io:format(P#pp.dev,
+    io:format(PP#pp.dev,
               FmtVoter,
               [pr_ivs_user(IterVotes, A)]),
     ok.
@@ -554,25 +559,25 @@ user_vote_timesort(Votes) ->
             end,
     lists:sort(SortF, Votes2).
 
-print_read_key(P, Abbrs) ->
+print_read_key(PP, Abbrs) ->
     NumCols = 19,
     CFmt = "~-" ++ i2l(NumCols) ++ "s",
     AbbrStrs = [A ++ " " ++ Pl || {_, Pl, A, _} <- Abbrs],
-    io:format(P#pp.dev,
+    io:format(PP#pp.dev,
               "Read Key\n"
               "--------\n",
               []),
-    prk(P, CFmt, AbbrStrs).
+    prk(PP, CFmt, AbbrStrs).
 
-prk(_P, _CFmt, []) -> ok;
-prk(P, CFmt, Abbrs) ->
+prk(_PP, _CFmt, []) -> ok;
+prk(PP, CFmt, Abbrs) ->
     NumAbbr = length(Abbrs),
     NumPrint = if NumAbbr >= 4 -> 4; true -> NumAbbr end,
     AbbrsPrint = string:substr(Abbrs, 1, NumPrint),
     AbbrsRem = lists:nthtail(NumPrint, Abbrs),
     Fmt = string:join([CFmt|| _ <- AbbrsPrint], " ") ++ "\n",
-    io:format(P#pp.dev, Fmt, AbbrsPrint),
-    prk(P, CFmt, AbbrsRem).
+    io:format(PP#pp.dev, Fmt, AbbrsPrint),
+    prk(PP, CFmt, AbbrsRem).
 
 pr_ivs_user(IVs, A) ->
     string:join([A(U) || {U, _V} <- IVs], " ").

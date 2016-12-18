@@ -425,18 +425,19 @@ msg_search_result(Sid, _Env, In) ->
                 AllTestsOk = lists:all(fun(F) -> F() end, TestFuns),
                 if AllTestsOk ->
                         DayStr = case MsgPhase of
-                                     {DNum, ?day} -> "D" ++ i2l(DNum);
-                                     {DNum, ?night} -> "N" ++ i2l(DNum);
-                                     ?game_ended -> "EoG"
+                                     {DNum, ?day} -> "Day-" ++ i2l(DNum);
+                                     {DNum, ?night} -> "Night-" ++ i2l(DNum);
+                                     ?game_ended -> "Game End "
                                  end,
                         Hash = erlang:phash2(MsgUserB, 16#1000000),
                         Color = Hash bor 16#C0C0C0,
                         ColorStr = integer_to_list(Color, 16),
                         {HH, MM} = mafia_time:hh_mm_to_deadline(ThId, Time),
                         OutB = l2b(["<tr bgcolor=\"#", ColorStr,
-                                    "\"><td valign=\"top\">", MsgUserB, "<br>",
-                                    "Time: ", p(HH), ":", p(MM),
-                                    "<br> p", i2l(PageNum), ", ", DayStr,
+                                    "\"><td valign=\"top\"><b>", MsgUserB,
+                                    "</b><br>",
+                                    DayStr, " ", p(HH), ":", p(MM),
+                                    "<br> page ", i2l(PageNum),
                                     "</td><td valign=\"top\">", Msg,
                                     "</td></tr>\r\n"]),
                         mod_esi:deliver(Sid, OutB),

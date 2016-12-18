@@ -117,10 +117,7 @@ refresh_votes(ThId, [G], Filter, Method) ->
                                           MId == MsgId]
         end,
     iterate_all_msg_ids(ThId, MsgIdFun, Filter),
-
-    Pages = lists:sort(mafia:find_pages_for_thread(ThId)),
-    "Thread " ++ i2l(ThId) ++ "; Pages: " ++
-        string:join([i2l(P) || P <- Pages],",").
+    ok.
 
 refresh_stat() ->
     mnesia:clear_table(stat),

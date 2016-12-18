@@ -200,9 +200,6 @@ calc_one_deadlineI({Num, DayNight}, Game)
                               IsInitDst,
                               DstChanges,
                               UtcGS2b), %% Target DL utc secs
-    _UtcDLTime = calendar:gregorian_seconds_to_datetime(UtcGS3),
-    io:format("Calculated UTC DL for ~p ~p to be ~p\n",
-              [DayNight, Num, _UtcDLTime]),
     {Num, DayNight, UtcGS3 - ?GSECS_1970}.
 
 %% -----------------------------------------------------------------------------
@@ -237,8 +234,8 @@ end_phase(#message{time = MsgTime}, DateTime, [G], false) ->
     %% Add more DLs at end.
     TargetTime = utc_secs1970() + 11 * ?DaySecs,
     NewDLs = get_some_extra_dls(G, DLs4, TargetTime),
-    io:format("NewDLs ~p\n", [NewDLs]),
     mnesia:dirty_write(G#mafia_game{deadlines = NewDLs}),
+    mafia_web:regenerate_history(EarlyDL),
     inserted;
 end_phase(_, _, _, _) ->
     already_inserted.
@@ -272,9 +269,11 @@ end_game(M, G, false) ->
 
     %% Re-add current phase with end of game time
     {DNum, DoN} = inc_phase(hd(DLs2)),
-    DLs3 = [{DNum, DoN, EndTime} | DLs2],
+    LastDL = {DNum, DoN, EndTime},
+    DLs3 = [LastDL | DLs2],
     mnesia:dirty_write(G#mafia_game{deadlines = DLs3,
                                     game_end = {EndTime, MsgId}}),
+    mafia_web:regenerate_history(LastDL),
     ?game_ended;
 end_game(_, _, _) ->
     already_game_ended.

@@ -340,10 +340,11 @@ pr_votes(PP, Votes, Phase) ->
     %% [{Vote, Num, [{Time, User, Raw}]}]
     {VoteSummary, InvalidVotes} =
         lists:foldl(
+          %% UserVotes are time ordered
           fun({User, UserVotes}, {Acc, Acc2}) ->
                   case lists:dropwhile(
                          fun(V) -> not V#vote.valid end,
-                         UserVotes) of
+                         lists:reverse(UserVotes)) of
                       [V|_] ->
                           Vote = V#vote.vote,
                           Raw = V#vote.raw,
@@ -351,7 +352,7 @@ pr_votes(PP, Votes, Phase) ->
                            Acc2};
                       [] ->
                           %% No valid vote found
-                          case UserVotes of
+                          case lists:reverse(UserVotes) of
                               [LastInvalidVote | _] ->
                                   {Acc, [{User, LastInvalidVote} | Acc2]};
                               [] -> % no votes at all

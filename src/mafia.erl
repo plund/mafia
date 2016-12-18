@@ -1,27 +1,7 @@
 -module(mafia).
 
 -include("mafia.hrl").
-
-%%Chaqa died Day 5 - msg: 1427082
-%%guak  died Day 5 - msg: 1427098  - DAY 5 END !
-
-%% What does it mean that the game has ended?
-%% 1 Stop look for votes, set the game_end marker
-%% 2 Change the looks of current_vote.txt
-
-%% Content of the END GAME PAGE:
-%% Global stats
-%% Full game end message from GM
-%% insert of DL {game_end, seconds1970()} remove all after that one.
-
-%% M25 Game END msg id 1427800
-%% Time  : 2016-12-14T04:50:58 (1 N)
-%% "THE GAME HAS ENDED! TOWN WINS!
-%% THANK YOU ALL FOR PLAYING!"
-%% https://www.quicktopic.com/52/H/gBqFhw3Bidb
-
-%% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
-%% todo:
+%% ToDo:
 %% - Easier seaches on player ids!!!
 %% - Some new mafia_web code should probably be elsewhere
 %% - Use new DL calc and remove old calculation
@@ -41,6 +21,9 @@
 %%   - Move current deadline, full 24 hours (local time)
 %%   - Move future deadline
 
+%% GOD QT https://www.quicktopic.com/52/H/gBqFhw3Bidb
+%% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
+
 %% interface
 -export([
          setup_mnesia/0,
@@ -49,7 +32,7 @@
          end_phase/2,
          end_game/1,
          unend_game/1,
-         set_death_comment/2,
+         set_death_comment/3,
 
          pp/0, pp/1, pp/2,
          pps/0, pps/1, pps/2,
@@ -158,7 +141,8 @@ end_phase(MsgId, TimeNextDL) ->
         [] -> msg_not_found;
         [M] ->
             Cmd = #cmd{time = M#message.time,
-                       mfa = {mafia_time, end_phase, [MsgId, TimeNextDL]}},
+                       msg_id = MsgId,
+                       mfa = {mafia, end_phase, [MsgId, TimeNextDL]}},
             mafia_data:manual_cmd_to_file(M#message.thread_id, Cmd),
             mafia_time:end_phase(M, TimeNextDL)
     end.
@@ -175,13 +159,14 @@ end_game(MsgId) ->
         [M = #message{thread_id = ThId,
                       time = Time}] ->
             Cmd = #cmd{time = Time,
-                       mfa = {mafia_time, end_game, [MsgId]}},
+                       msg_id = MsgId,
+                       mfa = {mafia, end_game, [MsgId]}},
             mafia_data:manual_cmd_to_file(ThId, Cmd),
             mafia_time:end_game(M)
     end.
 
 %% -----------------------------------------------------------------------------
-%% @doc Unend the whole game by giving GM msg_id where game end was proclaimed.
+%% @doc Remove the changes of the end_game command.
 %% @end
 %% -----------------------------------------------------------------------------
 %% Example: mafia:unend_game(1427800).
@@ -192,8 +177,9 @@ unend_game(MsgId) ->
         [M = #message{thread_id = ThId,
                       time = Time}] ->
             Cmd = #cmd{time = Time,
-                       mfa = {mafia_time, unend_game, [MsgId]}},
-            mafia_data:manual_cmd_to_file(ThId, Cmd),
+                       msg_id = MsgId,
+                       mfa = {mafia, end_game, [MsgId]}},
+            mafia_data:manual_cmd_from_file(ThId, Cmd),
             mafia_time:unend_game(M)
     end.
 
@@ -201,13 +187,27 @@ unend_game(MsgId) ->
 %% @doc Read the GM message and add good comment about who the dead player was.
 %% @end
 %% -----------------------------------------------------------------------------
--spec set_death_comment(Player :: string(),
+-spec set_death_comment(MsgId :: msg_id(),
+                        Player :: string(),
                         Comment :: string())
                        -> ok | {error, not_found}.
-set_death_comment(Player, Comment) ->
+set_death_comment(MsgId, Player, Comment) ->
+    case rmess(MsgId) of
+        [] -> no_message_found;
+        [#message{thread_id = ThId,
+                  time = Time}] ->
+            Cmd = #cmd{time = Time,
+                       msg_id = MsgId,
+                       mfa = {mafia, set_death_comment,
+                              [MsgId, Player, Comment]}},
+            mafia_data:manual_cmd_to_file(ThId, Cmd),
+            set_death_commentI(rgame(ThId), Player, Comment)
+    end.
+
+set_death_commentI([], _Player, _Comment) -> no_game;
+set_death_commentI([G], Player, Comment) ->
     PlayerB = l2b(Player),
     CommentB = l2b(Comment),
-    [G] = rgame(),
     case lists:member(PlayerB,
                       [D#death.player
                        || D <- G#mafia_game.player_deaths]) of

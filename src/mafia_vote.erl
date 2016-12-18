@@ -20,8 +20,19 @@ check_for_vote(S, M = #message{}) ->
 
 check_for_vote(_S, _M, []) -> ignore;
 check_for_vote(S, M, [G = #mafia_game{}]) ->
-    G2 = check_for_deathI(S, M, G),
-    check_for_voteI(S, M, G2).
+    check_for_vote(S, M, G);
+check_for_vote(S, M, G = #mafia_game{}) ->
+    DoCheck = case G#mafia_game.game_end of
+                  undefined -> true;
+                  {EndTime, _MsgId} ->
+                      M#message.time =< EndTime
+              end,
+    if DoCheck ->
+            G2 = check_for_deathI(S, M, G),
+            check_for_voteI(S, M, G2);
+       true ->
+            ignore
+    end.
 
 %% Removes player from Game if dead
 check_for_deathI(_S, M, G) ->

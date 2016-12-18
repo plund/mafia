@@ -85,8 +85,10 @@ write_default_table(user) ->
       || U <- ?M24_players ++ ?M24_GMs],
     ok.
 
+write_default_table(game, ?M25ThId) ->
+    write_default_table(game, 25);
 write_default_table(game, 25) ->
-    io:format("Adding Mafia Game M25\n", []),
+    io:format("Initializing Mafia Game M25\n", []),
     MGame = #mafia_game{
       key = ?M25ThId,
       game_num = 25,
@@ -103,9 +105,11 @@ write_default_table(game, 25) ->
       player_deaths = [],
       page_to_read = 1
      },
-    MGame2 = mafia_time:add_deadlines(MGame),
+    MGame2 = mafia_time:initial_deadlines(MGame),
     mnesia:dirty_write(MGame2);
 
+write_default_table(game, ?M24ThId) ->
+    write_default_table(game, 24);
 write_default_table(game, 24) ->
     io:format("Adding Mafia Game M24\n", []),
     MGame = #mafia_game{
@@ -125,7 +129,7 @@ write_default_table(game, 24) ->
       player_deaths = [],
       page_to_read = 1
      },
-    MGame2 = mafia_time:add_deadlines(MGame),
+    MGame2 = mafia_time:initial_deadlines(MGame),
     mnesia:dirty_write(MGame2).
 
 set(K=thread_id, V) when is_integer(V), V > 0 -> set_kv(K,V);

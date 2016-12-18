@@ -24,7 +24,7 @@
           <tr>
             <td>Day/Night numbers</td>
             <td><input name="day numbers" type="text" size="7"></td>
-            <td>examples: "3" or "2-5"</td>
+            <td>examples: "3" or "2-5" or "end"</td>
           </tr>
           <tr>
             <td></td>
@@ -39,7 +39,8 @@
               <br>
               <p>
                 Quotes must be used to search for user names containing a space.
-                Normally spaces divide up words so then you may need to use quotes ("")
+                Normally spaces divide up words so then you may need to use
+                quotes ("")
                 For example to search for "Hellenic Riot" quotes are needed.
               <p>
                 Minimum one search condition must be specified.
@@ -54,7 +55,11 @@
               <p>
                 Spaces in the User name fields is "or". Do not use "|" here.
               <p>
-                 Upper or lower case does not matter in user name and word searches.
+                Inserting anything starting with "end" in the day number field
+                will display messages posted after the game has ended.
+              <p>
+                Upper or lower case does not matter in user name and word
+                searches. Case do not matter for the word "end" either.
             </td>
           </tr>
         </table>

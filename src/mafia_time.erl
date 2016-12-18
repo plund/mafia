@@ -5,9 +5,10 @@
          hh_mm_to_deadline/2,
          utc_secs1970/0,
          get_tz_dst/0,
+         get_tz_dst/2,
          secs1970_to_local_datetime/3,
          update_deadlines/1,
-         add_deadlines/1,
+         initial_deadlines/1,
          calculate_phase/2,
          nearest_deadline/1,
          nearest_deadline/2,
@@ -29,6 +30,18 @@
 
 -import(mafia, [getv/1, lrev/1, rgame/1]).
 
+%% -----------------------------------------------------------------------------
+
+-spec hh_mm_to_deadline(G :: integer() | #mafia_game{},
+                        Time :: seconds1970())
+                       -> {Hours::integer(),
+                           Minutes :: minute()}.
+hh_mm_to_deadline(G, Time) ->
+    {{Days, {HH, MM, _SS}}, _} = get_next_deadline(G, Time),
+    {Days * 24 + HH, MM}.
+
+%% -----------------------------------------------------------------------------
+
 -spec get_next_deadline(ThId::integer())
                        -> {Remain :: {Days :: integer(), time()},
                            deadline()}.
@@ -41,7 +54,13 @@ get_next_deadline(ThId, Secs) when is_integer(ThId) ->
 get_next_deadline([], _Secs) -> false;
 get_next_deadline([#mafia_game{} = G], Secs) ->
     get_next_deadline(G, Secs);
-get_next_deadline(#mafia_game{key = ThId,
+get_next_deadline(#mafia_game{game_end = {EndTime, _EndMsgId}},
+                  Secs) when Secs > EndTime ->
+    SecsOver = Secs - EndTime,
+    {{SecsOver div ?DaySecs,
+      calendar:seconds_to_time(SecsOver rem ?DaySecs)},
+     ?game_ended};
+get_next_deadline(#mafia_game{key = _ThId,
                               deadlines = DLs},
                   Secs) ->
     case lists:dropwhile(
@@ -53,18 +72,14 @@ get_next_deadline(#mafia_game{key = ThId,
               calendar:seconds_to_time(SecsLeft rem ?DaySecs)},
              DL};
         [] -> % should get more DLs here
-            update_deadlines(ThId),
-            get_next_deadline(ThId)
+            %% update_deadlines(ThId),
+            %% get_next_deadline(ThId)
+            {{0, {0, 0, 0}}, ?game_ended}
     end.
 
--spec hh_mm_to_deadline(G :: integer() | #mafia_game{},
-                        Time :: seconds1970())
-                       -> {Hours::integer(),
-                           Minutes :: minute()}.
-hh_mm_to_deadline(G, Time) ->
-    {{Days, {HH, MM, _SS}}, _} = get_next_deadline(G, Time),
-    {Days * 24 + HH, MM}.
+%% -----------------------------------------------------------------------------
 
+-spec get_tz_dst() -> {TZ :: integer(), IsDst :: boolean()}.
 get_tz_dst() ->
     case getv(print_time) of
         game -> {getv(timezone_game), getv(dst_game)};
@@ -74,6 +89,16 @@ get_tz_dst() ->
                  Loc == gmt ->
             {0, false}
     end.
+
+-spec get_tz_dst(#mafia_game{}, seconds1970())
+                -> {TZ :: integer(), IsDst :: boolean()}.
+get_tz_dst(G = #mafia_game{}, Time) ->
+    TZ = G#mafia_game.time_zone,
+    DateTime = secs1970_to_local_datetime(Time, TZ, false),
+    IsDst = is_dst(DateTime, G),
+    {TZ, IsDst}.
+
+%% -----------------------------------------------------------------------------
 
 adjust_secs1970_to_tz_dst(Time, TzH, Dst) ->
     Time + (TzH + if Dst -> 1; true -> 0 end) * ?HourSecs.
@@ -87,57 +112,64 @@ calculate_phase(ThId, Time) when is_integer(ThId) ->
         [] -> false
     end;
 calculate_phase(Game, Time) ->
-    if Time > element(3, hd(Game#mafia_game.deadlines)) ->
-            Game2 = add_deadlines(Game),
-            mnesia:dirty_write(Game2);
-       true ->
-            Game2 = Game
-    end,
+    Game2 = if Game#mafia_game.game_end == undefined,
+               Time > element(3, hd(Game#mafia_game.deadlines)) ->
+                    Game1 = add_deadlines(Game),
+                    mnesia:dirty_write(Game1),
+                    Game1;
+               true ->
+                    Game
+            end,
     DLs = Game2#mafia_game.deadlines,
-    {Num, DN,_} =
-        lists:last(
-          lists:takewhile(
-            fun({_,_,DLTime}) -> DLTime > Time end,
-            DLs)),
-    {Num, DN}.
+    DLsAfterTime =
+        lists:takewhile(fun({_, _, DLTime}) -> DLTime >= Time end, DLs),
+    case DLsAfterTime of
+        [] -> ?game_ended;
+        _ ->
+            {Num, DN,_} = lists:last(DLsAfterTime),
+            {Num, DN}
+    end.
 
 %% and it should also update the game in mnesia with it.
 update_deadlines(ThId) ->
     case rgame(ThId) of
         [] -> [];
         [#mafia_game{} = G] ->
-            NewDLs = calc_deadlines(G),
+            NewDLs = expand_deadlines(G),
             mnesia:dirty_write(G#mafia_game{deadlines = NewDLs}),
             NewDLs
     end.
 
+initial_deadlines(MGame) ->
+    add_deadlines(MGame#mafia_game{deadlines = []}).
+
 add_deadlines(MGame) ->
-    MGame#mafia_game{deadlines = calc_deadlines(MGame)}.
+    MGame#mafia_game{deadlines = expand_deadlines(MGame)}.
 
 %% -----------------------------------------------------------------------------
 %% @doc Return an expanded list of deadlines in reversed order
--spec calc_deadlines(ThId :: integer() | #mafia_game{})
+-spec expand_deadlines(ThId :: integer() | #mafia_game{})
                     -> NewDLs :: [deadline()].
-calc_deadlines(ThId) when is_integer(ThId) ->
+expand_deadlines(ThId) when is_integer(ThId) ->
     case rgame(ThId) of
         [] -> ignore;
         [#mafia_game{} = G] ->
-            calc_deadlines(G)
+            expand_deadlines(G)
     end;
-calc_deadlines(G) ->
+expand_deadlines(G) ->
     DLsIn = G#mafia_game.deadlines,
     FirstNewPh = if DLsIn == [] -> {1, ?day};
                     true -> inc_phase(hd(DLsIn))
                  end,
     TargetTime = utc_secs1970() + 7 * ?DaySecs,
-    calc_deadlinesI(G, TargetTime, [], calc_one_deadlineI(FirstNewPh, G)).
+    expand_deadlinesI(G, TargetTime, DLsIn, calc_one_deadlineI(FirstNewPh, G)).
 
-calc_deadlinesI(_G, TargetTime, Dls, Dl = {_, _, Time})
+expand_deadlinesI(_G, TargetTime, Dls, Dl = {_, _, Time})
   when Time > TargetTime ->
     [Dl|Dls];
-calc_deadlinesI(G, TargetTime, Dls, Dl) ->
+expand_deadlinesI(G, TargetTime, Dls, Dl) ->
     Ph = inc_phase(Dl),
-    calc_deadlinesI(G, TargetTime, [Dl|Dls], calc_one_deadlineI(Ph, G)).
+    expand_deadlinesI(G, TargetTime, [Dl|Dls], calc_one_deadlineI(Ph, G)).
 
 -spec calc_one_deadlineI({Num :: integer(),
                      DayNight::day_night()},
@@ -243,7 +275,7 @@ end_game(M, G, false) ->
     DLs3 = [{DNum, DoN, EndTime} | DLs2],
     mnesia:dirty_write(G#mafia_game{deadlines = DLs3,
                                     game_end = {EndTime, MsgId}}),
-    game_ended;
+    ?game_ended;
 end_game(_, _, _) ->
     already_game_ended.
 
@@ -378,6 +410,8 @@ timer_minutes() ->
     ThId = getv(thread_id),
     case nearest_deadline(ThId) of
         none -> none;
+        {RelTimeSecs, ?game_ended} ->
+            t_mins(?game_ended, RelTimeSecs);
         {RelTimeSecs, {_, DoN, _}} ->
             t_mins(DoN, RelTimeSecs)
     end.
@@ -394,7 +428,12 @@ t_mins(?day, T) when T >= ?m2s(20) -> 10;
 t_mins(?night, T) when T < ?m2s(-20) -> 10;
 t_mins(?night, T) when T < ?m2s(10) -> 2;
 t_mins(?night, T) when T < ?m2s(90) -> 4;
-t_mins(?night, T) when T >= ?m2s(90) -> 10.
+t_mins(?night, T) when T >= ?m2s(90) -> 10;
+%%  Game has ended
+t_mins(?game_ended, T) when T < ?m2s(60) -> 10;
+t_mins(?game_ended, T) when T < ?m2s(180) -> 20;
+t_mins(?game_ended, T) when T < ?m2s(24*60) -> 60;
+t_mins(?game_ended, T) when T >= ?m2s(24*60) -> 120.
 
 -spec nearest_deadline(integer() | #mafia_game{})
                       -> none | {integer(), deadline()}.
@@ -411,12 +450,16 @@ nearest_deadline([], _) -> none;
 nearest_deadline([G = #mafia_game{}], Time) ->
     nearest_deadline(G, Time);
 nearest_deadline(G = #mafia_game{}, Time) ->
-    DLs = G#mafia_game.deadlines,
-    {_, TDiff, NearestDL} =
-        hd(lists:sort([{abs(Time - DlTime), Time - DlTime, DL}
-                       || DL = {_, _, DlTime} <- DLs])),
-    {TDiff, NearestDL}.
-
+    case G#mafia_game.game_end of
+        undefined ->
+            DLs = G#mafia_game.deadlines,
+            {_, TDiff, NearestDL} =
+                hd(lists:sort([{abs(Time - DlTime), Time - DlTime, DL}
+                               || DL = {_, _, DlTime} <- DLs])),
+            {TDiff, NearestDL};
+        {EoGTime, _MsgId} ->
+            {Time - EoGTime, ?game_ended}
+    end.
 
 %% -------------------------------------------------
 

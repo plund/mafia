@@ -20,7 +20,8 @@
          grep/1, grep/2,
          iterate_all_msgs/2,
          iterate_all_msg_ids/3,
-         manual_cmd_to_file/2
+         manual_cmd_to_file/2,
+         manual_cmd_from_file/2
         ]).
 
 -import(mafia,
@@ -76,30 +77,47 @@ refresh_messages() ->
     refresh_votes().
 
 refresh_votes() ->
-    mnesia:clear_table(mafia_day),
-    ThId = getv(thread_id),
-    refresh_votes(ThId, rgame(ThId), all, soft).
+    refresh_votesI(soft).
 
-refresh_votes(EndPage) ->
+refresh_votes(hard) ->
+    refresh_votesI(hard);
+refresh_votes(EndPage) when is_integer(EndPage) ->
     mnesia:clear_table(mafia_day),
     ThId = getv(thread_id),
     Filter = fun(Page) -> Page =< EndPage end,
     refresh_votes(ThId, rgame(ThId), Filter, soft).
 
+refresh_votesI(Mode) ->
+    mnesia:clear_table(mafia_day),
+    ThId = getv(thread_id),
+    refresh_votes(ThId, rgame(ThId), all, Mode).
+
 refresh_votes(_ThId, [], _F, _Method) -> ok;
 refresh_votes(ThId, [G], Filter, Method) ->
-    G2 = if Method == soft ->
-                 G#mafia_game{
+    if Method == soft ->
+            G2 = G#mafia_game{
                    players_rem = G#mafia_game.players_orig,
                    player_deaths = [D#death{is_deleted = true}
                                     || D <- G#mafia_game.player_deaths]
-                  };
-            Method == hard ->
-                 G#mafia_game{players_rem = G#mafia_game.players_orig,
-                              player_deaths = []}
-         end,
-    mnesia:dirty_write(G2),
-    iterate_all_msg_ids(ThId, fun mafia_vote:check_for_vote/1, Filter),
+                  },
+            mnesia:dirty_write(G2);
+       Method == hard ->
+            %% Reinitialize the game table
+            mafia_db:write_default_table(game, ThId)
+    end,
+    Cmds = case file:consult(cmd_filename(ThId)) of
+               {ok, CmdsOnFile} -> [C || C = #cmd{} <- CmdsOnFile];
+               _ -> []
+           end,
+    MsgIdFun =
+        fun(MsgId) ->
+                mafia_vote:check_for_vote(MsgId),
+                [erlang:apply(M, F, A) || #cmd{msg_id = MId,
+                                               mfa = {M, F, A}} <- Cmds,
+                                          MId == MsgId]
+        end,
+    iterate_all_msg_ids(ThId, MsgIdFun, Filter),
+
     Pages = lists:sort(mafia:find_pages_for_thread(ThId)),
     "Thread " ++ i2l(ThId) ++ "; Pages: " ++
         string:join([i2l(P) || P <- Pages],",").
@@ -401,7 +419,7 @@ manual_cmd_to_file(ThId, Cmd) ->
     FN = cmd_filename(ThId),
     DoAppend =
         case file:consult(FN) of
-            {error,enoent} -> true;
+            {error, enoent} -> true;
             {ok, CmdsOnFile} ->
                 not lists:member(Cmd, CmdsOnFile)
         end,
@@ -410,6 +428,21 @@ manual_cmd_to_file(ThId, Cmd) ->
             io:format(Fd, "~999p.\n", [Cmd]),
             file:close(Fd);
        not DoAppend -> ok
+    end.
+
+manual_cmd_from_file(ThId, Cmd) ->
+    FN = cmd_filename(ThId),
+    case file:consult(FN) of
+        {error, enoent} -> true;
+        {ok, CmdsOnFile} ->
+            NewCmds = CmdsOnFile -- [Cmd],
+            if NewCmds /= CmdsOnFile ->
+                    NewCmdsSorted = lists:keysort(#cmd.msg_id, NewCmds),
+                    {ok, Fd} = file:open(FN, [write]),
+                    [io:format(Fd, "~999p.\n", [C]) || C <- NewCmdsSorted],
+                    file:close(Fd);
+               true -> ok
+            end
     end.
 
 %% -----------------------------------------------------------------------------

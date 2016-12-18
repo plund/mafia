@@ -1,6 +1,7 @@
 -define(kv_store, kv_store).
 -define(day  , day__).
 -define(night, night).
+-define(game_ended, game_ended).
 -define(verified, verified).
 -define(unverified, unverified).
 
@@ -63,7 +64,7 @@
 -type seconds1970() :: integer().
 -type message() :: binary().
 -type day_night() :: ?day | ?night.
--type phase() :: {integer(), day_night()}.
+-type phase() :: ?game_ended | {integer(), day_night()}.
 -type deadline() :: {integer(), day_night(), seconds1970()}.
 
 -record(s,
@@ -166,5 +167,6 @@
 
 -record(cmd,
         { time :: seconds1970(),
+          msg_id :: msg_id(),
           mfa :: mfa()
         }).

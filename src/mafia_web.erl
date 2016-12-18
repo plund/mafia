@@ -22,7 +22,7 @@
          stop_httpd/1,
 
          get_state/0,
-         regenerate_history/1  % not used very much
+         regenerate_history/1  % used to print txt files when refresh_votes
         ]).
 
 %% web
@@ -349,20 +349,28 @@ msg_search_result(Sid, _Env, In) ->
     {_, DayNumText} = lists:keyfind("day numbers", 1, PQ),
     DayCond =
         try
-            case string:tokens(DayNumText, "-") of
-                [LoStr, HiStr] ->
-                    {list_to_integer(string:strip(LoStr)),
-                     list_to_integer(string:strip(HiStr))};
-                [Str] ->
-                    Num = list_to_integer(string:strip(Str)),
-                    {Num, Num};
-                _ -> all
+            case l2u(DayNumText) of
+                "END" ++ _ -> ?game_ended;
+                _ ->
+                    case string:tokens(DayNumText, "-") of
+                        [LoStr, HiStr] ->
+                            {list_to_integer(string:strip(LoStr)),
+                             list_to_integer(string:strip(HiStr))};
+                        [Str] ->
+                            Num = list_to_integer(string:strip(Str)),
+                            {Num, Num};
+                        _ -> all
+                    end
             end
         catch _:_ -> all
         end,
     UsersU = find_word_searches(UsersText),
     WordsU = find_word_searches(WordsText),
-    IsDayCondSingle = case DayCond of {DNumC, DNumC} -> true; _ -> false end,
+    IsDayCondSingle = case DayCond of
+                          {DNumC, DNumC} -> true;
+                          ?game_ended -> true;
+                          _ -> false
+                      end,
     IsWordCond = WordsU /= [],
     IsUserCond = UsersU /= [],
     DoCont = IsUserCond orelse IsWordCond orelse IsDayCondSingle,
@@ -373,7 +381,7 @@ msg_search_result(Sid, _Env, In) ->
                      time = Time,
                      message = MsgB},
             Acc) ->
-                {DNum, DoN} = mafia_time:calculate_phase(ThId, Time),
+                MsgPhase = mafia_time:calculate_phase(ThId, Time),
                 Msg = b2l(MsgB),
                 TestFuns =
                     [
@@ -399,9 +407,10 @@ msg_search_result(Sid, _Env, In) ->
 
                      %% 3. Test Day
                      fun() ->
-                             case DayCond of
-                                 all -> true;
-                                 {NLo, NHi}
+                             case {DayCond, MsgPhase} of
+                                 {all, _} -> true;
+                                 {?game_ended, ?game_ended} -> true;
+                                 {{NLo, NHi}, {DNum, _DoN}}
                                    when NLo =< DNum,
                                         DNum =< NHi -> true;
                                  _ -> false
@@ -409,17 +418,11 @@ msg_search_result(Sid, _Env, In) ->
                      end],
                 AllTestsOk = lists:all(fun(F) -> F() end, TestFuns),
                 if AllTestsOk ->
-                        DayStr = case DoN of
-                                     ?day -> "D";
-                                     ?night -> "N"
-                                 end
-                            ++ i2l(DNum),
-                        MsgBr = lists:foldr(
-                                  fun($\n, Acc2) -> "<br>" ++ Acc2;
-                                     (Ch, Acc2) -> [Ch | Acc2]
-                                  end,
-                                  "",
-                                  Msg),
+                        DayStr = case MsgPhase of
+                                     {DNum, ?day} -> "D" ++ i2l(DNum);
+                                     {DNum, ?night} -> "N" ++ i2l(DNum);
+                                     ?game_ended -> "EoG"
+                                 end,
                         Hash = erlang:phash2(UserB, 16#1000000),
                         Color = Hash bor 16#C0C0C0,
                         ColorStr = integer_to_list(Color, 16),
@@ -428,7 +431,7 @@ msg_search_result(Sid, _Env, In) ->
                                     "\"><td valign=\"top\">", UserB, "<br>",
                                     "Time: ", p(HH), ":", p(MM),
                                     "<br> p", i2l(PageNum), ", ", DayStr,
-                                    "</td><td valign=\"top\">", MsgBr,
+                                    "</td><td valign=\"top\">", Msg,
                                     "</td></tr>\r\n"]),
                         mod_esi:deliver(Sid, OutB),
                         Acc + size(OutB);

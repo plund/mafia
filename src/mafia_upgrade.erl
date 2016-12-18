@@ -5,6 +5,7 @@
 -export([
          upgrade/0,
          update_db_attributes/0,
+         update_db_attributes/1,
          fix_deaths_in_games/0,
 
          get_aliases/1,
@@ -44,9 +45,14 @@ fix_deaths_in_games() ->
 %% Change to players_mafia_game attribute list, 161211
 %% -----------------------------------------------------------------------------
 update_db_attributes() ->
+    update_db_attributes(mafia_game),
+    update_db_attributes(mafia_day).
+
+update_db_attributes(mafia_game) ->
     mnesia:transform_table(mafia_game,
                            ignore,
-                           record_info(fields, mafia_game)),
+                           record_info(fields, mafia_game));
+update_db_attributes(mafia_day) ->
     mnesia:transform_table(mafia_day,
                            ignore,
                            record_info(fields, mafia_day)).

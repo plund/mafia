@@ -6,6 +6,7 @@
 %% - Some new mafia_web code should probably be elsewhere
 %% - Use new DL calc and remove old calculation
 %% ***** - define deadline() :: {phase(), secs1970()} and change at all places.
+%% - refresh_mafia HARD - clean all mnesia - delete schema - startup from files
 %%    - make proper interface fun for deadline() -> phase().
 %% - Fix proper server on lundata - start at MacOS reboot
 %% - fix a better player name recognition

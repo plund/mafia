@@ -376,19 +376,25 @@ msg_search_result(Sid, _Env, In) ->
     DoCont = IsUserCond orelse IsWordCond orelse IsDayCondSingle,
     Fun =
         fun(acc, init) -> 0;
-           (#message{user_name = UserB,
+           (#message{user_name = MsgUserB,
                      page_num = PageNum,
                      time = Time,
                      message = MsgB},
             Acc) ->
                 MsgPhase = mafia_time:calculate_phase(ThId, Time),
                 Msg = b2l(MsgB),
+                B2U = fun(B) -> string:to_upper(binary_to_list(B)) end,
+                MsgUserU = B2U(MsgUserB),
                 TestFuns =
                     [
-                     %% 1. Test UserB only if UsersU /= []
+                     %% 1. Test if any of Users in form matches MsgUser
                      fun() ->
                              UsersU == [] orelse
-                                 lists:member(b2ul(UserB), UsersU)
+                                 lists:any(
+                                   fun(UserU) ->
+                                           0 /= string:str(MsgUserU, UserU)
+                                   end,
+                                   UsersU)
                      end,
 
                      %% 2. Test Words with ANY instead of all
@@ -423,12 +429,12 @@ msg_search_result(Sid, _Env, In) ->
                                      {DNum, ?night} -> "N" ++ i2l(DNum);
                                      ?game_ended -> "EoG"
                                  end,
-                        Hash = erlang:phash2(UserB, 16#1000000),
+                        Hash = erlang:phash2(MsgUserB, 16#1000000),
                         Color = Hash bor 16#C0C0C0,
                         ColorStr = integer_to_list(Color, 16),
                         {HH, MM} = mafia_time:hh_mm_to_deadline(ThId, Time),
                         OutB = l2b(["<tr bgcolor=\"#", ColorStr,
-                                    "\"><td valign=\"top\">", UserB, "<br>",
+                                    "\"><td valign=\"top\">", MsgUserB, "<br>",
                                     "Time: ", p(HH), ":", p(MM),
                                     "<br> p", i2l(PageNum), ", ", DayStr,
                                     "</td><td valign=\"top\">", Msg,

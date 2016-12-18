@@ -2,7 +2,6 @@
 
 -include("mafia.hrl").
 %% ToDo:
-%% - Easier seaches on player ids!!!
 %% - Some new mafia_web code should probably be elsewhere
 %% - Use new DL calc and remove old calculation
 %% ***** - define deadline() :: {phase(), secs1970()} and change at all places.

@@ -6,58 +6,70 @@
   </head>
   <body bgcolor="#cfffaf">
     <center>
-      <h1>Mafia GM Commands</h1>
+        <h1>Mafia GM Commands</h1>
       <table cellspan="10" width="800" border="1">
         <tr>
-          <td><b>GM Command</b></td>
-          <td><b>Effect on the Mafia tracker bot</b></td>
+          <td><font size="-1"><b>GM Command</b></font></td>
+          <td><font size="-1"><b>Effect on the Mafia tracker bot</b></font></td>
         </tr>
         <tr>
-          <td valign="top">
+          <td valign="top"><font size="-1">
             PLAYER ... DIED<br>
             PLAYER ... DEAD<br>
             PLAYER ... BEEN LYNCHED<br>
-          </td>
-          <td valign="top">
+            <br>
+            <i>Recommended continuation of the previous line:</i><br>
+            He was ...<br>
+            She was ...<br>
+          </font></td>
+          <td valign="top"><font size="-0">
             The bot considers a PLAYER as DEAD when it sees a
             <b>correctly spelled</b> player name on one line in a GM
             message and one of "DIED", "DEAD" or "BEEN LYNCHED" later
             on the same line. The 3 "..." means that there may be other
             words in this position.
             <p>
-              <b>Method</b><br>
-              1. Bot search for any of "DIED", "DEAD" or "BEEN LYNCHED" in GM
-              messages.<br>
-              2. Bot tries to find a <b>correctly spelled</b> player name
-              before on the same line and sentence (case does not matter).
-          </td>
-        </tr>
-        <tr>
-          <td valign="top">
-            DAY&nbsp;...&nbsp;HAS&nbsp;BEGUN<br>
-            NIGHT&nbsp;...&nbsp;HAS&nbsp;BEGUN<br>
-            DAY&nbsp;...&nbsp;HAS&nbsp;ENDED<br>
-            NIGHT&nbsp;...&nbsp;HAS&nbsp;ENDED
-          </td>
-          <td valign="top">
-            The bot ends the current phase by moving the deadline of the
-            current phase to the time of the GM message containing this text.
-            The deadline times for later phases are <b>not changed</b>
+              Continue the line with "He/she was" and the bot will present
+              this GM death comment on the status pages.
+              If "He/she was" is missing the full line will be presented as
+              the GM death comment.
             <p>
               <b>Method</b><br>
-              1. Bot search for "HAS ENDED" and for "HAS BEGUN" in GM messages.
+              1. Bot search for any of "DIED", "DEAD" or "BEEN LYNCHED" in GM
+              messages.
               <br>
-              2. Bot verfies that "DAY" or "NIGHT" can be found earlier on the
-              line. (but it ignores if this text does not match the current
-              phase type)
-          </td>
+              2. Bot tries to find a <b>correctly spelled</b> player name
+              before on the same line and sentence (case does not matter).
+              <br>
+              3. Bot tries to find "He/She was" after the "DIED" word on the
+              same line. If found the remaining of the line will be used as
+              the GM death comment. If not found the whole line will be used.
+          </font></td>
         </tr>
         <tr>
-          <td valign="top">
+          <td valign="top"><font size="-1">
+            DAY&nbsp;...&nbsp;HAS&nbsp;ENDED&nbsp;EARLY<br>
+            NIGHT&nbsp;...&nbsp;HAS&nbsp;ENDED&nbsp;EARLY<br>
+          </font></td>
+          <td valign="top"><font size="-0">
+            The bot ends the current phase and start next phase.
+            Later deadlines for upcoming phases are <b>not moved</b> in time
+            due to this GM command.
+            <p>
+              <b>Method</b><br>
+              1. Bot search for "ENDED EARLY"
+              <br>
+              2. Bot verfies that "DAY" or "NIGHT" can be found earlier on the
+              same line and that it matches the current phase type.
+              (if it finds "day" when it is night the phase will not end)
+          </font></td>
+        </tr>
+        <tr>
+          <td valign="top"><font size="-1">
             DEADLINE&nbsp;...&nbsp;MOVED&nbsp;24H&nbsp;LATER<br>
             DEADLINE&nbsp;...&nbsp;MOVED&nbsp;24H&nbsp;EARLIER
-          </td>
-          <td valign="top">
+          </font></td>
+          <td valign="top"><font size="-0">
             The bot moves the deadline time of the current phase earlier or
             later with the number of hours given.
             <p>
@@ -66,26 +78,34 @@
               2. Bot search for "LATER" or "EARLIER" after on same line<br>
               3. Before on the same line the bot will look for the number of
               hours
-          </td>
+          </font></td>
         </tr>
         <tr>
-          <td valign="top">
-            GAME HAS ENDED</td>
-          <td valign="top">
-            The bot put the game into phase end of game</td>
+          <td valign="top"><font size="-1">
+            GAME HAS ENDED</font></td>
+          <td valign="top"><font size="-0">
+              The bot put the game into phase end of game. The bot change its
+              presentation to the end of game version of the current_vote page.
+              This GM message where "GAME HAS ENDED" if found will be
+              included as well as the game global posting statistics.
+          </font></td>
         </tr>
         <tr>
           <td colspan="2">
             <p>
               <b>Notes:</b>
               <p>
-              - Upper or lower case does not matter. The bots converts all text
-              to upper case before it starts looking for GM commands.
+                - Upper or lower case does not matter. The bots converts all text
+                to upper case before it starts looking for GM commands.
               <p>
-              - Before each game the bot is told which player ids the GMs have
-              and which thread that is the game thread. The bot will look for
-              GM commands in everything written by any GM in the game thread.
-          </td>
+                - Before each game the bot is told which player ids the GMs have
+                and which thread that is the game thread. The bot will look for
+                GM commands in everything written by any GM in the game thread.
+              <p>
+                - The bot is also told about who is playing the game and if
+                there are any DST changes coming up for the game.
+                The game normally follows the DST changes of he main GM's timezone.
+          </font></td>
         </tr>
       </table>
     </center>

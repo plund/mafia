@@ -580,23 +580,83 @@ del_end(Sid) ->
     size(l2b(?RES_END)).
 
 %% http://mafia_test.peterlund.se/esi/mafia_web/vote_tracker?day_phase=1
+%% http://mafia_test.peterlund.se/esi/mafia_web/vote_tracker?msg_id=1420335
 vote_tracker(Sid, _Env, In) ->
     PQ = httpd:parse_query(In),
-    [RK, VT] = case lists:keyfind("day_phase", 1,  PQ) of
-                 false -> ["day_phase not found", ""];
-                 {_, Str} ->
-                     try
-                         DayNum = list_to_integer(Str),
-                         mafia_print:web_vote_tracker(DayNum)
-                     catch _:_ ->
-                             ["was not able to convert to integer", ""]
-                     end
-               end,
-    %% mod_esi:deliver(Sid, ["Content-type: text/html\r\n",
-    %%                       "\r\n"]),
-    _A = del_start(Sid, "Vote Tracker", 0),
-    MsgB = l2b(["<tr><td>", RK, "</td></tr>",
-                "<tr><td>", VT, "</td></tr>"
-               ]),
-    mod_esi:deliver(Sid, MsgB),
+    case vote_tracker2(lists:keyfind("day_phase", 1,  PQ),
+                       lists:keyfind("msg_id", 1,  PQ)) of
+        {tracker, Out} ->
+            _A = del_start(Sid, "Vote Tracker", 0);
+        {error, Out} ->
+            TimeStr = mafia_print:print_time(current_time, short),
+            io:format("~s Vote tracker error ~s\n", [TimeStr, Out]),
+            _A = del_start(Sid, "Vote Tracker Error", 1);
+        Out ->
+            _A = del_start(Sid, "Vote Message", 1)
+    end,
+    mod_esi:deliver(Sid, Out),
     _C = del_end(Sid).
+
+vote_tracker2({"day_phase", Str},
+              _) ->
+    try
+        DayNum = list_to_integer(Str),
+        [RK, VT] = mafia_print:web_vote_tracker(DayNum),
+        Out =
+            {tracker, l2b(["<tr><td>", RK, "</td></tr>",
+                           "<tr><td>", VT, "</td></tr>"
+                          ])},
+        TimeStr = mafia_print:print_time(current_time, short),
+        io:format("~s Vote tracker day ~s\n", [TimeStr, Str]),
+        Out
+    catch _:_ ->
+            {error,
+             "<tr><td>"
+             "Was not able to convert day_phase value to integer"
+             "</td></tr>"}
+    end;
+vote_tracker2(?false,
+              {"msg_id", Str}) ->
+    try
+        MsgId = list_to_integer(Str),
+        Out = show_msg(MsgId),
+        TimeStr = mafia_print:print_time(current_time, short),
+        io:format("~s Vote Message ~s\n", [TimeStr, Str]),
+        Out
+    catch _:_ ->
+            {error,
+             "<tr><td>"
+             "Was not able to convert msg_id value to integer"
+             "</td></tr>"}
+    end;
+vote_tracker2(?false,
+              ?false) ->
+    {error,
+     "<tr><td>bad_request</td></tr>"}.
+
+show_msg(MsgId) when is_integer(MsgId) ->
+    show_msg(mafia:rmess(MsgId));
+
+show_msg([]) -> "<tr><td>No message found with this id</td></tr>";
+show_msg([#message{user_name = MsgUserB,
+                   page_num = PageNum,
+                   time = Time,
+                   message = MsgB}]) ->
+    GameKey = getv(?game_key),
+    MsgPhase = mafia_time:calculate_phase(GameKey, Time),
+    DayStr = case MsgPhase of
+                 {DNum, ?day} -> "Day-" ++ i2l(DNum);
+                 {DNum, ?night} -> "Night-" ++ i2l(DNum);
+                 ?game_ended -> "Game End "
+             end,
+    Hash = erlang:phash2(MsgUserB, 16#1000000),
+    Color = Hash bor 16#C0C0C0,
+    ColorStr = integer_to_list(Color, 16),
+    {HH, MM} = mafia_time:hh_mm_to_deadline(GameKey, Time),
+    l2b(["<tr bgcolor=\"#", ColorStr,
+         "\"><td valign=\"top\"><b>", MsgUserB,
+         "</b><br>",
+         DayStr, " ", p(HH), ":", p(MM),
+         "<br> page ", i2l(PageNum),
+         "</td><td valign=\"top\">", MsgB,
+         "</td></tr>\r\n"]).

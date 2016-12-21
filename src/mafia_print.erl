@@ -530,7 +530,7 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                        end
               end,
     Users = [b2l(UserB) || UserB <- AllPlayersB],
-    IterVotes = [{User, "---"} || User <- Users],
+    IterVotes = [{User, "---", ""} || User <- Users],
     FmtVoter = "Voter ~s\n",
     FmtTime = "Time  ~s\n",
     Head =
@@ -558,16 +558,18 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
           fun({User, V = #vote{}}, {IVs, Html}) ->
                   {NewIVs, PrIVs} =
                       if V#vote.valid ->
-                              NewVote = PrAbbrF(b2l(V#vote.vote)),
+                              VFull = b2l(V#vote.vote),
+                              NewVote = PrAbbrF(VFull),
                               IVs2 =
                                   lists:keyreplace(User, 1, IVs,
-                                                   {User, NewVote}),
+                                                   {User, NewVote, VFull}),
                               {IVs2, IVs2};
                          not V#vote.valid ->
+                              VFull =  "INVALID",
                               NewVote =  "INV",
                               IVs2 =
                                   lists:keyreplace(User, 1, IVs,
-                                                   {User, NewVote}),
+                                                   {User, NewVote, VFull}),
                               {IVs, IVs2}
                       end,
                   TimeStr = print_time_5d(PP#pp.game, V#vote.time),
@@ -583,12 +585,12 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                           {NewIVs,
                            [Html|
                             ["<tr>",
-                             "<td", bgcolor(PrAbbrF(User)), "align=\"right\">",
+                             "<td", bgcolor(User), "align=\"right\">",
                              ?Font, User, "</font></td>",
                              "<td ", ?TdAttrs, ">", ?Font, TimeStr, "</font></td>",
                              pr_ivs_vote_html(PrIVs, User, V#vote.id),
                              "<td ", ?TdAttrs, ">", ?Font, TimeStr, "</font></td>",
-                             "<td", bgcolor(PrAbbrF(User)), "align=\"left\"",
+                             "<td", bgcolor(User), "align=\"left\"",
                              ?TdAttrs, ">", ?Font, User, "</font></td>",
                              "</tr>\r\n"]]}
                   end
@@ -666,27 +668,27 @@ prk_html(PP, Abbrs) ->
     NumPrint = if NumAbbr >= ?ReadKeyCols -> ?ReadKeyCols; true -> NumAbbr end,
     AbbrsPrint = string:substr(Abbrs, 1, NumPrint),
     AbbrsRem = lists:nthtail(NumPrint, Abbrs),
-    [["<tr>", [["<td", bgcolor(A), ">",A, " = ", Pl,"</td>"]
+    [["<tr>", [["<td", bgcolor(Pl), ">",A, " = ", Pl,"</td>"]
                || {_, Pl, A, _} <- AbbrsPrint],
       "</tr>\r\n"]
      | prk_html(PP, AbbrsRem)].
 
 pr_ivs_user_html(IVs, A) ->
-    [["<th", bgcolor(A(U)), ">", A(U), "</th>"] || {U, _V} <- IVs].
+    [["<th", bgcolor(U), ">", A(U), "</th>"] || {U, _V, _} <- IVs].
 
 pr_ivs_user(IVs, A) ->
-    string:join([A(U) || {U, _V} <- IVs], " ").
+    string:join([A(U) || {U, _V, _} <- IVs], " ").
 
 pr_ivs_vote_html(IVs, User, MsgId) ->
     [if U == User ->
-             ["<td", bgcolor(V), " ", ?TdAttrs, ">",
+             ["<td", bgcolor(VF), " ", ?TdAttrs, ">",
               ?Font, "<b><a href=\"?msg_id=", i2l(MsgId), "\">",
               V, "</a></b></font>"
               "</td>"];
         true ->
-             ["<td", bgcolor(V), " ", ?TdAttrs, ">", ?Font, V, "</font></td>"]
+             ["<td", bgcolor(VF), " ", ?TdAttrs, ">", ?Font, V, "</font></td>"]
      end
-     || {U, V} <- IVs].
+     || {U, V, VF} <- IVs].
 
 bgcolor(Str) when is_list(Str) ->
     bgcolor(l2b(Str));
@@ -701,17 +703,17 @@ pr_ivs_vote(IVs, User) ->
 pr_ivs_vote([], _User, Acc) ->
     Acc;
 %% Second last matches
-pr_ivs_vote([{U, V}, {_, V2}], User, Acc) when U == User ->
+pr_ivs_vote([{U, V, _}, {_, V2, _}], User, Acc) when U == User ->
     pr_ivs_vote([], User, Acc ++ "["++l2u(V)++"]" ++ V2 ++ " ");
 %% Last matches
-pr_ivs_vote([{U, V}], User, Acc) when U == User ->
+pr_ivs_vote([{U, V, _}], User, Acc) when U == User ->
     pr_ivs_vote([], User, Acc ++ "["++l2u(V)++"]");
 %% Match
-pr_ivs_vote([{U, V}, {_, V2} | T], User, Acc) when U == User ->
+pr_ivs_vote([{U, V, _}, {_, V2, _} | T], User, Acc) when U == User ->
     pr_ivs_vote(T, User, Acc ++ "["++l2u(V)++"]"++V2);
-pr_ivs_vote([{_, V}], User, Acc) ->
+pr_ivs_vote([{_, V, _ }], User, Acc) ->
     pr_ivs_vote([], User, Acc ++ " "++ V ++" ");
-pr_ivs_vote([{_, V} | T], User, Acc) ->
+pr_ivs_vote([{_, V, _} | T], User, Acc) ->
     pr_ivs_vote(T, User, Acc ++ " " ++ V).
 
 %% -----------------------------------------------------------------------------

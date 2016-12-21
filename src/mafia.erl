@@ -73,6 +73,7 @@
          rgame/0,
          rgame/1,
          rday/2,
+         rmess/1,
 
          b2l/1,
          l2b/1,

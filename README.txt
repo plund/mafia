@@ -1,3 +1,48 @@
+%% Vash/Meme wrote in M25:
+%% D1   "THE DAY HAS BEGUN" at game start
+
+%% EoD1  MANIAC HAS DIED! He was Gene "Malice" Thornton, A REGULAR RAPPER!
+%%    EZIO HAS DIED! He was Terrence "Pusha T" Thornton, A REGULAR RAPPER!
+%%    THE DAY HAS BEGUN!
+
+%% EoN1 XORXES has DIED! He was KANYE WEST the FIRE SPITTER!
+%%    NIGHT HAS BEGUN!
+
+%% EoD2 GLEN_ALEXANDER HAS DIED! He was KENDRICK LAMAR, A REGULAR RAPPER!
+%% NIGHT HAS BEGUN!
+
+%% EoN2 GHUG HAS DIED! He was BIG SEAN! A REGULAR RAPPER!
+%% THE DAY HAS BEGUN
+
+%% Day3 Soon after, A SHOT RANG OUT and JAMIET99UK fell to the ground dead, He was BASEDGODFATHER! THE LEADER OF THE MAFIA!
+
+%% PROBLEM here! no "He was"
+%% EoD3 WARDENDRESDEN, also known as RICK ROSS, the REGULAR RAPPER, has been lynched!
+%% Night 3 has begun.
+
+%% EoN3 DEMONOVERLORD HAS DIED! She was DRAKE! A BELOW AVERAGE RAPPER! (or I guess regular for the sake of the game)
+%% THE DAY HAS BEGUN
+
+%% EoD4 ZORCLEX HAS DIED! He was JAY Z, A REGULAR RAPPER!
+%% NIGHT HAS BEGUN
+
+%% EoN4 NO ONE DIED LAST NIGHT!
+%% DAY HAS BEGUN!
+
+%% Problem again! no "He was"
+%% Day5 A SHOT RINGS OUT AND CHAQA, A TASK FORCE MEMBERS FALL DEAD!
+
+%% EoD5 GUAK HAS DIED! HE WAS BIGGIE SMALLS, THE HYPNOTIZER!
+%% NIGHT HAS BEGUN
+
+%% EoN5 No one died last night!
+%% THE DAY HAS BEGUN
+
+%% THE GAME HAS ENDED! TOWN WINS!
+%% THANK YOU ALL FOR PLAYING!
+
+
+
 18Dec
 mafia:set_death_comment(1421744, "xorxes", "He was KANYE WEST the FIRE SPITTER!").
 mafia:set_death_comment(1422226, "Maniac", "He was Gene \"Malice\" Thornton, A REGULAR RAPPER!").

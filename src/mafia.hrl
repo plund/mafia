@@ -1,9 +1,33 @@
+-define(true, true).
+-define(false, false).
+
 -define(kv_store, kv_store).
 -define(day  , day__).
 -define(night, night).
+-define(phase, phase).
 -define(game_ended, game_ended).
 -define(verified, verified).
 -define(unverified, unverified).
+
+-define(dev, dev).
+-define(utc, utc).
+-define(gmt, gmt).
+-define(zulu, zulu).
+-define(user, user).
+-define(game, game).
+-define(time, time).
+-define(mode, mode).
+-define(period, period).
+
+%% KV keys
+-define(thread_id, thread_id).
+-define(game_key, game_key).
+-define(page_to_read, page_to_read).
+-define(timezone_user, timezone_user).
+-define(dst_user, dst_user).
+-define(timezone_game, timezone_game).
+-define(dst_game, dst_game).
+-define(print_time, print_time).
 
 -define(GSECS_1970, 62167219200).
 -define(GDAYS_1970, 719528).
@@ -25,7 +49,8 @@
 -define(Unvote, "Unvote").
 -define(END, "End").
 -define(UNEND, "Unend").
--define(Extra, [?END, ?UNEND, "No-Lynch"]).
+-define(NoLynch, "No-Lynch").
+-define(Extra, [?END, ?UNEND, ?NoLynch]).
 -define(M24_GMs, ["DemonRHK", "MoscowFleet"]).
 -define(M24_players,
         ["bo_sox48", "captainmeme", "Chaqa", "dargorygel", "Ezio", "Floodgates",

@@ -1,7 +1,17 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% - change all i2l/1 to ?i2l macro defined in mafia.hrl
+%% - scan sign-up thread to populate user table
+%% - write verify manual fun for names in M26
+%% - Display msgs since last login with a browser (cookie)
+%% - Make sure not to read votes before game start: EoD1 - day length
+%% - be DAY/NIGHT sensitive when reading "Day/night ... has ended early"
 %% ToDo:
+%% - set_death_comment should also register that player as dead.
+%% - check Death announcements by Vash.
+%%     - Can we make that a command INCLUDING Comment?
+%% - EoG same timezone in both times...
 %% - Some new mafia_web code should probably be elsewhere
 %% - Use new DL calc and remove old calculation
 %% ***** - define deadline() :: {phase(), secs1970()} and change at all places.
@@ -10,7 +20,6 @@
 %% - Fix proper server on lundata - start at MacOS reboot
 %% - fix a better player name recognition
 %% - check if abbrev code can loop forever
-%% - print "global" game stats
 %% ?- downl and pps should look similar, Died/Vote messages and deadline markers
 %% - webpage with GM command listing
 %% - GM orders :
@@ -114,7 +123,7 @@ b2ub(B) -> l2b(b2ul(B)).
 
 lrev(L) -> lists:reverse(L).
 
-set(K,V) -> mafia_db:set(K,V).
+set(K, V) -> mafia_db:set(K, V).
 
 getv(K) -> mafia_db:getv(K).
 
@@ -245,7 +254,7 @@ rmess(MsgId) ->
 
 %% Read current game
 rgame() ->
-    ThId = getv(thread_id),
+    ThId = getv(?thread_id),
     rgame(ThId).
 
 rgame(ThId) ->
@@ -303,14 +312,14 @@ verify_new_user_list2(Users) ->
 %% Seems to be unused
 -spec set_thread_id(ThId :: integer())  -> ok.
 set_thread_id(ThId) when is_integer(ThId) ->
-    set(thread_id, ThId),
+    set(?thread_id, ThId),
     PageToRead =
         case find_pages_for_thread(ThId) of
             [] -> 1;
             Pages ->
                 lists:max(Pages)
         end,
-    set(page_to_read, PageToRead),
+    set(?page_to_read, PageToRead),
     ok.
 
 show_settings() ->
@@ -425,7 +434,7 @@ remove_alias(User, Alias) ->
 
 %% No-one seems to use this one.
 cmp_vote_raw() ->
-    ThId = getv(thread_id),
+    ThId = getv(?thread_id),
     DayNum = 1,
     case rday(ThId, DayNum) of
         [] ->

@@ -9,10 +9,11 @@
          secs1970_to_local_datetime/3,
          update_deadlines/1,
          initial_deadlines/1,
+         calculate_phase/1,
          calculate_phase/2,
          nearest_deadline/1,
          nearest_deadline/2,
-         timer_minutes/0,
+         timer_minutes/1,
 
          end_phase/2,
          end_game/1,
@@ -81,20 +82,20 @@ get_next_deadline(#mafia_game{key = _ThId,
 
 -spec get_tz_dst() -> {TZ :: integer(), IsDst :: boolean()}.
 get_tz_dst() ->
-    case getv(print_time) of
-        game -> {getv(timezone_game), getv(dst_game)};
-        user -> {getv(timezone_user), getv(dst_user)};
-        Loc when Loc == utc;
-                 Loc == zulu;
-                 Loc == gmt ->
-            {0, false}
+    case getv(?print_time) of
+        ?game -> {getv(?timezone_game), getv(?dst_game)};
+        ?user -> {getv(?timezone_user), getv(?dst_user)};
+        Loc when Loc == ?utc;
+                 Loc == ?zulu;
+                 Loc == ?gmt ->
+            {0, ?false}
     end.
 
 -spec get_tz_dst(#mafia_game{}, seconds1970())
                 -> {TZ :: integer(), IsDst :: boolean()}.
 get_tz_dst(G = #mafia_game{}, Time) ->
     TZ = G#mafia_game.time_zone,
-    DateTime = secs1970_to_local_datetime(Time, TZ, false),
+    DateTime = secs1970_to_local_datetime(Time, TZ, ?false),
     IsDst = is_dst(DateTime, G),
     {TZ, IsDst}.
 
@@ -106,6 +107,10 @@ adjust_secs1970_to_tz_dst(Time, TzH, Dst) ->
 -spec calculate_phase(Game :: integer() | #mafia_game{},
                       Time :: seconds1970())
                      -> phase().
+calculate_phase(ThId) ->
+    Time = mafia_time:utc_secs1970(),
+    calculate_phase(ThId, Time).
+
 calculate_phase(ThId, Time) when is_integer(ThId) ->
     case rgame(ThId) of
         [G] -> calculate_phase(G, Time);
@@ -404,9 +409,9 @@ utc_secs1970() ->
         - ?GSECS_1970.
 
 
--spec timer_minutes() -> none | integer().
-timer_minutes() ->
-    ThId = getv(thread_id),
+-spec timer_minutes(ThId :: thread_id()) -> none | integer().
+timer_minutes(ThId) ->
+    %% ThId = getv(?thread_id),
     case nearest_deadline(ThId) of
         none -> none;
         {RelTimeSecs, ?game_ended} ->

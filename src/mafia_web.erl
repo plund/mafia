@@ -26,7 +26,7 @@
         ]).
 
 %% web
--export([msg_search_result/3]).
+-export([msg_search_result/3, vote_tracker/3]).
 
 %% deprecated
 -export([set_interval_minutes/1]).
@@ -51,11 +51,13 @@
 -define(SERVER_ROOT, "/Users/peter/httpd/mafia.peterlund.se").
 %% DocumentRoot is relative to running path
 -define(DOC_ROOT, "/Users/peter/httpd/mafia.peterlund.se/html").
+-define(LOG_ROOT, "/Users/peter/httpd/mafia.peterlund.se/logs").
 
 -record(state,
         {timer :: reference(),
          timer_minutes :: integer(),
-         web_pid :: pid()
+         web_pid :: pid(),
+         game_key :: thread_id()
         }).
 
 %%%===================================================================
@@ -125,7 +127,8 @@ regenerate_history(Phase) ->
 %%--------------------------------------------------------------------
 init([]) ->
     mafia:setup_mnesia(),
-    State = start_web(#state{}),
+    GameKey = getv(?game_key),
+    State = start_web(#state{game_key = GameKey}),
     {_Reply, S2} = set_timer_interval(State, 10),
     self() ! do_polling,
     {ok, S2}.
@@ -197,7 +200,9 @@ handle_cast({regenerate_history, {DNum, DoN}}, State) ->
             PhaseFN = Prefix ++ PhStr ++ ".txt",
             FileName = filename:join(?DOC_ROOT, PhaseFN),
             {ok, Fd} = file:open(FileName, [write]),
-            mafia_print:print_votes(DNum, DoN, [{fd, Fd}]),
+            mafia_print:print_votes([{?game_key, State#state.game_key},
+                                     {?phase, {DNum, DoN}},
+                                     {?dev, Fd}]),
             file:close(Fd)
     end,
     {noreply, State};
@@ -221,7 +226,12 @@ handle_info(do_polling, State) ->
     FileName = filename:join(?DOC_ROOT, "current_vote.txt"),
     {_Reply, S2} = maybe_change_timer(State),
     {ok, Fd} = file:open(FileName, [write]),
-    mafia_print:print_votes([{fd, Fd}, {next, S2#state.timer_minutes}]),
+    Phase = mafia_time:calculate_phase(S2#state.game_key),
+    mafia_print:print_votes([{?game_key, S2#state.game_key},
+                             {?phase, Phase},
+                             {?dev, Fd},
+                             {?period, S2#state.timer_minutes}
+                            ]),
     file:close(Fd),
     {noreply, S2};
 handle_info(_Info, State) ->
@@ -260,14 +270,15 @@ start_web(S) ->
     inets:start(),
     maybe_create_dir(?SERVER_ROOT),
     maybe_create_dir(?DOC_ROOT),
+    maybe_create_dir(?LOG_ROOT),
     os:cmd("cp ../priv/search_form.html " ++ ?DOC_ROOT),
     IP_en1 =
         lists:nth(2, lists:dropwhile(
                        fun("inet") -> false; (_) -> true end,
                        string:tokens(os:cmd("ifconfig en1"), "\t\n\s"))),
     io:format("Starting up a webserver listening on ~s\n", [IP_en1]),
-    os:cmd("cp mafia_web.beam "++ ?SERVER_ROOT),
-    os:cmd("cp mafia_web.beam "++ ?DOC_ROOT),
+    %% os:cmd("cp mafia_web.beam "++ ?SERVER_ROOT),
+    %% os:cmd("cp mafia_web.beam "++ ?DOC_ROOT),
     case inets:start(httpd,
                      [{port, ?WEBPORT},
                       {server_name, "mafia_test.peterlund.se"},
@@ -288,7 +299,11 @@ start_web(S) ->
 %%                                  %% mod_get,
 %%                                  %% mod_head, mod_log, mod_disk_log
 %%                                 ]},
-                      {erl_script_alias, {"/esi", [mafia_web, io]}}
+                      {erl_script_alias, {"/esi", [mafia_web]}},
+
+                      {error_log, "logs/error_log.txt"},
+                      {security_log, "logs/security_log.txt"},
+                      {transfer_log, "logs/transfer_log.txt"}
                      ]) of
         {ok, Pid} ->
             S#state{web_pid = Pid};
@@ -309,8 +324,9 @@ maybe_create_dir(Dir) ->
 
 -spec maybe_change_timer(#state{}) -> {Reply::term(), #state{}}.
 maybe_change_timer(S = #state{timer = TRef,
-                              timer_minutes = TMins}) ->
-    case mafia_time:timer_minutes() of
+                              timer_minutes = TMins,
+                              game_key = ThId}) ->
+    case mafia_time:timer_minutes(ThId) of
         Mins when is_integer(Mins), Mins /= TMins ->
             set_timer_interval(S, Mins);
         Mins when TRef == undefined ->
@@ -339,7 +355,7 @@ flush(Msg) ->
 
 %% http://mafia_test.peterlund.se/esi/mafia_web/msg_search_result
 msg_search_result(Sid, _Env, In) ->
-    ThId = getv(thread_id),
+    ThId = getv(?thread_id),
     PQ = httpd:parse_query(In),
     mod_esi:deliver(Sid, ["Content-type: text/html\r\n",
                           "Transfer-Encoding: chunked\r\n", %% maybe not needed
@@ -448,7 +464,7 @@ msg_search_result(Sid, _Env, In) ->
                 Acc
         end,
     TimeA = erlang:monotonic_time(millisecond),
-    A = del_start(Sid),
+    A = del_start(Sid, "Mafia Search Result"),
     B = if DoCont ->
                 mafia_data:iterate_all_msgs(ThId, Fun);
            true ->
@@ -527,17 +543,17 @@ is_word(MsgU, Pos, LenMsg, LenSea) ->
 p(I) when I > 9 -> i2l(I);
 p(I) -> string:right(i2l(I), 2, $0).
 
--define(RES_START, "
+-define(RES_START(Title, Border), "
 <!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\">
 <html>
   <head>
     <meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">
-    <title>Mafia Result</title>
+    <title>" ++ Title ++ "</title>
   </head>
   <body bgcolor=\"#cfffaf\">
     <center>
-      <h3>Mafia Search Result</h3>
-      <table border=\"1\">").
+      <h3>" ++ Title ++ "</h3>
+      <table" ++ Border ++ ">").
 
 -define(RES_END, "
       </table>
@@ -545,5 +561,42 @@ p(I) -> string:right(i2l(I), 2, $0).
   </body>
 </html>").
 
-del_start(Sid) -> mod_esi:deliver(Sid, ?RES_START), size(l2b(?RES_START)).
-del_end(Sid) -> mod_esi:deliver(Sid, ?RES_END), size(l2b(?RES_END)).
+del_start(Sid, Title) ->
+    del_start(Sid, Title, 1).
+
+del_start(Sid, Title, 0) ->
+    Border = "",
+    del_start(Sid, Title, Border);
+del_start(Sid, Title, BordInt) when is_integer(BordInt) ->
+    Border = " border=\"" ++ i2l(BordInt) ++ "\"",
+    del_start(Sid, Title, Border);
+del_start(Sid, Title, Border) ->
+    Start = ?RES_START(Title, Border),
+    mod_esi:deliver(Sid, Start),
+    size(l2b(Start)).
+
+del_end(Sid) ->
+    mod_esi:deliver(Sid, ?RES_END),
+    size(l2b(?RES_END)).
+
+%% http://mafia_test.peterlund.se/esi/mafia_web/vote_tracker?day_phase=1
+vote_tracker(Sid, _Env, In) ->
+    PQ = httpd:parse_query(In),
+    [RK, VT] = case lists:keyfind("day_phase", 1,  PQ) of
+                 false -> ["day_phase not found", ""];
+                 {_, Str} ->
+                     try
+                         DayNum = list_to_integer(Str),
+                         mafia_print:web_vote_tracker(DayNum)
+                     catch _:_ ->
+                             ["was not able to convert to integer", ""]
+                     end
+               end,
+    %% mod_esi:deliver(Sid, ["Content-type: text/html\r\n",
+    %%                       "\r\n"]),
+    _A = del_start(Sid, "Vote Tracker", 0),
+    MsgB = l2b(["<tr><td>", RK, "</td></tr>",
+                "<tr><td>", VT, "</td></tr>"
+               ]),
+    mod_esi:deliver(Sid, MsgB),
+    _C = del_end(Sid).

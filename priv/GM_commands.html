@@ -71,7 +71,9 @@
           </font></td>
           <td valign="top"><font size="-0">
             The bot moves the deadline time of the current phase earlier or
-            later with the number of hours given.
+            later with the number of hours given. When moving the current
+            phase earlier, the bot will not allow the current phase deadline
+            to be moved into the past.
             <p>
               <b>Method</b><br>
               1. Bot search for "DEADLINE" in GM messages.<br>
@@ -101,6 +103,14 @@
                 - Before each game the bot is told which player ids the GMs have
                 and which thread that is the game thread. The bot will look for
                 GM commands in everything written by any GM in the game thread.
+              <p>
+                - The bot is given a time schedule (first EoD1 time and the
+                length of the days and nights).
+              <p>
+                - The bot will follow the time schedule exactly how it is setup
+                from the start (also taking DST changes into consideration)
+                as long as the GMs do not <b>by command</b> end a phase early
+                or move the deadline later or earlier.
               <p>
                 - The bot is also told about who is playing the game and if
                 there are any DST changes coming up for the game.

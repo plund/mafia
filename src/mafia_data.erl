@@ -44,8 +44,8 @@
 downl() ->
     mafia:setup_mnesia(),
     inets:start(),
-    Thread = getv(thread_id),
-    Page = getv(page_to_read),
+    Thread = getv(?thread_id),
+    Page = getv(?page_to_read),
     download(#s{thread_id = Thread,
                 page = Page}).
 
@@ -58,7 +58,7 @@ download(S) ->
                             sleep(10000);
                        true -> ok
                     end,
-                    Page = getv(page_to_read),
+                    Page = getv(?page_to_read),
                     download(S2#s{page = Page});
                true -> ok
             end;
@@ -69,7 +69,7 @@ sleep(MilliSecs) ->
     receive after MilliSecs -> ok end.
 
 refresh_messages() ->
-    mafia:set(page_to_read, 1),
+    mafia:set(?page_to_read, 1),
     mnesia:clear_table(message),
     mnesia:clear_table(page_rec),
     mnesia:clear_table(stat),
@@ -83,13 +83,13 @@ refresh_votes(hard) ->
     refresh_votesI(hard);
 refresh_votes(EndPage) when is_integer(EndPage) ->
     mnesia:clear_table(mafia_day),
-    ThId = getv(thread_id),
+    ThId = getv(?thread_id),
     Filter = fun(Page) -> Page =< EndPage end,
     refresh_votes(ThId, rgame(ThId), Filter, soft).
 
 refresh_votesI(Mode) ->
     mnesia:clear_table(mafia_day),
-    ThId = getv(thread_id),
+    ThId = getv(?thread_id),
     refresh_votes(ThId, rgame(ThId), all, Mode).
 
 refresh_votes(_ThId, [], _F, _Method) -> ok;
@@ -121,7 +121,7 @@ refresh_votes(ThId, [G], Filter, Method) ->
 
 refresh_stat() ->
     mnesia:clear_table(stat),
-    ThId = getv(thread_id),
+    ThId = getv(?thread_id),
     refresh_stat(ThId, rgame(ThId)).
 
 refresh_stat(_ThId, []) -> ok;
@@ -212,7 +212,7 @@ grep(Str, full) ->
     grepI(Str, fun mafia_print:print_message_full/1).
 
 grepI(Str, PrintF)  ->
-    ThId = getv(thread_id),
+    ThId = getv(?thread_id),
     StrU = l2u(Str),
     GrepF =
         fun(M) ->
@@ -320,7 +320,7 @@ get_body2(S2, {ok, Body}) ->
     {ok, S3}.
 
 get_thread_section(Body) ->
-    ThId = getv(thread_id),
+    ThId = getv(?thread_id),
     ThStartStr = "<div class=\"thread threadID" ++ i2l(ThId),
     B2 = rm_to_after(Body, ThStartStr),
     ThEndStr = "<div class=\"thread thread",
@@ -483,10 +483,10 @@ check_this_page(S) ->
                  end,
     case IsLastPage of
         true ->
-            set(page_to_read, PageLastRead),
+            set(?page_to_read, PageLastRead),
             ok;
         false ->
-            set(page_to_read, PageLastRead + 1)
+            set(?page_to_read, PageLastRead + 1)
             %% set(page_complete, PageLastRead)
     end,
     S#s{is_last_page = IsLastPage,

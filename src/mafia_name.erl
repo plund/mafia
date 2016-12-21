@@ -6,11 +6,16 @@
 
 -import(mafia, [b2l/1, lrev/1]).
 
+-type abbr_calc() :: {IsUniq :: boolean(),
+                      OrigName :: string(),
+                      AbbrAcc :: string(),
+                      NameRem :: string()}.
+
 %% calculate_3letter_abbrevs_for_remaining_players
+-spec get_abbrevs([player()]) -> term().
 get_abbrevs(PlayerRem) ->
-    Rems = ["INVALID", ?Unvote
-            | ?Extra
-            ++ [b2l(UserB) || UserB <- PlayerRem]],
+    Rems = ["INVALID", ?Unvote, ?NoLynch]
+            ++ [b2l(UserB) || UserB <- PlayerRem],
     %%        Uniqu  Orig,  Head, Tail
     Rems2 = [{false, User, "", User} || User <- Rems],
 
@@ -19,30 +24,16 @@ get_abbrevs(PlayerRem) ->
     c3l_i(L).
 
 
-%% c3l() ->
-%%     c3l(rgame()).
-
-%% c3l([]) -> ok;
-%% c3l([G]) ->
-%%     Rems = ["INVALID", ?Unvote
-%%             | ?Extra
-%%             ++ [b2l(UserB) || UserB <- G#mafia_game.players_rem]],
-%%     %%        Uniqu  Orig,  Head, Tail
-%%     Rems2 = [{false, User, "", User} || User <- Rems],
-%%     %% 1. read 3 for all non unique
-%%     L = readN(Rems2, 3),
-%%     c3l_i(L).
-
 c3l_i(L) ->
-    %% 2. mark_check uniques
-    {L2, NonUniqs} = mark_check(L),
+    %% 2. mark_uniques
+    {L2, NonUniqs} = mark_uniques(L),
     %% 3. if not all unique then try fix and goto 2
     case NonUniqs of
         [] ->
             L2;
         NonUniqs ->
             %% split on A
-            Probs = lists:usort([element(3,E) || E <- NonUniqs]),
+            Probs = lists:usort([element(3, E) || E <- NonUniqs]),
             %% for each A not unique get next unique
             L3 = lists:foldl(
                    fun(Prob, CurL) ->
@@ -91,7 +82,6 @@ remove_until_next_uniq(Probs) ->
     end.
 
 remove1(L) ->
-    %% [{U,O,A++[H],T}||{U,O,A,[H|T]}<-L].
     lists:foldr(
       fun({U, O, A, [_H|T]}, Acc) ->
               [{U, O, A, T} | Acc];
@@ -101,12 +91,16 @@ remove1(L) ->
       [],
       L).
 
+
+%% Read N char into the abbrev element 3 (from 4)
+-spec readN([abbr_calc()], integer()) -> [abbr_calc()].
 readN(L, 0) -> L;
 readN(L, N) ->
     readN(read1(L), N-1).
 
+%% Read one char into the abbrev element 3 (from 4)
+-spec read1([abbr_calc()]) -> [abbr_calc()].
 read1(L) ->
-    %% [{U,O,A++[H],T}||{U,O,A,[H|T]}<-L].
     lists:foldr(
       fun({U, O, A, [H|T]}, Acc) ->
               [{U, O, A ++ [H], T} | Acc];
@@ -116,7 +110,10 @@ read1(L) ->
       [],
       L).
 
-mark_check(L) ->
+-spec mark_uniques(All :: [abbr_calc()])
+                  -> {AllMarked :: [abbr_calc()],
+                      NonUniques :: [abbr_calc()]}.
+mark_uniques(L) ->
     AllAs = [element(3,E)||E<-L],
     IsUnique = fun(A) -> not lists:member(A, AllAs -- [A]) end,
     L2 = [{IsUnique(A), O, A, T} || {_U, O, A, T} <- L],

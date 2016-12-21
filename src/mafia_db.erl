@@ -62,13 +62,14 @@ to_bin(LoL = [[_|_]|_]) ->
 
 insert_initial_data() ->
     io:format("Adding values to kv_store\n", []),
-    set(thread_id, ?M25ThId),
-    set(page_to_read, 1),
-    set(timezone_user, 1),
-    set(dst_user, false),
-    set(timezone_game, -5),
-    set(dst_game, false),
-    set(print_time, user),
+    set(?thread_id, ?M25ThId),
+    set(?game_key, ?M25ThId),
+    set(?page_to_read, 1),
+    set(?timezone_user, 1),
+    set(?dst_user, false),
+    set(?timezone_game, -5),
+    set(?dst_game, false),
+    set(?print_time, user),
     write_default_table(game),
     write_default_table(user).
 
@@ -85,6 +86,27 @@ write_default_table(user) ->
       || U <- ?M24_players ++ ?M24_GMs],
     ok.
 
+write_default_table(game, 26) ->
+    io:format("Initializing Mafia Game M26\n", []),
+    MGame = #mafia_game{
+      key = 'TO_BE_SET!!',
+      game_num = 26,
+      name = <<"MAFIA XXVI: Asylum">>,
+      day_hours = 48,
+      night_hours = 24,
+      time_zone = 0,
+      day1_dl_time = {{2017,1,5},{23,0,0}},
+      is_init_dst = false,
+      dst_changes = [{{{2017,3,26},{2,0,0}}, true},
+                     {{{2017,10,29},{2,0,0}}, true}],
+      gms = [<<"Jamiet99uk">>, <<"Chaqa">>],
+      %% players_orig = to_bin(?M26_players),
+      %% players_rem = to_bin(?M26_players),
+      player_deaths = [],
+      page_to_read = 1
+     },
+    MGame2 = mafia_time:initial_deadlines(MGame),
+    mnesia:dirty_write(MGame2);
 write_default_table(game, ?M25ThId) ->
     write_default_table(game, 25);
 write_default_table(game, 25) ->
@@ -132,13 +154,14 @@ write_default_table(game, 24) ->
     MGame2 = mafia_time:initial_deadlines(MGame),
     mnesia:dirty_write(MGame2).
 
-set(K=thread_id, V) when is_integer(V), V > 0 -> set_kv(K,V);
-set(K=page_to_read, V) when is_integer(V), V > 0 -> set_kv(K,V);
-set(K=timezone_user, V) when is_integer(V), -12 =< V, V =< 12 -> set_kv(K,V);
-set(K=timezone_game, V) when is_integer(V), -12 =< V, V =< 12 -> set_kv(K,V);
-set(K=dst_user, V) when is_boolean(V) -> set_kv(K,V);
-set(K=dst_game, V) when is_boolean(V) -> set_kv(K,V);
-set(K=print_time, V)
+set(K=?thread_id, V) when is_integer(V), V > 0 -> set_kv(K,V);
+set(K=?game_key, V) when is_integer(V), V > 0 -> set_kv(K,V);
+set(K=?page_to_read, V) when is_integer(V), V > 0 -> set_kv(K,V);
+set(K=?timezone_user, V) when is_integer(V), -12 =< V, V =< 12 -> set_kv(K,V);
+set(K=?timezone_game, V) when is_integer(V), -12 =< V, V =< 12 -> set_kv(K,V);
+set(K=?dst_user, V) when is_boolean(V) -> set_kv(K,V);
+set(K=?dst_game, V) when is_boolean(V) -> set_kv(K,V);
+set(K=?print_time, V)
   when V == user; V == game; V == utc;
        V == zulu; V == gmt ->
     set_kv(K,V).

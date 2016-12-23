@@ -361,7 +361,7 @@ flush(Msg) ->
 
 %% http://mafia_test.peterlund.se/esi/mafia_web/msg_search_result
 msg_search_result(Sid, _Env, In) ->
-    ThId = getv(?thread_id),
+    ThId = getv(?game_key),
     PQ = httpd:parse_query(In),
     mod_esi:deliver(Sid, ["Content-type: text/html\r\n",
                           "Transfer-Encoding: chunked\r\n", %% maybe not needed
@@ -371,10 +371,14 @@ msg_search_result(Sid, _Env, In) ->
     {_, DayNumText} = lists:keyfind("day numbers", 1, PQ),
     DayCond =
         try
-            case l2u(DayNumText) of
+            DayNumU = l2u(DayNumText),
+            case DayNumU of
                 "END" ++ _ -> ?game_ended;
                 _ ->
-                    case string:tokens(DayNumText, "-") of
+                    case string:tokens(DayNumU, "-") of
+                        [LoStr, "END" ++ _] ->
+                            {list_to_integer(string:strip(LoStr)),
+                             ?game_ended};
                         [LoStr, HiStr] ->
                             {list_to_integer(string:strip(LoStr)),
                              list_to_integer(string:strip(HiStr))};
@@ -438,9 +442,12 @@ msg_search_result(Sid, _Env, In) ->
                              case {DayCond, MsgPhase} of
                                  {all, _} -> true;
                                  {?game_ended, ?game_ended} -> true;
+                                 %% Next condition works as expected also
+                                 %% if NHi is ?game_ended
                                  {{NLo, NHi}, {DNum, _DoN}}
                                    when NLo =< DNum,
                                         DNum =< NHi -> true;
+                                 {{_NLo, ?game_ended}, ?game_ended} -> true;
                                  _ -> false
                              end
                      end],

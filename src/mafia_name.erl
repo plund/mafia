@@ -2,7 +2,12 @@
 
 -include("mafia.hrl").
 
+-include_lib("eunit/include/eunit.hrl").
+
 -export([get_abbrevs/1]).
+
+%% eunit tests
+-export([test/0]).
 
 -import(mafia, [b2l/1, lrev/1]).
 
@@ -119,3 +124,24 @@ mark_uniques(L) ->
     L2 = [{IsUnique(A), O, A, T} || {_U, O, A, T} <- L],
     NonUniqs = [E || E <- L2, not element(1,E)],
     {L2, NonUniqs}.
+
+
+adv_read_vote(_, _) ->
+    "brainbomb".
+
+%% -------------------------------------------------
+
+test() ->
+    eunit:test(?MODULE).
+
+-define(TestPlayers ,
+        ["brainbomb", "ND", "Chaqa", "Floodgates", "Maniac", "krellin",
+         "DemonOverlord", "DemonRHK"]).
+
+adv_read_vote_test_() ->
+    [
+     ?_assert("brainbomb" == adv_read_vote("  , ainbomb  asd ddf ",
+                                           ?TestPlayers)),
+     ?_assert("brainbomb" == adv_read_vote(" ad fs , braibnomb  asd df",
+                                           ?TestPlayers))
+    ].

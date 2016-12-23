@@ -1,6 +1,8 @@
 -module(mafia_vote).
 
--export([check_for_vote/1, check_for_vote/2]).
+-export([check_for_vote/1, check_for_vote/2,
+         verify_user/1,
+         print_verify_user/1]).
 
 -import(mafia, [b2l/1, l2b/1, l2u/1, lrev/1, rgame/1, rday/2]).
 
@@ -257,31 +259,48 @@ reg_end_vote(Op, M) ->
 %% -----------------------------------------------------------------------------
 
 verify_user(M = #message{user_name = User}) ->
-    UserU = b2ub(User),
-    CheckRes =
-        case mnesia:dirty_read(user, UserU) of
-            [#user{verification_status = ?verified}] -> ok;
-            [#user{name = User} = U] ->
-                {user, U#user{verification_status = ?verified}};
-            [#user{} = U] ->
-                {user_game,
-                 U#user{name = User,
-                        verification_status = ?verified}};
-            [] ->
-                io:format("Warning: created new user ~p\n", [User]),
-                {user, #user{name_upper = b2ub(User),
-                             name = User,
-                             aliases = [],
-                             verification_status = ?verified}}
-        end,
+    CheckRes = check_user(User),
     case CheckRes of
         ok -> ok;
         {Type, UserRec} ->
+            if Type == user_new ->
+                    io:format("Warning: created new user ~p\n", [User]);
+               true -> ok
+            end,
             mnesia:dirty_write(UserRec),
             if Type == user_game ->
                     auto_correct_case(b2l(User), M#message.thread_id);
                true -> ok
             end
+    end.
+
+-spec print_verify_user(string()) -> ok.
+print_verify_user(User) ->
+    CheckRes = check_user(l2b(User)),
+    io:format("User name \"~s\" ", [User]),
+    case CheckRes of
+        ok -> io:format("is ok\n", []);
+        {user, _} -> io:format("is unverified\n", []);
+        {user_game, _} -> io:format("has wrong case\n", []);
+        {user_new, _} -> io:format("does not exist\n", [])
+    end.
+
+check_user(User) ->
+    UserU = b2ub(User),
+    case mnesia:dirty_read(user, UserU) of
+        [#user{verification_status = ?verified}] ->
+            ok;
+        [#user{name = User} = U] -> %% found unverified user
+            {user, U#user{verification_status = ?verified}};
+        [#user{} = U] ->  %% found wrong case
+            {user_game,
+             U#user{name = User,
+                    verification_status = ?verified}};
+        [] -> %% user not found
+            {user_new, #user{name_upper = b2ub(User),
+                             name = User,
+                             aliases = [],
+                             verification_status = ?verified}}
     end.
 
 %% -----------------------------------------------------------------------------

@@ -512,9 +512,6 @@ print_tracker(PP) ->
     VThtml = print_tracker_tab(PP, Abbrs, AllPlayersB),
     [RKhtml, VThtml].
 
--define(TdAttrs, "").
--define(Font, "<font size=\"-0\">").
-
 print_tracker_tab(PP, Abbrs, AllPlayersB) ->
     #mafia_day{votes = Votes0} = PP#pp.day,
     Votes = [V || V <- Votes0,
@@ -551,7 +548,9 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                  "<th align=\"right\">Voter</th>"
                  "<th>Time</th>",
                  pr_ivs_user_html(IterVotes, PrAbbrF),
-                 "<th>Time</th>", "<th align=\"left\">Voter</th>", "</tr>"]
+                 "<th>Time</th>"
+                 "<th align=\"left\">Voter</th>"
+                 "</tr>\r\n"]
         end,
     {_, Html} =
         lists:foldl(
@@ -585,13 +584,13 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                           {NewIVs,
                            [Html|
                             ["<tr>",
-                             "<td", bgcolor(User), "align=\"right\">",
-                             ?Font, User, "</font></td>",
-                             "<td ", ?TdAttrs, ">", ?Font, TimeStr, "</font></td>",
+                             "<td", bgcolor(User), " align=\"right\">",
+                             User, "</td>",
+                             "<td>", TimeStr, "</td>",
                              pr_ivs_vote_html(PrIVs, User, V#vote.id),
-                             "<td ", ?TdAttrs, ">", ?Font, TimeStr, "</font></td>",
-                             "<td", bgcolor(User), "align=\"left\"",
-                             ?TdAttrs, ">", ?Font, User, "</font></td>",
+                             "<td>", TimeStr, "</td>",
+                             "<td", bgcolor(User), " align=\"left\">",
+                             User, "</td>",
                              "</tr>\r\n"]]}
                   end
           end,
@@ -612,7 +611,7 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
               pr_ivs_user_html(IterVotes, PrAbbrF),
               "<th>Time</th>",
               "<th align=\"left\">Voter</th>",
-              "</tr></table>"]]
+              "</tr></table>\r\n"]]
     end.
 
 print_time_5d(G, Time) ->
@@ -681,12 +680,12 @@ pr_ivs_user(IVs, A) ->
 
 pr_ivs_vote_html(IVs, User, MsgId) ->
     [if U == User ->
-             ["<td", bgcolor(VF), " ", ?TdAttrs, ">",
-              ?Font, "<b><a href=\"?msg_id=", i2l(MsgId), "\">",
-              V, "</a></b></font>"
+             ["<td", bgcolor(VF), ">",
+              "<b><a href=\"?msg_id=", i2l(MsgId), "\">",
+              V, "</a></b>"
               "</td>"];
         true ->
-             ["<td", bgcolor(VF), " ", ?TdAttrs, ">", ?Font, V, "</font></td>"]
+             ["<td", bgcolor(VF), ">", V, "</td>"]
      end
      || {U, V, VF} <- IVs].
 

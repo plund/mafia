@@ -86,6 +86,7 @@ write_default_table(user) ->
       || U <- ?M24_players ++ ?M24_GMs],
     ok.
 
+%% M26 signup threadid = 1429158
 write_default_table(game, 26) ->
     io:format("Initializing Mafia Game M26\n", []),
     MGame = #mafia_game{

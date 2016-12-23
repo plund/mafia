@@ -59,13 +59,25 @@
          "rdrivera2005", "teacon7", "VashtaNeurotic", "Vecna", "xorxes",
          "Yoyoyozo", "zorclex"
         ]).
-
 -define(M25_GMs, ["VashtaNeurotic", "captainmeme"]).
 -define(M25_players,
         ["brainbomb", "DemonRHK", "ghug", "Ezio", "Floodgates", "MoscowFleet",
          "RagingIke297", "DemonOverlord", "guak", "krellin", "Kakarroto", "ND",
          "teacon7", "Chaqa", "WardenDresden", "xorxes", "Vecna", "rdrivera2005",
          "Glen_Alexander", "Jamiet99uk", "Maniac", "dargorygel", "zorclex"]).
+-define(M26_GMs, ["Jamiet99uk", "Chaqa"]).
+-define(M26_players,
+        ["Ezio", "peterlund", "brainbomb", "bo_sox48", "DemonOverlord", "ND",
+         "Tom Bombadil",
+         %%"Tom Bomabadil",
+         "Floodgates", "xorxes", "MoscowFleet",
+         "Balki Bartokomous",
+         %%"Balkibartonomous",
+         "VashtaNeurotic", "Fluminator", "Ragingike297",
+         "Maniac", "Kakarroto", "DeathLlama8", "rdrivera2005", "arj11", "ghug",
+         "teacon7", "Hellenic Riot", "Glen_Alexander", "CaptainMeme",
+         "Reedeer1", "Vecna"]).
+-define(M26_Subs, ["WardenDresden", "Dargorygel", "Zorclex", "DemonRHK"]).
 
 -type year()   :: non_neg_integer().
 -type month()  :: 1..12.
@@ -91,19 +103,6 @@
 -type day_night() :: ?day | ?night.
 -type phase() :: ?game_ended | {integer(), day_night()}.
 -type deadline() :: {integer(), day_night(), seconds1970()}.
-
--record(s,
-        {page :: page_num(),  %% either page num to get and when got the
-         %%                      actual page num
-         is_last_page :: boolean(),
-         body_on_file = false :: boolean(),
-         page_num_last_read :: page_num(),
-         page_total_last_read :: page_num(),
-         thread_id :: thread_id(),
-         url :: string(),
-         body :: string(),
-         dl_time :: undefined | millisecs()
-        }).
 
 -record(kv_store,
         {key,

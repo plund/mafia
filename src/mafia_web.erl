@@ -86,8 +86,14 @@ stop() -> gen_server:call(?SERVER, 'stop').
 start_polling() -> gen_server:call(?SERVER, 'start_polling').
 stop_polling() -> gen_server:call(?SERVER, 'stop_polling').
 
-stop_httpd(a) -> inets:stop(httpd, {{192,168,0,100}, ?WEBPORT});
-stop_httpd(b) -> inets:stop(httpd, {{192,168,0,3}, ?WEBPORT}).
+stop_httpd(a) ->
+    io:format("Stopping webserver at ~p, port ~p\n",
+              [{192,168,0,100}, ?WEBPORT]),
+    inets:stop(httpd, {{192,168,0,100}, ?WEBPORT});
+stop_httpd(b) ->
+    io:format("Stopping webserver at ~p, port ~p\n",
+              [{192,168,0,3}, ?WEBPORT]),
+    inets:stop(httpd, {{192,168,0,3}, ?WEBPORT}).
 
 %%--------------------------------------------------------------------
 %% @doc Show gen_server internal state
@@ -222,7 +228,7 @@ handle_cast(_Msg, State) ->
 handle_info(do_polling, State) ->
     TimeStr = mafia_print:print_time(current_time, short),
     io:format("~s poll for new messages\n", [TimeStr]),
-    mafia_data:downl(),
+    mafia_data:downl_web(State#state.game_key),
     FileName = filename:join(?DOC_ROOT, "current_vote.txt"),
     {_Reply, S2} = maybe_change_timer(State),
     {ok, Fd} = file:open(FileName, [write]),
@@ -543,8 +549,8 @@ is_word(MsgU, Pos, LenMsg, LenSea) ->
 p(I) when I > 9 -> i2l(I);
 p(I) -> string:right(i2l(I), 2, $0).
 
--define(RES_START(Title, Border), "
-<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\">
+-define(RES_START(Title, Border),
+ "<!DOCTYPE html>
 <html>
   <head>
     <meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">

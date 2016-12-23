@@ -1,7 +1,10 @@
 -module(mafia_data).
 
 %% interface
--export([downl/0]).
+-export([downl/0, % Human
+         downl/1, % Human
+         downl_web/1  % from web
+        ]).
 %% library
 -export([
          rm_to_after_pos/2,
@@ -36,19 +39,73 @@
          i2l/1,
          l2i/1,
          lrev/1,
-         rgame/1
+         rgame/1,
+         rmess/1
         ]).
 
 -include("mafia.hrl").
 
+-record(s,
+        {page_to_read :: page_num(),  %% either page num to get and when got the
+         %%                      actual page num
+         is_last_page :: boolean(),
+         body_on_file = false :: boolean(),
+         page_last_read :: page_num(),
+         page_total_last_read :: page_num(),
+         thread_id :: thread_id(),
+         url :: string(),
+         body :: string(),
+         dl_time :: undefined | millisecs(),
+         do_refresh_msgs = false :: boolean()
+        }).
+
+%% Download any thread
+-spec downl() -> ok.
 downl() ->
+    downl2(#s{}).
+
+-spec downl(do_refresh_msgs) -> ok.
+downl(do_refresh_msgs) ->
+    downl2(#s{do_refresh_msgs = true}).
+
+downl2(S) ->
     mafia:setup_mnesia(),
     inets:start(),
     Thread = getv(?thread_id),
     Page = getv(?page_to_read),
-    download(#s{thread_id = Thread,
-                page = Page}).
+    download(S#s{thread_id = Thread,
+                 page_to_read = Page}),
+    ok.
 
+%% Download a game thread
+-spec downl_web(integer()) -> ok.
+downl_web(GameKey) when is_integer(GameKey) ->
+    downl_web(mafia:rgame(GameKey));
+downl_web([]) -> ok;
+downl_web([G]) ->
+    GameKey = G#mafia_game.key,
+    InitPage = G#mafia_game.page_to_read,
+    case download(#s{thread_id = GameKey,
+                     page_to_read = InitPage}) of
+        {ok, S2} ->
+            downl_finish(G , S2);
+        {{error, _R}, S2} ->
+            downl_finish(G , S2)
+    end,
+    ok.
+
+downl_finish(G, S) ->
+    %% io:format("downl_finish K ~p, S ~p, G ~p\n",
+    %%           [G#mafia_game.key,
+    %%            S#s.page_to_read,
+    %%            G#mafia_game.page_to_read]),
+    if S#s.page_to_read /= G#mafia_game.page_to_read ->
+            mnesia:dirty_write(G#mafia_game{page_to_read = S#s.page_to_read});
+       true -> ok
+    end.
+
+-spec download(#s{}) -> {ok | {error, Reason :: term()},
+                         #s{}}.
 download(S) ->
     case get_body(S#s{dl_time = undefined}) of
         {ok, S2} ->
@@ -58,42 +115,51 @@ download(S) ->
                             sleep(10000);
                        true -> ok
                     end,
-                    Page = getv(?page_to_read),
-                    download(S2#s{page = Page});
-               true -> ok
+                    %% io:format("P2R ~p\n", [S#s.page_to_read]),
+                    download(S2);
+               true -> {ok, S2}
             end;
-        {error, _Error} -> error
+        {error, _Error} = Err ->
+            %% io:format("download err ~p ~p\n", [S#s.page_to_read, Err]),
+            {Err, S}
     end.
 
 sleep(MilliSecs) ->
     receive after MilliSecs -> ok end.
 
 refresh_messages() ->
+    %% will refresh all in getv(thread_id).
     mafia:set(?page_to_read, 1),
-    mnesia:clear_table(message),
-    mnesia:clear_table(page_rec),
-    mnesia:clear_table(stat),
-    mafia:downl(),
-    refresh_votes().
+    %% Delete only messages, page_rec and stat in thread to be refreshed
+    mnesia:clear_table(message),  %% msg_ids ref by page_rec
+    mnesia:clear_table(page_rec), %% th_id in key
+    mnesia:clear_table(stat),     %% th_id in key
+    downl(),
+    ThId = getv(?thread_id),
+    refresh_votes(ThId).
 
 refresh_votes() ->
-    refresh_votesI(soft).
+    ThId = getv(?game_key),
+    refresh_votes(ThId, rgame(ThId), all, soft).
 
+refresh_votes(ThId) when is_integer(ThId) ->
+    refresh_votes(ThId, rgame(ThId), all, soft);
 refresh_votes(hard) ->
-    refresh_votesI(hard);
-refresh_votes(EndPage) when is_integer(EndPage) ->
-    mnesia:clear_table(mafia_day),
+    ThId = getv(?thread_id),
+    refresh_votes(ThId, rgame(ThId), all, hard);
+refresh_votes({end_page, EndPage}) when is_integer(EndPage) ->
     ThId = getv(?thread_id),
     Filter = fun(Page) -> Page =< EndPage end,
     refresh_votes(ThId, rgame(ThId), Filter, soft).
 
-refresh_votesI(Mode) ->
-    mnesia:clear_table(mafia_day),
-    ThId = getv(?thread_id),
-    refresh_votes(ThId, rgame(ThId), all, Mode).
+%% refresh_votesI(Mode) ->
+%%     %% mnesia:clear_table(mafia_day),
+%%     ThId = getv(?thread_id),
+%%     refresh_votes(ThId, rgame(ThId), all, Mode).
 
 refresh_votes(_ThId, [], _F, _Method) -> ok;
 refresh_votes(ThId, [G], Filter, Method) ->
+    mnesia:clear_table(mafia_day),   %% Remove only days in ThId
     if Method == soft ->
             G2 = G#mafia_game{
                    players_rem = G#mafia_game.players_orig,
@@ -302,21 +368,24 @@ get_body(S, {file, Body}) ->
     {ok, S2};
 get_body(S, no_file) ->
     S2 = make_url(S#s{body_on_file = false}),
+    %% io:format("gb ~p\n", [S2#s.page_to_read]),
     get_body2(S2, http_request(S2)).
 
 make_url(S) ->
-    Url = ?UrlBeg ++ i2l(S#s.thread_id) ++ ?UrlMid ++ i2l(S#s.page) ++ ?UrlEnd,
+    Url = ?UrlBeg ++ i2l(S#s.thread_id) ++ ?UrlMid ++ i2l(S#s.page_to_read) ++ ?UrlEnd,
     S#s{url = Url}.
 
 -spec get_body2(#s{}, term()) -> {ok, Body::term()} | {error, term()}.
 get_body2(_S2, {error, _} = Error) -> Error;
 get_body2(S2, {ok, Body}) ->
+    %% io:format("gb2 ~p\n", [S2#s.page_to_read]),
     Body2 = get_thread_section(Body),
     S3 = check_this_page(S2#s{body=Body2}),
     if not S3#s.is_last_page -> % page complete > STORE IT!
             store_page(S3, Body2);
        true -> ok
     end,
+    %% io:format("gb2 ~p\n", [S3#s.page_to_read]),
     {ok, S3}.
 
 get_thread_section(Body) ->
@@ -349,25 +418,30 @@ get_body_from_file(S) ->
     %% we only store complete pages on file!
     %% Store full pages as compressed files:
     %%     thread_pages/m24_threadid_page.txt.tgz
-    {_FileName, TarBallName} = th_filenames(S),
+    {_FileName, TarBallName} = th_filenames_read(S),
     case erl_tar:extract(TarBallName, [memory, compressed]) of
         {ok, [{_, BodyBin}]} ->
-            %% io:format("Found page ~p on file\n",[S#s.page]),
+            %% io:format("Found page ~p on file\n",[S#s.page_to_read]),
             {file, b2l(BodyBin)};
         {error, {TarBallName, enoent}} ->
-            %% io:format("Did NOT find ~p on file\n",[S#s.page]),
+            %% io:format("Did NOT find ~p on file\n",[S#s.page_to_read]),
             no_file;
         Unexp ->
-            io:format("Did NOT find ~p on file ~p\n",[S#s.page, Unexp]),
+            io:format("Did NOT find ~p on file ~p\n",[S#s.page_to_read, Unexp]),
             no_file
     end.
 
-th_filenames(S) ->
-    FileName = th_filename(S),
+th_filenames_read(S) ->
+    th_filenames(th_filename(S#s.thread_id, S#s.page_to_read)).
+
+th_filenames_store(S) ->
+    th_filenames(th_filename(S#s.thread_id, S#s.page_last_read)).
+
+th_filenames(FileName) ->
     TarBallName = FileName ++ ".tgz",
     {FileName, TarBallName}.
 
-th_filename(#s{thread_id = Thread, page = Page}) ->
+th_filename(Thread, Page) ->
     DirName = "thread_pages",
     verify_exist(DirName),
     GamePrefix = game_file_prefix(Thread),
@@ -402,7 +476,7 @@ verify_exist(DirName) ->
 
 %% -> ok | {error, Reason}
 store_page(S, Body) ->
-    {FileName, TarBallName} = th_filenames(S),
+    {FileName, TarBallName} = th_filenames_store(S),
     case file:read_file_info(TarBallName) of
         {error, enoent} ->
             file:write_file(FileName, Body),
@@ -461,15 +535,16 @@ compress_txt_files() ->
 
 %% find page nums "Page 177 of 177", if it exists
 %% sets #s.is_last_page,
-%%      #s.page_num_last_read = #s.page = PageLastRead,
+%%      #s.page_last_read = #s.page_to_read = PageLastRead,
 %%      #s.page_total_last_read = PageTotal
 -spec check_this_page(S :: #s{}) -> #s{}.
 check_this_page(S) ->
     {_, Head} = read_to_before(S#s.body, "class=\"message-head"),
     %%<em>Page <strong>177</strong> of <strong>177</strong>
+    CurPage = S#s.page_to_read,
     {PageLastRead, PageTotal} =
         case rm_to_after(Head, ["<em>Page <strong>"]) of
-            "" -> {1, 1};
+            "" -> {CurPage, CurPage};
             B2 ->
                 {B3, PageStr} = read_to_before(B2, "</strong>"),
                 LastRead = l2i(PageStr),
@@ -481,17 +556,18 @@ check_this_page(S) ->
     IsLastPage = if PageLastRead == PageTotal -> true;
                     true -> false
                  end,
-    case IsLastPage of
-        true ->
-            set(?page_to_read, PageLastRead),
-            ok;
-        false ->
-            set(?page_to_read, PageLastRead + 1)
-            %% set(page_complete, PageLastRead)
-    end,
+    PageToRead = case IsLastPage of
+                     true ->
+                         %% set(?page_to_read, PageLastRead),
+                         PageLastRead;
+                     false ->
+                         set(?page_to_read, PageLastRead + 1),
+                         %% set(?page_complete, PageLastRead),
+                         PageLastRead + 1
+                 end,
     S#s{is_last_page = IsLastPage,
-        page_num_last_read = PageLastRead,
-        page = PageLastRead,
+        page_last_read = PageLastRead,
+        page_to_read = PageToRead,
         page_total_last_read = PageTotal}.
 
 %% -----------------------------------------------------------------------------
@@ -514,16 +590,17 @@ analyse_body(S) ->
 
     if UserStr /= "" ->
             MsgId = l2i(MsgIdStr),
-            Time = l2i(TimeStr),
-            User = l2b(UserStr),
-            case mnesia:dirty_read(message, MsgId) of
-                [] ->
+            Msgs = rmess(MsgId),
+            if Msgs == [] orelse S#s.do_refresh_msgs ->
+                    Time = l2i(TimeStr),
+                    User = l2b(UserStr),
                     update_page_rec(S, MsgId),
                     MsgR = write_message_rec(S, MsgId, User, Time, Msg),
+                    mafia_vote:verify_user(MsgR),
                     update_stat(MsgId),
                     mafia_vote:check_for_vote(S, MsgR),
                     mafia_print:print_message_summary(MsgR);
-                [_MsgR] ->
+               true ->
                     ok
             end;
        true -> ok
@@ -574,8 +651,8 @@ read_to_before(Str, Search) ->
 %% Data base stuff?
 update_page_rec(S, MsgIdInt) ->
     PageRec =
-        case mnesia:dirty_read(page_rec, {S#s.thread_id, S#s.page}) of
-            [] -> #page_rec{key = {S#s.thread_id, S#s.page},
+        case mnesia:dirty_read(page_rec, {S#s.thread_id, S#s.page_last_read}) of
+            [] -> #page_rec{key = {S#s.thread_id, S#s.page_last_read},
                             message_ids = [MsgIdInt],
                             thread_id = S#s.thread_id,
                             complete = false};
@@ -595,7 +672,7 @@ write_message_rec(S, MsgIdInt, User, Time, Msg) ->
     mnesia:dirty_write(
       M = #message{msg_id = MsgIdInt,
                    thread_id = S#s.thread_id,
-                   page_num = S#s.page,
+                   page_num = S#s.page_last_read,
                    user_name = User,
                    time = Time,
                    message = l2b(Msg)

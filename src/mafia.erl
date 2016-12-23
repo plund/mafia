@@ -1,9 +1,10 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% - check all clear_table
+%% - implement the GM_commands. How to test them?
+%%   - define now and when to use a smarter vote reader!!
 %% - change all i2l/1 to ?i2l macro defined in mafia.hrl
-%% - scan sign-up thread to populate user table
-%% - write verify manual fun for names in M26
 %% - Display msgs since last login with a browser (cookie)
 %% - Make sure not to read votes before game start: EoD1 - day length
 %% - be DAY/NIGHT sensitive when reading "Day/night ... has ended early"
@@ -85,7 +86,8 @@
         ]).
 
 %% utilities
--export([grep/1, grep/2,
+-export([verify_users/1,
+         grep/1, grep/2,
          l/0
         ]).
 
@@ -137,6 +139,11 @@ refresh_votes(P) -> mafia_data:refresh_votes(P).
 
 grep(Str) -> mafia_data:grep(Str).
 grep(Str, Mode) -> mafia_data:grep(Str, Mode).
+
+verify_users(m26) ->
+    [mafia_vote:print_verify_user(U)
+     || U <- ?M26_GMs ++ ?M26_players ++ ?M26_Subs],
+    ok.
 
 %% -----------------------------------------------------------------------------
 %% @doc End current phase with GM message and set next phase at

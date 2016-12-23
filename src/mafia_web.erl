@@ -278,6 +278,7 @@ start_web(S) ->
     maybe_create_dir(?DOC_ROOT),
     maybe_create_dir(?LOG_ROOT),
     os:cmd("cp ../priv/search_form.html " ++ ?DOC_ROOT),
+    os:cmd("cp ../priv/index.html " ++ ?DOC_ROOT),
     IP_en1 =
         lists:nth(2, lists:dropwhile(
                        fun("inet") -> false; (_) -> true end,
@@ -290,6 +291,7 @@ start_web(S) ->
                       {server_name, "mafia_test.peterlund.se"},
                       {server_root, ?SERVER_ROOT},
                       {document_root, ?DOC_ROOT},
+                      {directory_index, ["index.html"]},
                       {bind_address, IP_en1},
 %%% specifying modules removes the default list in where
 %%% mod_esi and mod_dir already are included by default
@@ -305,7 +307,7 @@ start_web(S) ->
 %%                                  %% mod_get,
 %%                                  %% mod_head, mod_log, mod_disk_log
 %%                                 ]},
-                      {erl_script_alias, {"/esi", [mafia_web]}},
+                      {erl_script_alias, {"/e", [web]}},
 
                       {error_log, "logs/error_log.txt"},
                       {security_log, "logs/security_log.txt"},
@@ -359,7 +361,7 @@ flush(Msg) ->
     after 0 -> ok
     end.
 
-%% http://mafia_test.peterlund.se/esi/mafia_web/msg_search_result
+%% http://mafia_test.peterlund.se/e/web/msg_search_result
 msg_search_result(Sid, _Env, In) ->
     ThId = getv(?game_key),
     PQ = httpd:parse_query(In),
@@ -592,11 +594,11 @@ del_end(Sid) ->
     mod_esi:deliver(Sid, ?RES_END),
     size(?l2b(?RES_END)).
 
-%% http://mafia_test.peterlund.se/esi/mafia_web/vote_tracker?day_phase=1
-%% http://mafia_test.peterlund.se/esi/mafia_web/vote_tracker?msg_id=1420335
+%% http://mafia_test.peterlund.se/e/web/vote_tracker?day=1
+%% http://mafia_test.peterlund.se/e/web/vote_tracker?msg_id=1420335
 vote_tracker(Sid, _Env, In) ->
     PQ = httpd:parse_query(In),
-    case vote_tracker2(lists:keyfind("day_phase", 1,  PQ),
+    case vote_tracker2(lists:keyfind("day", 1,  PQ),
                        lists:keyfind("msg_id", 1,  PQ)) of
         {tracker, Out} ->
             _A = del_start(Sid, "Vote Tracker", 0);
@@ -610,7 +612,7 @@ vote_tracker(Sid, _Env, In) ->
     mod_esi:deliver(Sid, Out),
     _C = del_end(Sid).
 
-vote_tracker2({"day_phase", Str},
+vote_tracker2({"day", Str},
               _) ->
     try
         DayNum = list_to_integer(Str),
@@ -625,7 +627,7 @@ vote_tracker2({"day_phase", Str},
     catch _:_ ->
             {error,
              "<tr><td>"
-             "Was not able to convert day_phase value to integer"
+             "Was not able to convert day value to integer"
              "</td></tr>"}
     end;
 vote_tracker2(?false,

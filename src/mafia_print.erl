@@ -91,6 +91,7 @@ pm(Fd, MsgId) when is_integer(MsgId) ->
              day   :: #mafia_day{},
              game_key :: thread_id(),
              phase  :: phase(),
+             day_num :: integer(),
              dev = standard_io,
              mode = text :: text | html,
              period :: integer(),   %% Poll period
@@ -487,6 +488,7 @@ web_vote_tracker(DayNum) ->
     GameKey = getv(?game_key),
     Phase = {DayNum, ?day},
     PP = #pp{game_key = GameKey,
+             day_num = DayNum,
              phase = Phase,
              mode = html},
     web_vote_tracker(PP, rgame(GameKey), rday(GameKey, Phase)).
@@ -633,6 +635,9 @@ user_vote_timesort(Votes) ->
 
 print_read_key(PP, Abbrs) when PP#pp.mode == html ->
     ["<center><table>\r\n",
+     "<tr><th colspan=\"" ++ ?i2l(?ReadKeyCols) ++ "\">",
+     "Day ", ?i2l(PP#pp.day_num),
+     "</th></tr>\r\n",
      "<tr><th colspan=\"" ++ ?i2l(?ReadKeyCols) ++ "\">",
      "Reading Key",
      "</th></tr>\r\n",

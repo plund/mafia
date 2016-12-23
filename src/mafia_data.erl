@@ -32,12 +32,8 @@
          getv/1,
          set/2,
 
-         b2l/1,
          b2ub/1,
-         l2b/1,
          l2u/1,
-         i2l/1,
-         l2i/1,
          lrev/1,
          rgame/1,
          rmess/1
@@ -210,11 +206,11 @@ update_stat(MsgId, M, [G = #mafia_game{}]) ->
              message = MsgBin   %% :: message()
             } = M,
     %% UserB is in correct case in messages!
-    UserUB = b2ub(UserB),
+    UserUB = ?b2ub(UserB),
     Phase = mafia_time:calculate_phase(G, Time),
     Key1 = {UserUB, ThId},
     Key2 = {UserUB, ThId, Phase},
-    Msg = b2l(MsgBin),
+    Msg = ?b2l(MsgBin),
     Count = #stat{num_chars = size(MsgBin),
                   num_words = length(string:tokens(Msg , " ,.\t\r\n")),
                   num_postings = 1
@@ -279,11 +275,11 @@ grep(Str, full) ->
 
 grepI(Str, PrintF)  ->
     ThId = getv(?thread_id),
-    StrU = l2u(Str),
+    StrU = ?l2u(Str),
     GrepF =
         fun(M) ->
-                Msg = b2l(M#message.message),
-                MsgU = l2u(Msg),
+                Msg = ?b2l(M#message.message),
+                MsgU = ?l2u(Msg),
                 case string:str(MsgU, StrU) of
                     0 -> ok;
                     _P ->
@@ -372,7 +368,7 @@ get_body(S, no_file) ->
     get_body2(S2, http_request(S2)).
 
 make_url(S) ->
-    Url = ?UrlBeg ++ i2l(S#s.thread_id) ++ ?UrlMid ++ i2l(S#s.page_to_read) ++ ?UrlEnd,
+    Url = ?UrlBeg ++ ?i2l(S#s.thread_id) ++ ?UrlMid ++ ?i2l(S#s.page_to_read) ++ ?UrlEnd,
     S#s{url = Url}.
 
 -spec get_body2(#s{}, term()) -> {ok, Body::term()} | {error, term()}.
@@ -390,7 +386,7 @@ get_body2(S2, {ok, Body}) ->
 
 get_thread_section(Body) ->
     ThId = getv(?thread_id),
-    ThStartStr = "<div class=\"thread threadID" ++ i2l(ThId),
+    ThStartStr = "<div class=\"thread threadID" ++ ?i2l(ThId),
     B2 = rm_to_after(Body, ThStartStr),
     ThEndStr = "<div class=\"thread thread",
     {_, ThreadStr} = read_to_before(B2, ThEndStr),
@@ -422,7 +418,7 @@ get_body_from_file(S) ->
     case erl_tar:extract(TarBallName, [memory, compressed]) of
         {ok, [{_, BodyBin}]} ->
             %% io:format("Found page ~p on file\n",[S#s.page_to_read]),
-            {file, b2l(BodyBin)};
+            {file, ?b2l(BodyBin)};
         {error, {TarBallName, enoent}} ->
             %% io:format("Did NOT find ~p on file\n",[S#s.page_to_read]),
             no_file;
@@ -445,9 +441,9 @@ th_filename(Thread, Page) ->
     DirName = "thread_pages",
     verify_exist(DirName),
     GamePrefix = game_file_prefix(Thread),
-    DirName2 = GamePrefix ++ i2l(Thread),
+    DirName2 = GamePrefix ++ ?i2l(Thread),
     verify_exist(filename:join(DirName, DirName2)),
-    BaseName = i2l(Page) ++ ".txt",
+    BaseName = ?i2l(Page) ++ ".txt",
     filename:join([DirName, DirName2, BaseName]).
 
 cmd_filename(#s{thread_id = Thread}) ->
@@ -456,7 +452,7 @@ cmd_filename(Thread) ->
     DirName =  "command_files",
     verify_exist(DirName),
     GamePrefix = game_file_prefix(Thread),
-    BaseName = GamePrefix ++ i2l(Thread) ++ "_manual_cmds.txt",
+    BaseName = GamePrefix ++ ?i2l(Thread) ++ "_manual_cmds.txt",
     filename:join([DirName, BaseName]).
 
 game_file_prefix(ThId) when is_integer(ThId) ->
@@ -465,7 +461,7 @@ game_file_prefix([]) -> "";
 game_file_prefix([G]) ->
     game_file_prefix(G);
 game_file_prefix(G) ->
-    "m" ++ i2l(G#mafia_game.game_num) ++ "_".
+    "m" ++ ?i2l(G#mafia_game.game_num) ++ "_".
 
 verify_exist(DirName) ->
     case file:read_file_info(DirName) of
@@ -524,7 +520,7 @@ compress_txt_files() ->
     {ok, Files} = file:list_dir(Dir),
     Files2 = [ filename:join(Dir, F)
                || F = "m24_" ++ _ <- Files,
-                  case lrev(F) of
+                  case ?lrev(F) of
                         "txt." ++ _ -> true;
                         _ -> false
                     end],
@@ -547,10 +543,10 @@ check_this_page(S) ->
             "" -> {CurPage, CurPage};
             B2 ->
                 {B3, PageStr} = read_to_before(B2, "</strong>"),
-                LastRead = l2i(PageStr),
+                LastRead = ?l2i(PageStr),
                 B4 = rm_to_after(B3, ["</strong> of <strong>"]),
                 {_B5, PageTotStr} = read_to_before(B4, "</strong>"),
-                Total = l2i(PageTotStr),
+                Total = ?l2i(PageTotStr),
                 {LastRead, Total}
         end,
     IsLastPage = if PageLastRead == PageTotal -> true;
@@ -589,11 +585,11 @@ analyse_body(S) ->
     Msg = strip(MsgRaw),
 
     if UserStr /= "" ->
-            MsgId = l2i(MsgIdStr),
+            MsgId = ?l2i(MsgIdStr),
             Msgs = rmess(MsgId),
             if Msgs == [] orelse S#s.do_refresh_msgs ->
-                    Time = l2i(TimeStr),
-                    User = l2b(UserStr),
+                    Time = ?l2i(TimeStr),
+                    User = ?l2b(UserStr),
                     update_page_rec(S, MsgId),
                     MsgR = write_message_rec(S, MsgId, User, Time, Msg),
                     mafia_vote:verify_user(MsgR),
@@ -675,7 +671,7 @@ write_message_rec(S, MsgIdInt, User, Time, Msg) ->
                    page_num = S#s.page_last_read,
                    user_name = User,
                    time = Time,
-                   message = l2b(Msg)
+                   message = ?l2b(Msg)
                   }
      ),
     M.
@@ -687,4 +683,4 @@ h_strip([H|T]) when H =< $\s -> strip(T);
 h_strip(Str) -> Str.
 
 t_strip(Str) ->
-    lrev(h_strip(lrev(Str))).
+    ?lrev(h_strip(?lrev(Str))).

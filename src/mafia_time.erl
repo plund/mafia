@@ -66,7 +66,7 @@ get_next_deadline(#mafia_game{key = _ThId,
                   Secs) ->
     case lists:dropwhile(
            fun({_, _, DlSecs}) -> DlSecs =< Secs end,
-           lrev(DLs)) of
+           ?lrev(DLs)) of
         [DL = {_Num, _DoN, DlSecs}|_] ->
             SecsLeft = DlSecs - Secs,
             {{SecsLeft div ?DaySecs,

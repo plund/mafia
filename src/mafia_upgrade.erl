@@ -15,8 +15,6 @@
 
 -include("mafia.hrl").
 
--import(mafia, [b2l/1, l2b/1]).
-
 %% mnesia_table arity is number of fields + 1
 upgrade() ->
     upgrade(user,
@@ -90,9 +88,9 @@ upgrade(Tab, As, Fs) ->
               [Tab, As, Fs]).
 
 get_aliases(NameB) ->
-    case lists:keyfind(b2l(NameB), 1, ?Aliases) of
+    case lists:keyfind(?b2l(NameB), 1, ?Aliases) of
         false -> [];
-        {_, As} -> [l2b(A) || A <- As]
+        {_, As} -> [?l2b(A) || A <- As]
     end.
 
 %% -----------------------------------------------------------------------------

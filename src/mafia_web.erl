@@ -38,7 +38,7 @@
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
 
--import(mafia, [i2l/1, l2b/1, b2l/1, l2u/1, b2ul/1, getv/1]).
+-import(mafia, [l2u/1, b2ul/1, getv/1]).
 
 -include("mafia.hrl").
 
@@ -201,7 +201,7 @@ handle_cast({regenerate_history, {DNum, DoN}}, State) ->
             PhStr = case DoN of
                         ?day -> "d";
                         ?night -> "n"
-                    end ++ i2l(DNum),
+                    end ++ ?i2l(DNum),
             %% calculate "m25_d1.txt"
             PhaseFN = Prefix ++ PhStr ++ ".txt",
             FileName = filename:join(?DOC_ROOT, PhaseFN),
@@ -371,7 +371,7 @@ msg_search_result(Sid, _Env, In) ->
     {_, DayNumText} = lists:keyfind("day numbers", 1, PQ),
     DayCond =
         try
-            DayNumU = l2u(DayNumText),
+            DayNumU = ?l2u(DayNumText),
             case DayNumU of
                 "END" ++ _ -> ?game_ended;
                 _ ->
@@ -408,7 +408,7 @@ msg_search_result(Sid, _Env, In) ->
                      message = MsgB},
             Acc) ->
                 MsgPhase = mafia_time:calculate_phase(ThId, Time),
-                Msg = b2l(MsgB),
+                Msg = ?b2l(MsgB),
                 B2U = fun(B) -> string:to_upper(binary_to_list(B)) end,
                 MsgUserU = B2U(MsgUserB),
                 TestFuns =
@@ -425,7 +425,7 @@ msg_search_result(Sid, _Env, In) ->
 
                      %% 2. Test Words with ANY instead of all
                      fun() ->
-                             MsgU = l2u(Msg),
+                             MsgU = ?l2u(Msg),
                              lists:all(
                                fun(WordU) ->
                                        lists:any(
@@ -454,19 +454,19 @@ msg_search_result(Sid, _Env, In) ->
                 AllTestsOk = lists:all(fun(F) -> F() end, TestFuns),
                 if AllTestsOk ->
                         DayStr = case MsgPhase of
-                                     {DNum, ?day} -> "Day-" ++ i2l(DNum);
-                                     {DNum, ?night} -> "Night-" ++ i2l(DNum);
+                                     {DNum, ?day} -> "Day-" ++ ?i2l(DNum);
+                                     {DNum, ?night} -> "Night-" ++ ?i2l(DNum);
                                      ?game_ended -> "Game End "
                                  end,
                         Hash = erlang:phash2(MsgUserB, 16#1000000),
                         Color = Hash bor 16#C0C0C0,
                         ColorStr = integer_to_list(Color, 16),
                         {HH, MM} = mafia_time:hh_mm_to_deadline(ThId, Time),
-                        OutB = l2b(["<tr bgcolor=\"#", ColorStr,
+                        OutB = ?l2b(["<tr bgcolor=\"#", ColorStr,
                                     "\"><td valign=\"top\"><b>", MsgUserB,
                                     "</b><br>",
                                     DayStr, " ", p(HH), ":", p(MM),
-                                    "<br> page ", i2l(PageNum),
+                                    "<br> page ", ?i2l(PageNum),
                                     "</td><td valign=\"top\">", Msg,
                                     "</td></tr>\r\n"]),
                         mod_esi:deliver(Sid, OutB),
@@ -481,7 +481,7 @@ msg_search_result(Sid, _Env, In) ->
     B = if DoCont ->
                 mafia_data:iterate_all_msgs(ThId, Fun);
            true ->
-                MsgB = l2b(["<tr><td valign=\"top\">",
+                MsgB = ?l2b(["<tr><td valign=\"top\">",
                             "Error: Minimum one condition needs to be "
                             "specified: User name, Word or a "
                             "single Day number!",
@@ -498,14 +498,14 @@ msg_search_result(Sid, _Env, In) ->
               [TimeStr, NumBytes, MilliSecs, UsersText, WordsText, DayNumText]).
 
 find_word_searches(WordText) ->
-    [l2u(Str) || Str <- fws(WordText,
+    [?l2u(Str) || Str <- fws(WordText,
                             _InQuotes = false,
                             _QStrs = [],
                             _CharAcc = "")].
 
 fws("", _IsInQ, QStrs, Acc) ->
     QStrs2 = add_cond(QStrs, Acc),
-    lists:reverse(QStrs2);
+    ?lrev(QStrs2);
 fws("\""++T, true, QStrs, Acc) ->
     fws(T, false, QStrs, Acc);
 fws("\""++T, false, QStrs, Acc) ->
@@ -517,7 +517,7 @@ fws([H|T], IsInQ, QStrs, Acc) ->
     fws(T, IsInQ, QStrs, [H|Acc]).
 
 add_cond(QStrs, Acc) ->
-    if Acc /= "" -> [lists:reverse(Acc)|QStrs];
+    if Acc /= "" -> [?lrev(Acc)|QStrs];
        true -> QStrs
     end.
 
@@ -533,7 +533,7 @@ allpos(MsgU, Search) -> allpos(MsgU, Search, 0, []).
 allpos(MsgU, Search, Offset, Acc) ->
     case string:str(MsgU, Search) of
         0 ->
-            lists:reverse(Acc);
+            ?lrev(Acc);
         P ->
             MsgU2 = lists:nthtail(P, MsgU),
             FoundAt = P + Offset,
@@ -553,8 +553,8 @@ is_word(MsgU, Pos, LenMsg, LenSea) ->
         lists:member(lists:nth(NextPosAfterSearch, MsgU), ?BoundaryChars),
     IsBoundA and IsBoundB.
 
-p(I) when I > 9 -> i2l(I);
-p(I) -> string:right(i2l(I), 2, $0).
+p(I) when I > 9 -> ?i2l(I);
+p(I) -> string:right(?i2l(I), 2, $0).
 
 -define(RES_START(Title, Border),
  "<!DOCTYPE html>
@@ -581,16 +581,16 @@ del_start(Sid, Title, 0) ->
     Border = "",
     del_start(Sid, Title, Border);
 del_start(Sid, Title, BordInt) when is_integer(BordInt) ->
-    Border = " border=\"" ++ i2l(BordInt) ++ "\"",
+    Border = " border=\"" ++ ?i2l(BordInt) ++ "\"",
     del_start(Sid, Title, Border);
 del_start(Sid, Title, Border) ->
     Start = ?RES_START(Title, Border),
     mod_esi:deliver(Sid, Start),
-    size(l2b(Start)).
+    size(?l2b(Start)).
 
 del_end(Sid) ->
     mod_esi:deliver(Sid, ?RES_END),
-    size(l2b(?RES_END)).
+    size(?l2b(?RES_END)).
 
 %% http://mafia_test.peterlund.se/esi/mafia_web/vote_tracker?day_phase=1
 %% http://mafia_test.peterlund.se/esi/mafia_web/vote_tracker?msg_id=1420335
@@ -616,7 +616,7 @@ vote_tracker2({"day_phase", Str},
         DayNum = list_to_integer(Str),
         [RK, VT] = mafia_print:web_vote_tracker(DayNum),
         Out =
-            {tracker, l2b(["<tr><td>", RK, "</td></tr>",
+            {tracker, ?l2b(["<tr><td>", RK, "</td></tr>",
                            "<tr><td>", VT, "</td></tr>"
                           ])},
         TimeStr = mafia_print:print_time(current_time, short),
@@ -658,18 +658,18 @@ show_msg([#message{user_name = MsgUserB,
     GameKey = getv(?game_key),
     MsgPhase = mafia_time:calculate_phase(GameKey, Time),
     DayStr = case MsgPhase of
-                 {DNum, ?day} -> "Day-" ++ i2l(DNum);
-                 {DNum, ?night} -> "Night-" ++ i2l(DNum);
+                 {DNum, ?day} -> "Day-" ++ ?i2l(DNum);
+                 {DNum, ?night} -> "Night-" ++ ?i2l(DNum);
                  ?game_ended -> "Game End "
              end,
     Hash = erlang:phash2(MsgUserB, 16#1000000),
     Color = Hash bor 16#C0C0C0,
     ColorStr = integer_to_list(Color, 16),
     {HH, MM} = mafia_time:hh_mm_to_deadline(GameKey, Time),
-    l2b(["<tr bgcolor=\"#", ColorStr,
+    ?l2b(["<tr bgcolor=\"#", ColorStr,
          "\"><td valign=\"top\"><b>", MsgUserB,
          "</b><br>",
          DayStr, " ", p(HH), ":", p(MM),
-         "<br> page ", i2l(PageNum),
+         "<br> page ", ?i2l(PageNum),
          "</td><td valign=\"top\">", MsgB,
          "</td></tr>\r\n"]).

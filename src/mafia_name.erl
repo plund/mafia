@@ -9,7 +9,7 @@
 %% eunit tests
 -export([test/0]).
 
--import(mafia, [b2l/1, lrev/1]).
+-import(mafia, [lrev/1]).
 
 -type abbr_calc() :: {IsUniq :: boolean(),
                       OrigName :: string(),
@@ -20,7 +20,7 @@
 -spec get_abbrevs([player()]) -> term().
 get_abbrevs(PlayerRem) ->
     Rems = ["INVALID", ?Unvote, ?NoLynch]
-            ++ [b2l(UserB) || UserB <- PlayerRem],
+            ++ [?b2l(UserB) || UserB <- PlayerRem],
     %%        Uniqu  Orig,  Head, Tail
     Rems2 = [{false, User, "", User} || User <- Rems],
 
@@ -63,12 +63,12 @@ mod_prob(L, _NonUniqs, Prob) ->
 replace_last_read_w_next(L) ->
     lists:foldr(
       fun({U, O, A, [H|T]}, Acc) ->
-              [_|AR] = lrev(A),
-              NewA = lrev([H|AR]),
+              [_|AR] = ?lrev(A),
+              NewA = ?lrev([H|AR]),
               [{U, O, NewA, T} | Acc];
          ({U, O, A, []}, Acc) ->
-              [_|AR] = lrev(A),
-              NewA = lrev([$.|AR]),
+              [_|AR] = ?lrev(A),
+              NewA = ?lrev([$.|AR]),
               [{U, O, NewA, []} | Acc]
       end,
       [],

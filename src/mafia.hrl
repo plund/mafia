@@ -104,6 +104,21 @@
 -type phase() :: ?game_ended | {integer(), day_night()}.
 -type deadline() :: {integer(), day_night(), seconds1970()}.
 
+-define(i2l(I), integer_to_list(I)).
+
+-define(b2l(B), binary_to_list(B)).
+-define(l2b(L), list_to_binary(L)).
+
+-define(l2i(L), list_to_integer(L)).
+-define(l2a(L), list_to_atom(L)).
+
+-define(l2u(L), string:to_upper(L)).
+-define(l2ub(L), ?l2b(?l2u(L))).
+
+-define(b2ul(B), ?l2u(?b2l(B))).
+-define(b2ub(B), ?l2b(?b2ul(B))).
+-define(lrev(L), lists:reverse(L)).
+
 -record(kv_store,
         {key,
          value

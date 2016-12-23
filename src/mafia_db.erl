@@ -15,8 +15,6 @@
          write_default_table/2
         ]).
 
--import(mafia, [l2b/1]).
-
 getv(Key) -> getv(Key, undefined).
 
 getv(Key, Default) ->
@@ -79,9 +77,9 @@ write_default_table(game) ->
 
 write_default_table(user) ->
     [ mnesia:dirty_write(
-        #user{name_upper = l2b(string:to_upper(U)),
-              name = l2b(U),
-              aliases = mafia_upgrade:get_aliases(l2b(U)),
+        #user{name_upper = ?l2b(string:to_upper(U)),
+              name = ?l2b(U),
+              aliases = mafia_upgrade:get_aliases(?l2b(U)),
               verification_status = ?unverified})
       || U <- ?M24_players ++ ?M24_GMs],
     ok.

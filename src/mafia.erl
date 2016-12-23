@@ -2,9 +2,9 @@
 
 -include("mafia.hrl").
 %% - check all clear_table
+%% - fix a manual replace player fun
 %% - implement the GM_commands. How to test them?
 %%   - define now and when to use a smarter vote reader!!
-%% - change all i2l/1 to ?i2l macro defined in mafia.hrl
 %% - Display msgs since last login with a browser (cookie)
 %% - Make sure not to read votes before game start: EoD1 - day length
 %% - be DAY/NIGHT sensitive when reading "Day/night ... has ended early"
@@ -74,15 +74,7 @@
          rgame/0,
          rgame/1,
          rday/2,
-         rmess/1,
-
-         b2l/1,
-         l2b/1,
-         l2u/1,
-         i2l/1,
-         l2i/1,
-         b2ub/1,
-         lrev/1
+         rmess/1
         ]).
 
 %% utilities
@@ -110,21 +102,6 @@ print_votes(DayNum, DoN) -> mafia_print:print_votes(DayNum, DoN).
 print_messages(User) -> mafia_print:print_messages(User).
 
 downl() -> mafia_data:downl().
-
-b2l(B) -> binary_to_list(B).
-l2b(L) -> list_to_binary(L).
-
-l2u(L) -> string:to_upper(L).
-l2ub(L) -> l2b(l2u(L)).
-
-i2l(I) -> integer_to_list(I).
-l2i(L) -> list_to_integer(L).
-l2a(L) -> list_to_atom(L).
-
-b2ul(B) -> l2u(b2l(B)).
-b2ub(B) -> l2b(b2ul(B)).
-
-lrev(L) -> lists:reverse(L).
 
 set(K, V) -> mafia_db:set(K, V).
 
@@ -227,8 +204,8 @@ set_death_comment(MsgId, Player, Comment) ->
 
 set_death_commentI([], _Player, _Comment) -> no_game;
 set_death_commentI([G], Player, Comment) ->
-    PlayerB = l2b(Player),
-    CommentB = l2b(Comment),
+    PlayerB = ?l2b(Player),
+    CommentB = ?l2b(Comment),
     case lists:member(PlayerB,
                       [D#death.player
                        || D <- G#mafia_game.player_deaths]) of
@@ -250,9 +227,9 @@ set_death_commentI([G], Player, Comment) ->
 %% load all beams in local dir
 l() ->
     {ok, Files} = file:list_dir("."),
-    Beams = [l2a(lrev(ModRev))
+    Beams = [?l2a(?lrev(ModRev))
              || "maeb." ++ ModRev
-                    <- [lrev(F) || F <- Files]],
+                    <- [?lrev(F) || F <- Files]],
     Beams2 = (Beams -- [mafia]) ++ [mafia],
     [begin code:purge(M), code:load_file(M), M end
      || M <- Beams2].
@@ -300,8 +277,8 @@ verify_new_user_list(24) ->
 
 verify_new_user_list2(Users) ->
     [begin
-         UserB = l2b(U),
-         UserUB = l2ub(U),
+         UserB = ?l2b(U),
+         UserUB = ?l2ub(U),
          case mnesia:dirty_read(user, UserUB) of
              [] ->
                  io:format("User ~p is new\n",[U]);
@@ -312,7 +289,7 @@ verify_new_user_list2(Users) ->
              [#user{name = UserB2,
                     verification_status = Ver}] ->
                  io:format("User exist with incorrect case. "
-                           "Correct is ~p and it is ~p\n", [b2l(UserB2), Ver])
+                           "Correct is ~p and it is ~p\n", [?b2l(UserB2), Ver])
          end
      end
      || U <- Users].
@@ -356,11 +333,11 @@ show_all_users(Search) ->
     io:format("All Users: ~999p\n", [Users]).
 
 all_users() ->
-    [b2l(UserUB) || UserUB <- mnesia:dirty_all_keys(user)].
+    [?b2l(UserUB) || UserUB <- mnesia:dirty_all_keys(user)].
 
 all_users(Search) ->
-    [b2l(UserUB) || UserUB <- mnesia:dirty_all_keys(user),
-                   0 /= string:str(b2l(UserUB), l2u(Search))].
+    [?b2l(UserUB) || UserUB <- mnesia:dirty_all_keys(user),
+                   0 /= string:str(?b2l(UserUB), ?l2u(Search))].
 
 
 -spec show_aliases(User :: string()) -> ok | {error, Reason :: term()}.
@@ -369,8 +346,8 @@ show_aliases(all) ->
          U = hd(mnesia:dirty_read(user, UserUB)),
          if U#user.aliases /= [] ->
                  io:format("Found: ~s\nAliases: ~p\n",
-                           [b2l(U#user.name),
-                            [b2l(AlB) || AlB <- U#user.aliases]]);
+                           [?b2l(U#user.name),
+                            [?b2l(AlB) || AlB <- U#user.aliases]]);
             true -> ok
          end
      end
@@ -384,28 +361,28 @@ show_aliases(Search) ->
 
 
 show_aliasesI(User) ->
-    UserUB = l2ub(User),
+    UserUB = ?l2ub(User),
     case mnesia:dirty_read(user, UserUB) of
         [] -> {error, user_not_found};
         [#user{} = U] ->
             io:format("Found: ~s\nAliases: ~p\n",
-                      [b2l(U#user.name),
-                       [b2l(AlB) || AlB <- U#user.aliases]])
+                      [?b2l(U#user.name),
+                       [?b2l(AlB) || AlB <- U#user.aliases]])
     end.
 
 -spec add_alias(User :: string(), Alias :: string())
                -> ok | {error, Reason :: term()}.
 add_alias(User, Alias) ->
-    UserB = l2b(User),
-    UserUB = l2ub(User),
-    AliasB = l2b(Alias),
-    AliasUB = l2ub(Alias),
+    UserB = ?l2b(User),
+    UserUB = ?l2ub(User),
+    AliasB = ?l2b(Alias),
+    AliasUB = ?l2ub(Alias),
     case mnesia:dirty_read(user, UserUB) of
         [] -> {error, user_not_found};
         [#user{} = U] when U#user.name /= UserB ->
             {error, user_case_not_matching};
         [#user{aliases = AliasesB} = U] ->
-            AliasesUB = [b2ub(AlB) || AlB <- U#user.aliases],
+            AliasesUB = [?b2ub(AlB) || AlB <- U#user.aliases],
             case lists:member(AliasUB, AliasesUB) of
                 true ->
                     {error, alias_exist_already};
@@ -418,9 +395,9 @@ add_alias(User, Alias) ->
 -spec remove_alias(User :: string(), Alias :: string())
                   -> ok | {error, Reason :: term()}.
 remove_alias(User, Alias) ->
-    UserB = l2b(User),
-    UserUB = l2ub(User),
-    AliasB = l2b(Alias),
+    UserB = ?l2b(User),
+    UserUB = ?l2ub(User),
+    AliasB = ?l2b(Alias),
     case mnesia:dirty_read(user, UserUB) of
         [] -> {error, user_not_found};
         [#user{} = U] when U#user.name /= UserB ->
@@ -450,8 +427,8 @@ cmp_vote_raw() ->
         [#mafia_day{votes = GVotes}] ->
             [begin
                  VoteSum =
-                     [{b2l(V#vote.vote), b2l(V#vote.raw), V#vote.valid}
+                     [{?b2l(V#vote.vote), ?b2l(V#vote.raw), V#vote.valid}
                       || V <- Votes],
-                 {b2l(User), VoteSum}
+                 {?b2l(User), VoteSum}
              end || {User, Votes} <- GVotes]
     end.

@@ -137,7 +137,7 @@ end_phase(MsgId, TimeNextDL) ->
             Cmd = #cmd{time = M#message.time,
                        msg_id = MsgId,
                        mfa = {mafia, end_phase, [MsgId, TimeNextDL]}},
-            io:format("MANUAL ~999p\n", [Cmd]),
+            ?man(M#message.time, Cmd),
             mafia_data:manual_cmd_to_file(M#message.thread_id, Cmd),
             mafia_time:end_phase(M, TimeNextDL)
     end.
@@ -156,7 +156,7 @@ end_game(MsgId) ->
             Cmd = #cmd{time = Time,
                        msg_id = MsgId,
                        mfa = {mafia, end_game, [MsgId]}},
-            io:format("MANUAL ~999p\n", [Cmd]),
+            ?man(Time, Cmd),
             mafia_data:manual_cmd_to_file(ThId, Cmd),
             mafia_time:end_game(M)
     end.
@@ -175,7 +175,7 @@ unend_game(MsgId) ->
             Cmd = #cmd{time = Time,
                        msg_id = MsgId,
                        mfa = {mafia, end_game, [MsgId]}},
-            io:format("MANUAL UNDO ~999p\n", [Cmd]),
+            ?man(Time, {'UNDO', Cmd}),
             mafia_data:manual_cmd_from_file(ThId, Cmd),
             mafia_time:unend_game(M)
     end.
@@ -197,13 +197,13 @@ set_death_comment(MsgId, Player, Comment) ->
                        msg_id = MsgId,
                        mfa = {mafia, set_death_comment,
                               [MsgId, Player, Comment]}},
-            io:format("MANUAL ~999p\n", [Cmd]),
+            ?man(Time, Cmd),
             mafia_data:manual_cmd_to_file(ThId, Cmd),
-            set_death_commentI(rgame(ThId), Player, Comment)
+            set_death_commentI(rgame(ThId), Time, Player, Comment)
     end.
 
-set_death_commentI([], _Player, _Comment) -> no_game;
-set_death_commentI([G], Player, Comment) ->
+set_death_commentI([], _Time, _Player, _Comment) -> no_game;
+set_death_commentI([G], Time, Player, Comment) ->
     PlayerB = ?l2b(Player),
     CommentB = ?l2b(Comment),
     case lists:member(PlayerB,
@@ -214,7 +214,7 @@ set_death_commentI([G], Player, Comment) ->
         true ->
             SetComment =
                 fun(D = #death{}) when PlayerB == D#death.player ->
-                        mafia_web:regenerate_history(D#death.phase),
+                        mafia_web:regenerate_history(Time, D#death.phase),
                         D#death{comment = CommentB};
                    (D) -> D
                 end,

@@ -119,6 +119,20 @@
 -define(b2ub(B), ?l2b(?b2ul(B))).
 -define(lrev(L), lists:reverse(L)).
 
+-define(dbg(Term),
+        io:format("~s DBG ~999p\n",
+                  [mafia_print:print_time(current_time, short),
+                   Term])).
+-define(dbg(Time, Term),
+        io:format("~s DBG ~999p\n",
+                  [mafia_print:print_time(Time, short),
+                   Term])).
+
+-define(man(Time, Cmd),
+        io:format("~s MANUAL ~999p\n",
+                  [mafia_print:print_time(Time, short),
+                   Cmd])).
+
 -record(kv_store,
         {key,
          value

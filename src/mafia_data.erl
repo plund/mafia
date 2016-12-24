@@ -11,6 +11,7 @@
          find_pos_and_split/2,
          get_after_pos/3,
          sum_stat/2,
+         game_prefixes/1,
          game_file_prefix/1
         ]).
 
@@ -147,11 +148,6 @@ refresh_votes({end_page, EndPage}) when is_integer(EndPage) ->
     ThId = getv(?thread_id),
     Filter = fun(Page) -> Page =< EndPage end,
     refresh_votes(ThId, rgame(ThId), Filter, soft).
-
-%% refresh_votesI(Mode) ->
-%%     %% mnesia:clear_table(mafia_day),
-%%     ThId = getv(?thread_id),
-%%     refresh_votes(ThId, rgame(ThId), all, Mode).
 
 refresh_votes(_ThId, [], _F, _Method) -> ok;
 refresh_votes(ThId, [G], Filter, Method) ->
@@ -455,13 +451,20 @@ cmd_filename(Thread) ->
     BaseName = GamePrefix ++ ?i2l(Thread) ++ "_manual_cmds.txt",
     filename:join([DirName, BaseName]).
 
-game_file_prefix(ThId) when is_integer(ThId) ->
-    game_file_prefix(rgame(ThId));
-game_file_prefix([]) -> "";
-game_file_prefix([G]) ->
-    game_file_prefix(G);
+game_prefixes(G) ->
+    Pre = game_prefix(G),
+    {Pre, Pre ++ "_"}.
+
 game_file_prefix(G) ->
-    "m" ++ ?i2l(G#mafia_game.game_num) ++ "_".
+    game_prefix(G) ++ "_".
+
+game_prefix(ThId) when is_integer(ThId) ->
+    game_prefix(rgame(ThId));
+game_prefix([]) -> "";
+game_prefix([G]) ->
+    game_prefix(G);
+game_prefix(G) ->
+    "m" ++ ?i2l(G#mafia_game.game_num).
 
 verify_exist(DirName) ->
     case file:read_file_info(DirName) of

@@ -240,7 +240,7 @@ end_phase(#message{time = MsgTime}, DateTime, [G], false) ->
     TargetTime = utc_secs1970() + 11 * ?DaySecs,
     NewDLs = get_some_extra_dls(G, DLs4, TargetTime),
     mnesia:dirty_write(G#mafia_game{deadlines = NewDLs}),
-    mafia_web:regenerate_history(EarlyDL),
+    mafia_web:regenerate_history(MsgTime, EarlyDL),
     inserted;
 end_phase(_, _, _, _) ->
     already_inserted.
@@ -278,7 +278,7 @@ end_game(M, G, false) ->
     DLs3 = [LastDL | DLs2],
     mnesia:dirty_write(G#mafia_game{deadlines = DLs3,
                                     game_end = {EndTime, MsgId}}),
-    mafia_web:regenerate_history(LastDL),
+    mafia_web:regenerate_history(EndTime, LastDL),
     ?game_ended;
 end_game(_, _, _) ->
     already_game_ended.
@@ -443,7 +443,12 @@ t_mins(?game_ended, T) when T >= ?m2s(24*60) -> 120.
                       -> none | {integer(), deadline()}.
 nearest_deadline(G) ->
     Now = utc_secs1970(),
-    nearest_deadline(G, Now).
+    case G#mafia_game.game_end of
+        undefined ->
+            nearest_deadline(G, Now);
+        {EoGTime, _MsgId} ->
+            {Now - EoGTime, ?game_ended}
+    end.
 
 -spec nearest_deadline(integer() | #mafia_game{},
                        seconds1970())
@@ -454,16 +459,11 @@ nearest_deadline([], _) -> none;
 nearest_deadline([G = #mafia_game{}], Time) ->
     nearest_deadline(G, Time);
 nearest_deadline(G = #mafia_game{}, Time) ->
-    case G#mafia_game.game_end of
-        undefined ->
-            DLs = G#mafia_game.deadlines,
-            {_, TDiff, NearestDL} =
-                hd(lists:sort([{abs(Time - DlTime), Time - DlTime, DL}
-                               || DL = {_, _, DlTime} <- DLs])),
-            {TDiff, NearestDL};
-        {EoGTime, _MsgId} ->
-            {Time - EoGTime, ?game_ended}
-    end.
+    DLs = G#mafia_game.deadlines,
+    {_, TDiff, NearestDL} =
+        hd(lists:sort([{abs(Time - DlTime), Time - DlTime, DL}
+                       || DL = {_, _, DlTime} <- DLs])),
+    {TDiff, NearestDL}.
 
 %% -------------------------------------------------
 

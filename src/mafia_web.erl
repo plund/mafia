@@ -22,7 +22,8 @@
          stop_httpd/1,
 
          get_state/0,
-         regenerate_history/1  % used to print txt files when refresh_votes
+         regenerate_history/1,  % used to print txt files when refresh_votes
+         regenerate_history/2
         ]).
 
 %% web
@@ -111,9 +112,17 @@ set_interval_minutes(N) when is_integer(N)  ->
     gen_server:call(?SERVER, {set_timer_interval, N}).
 
 %% rewrite one history txt file
-regenerate_history({DNum, DoN, _}) ->
-    regenerate_history({DNum, DoN});
+regenerate_history(Time, Phase) ->
+    ?dbg(Time, {"REGENERATE_HISTORY", Phase}),
+    regenerate_historyI(Phase).
+
 regenerate_history(Phase) ->
+    ?dbg({"REGENERATE_HISTORY", Phase}),
+    regenerate_historyI(Phase).
+
+regenerate_historyI({DNum, DoN, _}) ->
+    regenerate_historyI({DNum, DoN});
+regenerate_historyI(Phase) ->
     gen_server:cast(?SERVER, {regenerate_history, Phase}).
 
 %%%===================================================================
@@ -172,7 +181,7 @@ handle_call('start_polling', _From, State) ->
     {reply, Reply, S2};
 handle_call('stop_polling', _From, State) ->
     timer:cancel(State#state.timer),
-    {reply, ok, State#state{timer = undefined}};
+    {reply, {ok, polling_stopped}, State#state{timer = undefined}};
 
 handle_call(start_web, _From, State) ->
     S = start_web(State),
@@ -193,23 +202,26 @@ handle_call(_Request, _From, State) ->
 %%--------------------------------------------------------------------
 
 %% rewrite one history txt file
-handle_cast({regenerate_history, {DNum, DoN}}, State) ->
-    case mafia:rgame() of
+handle_cast(Ev = {regenerate_history, {DNum, DoN}}, State) ->
+    timer:sleep(300),
+    ?dbg({"HC REGENERATE_HISTORY", DNum, DoN}),
+    case mafia:rgame(State#state.game_key) of
         [] -> ok;
         [G] ->
-            Prefix = mafia_data:game_file_prefix(G),
+            {GameDir, FilePrefix} = mafia_data:game_prefixes(G),
             PhStr = case DoN of
                         ?day -> "d";
                         ?night -> "n"
                     end ++ ?i2l(DNum),
             %% calculate "m25_d1.txt"
-            PhaseFN = Prefix ++ PhStr ++ ".txt",
-            FileName = filename:join(?DOC_ROOT, PhaseFN),
+            PhaseFN = FilePrefix ++ PhStr ++ ".txt",
+            FileName = filename:join([?DOC_ROOT, GameDir, PhaseFN]),
             {ok, Fd} = file:open(FileName, [write]),
             mafia_print:print_votes([{?game_key, State#state.game_key},
                                      {?phase, {DNum, DoN}},
                                      {?dev, Fd}]),
-            file:close(Fd)
+            file:close(Fd),
+            flush({'$gen_cast', Ev})
     end,
     {noreply, State};
 handle_cast(_Msg, State) ->

@@ -43,16 +43,17 @@ check_for_deathI(_S, M, G) ->
         true ->
             G2 = check_for_deathI2(
                    ?l2u(
-                     mafia_print:html2txt(
-                       ?b2l(M#message.message))), M, G),
+                      mafia_print:html2txt(
+                        ?b2l(M#message.message))), M, G),
 
             %% if time is 0 - 15 min after a deadline generate a history page
             Time = M#message.time,
             {RelTimeSecs, DL} = mafia_time:nearest_deadline(G2, Time),
             if RelTimeSecs >= 0,
                RelTimeSecs =< ?MAX_GM_DL_MINS * ?MinuteSecs ->
-                    mafia_web:regenerate_history(DL);
-               true -> ok
+                    mafia_web:regenerate_history(Time, DL);
+               true ->
+                    ok
             end,
             G2
     end.

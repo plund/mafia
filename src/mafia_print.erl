@@ -139,9 +139,7 @@ print_votesI3(PP,
               [#mafia_game{} = G],
               [#mafia_day{} = Day]
              ) ->
-    PP2 = PP#pp{game = G,
-                day = Day
-               },
+    PP2 = PP#pp{game = G, day = Day},
     print_votesI(PP2).
 
 print_votesI(#pp{game = G,
@@ -319,27 +317,24 @@ print_time_left_to_dl(PP) ->
               "  ~s~p hours, ~p minutes\n",
               [pr_don(DoN), Num, DayStr, HH, MM]).
 
+%% Votes per user are time ordered (oldest first)
+%% Users sorted time ordered after they oldest vote (first vote)
+-spec pr_votes(PP :: #pp{},
+               Votes :: [{User :: user(), [#vote{}]}])
+              -> term().
 pr_votes(PP, Votes) ->
     {VoteSummary, InvalidVotes} =
         lists:foldl(
           %% UserVotes are time ordered
           fun({User, UserVotes}, {Acc, Acc2}) ->
-                  case lists:dropwhile(
-                         fun(V) -> not V#vote.valid end,
-                         ?lrev(UserVotes)) of
-                      [V|_] ->
-                          Vote = V#vote.vote,
-                          Raw = V#vote.raw,
-                          {add_vote(Vote, Raw, V#vote.time, User, Acc),
-                           Acc2};
-                      [] ->
-                          %% No valid vote found
-                          case ?lrev(UserVotes) of
-                              [LastInvalidVote | _] ->
-                                  {Acc, [{User, LastInvalidVote} | Acc2]};
-                              [] -> % no votes at all
-                                  {Acc, Acc2}
-                          end
+                  %% Look for vote when user starts to vote for end vote
+                  case user_vote(UserVotes) of
+                      #vote{valid = true} = V ->
+                          {add_vote(V, User, Acc), Acc2};
+                      #vote{valid = false} = V ->
+                          {Acc, [{User, V} | Acc2]};
+                      no_vote -> % no votes at all
+                          {Acc, Acc2}
                   end
           end,
           {[], []},
@@ -365,15 +360,31 @@ pr_votes(PP, Votes) ->
      end || {Vote, N, VoteInfos} <- VoteSumSort],
     {VoteSumSort, InvalidVotes}.
 
-%% time_for_last_msg() ->
-%%     ThId = getv(?thread_id),
-%%     LastPage = lists:last(
-%%                  lists:sort(
-%%                    mafia:find_pages_for_thread(ThId))),
-%%     LastMsgId = lists:last(
-%%                   (hd(mnesia:dirty_read(page_rec, {ThId, LastPage})))
-%%                   #page_rec.message_ids),
-%%     (hd(mnesia:dirty_read(message, LastMsgId)))#message.time.
+%% find oldest vote in unbroken sequence, for ppl reiterating their last votes
+-spec user_vote([#vote{}]) -> no_vote | #vote{}.
+user_vote(UserVotes) ->
+    case lists:foldr(
+           fun %% no_vote state
+               (V = #vote{valid = false}, no_vote) -> {inv, V};
+               (V = #vote{valid = true},  no_vote) -> {val, V};
+               %% invalid state
+               (V = #vote{valid = true}, {inv, _V}) -> {val, V};
+               %% valid state
+               (V = #vote{valid = true}, {val, Vacc})
+                 when V#vote.vote == Vacc#vote.vote ->
+                   {val, V};
+               (#vote{valid = true}, {val, Vacc}) ->
+                   {pval, Vacc};  %% permanent valid
+               %% inv, val or pval states
+               (_V, Vacc) -> Vacc
+           end,
+           no_vote,  %% initial state
+           UserVotes) of
+        {_, Vote2Use} ->
+            Vote2Use;
+        no_vote -> no_vote
+    end.
+
 
 pr_eodon(true, Phase) -> " died " ++ pr_eodon(Phase);
 pr_eodon(false, {Num, DoN}) -> " died " ++ pr_don(DoN) ++ " " ++ ?i2l(Num).
@@ -471,6 +482,9 @@ transl(UserUB) ->
     ?b2l(UInfo#user.name).
 
 %% [{Vote, Num, [{Time, User, Raw}]}]
+add_vote(V, User, Acc) ->
+    add_vote(V#vote.vote, V#vote.raw, V#vote.time, User, Acc).
+
 add_vote(Vote, Raw, Time, User, Acc) ->
     case lists:keyfind(Vote, 1, Acc) of
         false ->
@@ -617,6 +631,9 @@ print_time_5d(G, Time) ->
     {HH, MM} = mafia_time:hh_mm_to_deadline(G, Time),
     p(HH) ++ ":" ++ p(MM).
 
+%% Flatten a bit sort of plus time sort...
+-spec user_vote_timesort([{User :: user(), [#vote{}]}])
+                        ->[{User :: user(), #vote{}}].
 user_vote_timesort(Votes) ->
     Votes2 =
         lists:foldl(

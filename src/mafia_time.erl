@@ -441,7 +441,10 @@ t_mins(?game_ended, T) when T >= ?m2s(24*60) -> 120.
 
 -spec nearest_deadline(integer() | #mafia_game{})
                       -> none | {integer(), deadline()}.
-nearest_deadline(G) ->
+nearest_deadline(GameKey) when is_integer(GameKey) ->
+    nearest_deadline(mafia:rgame(GameKey));
+nearest_deadline([]) -> none;
+nearest_deadline([G]) ->
     Now = utc_secs1970(),
     case G#mafia_game.game_end of
         undefined ->

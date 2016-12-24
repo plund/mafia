@@ -61,6 +61,7 @@
 
          show_all_users/0,
          show_all_users/1,
+         show_all_aliases/0,
          show_aliases/1,
          add_alias/2,
          remove_alias/2
@@ -339,6 +340,9 @@ all_users(Search) ->
     [?b2l(UserUB) || UserUB <- mnesia:dirty_all_keys(user),
                    0 /= string:str(?b2l(UserUB), ?l2u(Search))].
 
+
+show_all_aliases() ->
+    show_aliases(all).
 
 -spec show_aliases(User :: string()) -> ok | {error, Reason :: term()}.
 show_aliases(all) ->

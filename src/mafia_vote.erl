@@ -106,7 +106,10 @@ check_for_deathI2(MsgUC, M, G) ->
                     if NewRems /= OldRems ->
                             DeadB = hd(OldRems -- NewRems),
                             DeadStr = ?b2l(DeadB),
-                            io:format("Player ~s died\n", [DeadStr]),
+                            io:format(
+                              "~s Player ~s died\n",
+                              [mafia_print:print_time(M#message.time, short),
+                               DeadStr]),
                             {IsEnd, Phase} = is_end_of_phase(M, G),
                             Death = #death{player = DeadB,
                                            is_end = IsEnd,
@@ -265,7 +268,9 @@ verify_user(M = #message{user_name = User}) ->
         ok -> ok;
         {Type, UserRec} ->
             if Type == user_new ->
-                    io:format("Warning: created new user ~p\n", [User]);
+                    io:format(
+                      "~s Warning: created new user ~p\n",
+                      [mafia_print:print_time(M#message.time, short), User]);
                true -> ok
             end,
             mnesia:dirty_write(UserRec),
@@ -356,8 +361,9 @@ author_user(M, G) ->
         true -> ok;
         false ->
             User = ?b2l(M#message.user_name),
-            io:format("Message sent by non-player ~p\n",
-                      [User])
+            io:format("~s Message sent by non-player ~p\n",
+                      [mafia_print:print_time(M#message.time, short),
+                       User])
     end.
 
 authorI(M, UsersB) ->
@@ -426,8 +432,9 @@ reg_vote(M, G, Vote, RawVote, IsOkVote) ->
                     vote2(M, G, Vote, RawVote, IsOkVote)
             end;
         false ->
-            io:format("Warning ~s tried to vote in game\n",
-                      [?b2l(M#message.user_name)]),
+            io:format("~s Warning ~s tried to vote in game\n",
+                      [mafia_print:print_time(M#message.time, short),
+                       ?b2l(M#message.user_name)]),
             ignore
     end.
 
@@ -445,8 +452,9 @@ vote2(M, G, Vote, RawVote, IsOkVote) ->
     case mafia_time:calculate_phase(G, M#message.time) of
         {DayNum, ?day} ->
             io:format(
-              "Register Vote: ~s votes ~p ~s\n",
-              [?b2l(M#message.user_name), ?b2l(RawVote),
+              "~s Register Vote: ~s votes ~p ~s\n",
+              [mafia_print:print_time(M#message.time, short),
+               ?b2l(M#message.user_name), ?b2l(RawVote),
                if IsOkVote -> "Approved"; true -> "Rejected" end]),
             User = M#message.user_name,
             NewVote = #vote{time = M#message.time,

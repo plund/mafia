@@ -339,25 +339,34 @@ pr_votes(PP, Votes) ->
           end,
           {[], []},
           Votes),
-    %% Sort summary on number of received votes
-    GtEq = fun(A, B) -> element(2, A) >= element(2, B) end,
-    VoteSumSort = lists:sort(GtEq, VoteSummary),
+    %% Sort votes in each wagons on time so we have oldest first
+    VoteSum2 = [setelement(3, Wgn, lists:sort(VoteInfos))
+                || Wgn = {_, _, VoteInfos} <- VoteSummary],
+
+    %% Sort summary first on number of received votes, if equal
+    %% second sort should be on having the oldest vote
+    GtEq =
+        fun(A, B) ->
+                NumVotesA = element(2, A),
+                NumVotesB = element(2, B),
+                if NumVotesA /= NumVotesB ->
+                        NumVotesA > NumVotesB;
+                   true ->
+                        element(3, A) =< element(3,B)
+                end
+        end,
+    VoteSumSort = lists:sort(GtEq, VoteSum2),
 
     io:format(PP#pp.dev,
               "\nVotes ~s\n"
               "------------\n",
               [pr_phase_long(PP#pp.phase)]),
     [begin
-         Voters = [{Voter, Raw}
-                   || {_VoteTime, Voter, Raw}
-                          <- lists:sort(VoteInfos)],
          io:format(PP#pp.dev, "~p ~s - ", [N, ?b2l(Vote)]),
-         VotersInTimeOrder =
-             [?b2l(Voter) || {Voter, _Raw3} <- Voters],
-         io:format(PP#pp.dev,
-                   "~s\n",
-                   [string:join(VotersInTimeOrder, ", ")])
-     end || {Vote, N, VoteInfos} <- VoteSumSort],
+         VoterNames = [?b2l(Voter) || {_Time, Voter, _Raw3} <- VoteInfos],
+         io:format(PP#pp.dev, "~s\n", [string:join(VoterNames, ", ")])
+     end
+     || {Vote, N, VoteInfos} <- VoteSumSort],
     {VoteSumSort, InvalidVotes}.
 
 %% find oldest vote in unbroken sequence, for ppl reiterating their last votes

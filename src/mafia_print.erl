@@ -658,7 +658,8 @@ do_print_stats(PP) ->
     if PP#pp.mode == ?text ->
             io:format(PP#pp.dev,
                       "\n~s~s\n",
-                      [NonPostTitle, string:join(NonPosters, ", ")]);
+                      [NonPostTitle, string:join(NonPosters, ", ")]),
+            [[], []];
        PP#pp.mode == ?html ->
             HtmlNonPosters =
                 ["<table align=center><tr>",

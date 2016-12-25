@@ -305,7 +305,6 @@ iterate_all_msgs(ThId, MsgFun, {arity,1}) ->
     ok;
 iterate_all_msgs(ThId, MsgFun, {arity,2}) ->
     Pages = lists:sort(mafia:find_pages_for_thread(ThId)),
-    io:format("NumPs ~p\n", [length(Pages)]),
     MsgIds = lists:foldl(
                fun(P, Acc) ->
                        [#page_rec{message_ids = MsgIds}] =
@@ -314,7 +313,6 @@ iterate_all_msgs(ThId, MsgFun, {arity,2}) ->
                end,
                [],
                Pages),
-    io:format("NumIds ~p\n", [length(MsgIds)]),
     lists:foldl(fun(MsgId, Acc2) ->
                         MsgFun(hd(mnesia:dirty_read(message, MsgId)), Acc2)
                 end,

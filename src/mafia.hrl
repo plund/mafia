@@ -109,20 +109,23 @@
 -type phase() :: ?game_ended | {integer(), day_night()}.
 -type deadline() :: {integer(), day_night(), seconds1970()}.
 
--define(i2l(I), integer_to_list(I)).
+%% simple macros
+-define(a2l(A), atom_to_list(A)).
 
 -define(b2l(B), binary_to_list(B)).
--define(l2b(L), list_to_binary(L)).
 
+-define(i2l(I), integer_to_list(I)).
+
+-define(l2b(L), list_to_binary(L)).
 -define(l2i(L), list_to_integer(L)).
 -define(l2a(L), list_to_atom(L)).
-
 -define(l2u(L), string:to_upper(L)).
--define(l2ub(L), ?l2b(?l2u(L))).
+-define(lrev(L), lists:reverse(L)).
 
+%% combined macros
+-define(l2ub(L), ?l2b(?l2u(L))).
 -define(b2ul(B), ?l2u(?b2l(B))).
 -define(b2ub(B), ?l2b(?b2ul(B))).
--define(lrev(L), lists:reverse(L)).
 
 -define(dbg(Term),
         io:format("~s DBG ~999p\n",
@@ -140,6 +143,24 @@
         io:format("~s MANUAL ~999p\n",
                   [mafia_print:print_time(Time, short),
                    Cmd])).
+
+-define(HTML_TAB_START(Title, TabAttrStr),
+ "<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">
+    <title>" ++ Title ++ "</title>
+  </head>
+  <body bgcolor=\"#cfffaf\">
+    <center>
+      <h3>" ++ Title ++ "</h3>
+      <table" ++ TabAttrStr ++ ">").
+
+-define(HTML_TAB_END, "
+      </table>
+    </center>
+  </body>
+</html>").
 
 -record(kv_store,
         {key,

@@ -413,8 +413,8 @@ pr_eodon({Num, ?night}) -> "EoN"++ ?i2l(Num);
 pr_eodon(?game_ended) -> "at end of game".
 
 pr_phase_long({Num, DoN}) -> pr_don(DoN) ++ " " ++ ?i2l(Num);
-pr_phase_long(?game_ended) ->  "Game End";
-pr_phase_long(?total_stats) ->  "Game Global Statistics".
+pr_phase_long(?game_ended) -> "Game End";
+pr_phase_long(?total_stats) -> "Game Global Statistics".
 
 %% Manual API
 print_stats() -> print_stats_opts([]).

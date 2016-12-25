@@ -375,9 +375,6 @@ flush(Msg) ->
 msg_search_result(Sid, _Env, In) ->
     ThId = getv(?game_key),
     PQ = httpd:parse_query(In),
-    mod_esi:deliver(Sid, ["Content-type: text/html\r\n",
-                          "Transfer-Encoding: chunked\r\n", %% maybe not needed
-                          "\r\n"]),
     {_, UsersText} = lists:keyfind("user names", 1, PQ),
     {_, WordsText} = lists:keyfind("contained words", 1, PQ),
     {_, DayNumText} = lists:keyfind("day numbers", 1, PQ),
@@ -481,14 +478,13 @@ msg_search_result(Sid, _Env, In) ->
                                     "<br> page ", ?i2l(PageNum),
                                     "</td><td valign=\"top\">", Msg,
                                     "</td></tr>\r\n"]),
-                        mod_esi:deliver(Sid, OutB),
-                        Acc + size(OutB);
+                        SizeOut = web:deliver(Sid, OutB),
+                        Acc + SizeOut;
                    true -> Acc
                 end;
            (_, Acc) ->
                 Acc
         end,
-    TimeA = erlang:monotonic_time(millisecond),
     A = del_start(Sid, "Mafia Search Result"),
     B = if DoCont ->
                 mafia_data:iterate_all_msgs(ThId, Fun);
@@ -498,16 +494,10 @@ msg_search_result(Sid, _Env, In) ->
                             "specified: User name, Word or a "
                             "single Day number!",
                             "</td></tr>"]),
-                mod_esi:deliver(Sid, MsgB),
-                size(MsgB)
+                web:deliver(Sid, MsgB)
         end,
     C = del_end(Sid),
-    TimeB = erlang:monotonic_time(millisecond),
-    NumBytes = A + B + C,
-    MilliSecs = TimeB - TimeA,
-    TimeStr = mafia_print:print_time(current_time, short),
-    io:format("~s Sent ~p bytes in ~p millisecs, search =*~s*=*~s*=*~s*=\n",
-              [TimeStr, NumBytes, MilliSecs, UsersText, WordsText, DayNumText]).
+    A + B + C.
 
 find_word_searches(WordText) ->
     [?l2u(Str) || Str <- fws(WordText,
@@ -568,24 +558,6 @@ is_word(MsgU, Pos, LenMsg, LenSea) ->
 p(I) when I > 9 -> ?i2l(I);
 p(I) -> string:right(?i2l(I), 2, $0).
 
--define(RES_START(Title, Border),
- "<!DOCTYPE html>
-<html>
-  <head>
-    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">
-    <title>" ++ Title ++ "</title>
-  </head>
-  <body bgcolor=\"#cfffaf\">
-    <center>
-      <h3>" ++ Title ++ "</h3>
-      <table" ++ Border ++ ">").
-
--define(RES_END, "
-      </table>
-    </center>
-  </body>
-</html>").
-
 del_start(Sid, Title) ->
     del_start(Sid, Title, 1).
 
@@ -596,29 +568,28 @@ del_start(Sid, Title, BordInt) when is_integer(BordInt) ->
     Border = " border=\"" ++ ?i2l(BordInt) ++ "\"",
     del_start(Sid, Title, Border);
 del_start(Sid, Title, Border) ->
-    Start = ?RES_START(Title, Border),
-    mod_esi:deliver(Sid, Start),
-    size(?l2b(Start)).
+    Start = ?HTML_TAB_START(Title, Border),
+    web:deliver(Sid, Start).
 
 del_end(Sid) ->
-    mod_esi:deliver(Sid, ?RES_END),
-    size(?l2b(?RES_END)).
+    web:deliver(Sid, ?HTML_TAB_END).
 
 %% http://mafia_test.peterlund.se/e/web/vote_tracker?day=1
 %% http://mafia_test.peterlund.se/e/web/vote_tracker?msg_id=1420335
 vote_tracker(Sid, _Env, In) ->
     PQ = httpd:parse_query(In),
-    case vote_tracker2(lists:keyfind("day", 1,  PQ),
-                       lists:keyfind("msg_id", 1,  PQ)) of
-        {tracker, Out} ->
-            _A = del_start(Sid, "Vote Tracker", 0);
-        {error, Out} ->
-            _A = del_start(Sid, "Vote Tracker Error", 1);
-        Out ->
-            _A = del_start(Sid, "Vote Message", 1)
+    A = case vote_tracker2(lists:keyfind("day", 1,  PQ),
+                           lists:keyfind("msg_id", 1,  PQ)) of
+            {tracker, Out} ->
+                del_start(Sid, "Vote Tracker", 0);
+            {error, Out} ->
+                del_start(Sid, "Vote Tracker Error", 1);
+            Out ->
+                del_start(Sid, "Vote Message", 1)
     end,
-    mod_esi:deliver(Sid, Out),
-    _C = del_end(Sid).
+    B = web:deliver(Sid, Out),
+    C = del_end(Sid),
+    A + B + C.
 
 vote_tracker2({"day", Str},
               _) ->
@@ -684,26 +655,19 @@ show_msg([#message{user_name = MsgUserB,
 stats(Sid, _Env, In) ->
     PQ = httpd:parse_query(In),
     Html =
-        (catch case stats2(lists:keyfind("phase", 1,  PQ),
-                           lists:keyfind("num", 1,  PQ)) of
-                   {ok, Phase} ->
-                       mafia_print:print_stats([{game_key, getv(game_key)},
-                                                {phase, Phase},
-                                                {mode, ?html}
-                                               ]);
-                   {error, ErrorHtml} -> ErrorHtml
-               end),
-    Html2 =
-        case Html of
-            {'EXIT', Term} ->
-                Str = lists:flatten(io_lib:format("~p\n", [Term])),
-                ?dbg_str(Str),
-                ["<tr><td>", Str, "</td></tr>"];
-            _ -> Html
+        case stats2(lists:keyfind("phase", 1,  PQ),
+                    lists:keyfind("num", 1,  PQ)) of
+            {ok, Phase} ->
+                mafia_print:print_stats([{game_key, getv(game_key)},
+                                         {phase, Phase},
+                                         {mode, ?html}
+                                        ]);
+            {error, ErrorHtml} -> ErrorHtml
         end,
-    _A = del_start(Sid, "Posting Stats", 1),
-    mod_esi:deliver(Sid, Html2),
-    _C = del_end(Sid).
+    A = del_start(Sid, "Posting Stats", 1),
+    B = web:deliver(Sid, Html),
+    C = del_end(Sid),
+    A + B + C.
 
 stats2({"phase", "total"},
        _) ->

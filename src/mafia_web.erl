@@ -296,8 +296,6 @@ start_web(S) ->
                        fun("inet") -> false; (_) -> true end,
                        string:tokens(os:cmd("ifconfig en1"), "\t\n\s"))),
     io:format("Starting up a webserver listening on ~s\n", [IP_en1]),
-    %% os:cmd("cp mafia_web.beam "++ ?SERVER_ROOT),
-    %% os:cmd("cp mafia_web.beam "++ ?DOC_ROOT),
     case inets:start(httpd,
                      [{port, ?WEBPORT},
                       {server_name, "mafia_test.peterlund.se"},
@@ -615,8 +613,6 @@ vote_tracker(Sid, _Env, In) ->
         {tracker, Out} ->
             _A = del_start(Sid, "Vote Tracker", 0);
         {error, Out} ->
-            TimeStr = mafia_print:print_time(current_time, short),
-            io:format("~s Vote tracker error ~s\n", [TimeStr, Out]),
             _A = del_start(Sid, "Vote Tracker Error", 1);
         Out ->
             _A = del_start(Sid, "Vote Message", 1)
@@ -629,13 +625,9 @@ vote_tracker2({"day", Str},
     try
         DayNum = list_to_integer(Str),
         [RK, VT] = mafia_print:web_vote_tracker(DayNum),
-        Out =
-            {tracker, ?l2b(["<tr><td>", RK, "</td></tr>",
-                           "<tr><td>", VT, "</td></tr>"
-                          ])},
-        TimeStr = mafia_print:print_time(current_time, short),
-        io:format("~s Vote tracker day ~s\n", [TimeStr, Str]),
-        Out
+        {tracker, ?l2b(["<tr><td>", RK, "</td></tr>",
+                        "<tr><td>", VT, "</td></tr>"
+                       ])}
     catch _:_ ->
             {error,
              "<tr><td>"
@@ -646,10 +638,7 @@ vote_tracker2(?false,
               {"msg_id", Str}) ->
     try
         MsgId = list_to_integer(Str),
-        Out = show_msg(MsgId),
-        TimeStr = mafia_print:print_time(current_time, short),
-        io:format("~s Vote Message ~s\n", [TimeStr, Str]),
-        Out
+        show_msg(MsgId)
     catch _:_ ->
             {error,
              "<tr><td>"

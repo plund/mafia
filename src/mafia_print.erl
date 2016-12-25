@@ -488,7 +488,7 @@ do_print_stats(PP) ->
     StatsSorted = lists:sort(LE, Stats),
     PrFn = fun(tr, S) -> transl(element(1, S#stat.key));
               (cell, _) -> "td";
-              (bgcolor, S) -> bgcolor(element(1, S#stat.key));
+              (bgcolor, S) -> bgcolor(transl(element(1, S#stat.key)));
               (_, _) -> []
            end,
     NonPosters = [?b2l(PRem) || PRem <- G#mafia_game.players_rem]
@@ -624,7 +624,10 @@ print_tracker(PP) ->
     %% player_deaths contains players dying in the middle of the day.
     AllPlayersB = PlayersRem ++ [DeadB || #death{player = DeadB} <- Deaths],
     Abbrs = mafia_name:get_abbrevs(AllPlayersB),
-    io:format(PP#pp.dev, "\n", []),
+    if PP#pp.mode == ?text ->
+            io:format(PP#pp.dev, "\n", []);
+       true -> ok
+    end,
     RKhtml = print_read_key(PP, Abbrs),
     VThtml = print_tracker_tab(PP, Abbrs, AllPlayersB),
     [RKhtml, VThtml].

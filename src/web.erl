@@ -3,11 +3,18 @@
 -include("mafia.hrl").
 
 -export([msg_search_result/3,
+         game_status/3,
          vote_tracker/3,
          stats/3,
 
          deliver/2
         ]).
+
+game_status(Sid, Env, In) ->
+    ?dbg({game_status, In}),
+    catch_debug(
+      Sid, game_status,
+      fun() -> mafia_web:game_status(Sid, Env, In) end).
 
 msg_search_result(Sid, Env, In) ->
     ?dbg({msg_search_result, In}),

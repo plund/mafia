@@ -1,6 +1,11 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% - Should death list not be SHORTER when not current status?
+%% - MISSING END OF GAME MESSAGE FROM VASH
+%% - How can Vash vote "END" M25 D1 ?
+%% - Call the Game Status from the web server...
+
 %% - check all clear_table
 %% - fix a manual replace player fun
 %% - set_death_comment should also register that player as dead.

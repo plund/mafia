@@ -27,7 +27,10 @@
         ]).
 
 %% web
--export([msg_search_result/3, vote_tracker/3, stats/3]).
+-export([msg_search_result/3,
+         game_status/3,
+         vote_tracker/3,
+         stats/3]).
 
 %% deprecated
 -export([set_interval_minutes/1]).
@@ -574,6 +577,47 @@ del_start(Sid, Title, Border) ->
 del_end(Sid) ->
     web:deliver(Sid, ?HTML_TAB_END).
 
+%% http://mafia_test.peterlund.se/e/web/game_status?phase=day&num=1
+%% http://mafia_test.peterlund.se/e/web/game_status?phase=night&num=2
+%% http://mafia_test.peterlund.se/e/web/game_status?phase=end
+game_status(Sid, _Env, In) ->
+    PQ = httpd:parse_query(In),
+    Html =
+        case game_status(lists:keyfind("phase", 1,  PQ),
+                         lists:keyfind("num", 1,  PQ)) of
+            {ok, Phase} ->
+                mafia_print:print_votes([{?game_key, getv(?game_key)},
+                                         {?phase, Phase},
+                                         {?mode, ?html}
+                                        ]);
+            {error, ErrorHtml} -> ErrorHtml
+        end,
+    A = del_start(Sid, "Game Status", 0),
+    B = web:deliver(Sid, Html),
+    C = del_end(Sid),
+    A + B + C.
+
+game_status({"phase", "end"},
+            _) ->
+    {ok, ?game_ended};
+game_status({"phase", "day"},
+            {"num", Str}) ->
+    case conv_to_num(Str) of
+        {ok, Num} -> {ok, {Num, ?day}};
+        {error, _HtmlErr} = E -> E
+    end;
+game_status({"phase", "night"},
+            {"num", Str}) ->
+    case conv_to_num(Str) of
+        {ok, Num} -> {ok, {Num, ?night}};
+        {error, _HtmlErr} = E -> E
+    end;
+game_status(_, _) ->
+    {error, "<tr><td>"
+     "You need to end url with .../stats?phase=day&num=1, "
+     "?phase=night&num=2 or ?phase=end"
+     "</td></tr>"}.
+
 %% http://mafia_test.peterlund.se/e/web/vote_tracker?day=1
 %% http://mafia_test.peterlund.se/e/web/vote_tracker?msg_id=1420335
 vote_tracker(Sid, _Env, In) ->
@@ -658,9 +702,9 @@ stats(Sid, _Env, In) ->
         case stats2(lists:keyfind("phase", 1,  PQ),
                     lists:keyfind("num", 1,  PQ)) of
             {ok, Phase} ->
-                mafia_print:print_stats([{game_key, getv(game_key)},
-                                         {phase, Phase},
-                                         {mode, ?html}
+                mafia_print:print_stats([{?game_key, getv(game_key)},
+                                         {?phase, Phase},
+                                         {?mode, ?html}
                                         ]);
             {error, ErrorHtml} -> ErrorHtml
         end,
@@ -690,7 +734,7 @@ stats2({"phase", "night"},
 stats2(_, _) ->
     {error, "<tr><td>"
      "You need to end url with .../stats?phase=day&num=1, "
-     "?phase=night&num=2 or ?phase=end"
+     "?phase=night&num=2, ?phase=end or  ?phase=total"
      "</td></tr>"}.
 
 conv_to_num(Str) ->

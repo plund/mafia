@@ -117,7 +117,7 @@ calculate_phase(ThId, Time) when is_integer(ThId) ->
         [] -> false
     end;
 calculate_phase(Game, Time) ->
-    Game2 = if Game#mafia_game.game_end == undefined,
+    Game2 = if Game#mafia_game.game_end == ?undefined,
                Time > element(3, hd(Game#mafia_game.deadlines)) ->
                     Game1 = add_deadlines(Game),
                     mnesia:dirty_write(Game1),
@@ -302,7 +302,7 @@ unend_game2(G, EndDL) ->
                  NewDLs = get_some_extra_dls(G, DLs, TargetTime),
                  G#mafia_game{deadlines = NewDLs}
          end,
-    mnesia:dirty_write(G2#mafia_game{game_end = undefined}),
+    mnesia:dirty_write(G2#mafia_game{game_end = ?undefined}),
     game_unended.
 
 %% -----------------------------------------------------------------------------
@@ -447,7 +447,7 @@ nearest_deadline([]) -> none;
 nearest_deadline([G]) ->
     Now = utc_secs1970(),
     case G#mafia_game.game_end of
-        undefined ->
+        ?undefined ->
             nearest_deadline(G, Now);
         {EoGTime, _MsgId} ->
             {Now - EoGTime, ?game_ended}

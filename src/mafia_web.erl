@@ -27,7 +27,7 @@
         ]).
 
 %% web
--export([msg_search_result/3, vote_tracker/3]).
+-export([msg_search_result/3, vote_tracker/3, stats/3]).
 
 %% deprecated
 -export([set_interval_minutes/1]).
@@ -173,15 +173,15 @@ handle_call({set_timer_interval, N}, _From, State) ->
 handle_call('stop', _From, State) ->
     timer:cancel(State#state.timer),
     inets:stop(httpd, State#state.web_pid),
-    {stop, stopped, stop_reply, State#state{timer = undefined,
-                                            web_pid = undefined}};
+    {stop, stopped, stop_reply, State#state{timer = ?undefined,
+                                            web_pid = ?undefined}};
 handle_call('start_polling', _From, State) ->
     {Reply, S2} = maybe_change_timer(State),
     self() ! do_polling,
     {reply, Reply, S2};
 handle_call('stop_polling', _From, State) ->
     timer:cancel(State#state.timer),
-    {reply, {ok, polling_stopped}, State#state{timer = undefined}};
+    {reply, {ok, polling_stopped}, State#state{timer = ?undefined}};
 
 handle_call(start_web, _From, State) ->
     S = start_web(State),
@@ -349,14 +349,14 @@ maybe_change_timer(S = #state{timer = TRef,
     case mafia_time:timer_minutes(ThId) of
         Mins when is_integer(Mins), Mins /= TMins ->
             set_timer_interval(S, Mins);
-        Mins when TRef == undefined ->
+        Mins when TRef == ?undefined ->
             set_timer_interval(S, Mins);
         _ -> {no_change, S}
     end.
 
 -spec set_timer_interval(#state{}, integer()) -> {Reply :: term(), #state{}}.
 set_timer_interval(S, N) when is_integer(N), N >= 1 ->
-    if S#state.timer /= undefined ->
+    if S#state.timer /= ?undefined ->
             timer:cancel(S#state.timer),
             flush(do_polling);
        true -> ok
@@ -687,3 +687,66 @@ show_msg([#message{user_name = MsgUserB,
          "<br> page ", ?i2l(PageNum),
          "</td><td valign=\"top\">", MsgB,
          "</td></tr>\r\n"]).
+
+%% http://mafia_test.peterlund.se/e/web/stats?phase=day&num=1
+%% http://mafia_test.peterlund.se/e/web/stats?phase=night&num=1
+%% http://mafia_test.peterlund.se/e/web/stats?phase=end
+%% http://mafia_test.peterlund.se/e/web/stats?phase=total
+stats(Sid, _Env, In) ->
+    PQ = httpd:parse_query(In),
+    Html =
+        (catch case stats2(lists:keyfind("phase", 1,  PQ),
+                           lists:keyfind("num", 1,  PQ)) of
+                   {ok, Phase} ->
+                       mafia_print:print_stats([{game_key, getv(game_key)},
+                                                {phase, Phase},
+                                                {mode, ?html}
+                                               ]);
+                   {error, ErrorHtml} -> ErrorHtml
+               end),
+    Html2 =
+        case Html of
+            {'EXIT', Term} ->
+                Str = lists:flatten(io_lib:format("~p\n", [Term])),
+                ?dbg_str(Str),
+                ["<tr><td>", Str, "</td></tr>"];
+            _ -> Html
+        end,
+    _A = del_start(Sid, "Posting Stats", 1),
+    mod_esi:deliver(Sid, Html2),
+    _C = del_end(Sid).
+
+stats2({"phase", "total"},
+       _) ->
+    {ok, ?total_stats};
+stats2({"phase", "end"},
+       _) ->
+    {ok, ?game_ended};
+stats2({"phase", "day"},
+       {"num", Str}) ->
+    case conv_to_num(Str) of
+        {ok, Num} -> {ok, {Num, ?day}};
+        {error, _HtmlErr} = E -> E
+    end;
+stats2({"phase", "night"},
+       {"num", Str}) ->
+    case conv_to_num(Str) of
+        {ok, Num} -> {ok, {Num, ?night}};
+        {error, _HtmlErr} = E -> E
+    end;
+stats2(_, _) ->
+    {error, "<tr><td>"
+     "You need to end url with .../stats?phase=day&num=1, "
+     "?phase=night&num=2 or ?phase=end"
+     "</td></tr>"}.
+
+conv_to_num(Str) ->
+    try
+        Num = list_to_integer(Str),
+        {ok, Num}
+    catch _:_ ->
+            {error,
+             "<tr><td>"
+             "Was not able to convert day value to integer"
+             "</td></tr>"}
+    end.

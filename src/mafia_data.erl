@@ -52,7 +52,7 @@
          thread_id :: thread_id(),
          url :: string(),
          body :: string(),
-         dl_time :: undefined | millisecs(),
+         dl_time :: ?undefined | millisecs(),
          do_refresh_msgs = false :: boolean()
         }).
 
@@ -104,7 +104,7 @@ downl_finish(G, S) ->
 -spec download(#s{}) -> {ok | {error, Reason :: term()},
                          #s{}}.
 download(S) ->
-    case get_body(S#s{dl_time = undefined}) of
+    case get_body(S#s{dl_time = ?undefined}) of
         {ok, S2} ->
             analyse_body(S2),
             if not S2#s.is_last_page ->
@@ -179,7 +179,7 @@ refresh_votes(ThId, [G], Filter, Method) ->
 
 refresh_stat() ->
     mnesia:clear_table(stat),
-    ThId = getv(?thread_id),
+    ThId = getv(?game_key),
     refresh_stat(ThId, rgame(ThId)).
 
 refresh_stat(_ThId, []) -> ok;
@@ -243,7 +243,7 @@ sum_stat(#stat{key = KA,
                num_words = NWoB,
                num_postings = NPoB
               }) ->
-    Key = if KA == undefined -> KB;
+    Key = if KA == ?undefined -> KB;
              true -> KA
           end,
     MsgIds =

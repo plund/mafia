@@ -3,13 +3,13 @@
 -include("mafia.hrl").
 %% - check all clear_table
 %% - fix a manual replace player fun
+%% - set_death_comment should also register that player as dead.
 %% - implement the GM_commands. How to test them?
 %%   - define now and when to use a smarter vote reader!!
 %% - Display msgs since last login with a browser (cookie)
 %% - Make sure not to read votes before game start: EoD1 - day length
 %% - be DAY/NIGHT sensitive when reading "Day/night ... has ended early"
 %% ToDo:
-%% - set_death_comment should also register that player as dead.
 %% - check Death announcements by Vash.
 %%     - Can we make that a command INCLUDING Comment?
 %% - EoG same timezone in both times...
@@ -346,12 +346,16 @@ show_all_aliases() ->
 
 -spec show_aliases(User :: string()) -> ok | {error, Reason :: term()}.
 show_aliases(all) ->
+    io:format("~-15s ~s\n", ["User", "Aliases"]),
+    io:format("~-15s ~s\n", ["----", "-------"]),
     [begin
          U = hd(mnesia:dirty_read(user, UserUB)),
          if U#user.aliases /= [] ->
-                 io:format("Found: ~s\nAliases: ~p\n",
-                           [?b2l(U#user.name),
-                            [?b2l(AlB) || AlB <- U#user.aliases]]);
+                 io:format(
+                   "~-15s ~s\n",
+                   [?b2l(U#user.name),
+                    string:join(["\"" ++ ?b2l(AlB) ++ "\""
+                                 || AlB <- U#user.aliases], ", ")]);
             true -> ok
          end
      end

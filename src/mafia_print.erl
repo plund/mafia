@@ -1,7 +1,8 @@
 -module(mafia_print).
 
+%% Manual API
 -export([
-         print_stats/0, print_stats/3,
+         print_stats/0, print_stats/1, print_stats/2,
          pp/0, pp/1, pp/2,
          pps/0, pps/1, pps/2,
          pm/1,
@@ -10,8 +11,11 @@
          print_votes/2,
          %% print_votes/3,
 
-         print_tracker/1,
+         print_tracker/1
+        ]).
 
+%% API
+-export([
          print_messages/1,
          print_message_summary/1,
          print_message_full/1,
@@ -92,8 +96,9 @@ pm(Fd, MsgId) when is_integer(MsgId) ->
              game_key :: thread_id(),
              phase  :: phase(),
              day_num :: integer(),
+             match_expr :: ?undefined | term(),
              dev = standard_io,
-             mode = text :: text | html,
+             mode = ?text :: ?text | ?html,
              period :: integer(),   %% Poll period
              time2dl :: false | seconds1970() %% time to next DL (status page)
             }).
@@ -114,11 +119,15 @@ print_votes() ->
                  {?phase, Phase},
                  {?dev, standard_io}]).
 
+don_arg(DoN) ->
+    if DoN == d; DoN == day; DoN == ?day -> ?day;
+       DoN == n; DoN == night; DoN == ?night -> ?night
+       %% DoN == e; DoN == 'end'; DoN == ?game_end -> ?game_ended
+    end.
+
 %% /2 human
 print_votes(DayNum, DoN) ->
-    DoN2 = if DoN == d; DoN == day; DoN == ?day -> ?day;
-              DoN == n; DoN == night; DoN == ?night -> ?night
-           end,
+    DoN2 = don_arg(DoN),
     print_votes([{?game_key, getv(?game_key)},
                  {?phase, {DayNum, DoN2}},
                  {?dev, standard_io}]).
@@ -263,7 +272,7 @@ print_votesI(#pp{game = G,
     end,
 
     %% Part - Posting stats
-    print_stats(PP, PP#pp.game_key, PP#pp.phase),
+    print_statsI(PP),
 
     %% Part - Dead players
     DeathsToReport =
@@ -283,7 +292,7 @@ print_votesI(#pp{game = G,
               Fmt,
               [string:join(
                  [?b2l(DeadPl) ++ PrFun(IsEnd, Ph) ++
-                      if Com == undefined ->
+                      if Com == ?undefined ->
                               " - msg: " ++ ?i2l(MsgId);
                          is_binary(Com) ->
                               " - " ++ ?b2l(Com)
@@ -352,7 +361,8 @@ pr_votes(PP, Votes) ->
                 if NumVotesA /= NumVotesB ->
                         NumVotesA > NumVotesB;
                    true ->
-                        element(3, A) =< element(3,B)
+                        %% Sort on oldest vote in wagon
+                        element(3, A) =< element(3, B)
                 end
         end,
     VoteSumSort = lists:sort(GtEq, VoteSum2),
@@ -403,31 +413,69 @@ pr_eodon({Num, ?night}) -> "EoN"++ ?i2l(Num);
 pr_eodon(?game_ended) -> "at end of game".
 
 pr_phase_long({Num, DoN}) -> pr_don(DoN) ++ " " ++ ?i2l(Num);
-pr_phase_long(?game_ended) ->  "Game has ended".
+pr_phase_long(?game_ended) ->  "Game End";
+pr_phase_long(?total_stats) ->  "Game Global Statistics".
 
-print_stats() ->
-    print_stats(#pp{}, 1420289, {1, ?day}).
+%% Manual API
+print_stats() -> print_stats_opts([]).
 
-print_stats(PP, ThId, Phase) ->
-    print_stats(PP, ThId, Phase, rgame(ThId)).
+print_stats(e) -> print_stats_opts([{?phase, ?game_ended}]);
+print_stats(Opts) when is_list(Opts) -> print_stats_opts(Opts).
 
-print_stats(_PP, _ThId, _Phase, []) -> ok;
-print_stats(PP, ThId, Phase = ?game_ended, [G]) ->
-    %% GLOBAL stats
+print_stats(Num, DoN) ->
+    DoN2 = don_arg(DoN),
+    print_stats_opts([{?phase, {Num, DoN2}}]).
+
+print_stats_opts(Opts) ->
+    DefOpts = [{?game_key, 1420289},
+               {?phase, {1, ?day}},
+               {?dev, standard_io}],
+    PP = po(#pp{}, DefOpts),
+    PP2 = po(PP, Opts),
+    print_statsI(PP2).
+
+%% API
+print_statsI(PP) when PP#pp.game == ?undefined ->
+    print_stats_game(PP, rgame(PP#pp.game_key));
+print_statsI(PP) when PP#pp.match_expr == ?undefined ->
+    Phase = if PP#pp.mode == ?text, PP#pp.phase == ?game_ended ->
+                    ?total_stats;
+               true -> PP#pp.phase
+            end,
+    print_stats_match(PP, PP#pp.game_key, Phase);
+print_statsI(PP) ->
+    do_print_stats(PP).
+
+%% stats support funs
+print_stats_game(_PP, []) -> ok;
+print_stats_game(PP, [G]) -> print_statsI(PP#pp{game = G}).
+
+print_stats_match(PP, GameKey, ?total_stats) ->
+    %% TOTAL stats
     MatchHead = #stat{key = {'$1', '$2'}, _='_'},
-    Guard = [{'==', '$2', ThId}],
+    Guard = [{'==', '$2', GameKey}],
     Result = '$_',
     MatchExpr = [{MatchHead, Guard, [Result]}],
-    print_statsI(PP, G, Phase, MatchExpr);
-print_stats(PP, ThId, Phase = {Day, DoN}, [G]) ->
+    print_statsI(PP#pp{match_expr = MatchExpr});
+print_stats_match(PP, GameKey, ?game_ended) ->
+    %% END stats
+    MatchHead = #stat{key = {'$1', '$2', '$3'}, _='_'},
+    Guard = [{'==', '$2', GameKey},
+             {'==', '$3', ?game_ended}],
+    Result = '$_',
+    MatchExpr = [{MatchHead, Guard, [Result]}],
+    print_statsI(PP#pp{match_expr = MatchExpr});
+print_stats_match(PP, GameKey, {Day, DoN}) ->
     %% PHASE stats
     MatchHead = #stat{key = {'$1', '$2', {'$3', '$4'}}, _='_'},
-    Guard = [{'==', '$2', ThId}, {'==', '$3', Day}, {'==', '$4', DoN}],
+    Guard = [{'==', '$2', GameKey},
+             {'==', '$3', Day}, {'==', '$4', DoN}],
     Result = '$_',
     MatchExpr = [{MatchHead, Guard, [Result]}],
-    print_statsI(PP, G, Phase, MatchExpr).
+    print_statsI(PP#pp{match_expr = MatchExpr}).
 
-print_statsI(PP, G, Phase, MatchExpr) ->
+do_print_stats(PP) ->
+    #pp{game = G, phase = Phase, match_expr = MatchExpr} = PP,
     Stats = mnesia:dirty_select(stat, MatchExpr),
     LE = fun(#stat{num_postings = PA, num_words = WA},
              #stat{num_postings = PB, num_words = WB}) ->
@@ -438,52 +486,99 @@ print_statsI(PP, G, Phase, MatchExpr) ->
                  end
          end,
     StatsSorted = lists:sort(LE, Stats),
-    UserU = fun(#stat{key = {U, _}}) -> transl(U);
-               (#stat{key = {U, _, _}}) -> transl(U)
-            end,
+    PrFn = fun(tr, S) -> transl(element(1, S#stat.key));
+              (cell, _) -> "td";
+              (bgcolor, S) -> bgcolor(element(1, S#stat.key));
+              (_, _) -> []
+           end,
     NonPosters = [?b2l(PRem) || PRem <- G#mafia_game.players_rem]
-        -- [UserU(S) || S <- Stats],
-    io:format(PP#pp.dev,
-              "\n"
-              "Posting statistics (~s)\n"
-              "------------------\n"
-              "~s ~s ~s ~s\n",
-              [pr_phase_long(Phase), "Posts", " Words", "  Chars", "Player"]),
+        -- [PrFn(tr, S) || S <- Stats],
+    HtmlHead =
+        if PP#pp.mode == ?text ->
+                io:format(PP#pp.dev,
+                          "\n"
+                          "Posting statistics (~s)\n"
+                          "------------------\n"
+                          "~s ~s ~s ~s\n",
+                          [pr_phase_long(Phase),
+                           "Posts", " Words", "  Chars", "Player"]),
+                [];
+           PP#pp.mode == ?html ->
+                ["<tr><th colspan=\"4\">",
+                 "Posting statistics (",
+                 pr_phase_long(Phase),
+                 ")\n",
+                 "</th></tr>",
+                 "<tr><th align=\"right\">Posts</th>"
+                 "<th align=\"right\">Words</th>"
+                 "<th align=\"right\">Chars</th>"
+                 "<th align=\"left\">Player</th></tr>"
+                ]
+        end,
     print_stat_div(PP),
-    SumStat =
+    {SumStat, Html1} =
         lists:foldl(
-          fun(S, Sum) ->
-                  print_stat_row(PP, S, UserU),
-                  mafia_data:sum_stat(S, Sum)
+          fun(S, {Sum, Html}) ->
+                  {mafia_data:sum_stat(S, Sum),
+                   Html ++ print_stat_row(PP, S, PrFn)}
           end,
-          #stat{msg_ids = [],
+          {#stat{msg_ids = [],
                 num_chars = 0,
                 num_words = 0,
                 num_postings = 0
                },
+           HtmlHead},
           ?lrev(StatsSorted)),
     print_stat_div(PP),
-    print_stat_row(PP, SumStat, fun(_) -> "Total Counts" end),
-    io:format(PP#pp.dev,
-              "\nNon-posters: ~s\n",
-              [case string:join(NonPosters, ", ") of
-                   "" -> "-";
-                   Str -> Str
-               end]).
+    Html2 = Html1 ++
+        print_stat_row(PP, SumStat, fun(cell, _) -> "th";
+                                       (tr, _) -> "Total Counts";
+                                       (_, _) -> []
+                                    end),
+    if PP#pp.mode == ?text ->
+            io:format(PP#pp.dev,
+                      "\nNon-posters: ~s\n",
+                      [case string:join(NonPosters, ", ") of
+                           "" -> "-";
+                           Str -> Str
+                       end]);
+       PP#pp.mode == ?html ->
+            HtmlNonPosters =
+                ["<tr><td colspan=\"4\">Non-posters: ",
+                 [case string:join(NonPosters, ", ") of
+                      "" -> "-";
+                      Str -> Str
+                  end],
+                 "</td></tr>"],
+            [Html2, HtmlNonPosters]
+    end.
 
-print_stat_div(PP) ->
+print_stat_div(PP) when PP#pp.mode == ?text ->
     io:format(PP#pp.dev,
               "~s ~s ~s ~s\n",
-              ["-----", "------", "-------", "-----------"]).
+              ["-----", "------", "-------", "-----------"]);
+print_stat_div(_PP) ->
+    [].
 
-print_stat_row(PP, S, UserU) ->
+print_stat_row(PP, S, PrFn) when PP#pp.mode == ?text ->
     io:format(PP#pp.dev,
               "~s ~s ~s ~s\n",
               [i2l(S#stat.num_postings, 5),
                i2l(S#stat.num_words, 6),
                i2l(S#stat.num_chars, 7),
-               UserU(S)
-              ]).
+               PrFn(tr, S)
+              ]),
+    [];
+print_stat_row(PP, S, PrFn) when PP#pp.mode == ?html ->
+    CBegR = ["<", PrFn(cell, S), " align=\"right\">"],
+    CBegL = ["<", PrFn(cell, S), " align=\"left\">"],
+    CEnd = ["</", PrFn(cell, S), ">"],
+    ["<tr", PrFn(bgcolor, S), ">",
+     CBegR, ?i2l(S#stat.num_postings),
+     CEnd, CBegR, ?i2l(S#stat.num_words),
+     CEnd, CBegR, ?i2l(S#stat.num_chars),
+     CEnd, CBegL, PrFn(tr, S),
+     CEnd, "</tr>\r\n"].
 
 %% Get user name as stored normal case string
 transl(UserUB) ->
@@ -513,7 +608,7 @@ web_vote_tracker(DayNum) ->
     PP = #pp{game_key = GameKey,
              day_num = DayNum,
              phase = Phase,
-             mode = html},
+             mode = ?html},
     web_vote_tracker(PP, rgame(GameKey), rday(GameKey, Phase)).
 
 web_vote_tracker(_PP, [], _) -> ok;
@@ -553,7 +648,7 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
     FmtVoter = "Voter ~s\n",
     FmtTime = "Time  ~s\n",
     Head =
-        if PP#pp.mode == text ->
+        if PP#pp.mode == ?text ->
                 io:format(PP#pp.dev,
                           "\n"
                           "Vote tracker\n"
@@ -565,7 +660,7 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                 io:format(PP#pp.dev,
                           FmtTime,
                           [pr_ivs_user(IterVotes, fun(_) -> "===" end)]);
-           PP#pp.mode == html ->
+           PP#pp.mode == ?html ->
                 ["<table><tr>"
                  "<th align=\"right\">Voter</th>"
                  "<th>Time</th>",
@@ -594,7 +689,7 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                               {IVs, IVs2}
                       end,
                   TimeStr = print_time_5d(PP#pp.game, V#vote.time),
-                  if PP#pp.mode == text ->
+                  if PP#pp.mode == ?text ->
                           io:format(PP#pp.dev,
                                     "~s~s~s\n",
                                     [TimeStr,
@@ -602,7 +697,7 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                                      TimeStr
                                     ]),
                           {NewIVs, []};
-                     PP#pp.mode == html ->
+                     PP#pp.mode == ?html ->
                           {NewIVs,
                            [Html|
                             ["<tr>",
@@ -618,14 +713,14 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
           end,
           {IterVotes, []},
           Votes3),
-    if PP#pp.mode == text ->
+    if PP#pp.mode == ?text ->
             io:format(PP#pp.dev,
                       FmtTime,
                       [pr_ivs_user(IterVotes, fun(_) -> "===" end)]),
             io:format(PP#pp.dev,
                       FmtVoter,
                       [pr_ivs_user(IterVotes, PrAbbrF)]);
-       PP#pp.mode == html ->
+       PP#pp.mode == ?html ->
             [Head, Html,
              ["<tr>"
               "<th align=\"right\">Voter</th>",
@@ -659,7 +754,7 @@ user_vote_timesort(Votes) ->
 
 -define(ReadKeyCols, 5).
 
-print_read_key(PP, Abbrs) when PP#pp.mode == html ->
+print_read_key(PP, Abbrs) when PP#pp.mode == ?html ->
     ["<center><table>\r\n",
      "<tr><th colspan=\"" ++ ?i2l(?ReadKeyCols) ++ "\">",
      "Day ", ?i2l(PP#pp.day_num),

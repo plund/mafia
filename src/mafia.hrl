@@ -1,11 +1,14 @@
 -define(true, true).
 -define(false, false).
+-define(undefined, undefined).
 
 -define(kv_store, kv_store).
 -define(day  , day__).
 -define(night, night).
 -define(phase, phase).
 -define(game_ended, game_ended).
+-define(total_stats, total_stats).
+
 -define(verified, verified).
 -define(unverified, unverified).
 
@@ -18,6 +21,8 @@
 -define(time, time).
 -define(mode, mode).
 -define(period, period).
+-define(html, html).
+-define(text, text).
 
 %% KV keys
 -define(thread_id, thread_id).
@@ -127,7 +132,10 @@
         io:format("~s DBG ~999p\n",
                   [mafia_print:print_time(Time, short),
                    Term])).
-
+-define(dbg_str(Str),
+        io:format("~s DBG ~s\n",
+                  [mafia_print:print_time(current_time, short),
+                   Str])).
 -define(man(Time, Cmd),
         io:format("~s MANUAL ~999p\n",
                   [mafia_print:print_time(Time, short),
@@ -199,7 +207,7 @@
          game_num = 24,
          player_deaths :: [#death{}],
          page_to_read, %% set_kv(page_to_read, 1),
-         game_end :: undefined | {seconds1970(), msg_id()}
+         game_end :: ?undefined | {seconds1970(), msg_id()}
         }).
 
 -record(user,

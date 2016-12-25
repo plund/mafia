@@ -25,7 +25,7 @@ check_for_vote(S, M, [G = #mafia_game{}]) ->
     check_for_vote(S, M, G);
 check_for_vote(S, M, G = #mafia_game{}) ->
     DoCheck = case G#mafia_game.game_end of
-                  undefined -> true;
+                  ?undefined -> true;
                   {EndTime, _MsgId} ->
                       M#message.time =< EndTime
               end,

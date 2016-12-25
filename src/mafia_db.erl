@@ -15,7 +15,7 @@
          write_default_table/2
         ]).
 
-getv(Key) -> getv(Key, undefined).
+getv(Key) -> getv(Key, ?undefined).
 
 getv(Key, Default) ->
     case mnesia:dirty_read(kv_store, Key) of

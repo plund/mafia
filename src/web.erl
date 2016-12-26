@@ -58,7 +58,7 @@ deliver(Sid, Html) ->
 
 %% ?html mode only, use mafia_print:pp for ?text
 show_msg(MsgId) when is_integer(MsgId) ->
-    show_msg(mafia:rmess(MsgId));
+    show_msg(?rmess(MsgId));
 
 show_msg([]) -> "<tr><td>No message found with this id</td></tr>";
 show_msg([#message{user_name = MsgUserB,

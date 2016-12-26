@@ -1,0 +1,21 @@
+                                                      2016-12-26
+Hello!
+
+Due to a minor reorg the current_vote.txt has moved to a new place.
+Each game has its own dir m25/ or m26/ AND I decided to change the
+file name to "current_game_status.txt".
+
+New links are:
+
+  http://mafia.peterlund.se/m25/current_game_status.txt
+     or
+  http://mafia.peterlund.se/m26/current_game_status.txt
+
+
+BUT why don't you try out the html based version of Mafia Tracker?
+
+You find that one easily on:     http://mafia.peterlund.se/
+
+
+Best regards,
+Peter Lund

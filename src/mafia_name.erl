@@ -9,8 +9,6 @@
 %% eunit tests
 -export([test/0]).
 
--import(mafia, [lrev/1]).
-
 -type abbr_calc() :: {IsUniq :: boolean(),
                       OrigName :: string(),
                       AbbrAcc :: string(),

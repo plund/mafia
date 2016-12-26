@@ -1,10 +1,9 @@
 -module(mafia_vote).
 
--export([check_for_vote/1, check_for_vote/2,
+-export([check_for_vote/1,
+         check_for_vote/2,
          verify_user/1,
          print_verify_user/1]).
-
--import(mafia, [l2u/1, lrev/1, rgame/1, rday/2]).
 
 -include("mafia.hrl").
 
@@ -18,7 +17,7 @@ check_for_vote(S, MsgId) when is_integer(MsgId) ->
         [Msg] -> check_for_vote(S, Msg)
     end;
 check_for_vote(S, M = #message{}) ->
-    check_for_vote(S, M, rgame(M#message.thread_id)).
+    check_for_vote(S, M, ?rgame(M#message.thread_id)).
 
 check_for_vote(_S, _M, []) -> ignore;
 check_for_vote(S, M, [G = #mafia_game{}]) ->
@@ -162,7 +161,7 @@ update_day_rec(M, G, Death) ->
     TimeMsg = M#message.time,
     case mafia_time:calculate_phase(G, TimeMsg) of
         {DayNum, ?day} -> %% New day appears with new day record.
-            [D] = rday(G, DayNum),
+            [D] = ?rday(G, DayNum),
             case Death of
                 #death{is_end = true} ->
                     NewRems = D#mafia_day.players_rem -- [Death#death.player],
@@ -243,7 +242,7 @@ check_for_voteI2(_S, M, G, true) ->
 reg_end_vote(Op, M) ->
     case mafia_time:calculate_phase(M#message.thread_id, M#message.time) of
         {DayNum, ?day} ->
-            case rday(M#message.thread_id, DayNum) of
+            case ?rday(M#message.thread_id, DayNum) of
                 [Day] ->
                     User = M#message.user_name,
                     OldEndVotes = Day#mafia_day.end_votes,
@@ -318,7 +317,7 @@ check_user(User) ->
 %% -----------------------------------------------------------------------------
 
 auto_correct_case(CcUser, GId) when is_integer(GId) ->
-    case rgame(GId) of
+    case ?rgame(GId) of
         [] -> ok;
         [G] -> auto_correct_case(CcUser, G)
     end;
@@ -469,7 +468,7 @@ vote2(M, G, Vote, RawVote, IsOkVote) ->
                             raw = RawVote,
                             valid = IsOkVote
                            },
-            Day = hd(rday(M#message.thread_id, DayNum)),
+            Day = hd(?rday(M#message.thread_id, DayNum)),
             Votes = Day#mafia_day.votes,
             Votes2 = case lists:keyfind(User, 1, Votes) of
                          false ->

@@ -10,9 +10,7 @@
          rm_to_after_pos/2,
          find_pos_and_split/2,
          get_after_pos/3,
-         sum_stat/2,
-         game_prefixes/1,
-         game_file_prefix/1
+         sum_stat/2
         ]).
 
 %% utilities
@@ -26,11 +24,6 @@
          iterate_all_msg_ids/3,
          manual_cmd_to_file/2,
          manual_cmd_from_file/2
-        ]).
-
--import(mafia,
-        [rgame/1,
-         rmess/1
         ]).
 
 -include("mafia.hrl").
@@ -70,7 +63,7 @@ downl2(S) ->
 %% Download a game thread
 -spec downl_web(integer()) -> ok.
 downl_web(GameKey) when is_integer(GameKey) ->
-    downl_web(mafia:rgame(GameKey));
+    downl_web(?rgame(GameKey));
 downl_web([]) -> ok;
 downl_web([G]) ->
     GameKey = G#mafia_game.key,
@@ -130,17 +123,17 @@ refresh_messages() ->
 
 refresh_votes() ->
     ThId = ?getv(?game_key),
-    refresh_votes(ThId, rgame(ThId), all, soft).
+    refresh_votes(ThId, ?rgame(ThId), all, soft).
 
 refresh_votes(ThId) when is_integer(ThId) ->
-    refresh_votes(ThId, rgame(ThId), all, soft);
+    refresh_votes(ThId, ?rgame(ThId), all, soft);
 refresh_votes(hard) ->
     ThId = ?getv(?thread_id),
-    refresh_votes(ThId, rgame(ThId), all, hard);
+    refresh_votes(ThId, ?rgame(ThId), all, hard);
 refresh_votes({end_page, EndPage}) when is_integer(EndPage) ->
     ThId = ?getv(?thread_id),
     Filter = fun(Page) -> Page =< EndPage end,
-    refresh_votes(ThId, rgame(ThId), Filter, soft).
+    refresh_votes(ThId, ?rgame(ThId), Filter, soft).
 
 refresh_votes(_ThId, [], _F, _Method) -> ok;
 refresh_votes(ThId, [G], Filter, Method) ->
@@ -173,7 +166,7 @@ refresh_votes(ThId, [G], Filter, Method) ->
 refresh_stat() ->
     mnesia:clear_table(stat),
     ThId = ?getv(?game_key),
-    refresh_stat(ThId, rgame(ThId)).
+    refresh_stat(ThId, ?rgame(ThId)).
 
 refresh_stat(_ThId, []) -> ok;
 refresh_stat(ThId, [_G]) ->
@@ -185,7 +178,7 @@ update_stat(MsgId) ->
 
 update_stat(_MsgId, []) -> ok;
 update_stat(MsgId, [M = #message{thread_id = ThId}]) ->
-    update_stat(MsgId, M, rgame(ThId)).
+    update_stat(MsgId, M, ?rgame(ThId)).
 
 update_stat(_MsgId, _M, []) -> ok;
 update_stat(MsgId, M, [G = #mafia_game{}]) ->
@@ -429,7 +422,7 @@ th_filenames(FileName) ->
 th_filename(Thread, Page) ->
     DirName = "thread_pages",
     verify_exist(DirName),
-    GamePrefix = game_file_prefix(Thread),
+    GamePrefix = mafia:game_file_prefix(Thread),
     DirName2 = GamePrefix ++ ?i2l(Thread),
     verify_exist(filename:join(DirName, DirName2)),
     BaseName = ?i2l(Page) ++ ".txt",
@@ -440,24 +433,9 @@ cmd_filename(#s{thread_id = Thread}) ->
 cmd_filename(Thread) ->
     DirName =  "command_files",
     verify_exist(DirName),
-    GamePrefix = game_file_prefix(Thread),
+    GamePrefix = mafia:game_file_prefix(Thread),
     BaseName = GamePrefix ++ ?i2l(Thread) ++ "_manual_cmds.txt",
     filename:join([DirName, BaseName]).
-
-game_prefixes(G) ->
-    Pre = game_prefix(G),
-    {Pre, Pre ++ "_"}.
-
-game_file_prefix(G) ->
-    game_prefix(G) ++ "_".
-
-game_prefix(ThId) when is_integer(ThId) ->
-    game_prefix(rgame(ThId));
-game_prefix([]) -> "";
-game_prefix([G]) ->
-    game_prefix(G);
-game_prefix(G) ->
-    "m" ++ ?i2l(G#mafia_game.game_num).
 
 verify_exist(DirName) ->
     case file:read_file_info(DirName) of
@@ -582,7 +560,7 @@ analyse_body(S) ->
 
     if UserStr /= "" ->
             MsgId = ?l2i(MsgIdStr),
-            Msgs = rmess(MsgId),
+            Msgs = ?rmess(MsgId),
             if Msgs == [] orelse S#s.do_refresh_msgs ->
                     Time = ?l2i(TimeStr),
                     User = ?l2b(UserStr),

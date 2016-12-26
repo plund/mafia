@@ -47,17 +47,6 @@
 
 -include("mafia.hrl").
 
--define(SERVER, ?MODULE).
--define(WEBPORT, 50666).
--define(MINUTE_MS, 60000).
-
--define(SERVER_NAME, "MAFIA TRACKER").
-%% ServerRoot is relative to running path.
--define(SERVER_ROOT, "/Users/peter/httpd/mafia.peterlund.se").
-%% DocumentRoot is relative to running path
--define(DOC_ROOT, "/Users/peter/httpd/mafia.peterlund.se/html").
--define(LOG_ROOT, "/Users/peter/httpd/mafia.peterlund.se/logs").
-
 -record(state,
         {timer :: reference(),
          timer_minutes :: integer(),
@@ -215,17 +204,10 @@ handle_call(_Request, _From, State) ->
 handle_cast(Ev = {regenerate_history, {DNum, DoN}}, State) ->
     timer:sleep(300),
     ?dbg({"HC REGENERATE_HISTORY", DNum, DoN}),
-    case mafia:rgame(State#state.game_key) of
+    case ?rgame(State#state.game_key) of
         [] -> ok;
         [G] ->
-            {GameDir, FilePrefix} = mafia_data:game_prefixes(G),
-            PhStr = case DoN of
-                        ?day -> "d";
-                        ?night -> "n"
-                    end ++ ?i2l(DNum),
-            %% calculate "m25_d1.txt"
-            PhaseFN = FilePrefix ++ PhStr ++ ".txt",
-            FileName = filename:join([?DOC_ROOT, GameDir, PhaseFN]),
+            FileName = mafia:game_phase_full_fn(G, {DNum, DoN}),
             {ok, Fd} = file:open(FileName, [write]),
             mafia_print:print_votes([{?game_key, State#state.game_key},
                                      {?phase, {DNum, DoN}},
@@ -251,13 +233,14 @@ handle_info(do_polling, State) ->
     TimeStr = mafia_print:print_time(current_time, short),
     io:format("~s poll for new messages\n", [TimeStr]),
     mafia_data:downl_web(State#state.game_key),
-    FileName = filename:join(?DOC_ROOT, "current_vote.txt"),
+    FileName = mafia:game_phase_full_fn(State#state.game_key, ?game_ended),
     {_Reply, S2} = maybe_change_timer(State),
     {ok, Fd} = file:open(FileName, [write]),
     Phase = mafia_time:calculate_phase(S2#state.game_key),
     mafia_print:print_votes([{?game_key, S2#state.game_key},
                              {?phase, Phase},
                              {?dev, Fd},
+                             {?use_time, mafia_time:utc_secs1970()},
                              {?period, S2#state.timer_minutes}
                             ]),
     file:close(Fd),
@@ -306,6 +289,7 @@ start_web(S) ->
     maybe_create_dir(?LOG_ROOT),
     os:cmd("cp ../priv/search_form.html " ++ ?DOC_ROOT),
     os:cmd("cp ../priv/index.html " ++ ?DOC_ROOT),
+    os:cmd("cp ../priv/current_vote.txt " ++ ?DOC_ROOT),
     IP_en1 = get_en1_ip(),
     io:format("Starting up a webserver listening on ~s\n", [IP_en1]),
     Params = [{port, ?WEBPORT},
@@ -602,11 +586,24 @@ game_status(Sid, _Env, In) ->
     Html =
         case get_phase(In) of
             {ok, Phase} ->
+                PeriodOpts =
+                    case catch get_state() of
+                        {'EXIT', _} -> [];
+                        KVs ->
+                            case {lists:keyfind(timer, 1, KVs),
+                                  lists:keyfind(timer_minutes, 1, KVs)} of
+                                {{_, TRef},
+                                 {_, PeriodMins}} when TRef /= ?undefined ->
+                                    [{?period, PeriodMins}];
+                                _ -> []
+                            end
+                    end,
                 mafia_print:print_votes([{?game_key, ?getv(?game_key)},
                                          {?phase, Phase},
-                                         {?mode, ?html}
-                                        ]);
-            {error, ErrorHtml} -> ErrorHtml
+                                         {?mode, ?html}]
+                                        ++ PeriodOpts);
+            {error, ErrorHtml} ->
+                ErrorHtml
         end,
     A = del_start(Sid, "Game Status", 0),
     B = web:deliver(Sid, Html),

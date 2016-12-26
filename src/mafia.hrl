@@ -18,11 +18,19 @@
 -define(zulu, zulu).
 -define(user, user).
 -define(game, game).
--define(time, time).
 -define(mode, mode).
 -define(period, period).
 -define(html, html).
 -define(text, text).
+-define(t_mode, t_mode).
+-define(short, short).
+-define(long, long).
+-define(extensive, extensive).
+%% -define(time, time).
+-define(use_time, use_time).
+-define(time_zone, time_zone).
+-define(dst, dst).
+%% -define(, ).
 
 %% KV keys
 -define(thread_id, thread_id).
@@ -33,6 +41,18 @@
 -define(timezone_game, timezone_game).
 -define(dst_game, dst_game).
 -define(print_time, print_time).
+
+
+-define(SERVER, ?MODULE).
+-define(WEBPORT, 50666).
+-define(MINUTE_MS, 60000).
+
+-define(SERVER_NAME, "MAFIA TRACKER").
+%% ServerRoot is relative to running path.
+-define(SERVER_ROOT, "/Users/peter/httpd/mafia.peterlund.se").
+%% DocumentRoot is relative to running path
+-define(DOC_ROOT, "/Users/peter/httpd/mafia.peterlund.se/html").
+-define(LOG_ROOT, "/Users/peter/httpd/mafia.peterlund.se/logs").
 
 -define(GSECS_1970, 62167219200).
 -define(GDAYS_1970, 719528).
@@ -129,6 +149,10 @@
 
 -define(set(K, V), mafia_db:set(K, V)).
 -define(getv(K), mafia_db:getv(K)).
+
+-define(rgame(ThId), mnesia:dirty_read(mafia_game, ThId)).
+-define(rday(GK, Phase), mafia:rday(GK, Phase)).
+-define(rmess(MsgId), mnesia:dirty_read(message, MsgId)).
 
 -define(dbg(Term),
         io:format("~s DBG ~999p\n",

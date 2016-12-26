@@ -1,10 +1,12 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% - total stats for Current page in end_game
 %% - Why does not refresh filter work?
-%% - Call the Game Status from the web server...
-%% - deliver game_status in parts
-%% - store ready game_status on file
+%% - Call the Game Status genaration from the gen_server when they are ready
+%%   to be stored on file
+%% - store ready game_status html onto file and use them when they exist
+%% - deliver game_status in parts?
 
 %% - check all clear_table
 %% - fix a manual replace player fun
@@ -17,7 +19,6 @@
 %% ToDo:
 %% - check Death announcements by Vash.
 %%     - Can we make that a command INCLUDING Comment?
-%% - EoG same timezone in both times...
 %% - Some new mafia_web code should probably be elsewhere
 %% - Use new DL calc and remove old calculation
 %% ***** - define deadline() :: {phase(), secs1970()} and change at all places.
@@ -74,10 +75,11 @@
 
 %% libary
 -export([find_pages_for_thread/1,
-         rgame/0,
-         rgame/1,
-         rday/2,
-         rmess/1
+         game_phase_full_fn/2,
+         game_link_and_text/2,
+         game_prefixes/1,
+         game_file_prefix/1,
+         rday/2
         ]).
 
 %% utilities
@@ -121,6 +123,53 @@ verify_users(m26) ->
      || U <- ?M26_GMs ++ ?M26_players ++ ?M26_Subs],
     ok.
 
+-define(CURRENT_GAME_FN, "current_game_status.txt").
+
+%% For ref to text version
+game_link_and_text(G, ?game_ended) ->
+    %% move "current" to game dir
+    {GameDir, _FilePrefix} = game_prefixes(G),
+    Href = filename:join(["/", GameDir, ?CURRENT_GAME_FN]),
+    Link = ?CURRENT_GAME_FN,
+    {Href, Link};
+game_link_and_text(G, Phase) ->
+    {GameDir, FilePrefix} = game_prefixes(G),
+    PhaseFN = phase_fn(FilePrefix, Phase),
+    Href = filename:join(["/", GameDir, PhaseFN]),
+    Link = PhaseFN,
+    {Href, Link}.
+
+game_phase_full_fn(G, Phase) ->
+    {GameDir, FilePrefix} = game_prefixes(G),
+    PhaseFN = if Phase == ?game_ended -> ?CURRENT_GAME_FN;
+                 true -> phase_fn(FilePrefix, Phase)
+              end,
+    filename:join([?DOC_ROOT, GameDir, PhaseFN]).
+
+phase_fn(FilePrefix, Phase) ->
+    {DNum, DoN} = Phase,
+    PhStr = case DoN of
+                ?day -> "d";
+                ?night -> "n"
+            end ++ ?i2l(DNum),
+    %% calculate "m25_d1.txt"
+    FilePrefix ++ PhStr ++ ".txt".
+
+game_prefixes(G) ->
+    Pre = game_prefix(G),
+    {Pre, Pre ++ "_"}.
+
+game_file_prefix(G) ->
+    game_prefix(G) ++ "_".
+
+game_prefix(ThId) when is_integer(ThId) ->
+    game_prefix(?rgame(ThId));
+game_prefix([]) -> "";
+game_prefix([G]) ->
+    game_prefix(G);
+game_prefix(G) ->
+    "m" ++ ?i2l(G#mafia_game.game_num).
+
 %% -----------------------------------------------------------------------------
 %% @doc End current phase with GM message and set next phase at
 %% the game's local date and time given by the GM in the same message
@@ -130,7 +179,7 @@ verify_users(m26) ->
 -spec end_phase(MsgId :: msg_id(),
                 TimeNextDL :: datetime()) -> ok.
 end_phase(MsgId, TimeNextDL) ->
-    case rmess(MsgId) of
+    case ?rmess(MsgId) of
         [] -> msg_not_found;
         [M] ->
             Cmd = #cmd{time = M#message.time,
@@ -148,7 +197,7 @@ end_phase(MsgId, TimeNextDL) ->
 %% Example: mafia:end_game(1427800).
 -spec end_game(MsgId :: msg_id()) -> term().
 end_game(MsgId) ->
-    case rmess(MsgId) of
+    case ?rmess(MsgId) of
         [] -> no_message_found;
         [M = #message{thread_id = ThId,
                       time = Time}] ->
@@ -167,7 +216,7 @@ end_game(MsgId) ->
 %% Example: mafia:unend_game(1427800).
 -spec unend_game(MsgId :: msg_id()) -> term().
 unend_game(MsgId) ->
-    case rmess(MsgId) of
+    case ?rmess(MsgId) of
         [] -> no_message_found;
         [M = #message{thread_id = ThId,
                       time = Time}] ->
@@ -188,7 +237,7 @@ unend_game(MsgId) ->
                         Comment :: string())
                        -> ok | {error, not_found}.
 set_death_comment(MsgId, Player, Comment) ->
-    case rmess(MsgId) of
+    case ?rmess(MsgId) of
         [] -> no_message_found;
         [#message{thread_id = ThId,
                   time = Time}] ->
@@ -198,7 +247,7 @@ set_death_comment(MsgId, Player, Comment) ->
                               [MsgId, Player, Comment]}},
             ?man(Time, Cmd),
             mafia_data:manual_cmd_to_file(ThId, Cmd),
-            set_death_commentI(rgame(ThId), Time, Player, Comment)
+            set_death_commentI(?rgame(ThId), Time, Player, Comment)
     end.
 
 set_death_commentI([], _Time, _Player, _Comment) -> no_game;
@@ -233,21 +282,10 @@ l() ->
     [begin code:purge(M), code:load_file(M), M end
      || M <- Beams2].
 
-rmess(MsgId) ->
-    mnesia:dirty_read(message, MsgId).
-
-%% Read current game
-rgame() ->
-    ThId = ?getv(?thread_id),
-    rgame(ThId).
-
-rgame(ThId) ->
-    mnesia:dirty_read(mafia_game, ThId).
-
 rday(ThId, {DayNum, _}) ->
     rday(ThId, DayNum);
 rday(ThId, DayNum) when is_integer(ThId) ->
-    rday(rgame(ThId), DayNum);
+    rday(?rgame(ThId), DayNum);
 rday([#mafia_game{} = G], DayNum) ->
     rday(G, DayNum);
 rday(#mafia_game{} = G, DayNum) ->

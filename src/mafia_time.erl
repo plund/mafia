@@ -29,8 +29,6 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--import(mafia, [rgame/1]).
-
 %% -----------------------------------------------------------------------------
 
 -spec hh_mm_to_deadline(G :: integer() | #mafia_game{},
@@ -51,7 +49,7 @@ get_next_deadline(ThId) when is_integer(ThId) ->
     get_next_deadline(ThId, NowSecs).
 
 get_next_deadline(ThId, Secs) when is_integer(ThId) ->
-    get_next_deadline(rgame(ThId), Secs);
+    get_next_deadline(?rgame(ThId), Secs);
 get_next_deadline([], _Secs) -> false;
 get_next_deadline([#mafia_game{} = G], Secs) ->
     get_next_deadline(G, Secs);
@@ -112,7 +110,7 @@ calculate_phase(ThId) ->
     calculate_phase(ThId, Time).
 
 calculate_phase(ThId, Time) when is_integer(ThId) ->
-    case rgame(ThId) of
+    case ?rgame(ThId) of
         [G] -> calculate_phase(G, Time);
         [] -> false
     end;
@@ -137,7 +135,7 @@ calculate_phase(Game, Time) ->
 
 %% and it should also update the game in mnesia with it.
 update_deadlines(ThId) ->
-    case rgame(ThId) of
+    case ?rgame(ThId) of
         [] -> [];
         [#mafia_game{} = G] ->
             NewDLs = expand_deadlines(G),
@@ -156,7 +154,7 @@ add_deadlines(MGame) ->
 -spec expand_deadlines(ThId :: integer() | #mafia_game{})
                     -> NewDLs :: [deadline()].
 expand_deadlines(ThId) when is_integer(ThId) ->
-    case rgame(ThId) of
+    case ?rgame(ThId) of
         [] -> ignore;
         [#mafia_game{} = G] ->
             expand_deadlines(G)
@@ -166,7 +164,7 @@ expand_deadlines(G) ->
     FirstNewPh = if DLsIn == [] -> {1, ?day};
                     true -> inc_phase(hd(DLsIn))
                  end,
-    TargetTime = utc_secs1970() + 7 * ?DaySecs,
+    TargetTime = utc_secs1970() + 11 * ?DaySecs,
     expand_deadlinesI(G, TargetTime, DLsIn, calc_one_deadlineI(FirstNewPh, G)).
 
 expand_deadlinesI(_G, TargetTime, Dls, Dl = {_, _, Time})
@@ -210,7 +208,7 @@ calc_one_deadlineI({Num, DayNight}, Game)
 %% -----------------------------------------------------------------------------
 
 end_phase(M = #message{}, TimeNextDL) ->
-    end_phase(M, TimeNextDL, rgame(M#message.thread_id)).
+    end_phase(M, TimeNextDL, ?rgame(M#message.thread_id)).
 
 end_phase(_M, _TimeNextDL, []) -> ok;
 end_phase(#message{time = MsgTime}, DateTime, [G]) ->
@@ -253,7 +251,7 @@ get_some_extra_dls(G, DLs = [DL | _], Target) ->
 %% -----------------------------------------------------------------------------
 
 end_game(M) ->
-    end_game(M, rgame(M#message.thread_id)).
+    end_game(M, ?rgame(M#message.thread_id)).
 
 end_game(_M, []) -> no_game;
 end_game(M, [G]) ->
@@ -286,7 +284,7 @@ end_game(_, _, _) ->
 %% -----------------------------------------------------------------------------
 
 unend_game(M) ->
-    unend_game(M, rgame(M#message.thread_id)).
+    unend_game(M, ?rgame(M#message.thread_id)).
 
 unend_game(_M, []) -> no_game;
 unend_game(M, [G]) ->
@@ -408,7 +406,6 @@ utc_secs1970() ->
       calendar:universal_time())
         - ?GSECS_1970.
 
-
 -spec timer_minutes(ThId :: thread_id()) -> none | integer().
 timer_minutes(ThId) ->
     %% ThId = ?getv(?thread_id),
@@ -442,7 +439,7 @@ t_mins(?game_ended, T) when T >= ?m2s(24*60) -> 120.
 -spec nearest_deadline(integer() | #mafia_game{})
                       -> none | {integer(), deadline()}.
 nearest_deadline(GameKey) when is_integer(GameKey) ->
-    nearest_deadline(mafia:rgame(GameKey));
+    nearest_deadline(?rgame(GameKey));
 nearest_deadline([]) -> none;
 nearest_deadline([G]) ->
     Now = utc_secs1970(),
@@ -457,7 +454,7 @@ nearest_deadline([G]) ->
                        seconds1970())
                       -> none | {integer(), deadline()}.
 nearest_deadline(ThId, Time) when is_integer(ThId) ->
-    nearest_deadline(mafia:rgame(ThId), Time);
+    nearest_deadline(?rgame(ThId), Time);
 nearest_deadline([], _) -> none;
 nearest_deadline([G = #mafia_game{}], Time) ->
     nearest_deadline(G, Time);

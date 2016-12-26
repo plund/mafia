@@ -18,7 +18,6 @@
          print_messages/1,
          print_message_summary/1,
          print_message_full/1,
-         print_time/1,
          print_time/2,
 
          print_pages_for_thread/0,
@@ -28,13 +27,40 @@
          html2txt/1
         ]).
 
--import(mafia,
-        [rgame/0,
-         rgame/1,
-         rday/2
-        ]).
-
 -include("mafia.hrl").
+
+%% -----------------------------------------------------------------------------
+
+%% print params
+-record(pp, {game  :: #mafia_game{},
+             day   :: #mafia_day{},
+             game_key :: thread_id(),
+             phase  :: phase(),
+             day_num :: integer(),
+             message :: #message{},
+             msg_id :: msg_id(),
+             match_expr :: ?undefined | term(),
+             dev = standard_io,
+             mode = ?text :: ?text | ?html,
+             t_mode = ?long :: ?short | ?long | ?extensive,
+             period :: integer(),   %% Poll period
+             use_time :: ?undefined | seconds1970(),
+             %% use_time = time to next DL (current game status)
+             time :: seconds1970(),
+             time_zone = 0 :: integer(),
+             dst = false :: boolean()
+            }).
+
+po(P, [{?game_key, K} | T]) -> po(P#pp{game_key = K}, T);
+po(P, [{?phase, Ph} | T]) -> po(P#pp{phase = Ph}, T);
+po(P, [{?dev, Fd} | T]) -> po(P#pp{dev = Fd}, T);
+po(P, [{?mode, M} | T]) -> po(P#pp{mode = M}, T);
+po(P, [{?t_mode, M} | T]) -> po(P#pp{t_mode = M}, T);
+po(P, [{?period, M} | T]) -> po(P#pp{period = M}, T);
+po(P, [{?use_time, V} | T]) -> po(P#pp{use_time = V}, T);
+po(P, [{?time_zone, V} | T]) -> po(P#pp{time_zone = V}, T);
+po(P, [{?dst, D} | T]) -> po(P#pp{dst = D}, T);
+po(P, []) -> P.
 
 %% -----------------------------------------------------------------------------
 
@@ -52,6 +78,8 @@ pp(ThId, Page) ->
     %% Select MsgIds here
     MsgIds = msgids(ThId, Page),
     print_page(ThId, MsgIds, fun print_message_full/1).
+
+%% -----------------------------------------------------------------------------
 
 pps() ->
     ThId = ?getv(?thread_id),
@@ -75,36 +103,23 @@ pps(ThId, Page) ->
               ["Player", "pg", "Date/Time", "Msg Id", "Message Text"]),
     print_page(ThId, MsgIds, fun print_message_summary/1).
 
-pm(MsgId) ->
-    pm(standard_io, MsgId).
+%% -----------------------------------------------------------------------------
+
+pm(MsgId) when is_integer(MsgId) ->
+    pm(standard_io, MsgId);
+pm(PP = #pp{}) when PP#pp.message == ?undefined ->
+    pm_rmess(PP);
+pm(PP = #pp{}) ->
+    print_message_full(PP).
 
 pm(Fd, MsgId) when is_integer(MsgId) ->
-    case mnesia:dirty_read(message, MsgId) of
-        [Msg] -> print_message_full(Fd, Msg);
-        [] -> io:format(Fd, "Message ID ~p not found\n", [MsgId])
-    end.
+    pm(#pp{dev = Fd, msg_id = MsgId}).
+
+pm_rmess(PP) ->
+    M = hd(?rmess(PP#pp.msg_id)),
+    pm(PP#pp{message = M}).
 
 %% -----------------------------------------------------------------------------
-%% print params
--record(pp, {game  :: #mafia_game{},
-             day   :: #mafia_day{},
-             game_key :: thread_id(),
-             phase  :: phase(),
-             day_num :: integer(),
-             match_expr :: ?undefined | term(),
-             dev = standard_io,
-             mode = ?text :: ?text | ?html,
-             period :: integer(),   %% Poll period
-             time2dl :: ?undefined | seconds1970() %% time to next DL (status page)
-            }).
-
-po(P, [{?game_key, K} | T]) -> po(P#pp{game_key = K}, T);
-po(P, [{?phase, Ph} | T]) -> po(P#pp{phase = Ph}, T);
-po(P, [{?dev, Fd} | T]) -> po(P#pp{dev = Fd}, T);
-po(P, [{?mode, M} | T]) -> po(P#pp{mode = M}, T);
-po(P, [{?period, M} | T]) -> po(P#pp{period = M}, T);
-po(P, [{?time, T} | T]) -> po(P#pp{time2dl = T}, T);
-po(P, []) -> P.
 
 don_arg(DoN) ->
     if DoN == d; DoN == day; DoN == ?day -> ?day;
@@ -139,9 +154,9 @@ print_votes_day(_PP, []) -> ok;
 print_votes_day(PP, [D]) -> print_votesI(PP#pp{day = D}).
 
 print_votesI(PP) when PP#pp.game == ?undefined ->
-    print_votes_game(PP, rgame(PP#pp.game_key));
+    print_votes_game(PP, ?rgame(PP#pp.game_key));
 print_votesI(PP) when PP#pp.day == ?undefined ->
-    print_votes_day(PP, rday(PP#pp.game_key, PP#pp.phase));
+    print_votes_day(PP, ?rday(PP#pp.game_key, PP#pp.phase));
 print_votesI(#pp{game = G,
                  day = Day
                 } = PP) ->
@@ -163,18 +178,25 @@ print_votesI(#pp{game = G,
                           "Previous days found at http://mafia.peterlund.se/\n",
                           [GName, [$= || _ <- GName]]);
            PP#pp.mode == ?html ->
+                {Href, Link} =
+                    mafia:game_link_and_text(PP#pp.game, PP#pp.phase),
                 ["<tr><th>", GName, "</th></tr>\r\n",
                  "<tr><td align=center>",
                  "Previous days found at "
                  "<a href=\"http://mafia.peterlund.se/\">"
                  "http://mafia.peterlund.se/</a>",
+                 "</td></tr>\r\n",
+                 "<tr><td align=center>",
+                 "Text version of this page is found at "
+                 "<a href=\"", Href, "\">",
+                 Link, "</a>",
                  "</td></tr>\r\n"]
         end,
 
-    %% Part - Time Left to Deadline or game end message
+    %% Part - Display time Left to Deadline or display game end message
     HDeadLine =
         if PP#pp.mode == ?text ->
-                if PhaseType /= ?game_ended andalso is_integer(PP#pp.time2dl) ->
+                if PhaseType /= ?game_ended andalso is_integer(PP#pp.use_time) ->
                         print_time_left_to_dl(PP);
                    PhaseType == ?game_ended ->
                         {EndTime, EndMsgId} = G#mafia_game.game_end,
@@ -182,17 +204,19 @@ print_votesI(#pp{game = G,
                         io:format(PP#pp.dev,
                                   "\n"
                                   "The GAME HAS ENDED ~s\n",
-                                  [print_time(EndTime, TzH, Dst, extensive)]),
+                                  [print_time(EndTime, TzH, Dst, ?extensive)]),
                         io:format(PP#pp.dev,
                                   "\n"
                                   "Game Master End Message\n"
                                   "-----------------------\n",
                                   []),
-                        pm(PP#pp.dev, EndMsgId);
+                        pm(PP#pp{msg_id = EndMsgId,
+                                 time_zone = TzH,
+                                 dst = Dst});
                    true -> ok
                 end;
            PP#pp.mode == ?html ->
-                if PhaseType /= ?game_ended andalso is_integer(PP#pp.time2dl) ->
+                if PhaseType /= ?game_ended andalso is_integer(PP#pp.use_time) ->
                         print_time_left_to_dl(PP);
                    PhaseType == ?game_ended ->
                         {EndTime, EndMsgId} = G#mafia_game.game_end,
@@ -200,7 +224,7 @@ print_votesI(#pp{game = G,
                         GmMessage = web:show_msg(EndMsgId),
                         ["<tr><td align=center>",
                          "The GAME HAS ENDED ",
-                         print_time(EndTime, TzH, Dst, extensive),
+                         print_time(EndTime, TzH, Dst, ?extensive),
                          "</td></tr>",
                          "<tr><td><table>", GmMessage, "</table></td></tr>"];
                    true ->
@@ -283,7 +307,6 @@ print_votesI(#pp{game = G,
             [io:format(PP#pp.dev,
                        "~s ~s : \"~s\"\n",
                        [print_time_5d(G, VTime),
-                        %%print_time(VTime, short),
                         ?b2l(Voter),
                         rm_nl(?b2l(Raw))])
              || {VTime, Voter, Raw} <- ValidVotesS],
@@ -325,7 +348,7 @@ print_votesI(#pp{game = G,
         ?lrev(
           [D || D = #death{phase = Ph} <- G#mafia_game.player_deaths,
                 if PP#pp.phase == ?game_ended -> true;
-                   PP#pp.time2dl == ?undefined -> Ph == PP#pp.phase;
+                   PP#pp.use_time == ?undefined -> Ph == PP#pp.phase;
                    true -> Ph =< PP#pp.phase
                 end]),
     PrFun = fun(IsEnd, Ph) ->
@@ -354,16 +377,19 @@ print_votesI(#pp{game = G,
                                     comment = Com}
                                  <- DeathsToReport],
                          Div)]),
+            io:format(PP#pp.dev, "\n", []),
             if is_integer(PP#pp.period) ->
                     io:format(
                       PP#pp.dev,
-                      "\n"
                       "Updates currently every ~p minutes "
-                      "(more often near deadlines).\n"
-                      "Mafia game thread at: ~s\n",
-                      [PP#pp.period, ?UrlBeg ++ ?i2l(PP#pp.game_key)]);
+                      "(more often near deadlines).\n",
+                      [PP#pp.period]);
                true -> ok
-            end;
+            end,
+            io:format(
+              PP#pp.dev,
+              "Mafia game thread at: ~s\n",
+              [?UrlBeg ++ ?i2l(PP#pp.game_key)]);
        PP#pp.mode == ?html ->
             HtmlDeaths =
                 ["<table align=center>",
@@ -383,18 +409,30 @@ print_votesI(#pp{game = G,
                            comment = Com}
                          <- DeathsToReport],
                  "</table>"],
+            HFooter =
+                ["<tr><td align=center><br>",
+                 if is_integer(PP#pp.period) ->
+                         ["Updates currently every ", ?i2l(PP#pp.period),
+                          " minutes (more often near deadlines)."
+                          "<br>"];
+                    true -> []
+                 end,
+                 "Mafia game thread at: ", ?UrlBeg,
+                 ?i2l(PP#pp.game_key),
+                 "</td></tr>"],
             [HTitle, HDeadLine, HVoteCount, EndVotes, NonVotes, "\r\n",
              ["<tr><td>\r\n", HTrackKey, "</td><tr>\r\n"],
              ["<tr><td>\r\n", HVoteTrack, "</td><tr>\r\n"],
              ["<tr><td>\r\n", HStats, "</td><tr>\r\n"],
              ["<tr><td>\r\n", HNonPosters, "</td><tr>\r\n"],
-             ["<tr><td>\r\n", HtmlDeaths, "</td><tr>\r\n"]
+             ["<tr><td>\r\n", HtmlDeaths, "</td><tr>\r\n"],
+             ["<tr><td>\r\n", HFooter, "</td><tr>\r\n"]
             ]
     end.
 
 print_time_left_to_dl(PP) ->
     {{Days, {HH, MM, _}}, {Num, DoN, _}} =
-        mafia_time:get_next_deadline(PP#pp.game_key, PP#pp.time2dl),
+        mafia_time:get_next_deadline(PP#pp.game_key, PP#pp.use_time),
     DayStr = if Days == 0 -> "";
                 true -> ?i2l(Days) ++ " day, "
              end,
@@ -548,7 +586,7 @@ print_stats_opts(Opts) ->
 
 %% API
 print_statsI(PP) when PP#pp.game == ?undefined ->
-    print_stats_game(PP, rgame(PP#pp.game_key));
+    print_stats_game(PP, ?rgame(PP#pp.game_key));
 print_statsI(PP) when PP#pp.match_expr == ?undefined ->
     Phase = if PP#pp.mode == ?text, PP#pp.phase == ?game_ended ->
                     ?total_stats;
@@ -723,7 +761,7 @@ web_vote_tracker(DayNum) ->
              day_num = DayNum,
              phase = Phase,
              mode = ?html},
-    web_vote_tracker(PP, rgame(GameKey), rday(GameKey, Phase)).
+    web_vote_tracker(PP, ?rgame(GameKey), ?rday(GameKey, Phase)).
 
 web_vote_tracker(_PP, [], _) -> ok;
 web_vote_tracker(_PP, _, []) -> ok;
@@ -1008,7 +1046,7 @@ print_page(ThId, MsgIds, PrintFun) ->
     %% print starting line with current phase
     %% does this thread have a game?
     MsgsPage = r_msgs(MsgIds),
-    case rgame(ThId) of
+    case ?rgame(ThId) of
         [] ->
             [PrintFun(M) || M <- MsgsPage];
         [#mafia_game{deadlines = DLs} = G] ->
@@ -1071,10 +1109,13 @@ pr_don(?night) -> "Night".
 
 %% -----------------------------------------------------------------------------
 
-print_message_full(M) ->
-    print_message_full(standard_io, M).
-
 print_message_full(Fd, M) ->
+    print_message_full(#pp{message = M, dev = Fd}).
+
+print_message_full(M = #message{}) ->
+    print_message_full(standard_io, M);
+print_message_full(PP = #pp{}) ->
+    #pp{message = M, dev = Fd} = PP,
     io:format(Fd,
               "User  : ~s\n"
               "Page  : ~s\n"
@@ -1085,7 +1126,7 @@ print_message_full(Fd, M) ->
               "\n",
               [?b2l(M#message.user_name),
                ?i2l(M#message.page_num),
-               print_time(M#message.time),
+               print_timeI(PP#pp{t_mode = ?long}),
                ?i2l(M#message.thread_id),
                ?i2l(M#message.msg_id),
                html2txt(?b2l(M#message.message))
@@ -1093,7 +1134,10 @@ print_message_full(Fd, M) ->
 
 %% -----------------------------------------------------------------------------
 
-print_message_summary(M) ->
+print_message_summary(M = #message{}) ->
+    print_message_summary(#pp{message = M});
+print_message_summary(PP = #pp{}) ->
+    #pp{message = M} = PP,
     Msg = rm_nl(html2txt(?b2l(M#message.message))),
     MsgLen = length(Msg),
     Max = 80,
@@ -1108,7 +1152,7 @@ print_message_summary(M) ->
                         "~s\n",
                         [?b2l(M#message.user_name),
                          ?i2l(M#message.page_num),
-                         print_time(M#message.time, short),
+                         print_timeI(PP#pp{t_mode = ?short}),
                          ?i2l(M#message.msg_id),
                          MsgShort
                         ]),
@@ -1116,44 +1160,61 @@ print_message_summary(M) ->
 
 %% -----------------------------------------------------------------------------
 
-print_time(Time) ->
-    print_time(Time, long).
+%% print_time(Time) ->
+%%     print_time(Time, long).
 
 print_time(current_time, Mode) ->
     Time = mafia_time:utc_secs1970(),
-    print_time(Time, Mode);
+    print_timeI([{?use_time, Time}, {?t_mode, Mode}]);
 print_time(Time, Mode) when is_integer(Time) ->
     {TzH, Dst} = mafia_time:get_tz_dst(),
-    lists:flatten(print_time(Time, TzH, Dst, Mode)).
+    print_time(Time, TzH, Dst, Mode).
+
+print_time(Time, TzH, Dst, Mode) when is_integer(Time) ->
+    print_timeI([{?use_time, Time}, {?time_zone, TzH},
+                 {?dst, Dst}, {?t_mode, Mode}]).
+
+%% record(pp
+print_timeI(Opts) when is_list(Opts) ->
+    DefOpts = [{?time_zone, 0},
+               {?dst, ?false},
+               {?t_mode, ?long}],
+    DefPP = po(#pp{}, DefOpts),
+    print_timeI(po(DefPP, Opts));
 
 %% half this fun should go to mafia_time
-print_time(Time, TzH, Dst, Mode) when is_integer(Time) ->
+print_timeI(PP = #pp{}) ->
+    #pp{use_time = Time,
+        time_zone = TzH,
+        dst = Dst,
+        t_mode = Mode} = PP,
     try
         {{Y, M, D}, {HH,MM,SS}} =
             mafia_time:secs1970_to_local_datetime(Time, TzH, Dst),
         DstStr = case {Dst, Mode} of
-                     {false, extensive} -> ", Normal Time";
-                     {true, extensive} -> ", Daylight Saving Time";
-                     {false, Mode} -> "";
-                     {true, Mode} -> " DST"
+                     {?false, ?extensive} -> ", Normal Time";
+                     {?true, ?extensive} -> ", Daylight Saving Time";
+                     {?false, Mode} -> "";
+                     {?true, Mode} -> " DST"
                  end,
         Char = case TzH of
                    0 -> "Z";
                    _ -> "T"
                end,
-        case Mode of
-            short ->
-                io_lib:format("~s-~s~s~s:~s",
-                              [p(M), p(D), Char, p(HH), p(MM)]);
-            long ->
-                io_lib:format("~s-~s-~s~s~s:~s:~s (~s~s)",
-                              [p(Y), p(M), p(D), Char, p(HH), p(MM), p(SS),
-                               ?i2l(TzH), DstStr]);
-            extensive ->
-                io_lib:format("~s-~s-~s ~s:~s:~s (TZ: ~s~s)",
-                              [p(Y), p(M), p(D), p(HH), p(MM), p(SS),
-                               ?i2l(TzH), DstStr])
-        end
+        Out = case Mode of
+                  ?short ->
+                      io_lib:format("~s-~s~s~s:~s",
+                                    [p(M), p(D), Char, p(HH), p(MM)]);
+                  ?long ->
+                      io_lib:format("~s-~s-~s~s~s:~s:~s (~s~s)",
+                                    [p(Y), p(M), p(D), Char, p(HH), p(MM), p(SS),
+                                     ?i2l(TzH), DstStr]);
+                  ?extensive ->
+                      io_lib:format("~s-~s-~s ~s:~s:~s (TZ: ~s~s)",
+                                    [p(Y), p(M), p(D), p(HH), p(MM), p(SS),
+                                     ?i2l(TzH), DstStr])
+              end,
+        lists:flatten(Out)
     catch _:_ -> ""
     end.
 

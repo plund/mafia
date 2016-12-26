@@ -29,11 +29,7 @@
         ]).
 
 -import(mafia,
-        [
-         getv/1,
-         l2u/1,
-         lrev/1,
-         rgame/0,
+        [rgame/0,
          rgame/1,
          rday/2
         ]).
@@ -43,13 +39,13 @@
 %% -----------------------------------------------------------------------------
 
 pp() ->
-    Page = getv(?page_to_read),
+    Page = ?getv(?page_to_read),
     pp(Page).
 
 pp({ThId, Page}) ->
     pp(ThId, Page);
 pp(Page) ->
-    ThId = getv(?thread_id),
+    ThId = ?getv(?thread_id),
     pp(ThId, Page).
 
 pp(ThId, Page) ->
@@ -58,7 +54,7 @@ pp(ThId, Page) ->
     print_page(ThId, MsgIds, fun print_message_full/1).
 
 pps() ->
-    ThId = getv(?thread_id),
+    ThId = ?getv(?thread_id),
     pps(ThId).
 
 pps({ThId, Page}) ->
@@ -99,7 +95,7 @@ pm(Fd, MsgId) when is_integer(MsgId) ->
              dev = standard_io,
              mode = ?text :: ?text | ?html,
              period :: integer(),   %% Poll period
-             time2dl :: false | seconds1970() %% time to next DL (status page)
+             time2dl :: ?undefined | seconds1970() %% time to next DL (status page)
             }).
 
 po(P, [{?game_key, K} | T]) -> po(P#pp{game_key = K}, T);
@@ -118,7 +114,7 @@ don_arg(DoN) ->
 
 %% /0 human
 print_votes() ->
-    GameKey = getv(?game_key),
+    GameKey = ?getv(?game_key),
     Phase = mafia_time:calculate_phase(GameKey),
     print_votes([{?phase, Phase}]).
 
@@ -129,7 +125,7 @@ print_votes(DayNum, DoN) ->
 
 %% /1 generic
 print_votes(Opts) ->
-    DefOpts = [{?game_key, getv(?game_key)},
+    DefOpts = [{?game_key, ?getv(?game_key)},
                {?mode, ?text},
                {?dev, standard_io}],
     PP = po(#pp{}, DefOpts),
@@ -199,12 +195,14 @@ print_votesI(#pp{game = G,
                 if PhaseType /= ?game_ended andalso is_integer(PP#pp.time2dl) ->
                         print_time_left_to_dl(PP);
                    PhaseType == ?game_ended ->
-                        {EndTime, _EndMsgId} = G#mafia_game.game_end,
+                        {EndTime, EndMsgId} = G#mafia_game.game_end,
                         {TzH, Dst} = mafia_time:get_tz_dst(G, EndTime),
-                        ["<tr><td>",
+                        GmMessage = web:show_msg(EndMsgId),
+                        ["<tr><td align=center>",
                          "The GAME HAS ENDED ",
                          print_time(EndTime, TzH, Dst, extensive),
-                         "</td></tr>"];
+                         "</td></tr>",
+                         "<tr><td><table>", GmMessage, "</table></td></tr>"];
                    true ->
                         []
                 end
@@ -326,8 +324,8 @@ print_votesI(#pp{game = G,
     DeathsToReport =
         ?lrev(
           [D || D = #death{phase = Ph} <- G#mafia_game.player_deaths,
-                if PhaseType == ?game_ended -> true;
-                   PP#pp.time2dl == false -> Ph == PP#pp.phase;
+                if PP#pp.phase == ?game_ended -> true;
+                   PP#pp.time2dl == ?undefined -> Ph == PP#pp.phase;
                    true -> Ph =< PP#pp.phase
                 end]),
     PrFun = fun(IsEnd, Ph) ->
@@ -475,7 +473,7 @@ pr_votes(PP) ->
                  "<tr><td><table border=0 align=center bgcolor=\"#dfffdf\">",
                  "<tr><th>Wagon</th><th>#</th><th>Voters</th></tr>",
                  [["<tr><td", bgcolor(Vote), " align=center>", ?b2l(Vote),
-                   "</td><td>(", ?i2l(N), ")</td>",
+                   "</td><td align=center>(", ?i2l(N), ")</td>",
                    "<td><table><tr>",
                    [["<td", bgcolor(Voter), ">", ?b2l(Voter), "</td>"]
                     || {_Time, Voter, _Raw3} <- VoteInfos],
@@ -719,7 +717,7 @@ add_vote(Vote, Raw, Time, User, Acc) ->
 
 %% human
 web_vote_tracker(DayNum) ->
-    GameKey = getv(?game_key),
+    GameKey = ?getv(?game_key),
     Phase = {DayNum, ?day},
     PP = #pp{game_key = GameKey,
              day_num = DayNum,
@@ -926,7 +924,7 @@ pr_ivs_user(IVs, A) ->
 pr_ivs_vote_html(IVs, User, MsgId) ->
     [if U == User ->
              ["<td", bgcolor(VF), ">",
-              "<b><a href=\"?msg_id=", ?i2l(MsgId), "\">",
+              "<b><a href=\"/e/web/vote_tracker?msg_id=", ?i2l(MsgId), "\">",
               V, "</a></b>"
               "</td>"];
         true ->
@@ -965,7 +963,7 @@ pr_ivs_vote([{_, V, _} | T], User, Acc) ->
 print_messages(User) when is_list(User) ->
     print_messages(?l2b(User));
 print_messages(User) when is_binary(User) ->
-    ThId = getv(?thread_id),
+    ThId = ?getv(?thread_id),
     Pages = lists:sort(mafia:find_pages_for_thread(ThId)),
     AllMsgIds =
         lists:foldl(
@@ -992,7 +990,7 @@ print_messages(User) when is_binary(User) ->
 %% -----------------------------------------------------------------------------
 
 print_pages_for_thread() ->
-    ThId = getv(?thread_id),
+    ThId = ?getv(?thread_id),
     print_pages_for_thread(ThId).
 
 print_pages_for_thread(ThId) ->

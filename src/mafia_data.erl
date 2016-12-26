@@ -29,14 +29,7 @@
         ]).
 
 -import(mafia,
-        [
-         getv/1,
-         set/2,
-
-         b2ub/1,
-         l2u/1,
-         lrev/1,
-         rgame/1,
+        [rgame/1,
          rmess/1
         ]).
 
@@ -68,8 +61,8 @@ downl(do_refresh_msgs) ->
 downl2(S) ->
     mafia:setup_mnesia(),
     inets:start(),
-    Thread = getv(?thread_id),
-    Page = getv(?page_to_read),
+    Thread = ?getv(?thread_id),
+    Page = ?getv(?page_to_read),
     download(S#s{thread_id = Thread,
                  page_to_read = Page}),
     ok.
@@ -125,27 +118,27 @@ sleep(MilliSecs) ->
     receive after MilliSecs -> ok end.
 
 refresh_messages() ->
-    %% will refresh all in getv(thread_id).
-    mafia:set(?page_to_read, 1),
+    %% will refresh all in ?getv(thread_id).
+    ?set(?page_to_read, 1),
     %% Delete only messages, page_rec and stat in thread to be refreshed
     mnesia:clear_table(message),  %% msg_ids ref by page_rec
     mnesia:clear_table(page_rec), %% th_id in key
     mnesia:clear_table(stat),     %% th_id in key
     downl(),
-    ThId = getv(?thread_id),
+    ThId = ?getv(?thread_id),
     refresh_votes(ThId).
 
 refresh_votes() ->
-    ThId = getv(?game_key),
+    ThId = ?getv(?game_key),
     refresh_votes(ThId, rgame(ThId), all, soft).
 
 refresh_votes(ThId) when is_integer(ThId) ->
     refresh_votes(ThId, rgame(ThId), all, soft);
 refresh_votes(hard) ->
-    ThId = getv(?thread_id),
+    ThId = ?getv(?thread_id),
     refresh_votes(ThId, rgame(ThId), all, hard);
 refresh_votes({end_page, EndPage}) when is_integer(EndPage) ->
-    ThId = getv(?thread_id),
+    ThId = ?getv(?thread_id),
     Filter = fun(Page) -> Page =< EndPage end,
     refresh_votes(ThId, rgame(ThId), Filter, soft).
 
@@ -179,7 +172,7 @@ refresh_votes(ThId, [G], Filter, Method) ->
 
 refresh_stat() ->
     mnesia:clear_table(stat),
-    ThId = getv(?game_key),
+    ThId = ?getv(?game_key),
     refresh_stat(ThId, rgame(ThId)).
 
 refresh_stat(_ThId, []) -> ok;
@@ -270,7 +263,7 @@ grep(Str, full) ->
     grepI(Str, fun mafia_print:print_message_full/1).
 
 grepI(Str, PrintF)  ->
-    ThId = getv(?thread_id),
+    ThId = ?getv(?thread_id),
     StrU = ?l2u(Str),
     GrepF =
         fun(M) ->
@@ -328,11 +321,13 @@ iterate_all_msg_ids(ThId, Fun) ->
                           PageFilter:: all | function())
                          -> term().
 iterate_all_msg_ids(ThId, Fun, Filter) ->
-    All =  lists:sort(mafia:find_pages_for_thread(ThId)),
+    All = lists:sort(mafia:find_pages_for_thread(ThId)),
     Pages = if Filter == all -> All;
                is_function(Filter) ->
+                    ?dbg({ps2filter, All}),
                     lists:filter(Filter, All)
             end,
+    ?dbg({filtered, Pages}),
     iterate_all_msg_idsI(ThId, Fun, Pages).
 
 iterate_all_msg_idsI(ThId, Fun, Pages) ->
@@ -379,7 +374,7 @@ get_body2(S2, {ok, Body}) ->
     {ok, S3}.
 
 get_thread_section(Body) ->
-    ThId = getv(?thread_id),
+    ThId = ?getv(?thread_id),
     ThStartStr = "<div class=\"thread threadID" ++ ?i2l(ThId),
     B2 = rm_to_after(Body, ThStartStr),
     ThEndStr = "<div class=\"thread thread",
@@ -555,11 +550,11 @@ check_this_page(S) ->
                  end,
     PageToRead = case IsLastPage of
                      true ->
-                         %% set(?page_to_read, PageLastRead),
+                         %% ?set(?page_to_read, PageLastRead),
                          PageLastRead;
                      false ->
-                         set(?page_to_read, PageLastRead + 1),
-                         %% set(?page_complete, PageLastRead),
+                         ?set(?page_to_read, PageLastRead + 1),
+                         %% ?set(?page_complete, PageLastRead),
                          PageLastRead + 1
                  end,
     S#s{is_last_page = IsLastPage,

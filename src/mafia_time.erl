@@ -29,7 +29,7 @@
 
 -include_lib("eunit/include/eunit.hrl").
 
--import(mafia, [getv/1, lrev/1, rgame/1]).
+-import(mafia, [rgame/1]).
 
 %% -----------------------------------------------------------------------------
 
@@ -82,9 +82,9 @@ get_next_deadline(#mafia_game{key = _ThId,
 
 -spec get_tz_dst() -> {TZ :: integer(), IsDst :: boolean()}.
 get_tz_dst() ->
-    case getv(?print_time) of
-        ?game -> {getv(?timezone_game), getv(?dst_game)};
-        ?user -> {getv(?timezone_user), getv(?dst_user)};
+    case ?getv(?print_time) of
+        ?game -> {?getv(?timezone_game), ?getv(?dst_game)};
+        ?user -> {?getv(?timezone_user), ?getv(?dst_user)};
         Loc when Loc == ?utc;
                  Loc == ?zulu;
                  Loc == ?gmt ->
@@ -411,7 +411,7 @@ utc_secs1970() ->
 
 -spec timer_minutes(ThId :: thread_id()) -> none | integer().
 timer_minutes(ThId) ->
-    %% ThId = getv(?thread_id),
+    %% ThId = ?getv(?thread_id),
     case nearest_deadline(ThId) of
         none -> none;
         {RelTimeSecs, ?game_ended} ->

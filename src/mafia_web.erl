@@ -19,6 +19,7 @@
          stop_polling/0,
 
          start_web/0,
+         stop_httpd/0,
          stop_httpd/1,
 
          get_state/0,
@@ -36,13 +37,13 @@
 -export([set_interval_minutes/1]).
 
 %% test
-%% -export([is_word/2, allpos/2, find_word_searches/1]).
+-export([get_en1_ip/0
+         %%is_word/2, allpos/2, find_word_searches/1
+        ]).
 
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
-
--import(mafia, [l2u/1, b2ul/1, getv/1]).
 
 -include("mafia.hrl").
 
@@ -89,6 +90,13 @@ stop() -> gen_server:call(?SERVER, 'stop').
 
 start_polling() -> gen_server:call(?SERVER, 'start_polling').
 stop_polling() -> gen_server:call(?SERVER, 'stop_polling').
+
+stop_httpd() ->
+    IpStr = get_en1_ip(),
+    IP = list_to_tuple([?l2i(Str)
+                        || Str <- string:tokens(IpStr, ".")]),
+    io:format("Stopping webserver at ~s, port ~p\n", [IpStr, ?WEBPORT]),
+    inets:stop(httpd, {IP, ?WEBPORT}).
 
 stop_httpd(a) ->
     io:format("Stopping webserver at ~p, port ~p\n",
@@ -145,7 +153,7 @@ regenerate_historyI(Phase) ->
 %%--------------------------------------------------------------------
 init([]) ->
     mafia:setup_mnesia(),
-    GameKey = getv(?game_key),
+    GameKey = ?getv(?game_key),
     State = start_web(#state{game_key = GameKey}),
     {_Reply, S2} = set_timer_interval(State, 10),
     self() ! do_polling,
@@ -175,9 +183,8 @@ handle_call({set_timer_interval, N}, _From, State) ->
     {reply, Reply, S2};
 handle_call('stop', _From, State) ->
     timer:cancel(State#state.timer),
-    inets:stop(httpd, State#state.web_pid),
-    {stop, stopped, stop_reply, State#state{timer = ?undefined,
-                                            web_pid = ?undefined}};
+    S2 = stop_web(State),
+    {stop, stopped, stop_reply, S2#state{timer = ?undefined}};
 handle_call('start_polling', _From, State) ->
     {Reply, S2} = maybe_change_timer(State),
     self() ! do_polling,
@@ -287,6 +294,11 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
+get_en1_ip() ->
+    lists:nth(2, lists:dropwhile(
+                   fun("inet") -> false; (_) -> true end,
+                   string:tokens(os:cmd("ifconfig en1"), "\t\n\s"))).
+
 start_web(S) ->
     inets:start(),
     maybe_create_dir(?SERVER_ROOT),
@@ -294,18 +306,14 @@ start_web(S) ->
     maybe_create_dir(?LOG_ROOT),
     os:cmd("cp ../priv/search_form.html " ++ ?DOC_ROOT),
     os:cmd("cp ../priv/index.html " ++ ?DOC_ROOT),
-    IP_en1 =
-        lists:nth(2, lists:dropwhile(
-                       fun("inet") -> false; (_) -> true end,
-                       string:tokens(os:cmd("ifconfig en1"), "\t\n\s"))),
+    IP_en1 = get_en1_ip(),
     io:format("Starting up a webserver listening on ~s\n", [IP_en1]),
-    case inets:start(httpd,
-                     [{port, ?WEBPORT},
-                      {server_name, "mafia_test.peterlund.se"},
-                      {server_root, ?SERVER_ROOT},
-                      {document_root, ?DOC_ROOT},
-                      {directory_index, ["index.html"]},
-                      {bind_address, IP_en1},
+    Params = [{port, ?WEBPORT},
+              {server_name, "mafia_test.peterlund.se"},
+              {server_root, ?SERVER_ROOT},
+              {document_root, ?DOC_ROOT},
+              {directory_index, ["index.html"]},
+              {bind_address, IP_en1},
 %%% specifying modules removes the default list in where
 %%% mod_esi and mod_dir already are included by default
 %%                       {modules, [
@@ -320,17 +328,27 @@ start_web(S) ->
 %%                                  %% mod_get,
 %%                                  %% mod_head, mod_log, mod_disk_log
 %%                                 ]},
-                      {erl_script_alias, {"/e", [web]}},
-
-                      {error_log, "logs/error_log.txt"},
-                      {security_log, "logs/security_log.txt"},
-                      {transfer_log, "logs/transfer_log.txt"}
-                     ]) of
+              {erl_script_alias, {"/e", [web]}},
+              {error_log, "logs/error_log.txt"},
+              {security_log, "logs/security_log.txt"},
+              {transfer_log, "logs/transfer_log.txt"}
+             ],
+    S2 = stop_web(S),
+    case inets:start(httpd, Params) of
         {ok, Pid} ->
-            S#state{web_pid = Pid};
+            S2#state{web_pid = Pid};
         Else ->
             io:format("Else ~p\n", [Else]),
-            S
+            S2
+    end.
+
+stop_web(State) ->
+    if State#state.web_pid /= undefined ->
+            inets:stop(httpd, State#state.web_pid),
+            State#state{web_pid = ?undefined};
+       true ->
+            stop_httpd(),
+            State
     end.
 
 %% must create dirs first.
@@ -376,7 +394,7 @@ flush(Msg) ->
 
 %% http://mafia_test.peterlund.se/e/web/msg_search_result
 msg_search_result(Sid, _Env, In) ->
-    ThId = getv(?game_key),
+    ThId = ?getv(?game_key),
     PQ = httpd:parse_query(In),
     {_, UsersText} = lists:keyfind("user names", 1, PQ),
     {_, WordsText} = lists:keyfind("contained words", 1, PQ),
@@ -581,12 +599,10 @@ del_end(Sid) ->
 %% http://mafia_test.peterlund.se/e/web/game_status?phase=night&num=2
 %% http://mafia_test.peterlund.se/e/web/game_status?phase=end
 game_status(Sid, _Env, In) ->
-    PQ = httpd:parse_query(In),
     Html =
-        case game_status(lists:keyfind("phase", 1,  PQ),
-                         lists:keyfind("num", 1,  PQ)) of
+        case get_phase(In) of
             {ok, Phase} ->
-                mafia_print:print_votes([{?game_key, getv(?game_key)},
+                mafia_print:print_votes([{?game_key, ?getv(?game_key)},
                                          {?phase, Phase},
                                          {?mode, ?html}
                                         ]);
@@ -596,6 +612,22 @@ game_status(Sid, _Env, In) ->
     B = web:deliver(Sid, Html),
     C = del_end(Sid),
     A + B + C.
+
+get_phase([]) ->
+    GameKey = ?getv(?game_key),
+    Phase = mafia_time:calculate_phase(GameKey),
+    {ok, Phase};
+get_phase(In) ->
+    PQ = httpd:parse_query(In),
+    NotAllowed = [Key || {Key, _} <- PQ] -- ["phase", "num"],
+    if NotAllowed == [] ->
+            game_status(lists:keyfind("phase", 1,  PQ),
+                        lists:keyfind("num", 1,  PQ));
+       true ->
+            {error, ["Params: ",
+                     string:join(NotAllowed, ", "),
+                     " not allowed."]}
+    end.
 
 game_status({"phase", "end"},
             _) ->
@@ -653,7 +685,7 @@ vote_tracker2(?false,
               {"msg_id", Str}) ->
     try
         MsgId = list_to_integer(Str),
-        show_msg(MsgId)
+        web:show_msg(MsgId)
     catch _:_ ->
             {error,
              "<tr><td>"
@@ -665,33 +697,6 @@ vote_tracker2(?false,
     {error,
      "<tr><td>bad_request</td></tr>"}.
 
-show_msg(MsgId) when is_integer(MsgId) ->
-    show_msg(mafia:rmess(MsgId));
-
-show_msg([]) -> "<tr><td>No message found with this id</td></tr>";
-show_msg([#message{user_name = MsgUserB,
-                   page_num = PageNum,
-                   time = Time,
-                   message = MsgB}]) ->
-    GameKey = getv(?game_key),
-    MsgPhase = mafia_time:calculate_phase(GameKey, Time),
-    DayStr = case MsgPhase of
-                 {DNum, ?day} -> "Day-" ++ ?i2l(DNum);
-                 {DNum, ?night} -> "Night-" ++ ?i2l(DNum);
-                 ?game_ended -> "Game End "
-             end,
-    Hash = erlang:phash2(MsgUserB, 16#1000000),
-    Color = Hash bor 16#C0C0C0,
-    ColorStr = integer_to_list(Color, 16),
-    {HH, MM} = mafia_time:hh_mm_to_deadline(GameKey, Time),
-    ?l2b(["<tr bgcolor=\"#", ColorStr,
-         "\"><td valign=\"top\"><b>", MsgUserB,
-         "</b><br>",
-         DayStr, " ", p(HH), ":", p(MM),
-         "<br> page ", ?i2l(PageNum),
-         "</td><td valign=\"top\">", MsgB,
-         "</td></tr>\r\n"]).
-
 %% http://mafia_test.peterlund.se/e/web/stats?phase=day&num=1
 %% http://mafia_test.peterlund.se/e/web/stats?phase=night&num=1
 %% http://mafia_test.peterlund.se/e/web/stats?phase=end
@@ -702,7 +707,7 @@ stats(Sid, _Env, In) ->
         case stats2(lists:keyfind("phase", 1,  PQ),
                     lists:keyfind("num", 1,  PQ)) of
             {ok, Phase} ->
-                mafia_print:print_stats([{?game_key, getv(game_key)},
+                mafia_print:print_stats([{?game_key, ?getv(game_key)},
                                          {?phase, Phase},
                                          {?mode, ?html}
                                         ]);

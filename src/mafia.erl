@@ -1,10 +1,10 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% - Should death list not be SHORTER when not current status?
-%% - MISSING END OF GAME MESSAGE FROM VASH
-%% - How can Vash vote "END" M25 D1 ?
+%% - Why does not refresh filter work?
 %% - Call the Game Status from the web server...
+%% - deliver game_status in parts
+%% - store ready game_status on file
 
 %% - check all clear_table
 %% - fix a manual replace player fun
@@ -73,10 +73,7 @@
         ]).
 
 %% libary
--export([
-         find_pages_for_thread/1,
-         getv/1,
-         set/2,
+-export([find_pages_for_thread/1,
          rgame/0,
          rgame/1,
          rday/2,
@@ -108,10 +105,6 @@ print_votes(DayNum, DoN) -> mafia_print:print_votes(DayNum, DoN).
 print_messages(User) -> mafia_print:print_messages(User).
 
 downl() -> mafia_data:downl().
-
-set(K, V) -> mafia_db:set(K, V).
-
-getv(K) -> mafia_db:getv(K).
 
 setup_mnesia() -> mafia_db:setup_mnesia().
 
@@ -245,7 +238,7 @@ rmess(MsgId) ->
 
 %% Read current game
 rgame() ->
-    ThId = getv(?thread_id),
+    ThId = ?getv(?thread_id),
     rgame(ThId).
 
 rgame(ThId) ->
@@ -303,14 +296,14 @@ verify_new_user_list2(Users) ->
 %% Seems to be unused
 -spec set_thread_id(ThId :: integer())  -> ok.
 set_thread_id(ThId) when is_integer(ThId) ->
-    set(?thread_id, ThId),
+    ?set(?thread_id, ThId),
     PageToRead =
         case find_pages_for_thread(ThId) of
             [] -> 1;
             Pages ->
                 lists:max(Pages)
         end,
-    set(?page_to_read, PageToRead),
+    ?set(?page_to_read, PageToRead),
     ok.
 
 show_settings() ->
@@ -432,7 +425,7 @@ remove_alias(User, Alias) ->
 
 %% No-one seems to use this one.
 cmp_vote_raw() ->
-    ThId = getv(?thread_id),
+    ThId = ?getv(?thread_id),
     DayNum = 1,
     case rday(ThId, DayNum) of
         [] ->

@@ -188,10 +188,14 @@ is_first_non_letter([H|_]) ->
 
 check_for_voteI(_S, M, G) ->
     verify_user(M),
+    check_for_voteI2(_S, M, G, author_user(M, G)).
+
+check_for_voteI2(_S, _M, _G, false) ->
+    ignore;
+check_for_voteI2(_S, M, G, true) ->
     Msg = ?b2l(M#message.message),
     MsgUC = string:to_upper(Msg),
     Players = G#mafia_game.players_rem,
-    author_user(M, G),
     Players2 = add_nolynch_and_aliases(Players),
     VoteStr = "##VOTE",
     UnvoteStr = "##UNVOTE",
@@ -266,18 +270,15 @@ verify_user(M = #message{user_name = User}) ->
     CheckRes = check_user(User),
     case CheckRes of
         ok -> ok;
-        {Type, UserRec} ->
-            if Type == user_new ->
-                    io:format(
-                      "~s Warning: created new user ~p\n",
-                      [mafia_print:print_time(M#message.time, short), User]);
-               true -> ok
-            end,
-            mnesia:dirty_write(UserRec),
-            if Type == user_game ->
-                    auto_correct_case(?b2l(User), M#message.thread_id);
-               true -> ok
-            end
+        {user_new, UserRec} ->
+            io:format(
+              "~s Warning: created new user ~p\n",
+              [mafia_print:print_time(M#message.time, short), User]),
+            mnesia:dirty_write(UserRec);
+        {user_game, _UserRec} ->
+            auto_correct_case(?b2l(User), M#message.thread_id);
+        {user, UserRec} ->
+            mnesia:dirty_write(UserRec)
     end.
 
 -spec print_verify_user(string()) -> ok.
@@ -291,6 +292,11 @@ print_verify_user(User) ->
         {user_new, _} -> io:format("does not exist\n", [])
     end.
 
+-spec check_user(User :: user())
+                -> ok |                   % found ok
+                   {user, #user{}} |      % found unverified
+                   {user_game, #user{}} | % wrong case
+                   {user_new, #user{}}.   % did not find
 check_user(User) ->
     UserU = ?b2ub(User),
     case mnesia:dirty_read(user, UserU) of
@@ -353,17 +359,16 @@ correct_case_fun2() ->
 author_gm(M, G) ->
     authorI(M, G#mafia_game.gms).
 
+-spec author_user(M :: #message{}, G :: #mafia_game{}) -> boolean().
 author_user(M, G) ->
-    #mafia_game{gms = GMs,
-                players_rem = Players} = G,
-    UsersB = GMs ++ Players,
-    case authorI(M, UsersB) of
-        true -> ok;
+    case authorI(M, G#mafia_game.players_rem) of
+        true -> true;
         false ->
             User = ?b2l(M#message.user_name),
             io:format("~s Message sent by non-player ~p\n",
                       [mafia_print:print_time(M#message.time, short),
-                       User])
+                       User]),
+            false
     end.
 
 authorI(M, UsersB) ->

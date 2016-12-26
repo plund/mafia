@@ -127,6 +127,9 @@
 -define(b2ul(B), ?l2u(?b2l(B))).
 -define(b2ub(B), ?l2b(?b2ul(B))).
 
+-define(set(K, V), mafia_db:set(K, V)).
+-define(getv(K), mafia_db:getv(K)).
+
 -define(dbg(Term),
         io:format("~s DBG ~999p\n",
                   [mafia_print:print_time(current_time, short),

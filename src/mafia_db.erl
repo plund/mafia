@@ -60,14 +60,14 @@ to_bin(LoL = [[_|_]|_]) ->
 
 insert_initial_data() ->
     io:format("Adding values to kv_store\n", []),
-    set(?thread_id, ?M25ThId),
-    set(?game_key, ?M25ThId),
-    set(?page_to_read, 1),
-    set(?timezone_user, 1),
-    set(?dst_user, false),
-    set(?timezone_game, -5),
-    set(?dst_game, false),
-    set(?print_time, user),
+    ?set(?thread_id, ?M25ThId),
+    ?set(?game_key, ?M25ThId),
+    ?set(?page_to_read, 1),
+    ?set(?timezone_user, 1),
+    ?set(?dst_user, false),
+    ?set(?timezone_game, -5),
+    ?set(?dst_game, false),
+    ?set(?print_time, user),
     write_default_table(game),
     write_default_table(user).
 

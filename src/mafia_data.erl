@@ -128,15 +128,16 @@ refresh_votes() ->
 refresh_votes(ThId) when is_integer(ThId) ->
     refresh_votes(ThId, ?rgame(ThId), all, soft);
 refresh_votes(hard) ->
-    ThId = ?getv(?thread_id),
+    ThId = ?getv(?game_key),
     refresh_votes(ThId, ?rgame(ThId), all, hard);
 refresh_votes({end_page, EndPage}) when is_integer(EndPage) ->
-    ThId = ?getv(?thread_id),
-    Filter = fun(Page) -> Page =< EndPage end,
-    refresh_votes(ThId, ?rgame(ThId), Filter, soft).
+    ThId = ?getv(?game_key),
+    PageFilter = fun(Page) -> Page =< EndPage end,
+    refresh_votes(ThId, ?rgame(ThId), PageFilter, soft).
 
-refresh_votes(_ThId, [], _F, _Method) -> ok;
-refresh_votes(ThId, [G], Filter, Method) ->
+refresh_votes(_ThId, [], _F, _Method) ->
+    ok;
+refresh_votes(ThId, [G], PageFilter, Method) ->
     mnesia:clear_table(mafia_day),   %% Remove only days in ThId
     if Method == soft ->
             G2 = G#mafia_game{
@@ -160,7 +161,7 @@ refresh_votes(ThId, [G], Filter, Method) ->
                                                mfa = {M, F, A}} <- Cmds,
                                           MId == MsgId]
         end,
-    iterate_all_msg_ids(ThId, MsgIdFun, Filter),
+    iterate_all_msg_ids(ThId, MsgIdFun, PageFilter),
     ok.
 
 refresh_stat() ->
@@ -317,10 +318,8 @@ iterate_all_msg_ids(ThId, Fun, Filter) ->
     All = lists:sort(mafia:find_pages_for_thread(ThId)),
     Pages = if Filter == all -> All;
                is_function(Filter) ->
-                    ?dbg({ps2filter, All}),
                     lists:filter(Filter, All)
             end,
-    ?dbg({filtered, Pages}),
     iterate_all_msg_idsI(ThId, Fun, Pages).
 
 iterate_all_msg_idsI(ThId, Fun, Pages) ->

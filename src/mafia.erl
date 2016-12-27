@@ -1,12 +1,11 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% - total stats for Current page in end_game
-%% - Why does not refresh filter work?
 %% - Call the Game Status genaration from the gen_server when they are ready
 %%   to be stored on file
 %% - store ready game_status html onto file and use them when they exist
 %% - deliver game_status in parts?
+%% - split mafia_print. stats and tracker into own modules?
 
 %% - check all clear_table
 %% - fix a manual replace player fun

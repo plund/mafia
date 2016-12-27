@@ -341,7 +341,11 @@ print_votesI(#pp{game = G,
         end,
 
     %% Part - Posting stats
-    [HStats, HNonPosters] = print_statsI(PP),
+    PPstat = if PP#pp.phase == ?game_ended ->
+                     PP#pp{phase = ?total_stats};
+                true -> PP
+             end,
+    [HStats, HNonPosters] = print_statsI(PPstat),
 
     %% Part - Dead players
     DeathsToReport =
@@ -588,11 +592,7 @@ print_stats_opts(Opts) ->
 print_statsI(PP) when PP#pp.game == ?undefined ->
     print_stats_game(PP, ?rgame(PP#pp.game_key));
 print_statsI(PP) when PP#pp.match_expr == ?undefined ->
-    Phase = if PP#pp.mode == ?text, PP#pp.phase == ?game_ended ->
-                    ?total_stats;
-               true -> PP#pp.phase
-            end,
-    print_stats_match(PP, PP#pp.game_key, Phase);
+    print_stats_match(PP);
 print_statsI(PP) ->
     do_print_stats(PP).
 
@@ -600,25 +600,26 @@ print_statsI(PP) ->
 print_stats_game(_PP, []) -> ok;
 print_stats_game(PP, [G]) -> print_statsI(PP#pp{game = G}).
 
-print_stats_match(PP, GameKey, ?total_stats) ->
+print_stats_match(PP) when PP#pp.phase == ?total_stats ->
     %% TOTAL stats
     MatchHead = #stat{key = {'$1', '$2'}, _='_'},
-    Guard = [{'==', '$2', GameKey}],
+    Guard = [{'==', '$2', PP#pp.game_key}],
     Result = '$_',
     MatchExpr = [{MatchHead, Guard, [Result]}],
     print_statsI(PP#pp{match_expr = MatchExpr});
-print_stats_match(PP, GameKey, ?game_ended) ->
+print_stats_match(PP) when PP#pp.phase == ?game_ended ->
     %% END stats
     MatchHead = #stat{key = {'$1', '$2', '$3'}, _='_'},
-    Guard = [{'==', '$2', GameKey},
+    Guard = [{'==', '$2', PP#pp.game_key},
              {'==', '$3', ?game_ended}],
     Result = '$_',
     MatchExpr = [{MatchHead, Guard, [Result]}],
     print_statsI(PP#pp{match_expr = MatchExpr});
-print_stats_match(PP, GameKey, {Day, DoN}) ->
+print_stats_match(PP) ->
     %% PHASE stats
+    {Day, DoN} = PP#pp.phase,
     MatchHead = #stat{key = {'$1', '$2', {'$3', '$4'}}, _='_'},
-    Guard = [{'==', '$2', GameKey},
+    Guard = [{'==', '$2', PP#pp.game_key},
              {'==', '$3', Day}, {'==', '$4', DoN}],
     Result = '$_',
     MatchExpr = [{MatchHead, Guard, [Result]}],

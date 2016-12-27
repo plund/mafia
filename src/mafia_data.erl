@@ -114,7 +114,7 @@ downl_web([G]) ->
 check_db(Key, P) ->
     MsgIdF = check_vote_msgid_fun(Key),
     ReadF = fun(P2) -> ?rpage(Key, P2) end,
-    check_db(MsgIdF, ReadF, P, P, Read(P)).
+    check_db(MsgIdF, ReadF, P, P, ReadF(P)).
 
 check_db(_MsgIdF, _ReadF, Start, Start, []) -> Start;
 check_db(_MsgIdF, _ReadF, P, _Start, []) -> P - 1;

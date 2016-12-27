@@ -150,9 +150,12 @@
 -define(set(K, V), mafia_db:set(K, V)).
 -define(getv(K), mafia_db:getv(K)).
 
+-define(rmess(MsgId), mnesia:dirty_read(message, MsgId)).
+-define(rpage(ThId, Page), mnesia:dirty_read(page_rec, {ThId, Page})).
+-define(rpage(Key), mnesia:dirty_read(page_rec, Key)).
+
 -define(rgame(ThId), mnesia:dirty_read(mafia_game, ThId)).
 -define(rday(GK, Phase), mafia:rday(GK, Phase)).
--define(rmess(MsgId), mnesia:dirty_read(message, MsgId)).
 
 -define(dbg(Term),
         io:format("~s DBG ~999p\n",
@@ -180,8 +183,8 @@
   </head>
   <body bgcolor=\"#cfffaf\">
     <center>
-      <h3>" ++ Title ++ "</h3>
-      <table" ++ TabAttrStr ++ ">").
+      <table" ++ TabAttrStr ++ ">
+      <tr><td align=\"center\"><h2>" ++ Title ++ "</h2><td><tr>").
 
 -define(HTML_TAB_END, "
       </table>

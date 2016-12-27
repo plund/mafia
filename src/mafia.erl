@@ -1,13 +1,11 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% - Call the Game Status genaration from the gen_server when they are ready
-%%   to be stored on file
-%% - store ready game_status html onto file and use them when they exist
-%% - deliver game_status in parts?
+%% - Call the Game Status generation from the gen_server also for html variants
+%%   when they are ready to be stored on file
+%% - web:deliver game_status in parts out to browser?
 %% - split mafia_print. stats and tracker into own modules?
 
-%% - check all clear_table
 %% - fix a manual replace player fun
 %% - set_death_comment should also register that player as dead.
 %% - implement the GM_commands. How to test them?
@@ -73,11 +71,14 @@
         ]).
 
 %% libary
--export([find_pages_for_thread/1,
+-export([pages_for_thread/1,
+         last_msg_in_thread/1,
          game_phase_full_fn/2,
          game_link_and_text/2,
          game_prefixes/1,
          game_file_prefix/1,
+         rpage/2,
+         rgame/1,
          rday/2
         ]).
 
@@ -281,6 +282,12 @@ l() ->
     [begin code:purge(M), code:load_file(M), M end
      || M <- Beams2].
 
+rpage(ThId, Page) -> ?rpage(ThId, Page).
+
+rgame(?game_key = K) -> ?rgame(?getv(K));
+rgame(?thread_id = K) -> ?rgame(?getv(K));
+rgame(K) -> ?rgame(K).
+
 rday(ThId, {DayNum, _}) ->
     rday(ThId, DayNum);
 rday(ThId, DayNum) when is_integer(ThId) ->
@@ -335,7 +342,7 @@ verify_new_user_list2(Users) ->
 set_thread_id(ThId) when is_integer(ThId) ->
     ?set(?thread_id, ThId),
     PageToRead =
-        case find_pages_for_thread(ThId) of
+        case pages_for_thread(ThId) of
             [] -> 1;
             Pages ->
                 lists:max(Pages)
@@ -353,12 +360,24 @@ show_settings() ->
     [PrintSettings(K) || K <- mnesia:dirty_all_keys(?kv_store)],
     ok.
 
-find_pages_for_thread(ThId) ->
+pages_for_thread(ThId) ->
     MatchHead = #page_rec{key = {'$1', '$2'}, _='_'},
     Guard = {'==', '$1', ThId},
     Result = '$2',
-    mnesia:dirty_select(page_rec,[{MatchHead, [Guard], [Result]}]).
+    Pages = mnesia:dirty_select(page_rec,
+                                [{MatchHead, [Guard], [Result]}]),
+    lists:sort(Pages).
 
+-spec last_msg_in_thread(ThId :: integer()) -> none | #message{}.
+last_msg_in_thread(ThId) when is_integer(ThId) ->
+    case pages_for_thread(ThId) of
+        [] -> none;
+        Ps ->
+            LastPage = lists:last(Ps),
+            PageRec = hd(?rpage(ThId, LastPage)),
+            MsgId = lists:last(PageRec#page_rec.message_ids),
+            hd(?rmess(MsgId))
+    end.
 
 show_all_users() ->
     Users = all_users(),

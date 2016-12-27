@@ -579,6 +579,8 @@ del_start(Sid, Title, Border) ->
 del_end(Sid) ->
     web:deliver(Sid, ?HTML_TAB_END).
 
+%% http://mafia_test.peterlund.se/e/web/game_status
+%% http://mafia_test.peterlund.se/e/web/game_status?debug
 %% http://mafia_test.peterlund.se/e/web/game_status?phase=day&num=1
 %% http://mafia_test.peterlund.se/e/web/game_status?phase=night&num=2
 %% http://mafia_test.peterlund.se/e/web/game_status?phase=end
@@ -616,32 +618,54 @@ get_phase([]) ->
     {ok, Phase};
 get_phase(In) ->
     PQ = httpd:parse_query(In),
-    NotAllowed = [Key || {Key, _} <- PQ] -- ["phase", "num"],
+    NotAllowed = [Key || {Key, _} <- PQ] -- ["phase", "num", "debug"],
     if NotAllowed == [] ->
-            game_status(lists:keyfind("phase", 1,  PQ),
-                        lists:keyfind("num", 1,  PQ));
+            gs_phase(lists:keyfind("phase", 1, PQ),
+                     lists:keyfind("num", 1, PQ),
+                     lists:keyfind("debug", 1, PQ)
+                    );
        true ->
             {error, ["Params: ",
                      string:join(NotAllowed, ", "),
                      " not allowed."]}
     end.
 
-game_status({"phase", "end"},
-            _) ->
+gs_phase(_, _, {"debug", ""}) ->
+    GameKey = ?getv(?game_key),
+    case ?rgame(GameKey) of
+        [] ->
+            ?dbg({gs_phase, debug, error}),
+            {error, ["<tr><td>Game ",
+                     ?i2l(GameKey),
+                     " not found!</td></tr>"]};
+        [G] ->
+            Page = G#mafia_game.page_to_read,
+            PRec = hd(?rpage(GameKey, Page)),
+            MsgId = lists:last(PRec#page_rec.message_ids),
+            Msg = hd(?rmess(MsgId)),
+            Time = Msg#message.time,
+            MsgPhase = mafia_time:calculate_phase(GameKey, Time),
+            ?dbg({gs_phase, debug, Page, MsgPhase}),
+            {ok, MsgPhase}
+    end;
+gs_phase({"phase", "end"},
+            _, _) ->
     {ok, ?game_ended};
-game_status({"phase", "day"},
-            {"num", Str}) ->
+gs_phase({"phase", "day"},
+            {"num", Str},
+            _) ->
     case conv_to_num(Str) of
         {ok, Num} -> {ok, {Num, ?day}};
         {error, _HtmlErr} = E -> E
     end;
-game_status({"phase", "night"},
-            {"num", Str}) ->
+gs_phase({"phase", "night"},
+            {"num", Str},
+            _) ->
     case conv_to_num(Str) of
         {ok, Num} -> {ok, {Num, ?night}};
         {error, _HtmlErr} = E -> E
     end;
-game_status(_, _) ->
+gs_phase(_, _, _) ->
     {error, "<tr><td>"
      "You need to end url with .../stats?phase=day&num=1, "
      "?phase=night&num=2 or ?phase=end"

@@ -17,6 +17,7 @@ check_for_vote(S, MsgId) when is_integer(MsgId) ->
         [Msg] -> check_for_vote(S, Msg)
     end;
 check_for_vote(S, M = #message{}) ->
+    mafia_data:update_stat(M),
     check_for_vote(S, M, ?rgame(M#message.thread_id)).
 
 check_for_vote(_S, _M, []) -> ignore;

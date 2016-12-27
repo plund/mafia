@@ -88,7 +88,7 @@ pps() ->
 pps({ThId, Page}) ->
     pps(ThId, Page);
 pps(ThId) when is_integer(ThId) ->
-    LastPage = lists:max(mafia:find_pages_for_thread(ThId)),
+    LastPage = lists:max(mafia:pages_for_thread(ThId)),
     pps(ThId, LastPage).
 
 pps(ThId, Page) ->
@@ -350,7 +350,8 @@ print_votesI(#pp{game = G,
     %% Part - Dead players
     DeathsToReport =
         ?lrev(
-          [D || D = #death{phase = Ph} <- G#mafia_game.player_deaths,
+          [D || D = #death{phase = Ph,
+                           is_deleted = false} <- G#mafia_game.player_deaths,
                 if PP#pp.phase == ?game_ended -> true;
                    PP#pp.use_time == ?undefined -> Ph == PP#pp.phase;
                    true -> Ph =< PP#pp.phase
@@ -407,10 +408,11 @@ print_votesI(#pp{game = G,
                    end,
                    "</td></tr></table></td></tr>"]
                   || #death{player = DeadPl,
-                           is_end = IsEnd,
-                           phase = Ph,
-                           msg_id = MsgId,
-                           comment = Com}
+                            is_end = IsEnd,
+                            phase = Ph,
+                            msg_id = MsgId,
+                            comment = Com,
+                            is_deleted = false}
                          <- DeathsToReport],
                  "</table>"],
             HFooter =
@@ -777,7 +779,8 @@ print_tracker(PP) ->
     #mafia_day{players_rem = PlayersRem,
                player_deaths = Deaths} = PP#pp.day,
     %% player_deaths contains players dying in the middle of the day.
-    AllPlayersB = PlayersRem ++ [DeadB || #death{player = DeadB} <- Deaths],
+    AllPlayersB = PlayersRem ++ [DeadB || #death{player = DeadB,
+                                                 is_deleted = false} <- Deaths],
     Abbrs = mafia_name:get_abbrevs(AllPlayersB),
     if PP#pp.mode == ?text ->
             io:format(PP#pp.dev, "\n", []);
@@ -887,7 +890,7 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                      "<th>Time</th>",
                      "<th align=\"left\">Voter</th>",
                      "</tr></table>\r\n"]],
-            ["<table>",
+            ["<table align=center>",
              "<tr><th>Vote Tracker (Day ", ?i2l(PP#pp.day_num), ")</th></tr>",
              "<tr><td>", Tab2, "</td></tr>",
              "</table>"]
@@ -1003,11 +1006,11 @@ print_messages(User) when is_list(User) ->
     print_messages(?l2b(User));
 print_messages(User) when is_binary(User) ->
     ThId = ?getv(?thread_id),
-    Pages = lists:sort(mafia:find_pages_for_thread(ThId)),
+    Pages = mafia:pages_for_thread(ThId),
     AllMsgIds =
         lists:foldl(
           fun(Page, Acc) ->
-                  case mnesia:dirty_read(page_rec, {ThId, Page}) of
+                  case ?rpage(ThId, Page) of
                       [#page_rec{message_ids = PMids}] -> Acc ++ PMids;
                       [] -> Acc
                   end
@@ -1033,7 +1036,7 @@ print_pages_for_thread() ->
     print_pages_for_thread(ThId).
 
 print_pages_for_thread(ThId) ->
-    Pages = mafia:find_pages_for_thread(ThId),
+    Pages = mafia:pages_for_thread(ThId),
     io:format("Thread ~p has stored Pages ~w\n", [ThId, Pages]).
 
 %% -----------------------------------------------------------------------------
@@ -1085,7 +1088,7 @@ print_page(ThId, MsgIds, PrintFun) ->
     ok.
 
 msgids(ThId, PageNum) ->
-    case mnesia:dirty_read(page_rec, {ThId, PageNum}) of
+    case ?rpage(ThId, PageNum) of
         [] -> [];
         [#page_rec{message_ids = MIds}] -> MIds
     end.

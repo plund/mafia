@@ -73,10 +73,7 @@
 %% libary
 -export([pages_for_thread/1,
          last_msg_in_thread/1,
-         game_phase_full_fn/2,
-         game_link_and_text/2,
-         game_prefixes/1,
-         game_file_prefix/1,
+         rmess/1,
          rpage/2,
          rgame/1,
          rday/2
@@ -122,53 +119,6 @@ verify_users(m26) ->
     [mafia_vote:print_verify_user(U)
      || U <- ?M26_GMs ++ ?M26_players ++ ?M26_Subs],
     ok.
-
--define(CURRENT_GAME_FN, "current_game_status.txt").
-
-%% For ref to text version
-game_link_and_text(G, ?game_ended) ->
-    %% move "current" to game dir
-    {GameDir, _FilePrefix} = game_prefixes(G),
-    Href = filename:join(["/", GameDir, ?CURRENT_GAME_FN]),
-    Link = ?CURRENT_GAME_FN,
-    {Href, Link};
-game_link_and_text(G, Phase) ->
-    {GameDir, FilePrefix} = game_prefixes(G),
-    PhaseFN = phase_fn(FilePrefix, Phase),
-    Href = filename:join(["/", GameDir, PhaseFN]),
-    Link = PhaseFN,
-    {Href, Link}.
-
-game_phase_full_fn(G, Phase) ->
-    {GameDir, FilePrefix} = game_prefixes(G),
-    PhaseFN = if Phase == ?game_ended -> ?CURRENT_GAME_FN;
-                 true -> phase_fn(FilePrefix, Phase)
-              end,
-    filename:join([?DOC_ROOT, GameDir, PhaseFN]).
-
-phase_fn(FilePrefix, Phase) ->
-    {DNum, DoN} = Phase,
-    PhStr = case DoN of
-                ?day -> "d";
-                ?night -> "n"
-            end ++ ?i2l(DNum),
-    %% calculate "m25_d1.txt"
-    FilePrefix ++ PhStr ++ ".txt".
-
-game_prefixes(G) ->
-    Pre = game_prefix(G),
-    {Pre, Pre ++ "_"}.
-
-game_file_prefix(G) ->
-    game_prefix(G) ++ "_".
-
-game_prefix(ThId) when is_integer(ThId) ->
-    game_prefix(?rgame(ThId));
-game_prefix([]) -> "";
-game_prefix([G]) ->
-    game_prefix(G);
-game_prefix(G) ->
-    "m" ++ ?i2l(G#mafia_game.game_num).
 
 %% -----------------------------------------------------------------------------
 %% @doc End current phase with GM message and set next phase at
@@ -282,6 +232,7 @@ l() ->
     [begin code:purge(M), code:load_file(M), M end
      || M <- Beams2].
 
+rmess(MsgId) -> ?rmess(MsgId).
 rpage(ThId, Page) -> ?rpage(ThId, Page).
 
 rgame(?game_key = K) -> ?rgame(?getv(K));

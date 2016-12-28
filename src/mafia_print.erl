@@ -46,7 +46,7 @@
              period :: integer(),   %% Poll period
              use_time :: ?undefined | seconds1970(),
              %% use_time = time to next DL (current game status)
-             time :: seconds1970(),
+             %%time :: seconds1970(),
              time_zone = 0 :: integer(),
              dst = false :: boolean()
             }).
@@ -113,7 +113,8 @@ pm(PP = #pp{}) ->
     print_message_full(PP).
 
 pm(Fd, MsgId) when is_integer(MsgId) ->
-    pm(#pp{dev = Fd, msg_id = MsgId}).
+    {TzH, Dst} = mafia_time:get_tz_dst(),
+    pm(#pp{dev = Fd, msg_id = MsgId, time_zone = TzH, dst = Dst}).
 
 pm_rmess(PP) ->
     M = hd(?rmess(PP#pp.msg_id)),
@@ -175,12 +176,22 @@ print_votesI(#pp{game = G,
                           "\n"
                           "~s\n"
                           "~s\n"
+                          "\n"
+                          "Game Moderators: ~s\n"
+                          "\n"
                           "Previous days found at http://mafia.peterlund.se/\n",
-                          [GName, [$= || _ <- GName]]);
+                          [GName, [$= || _ <- GName],
+                          string:join([?b2l(GM) || GM <- G#mafia_game.gms],
+                                      " and ")]);
            PP#pp.mode == ?html ->
                 {Href, Link} =
-                    mafia:game_link_and_text(PP#pp.game, PP#pp.phase),
+                    mafia_file:game_link_and_text(PP#pp.game, PP#pp.phase),
                 ["<tr><th>", GName, "</th></tr>\r\n",
+                 "<tr><td><table align=center cellpadding=4 cellspacing=6 >"
+                 "<tr><td>Game Moderators:<td>",
+                 [["<td", bgcolor(GM), ">",
+                   ?b2l(GM), "</td>"] || GM <- G#mafia_game.gms],
+                 "</tr></table></td></tr>"
                  "<tr><td align=center>",
                  "Previous days found at "
                  "<a href=\"http://mafia.peterlund.se/\">"
@@ -196,15 +207,20 @@ print_votesI(#pp{game = G,
     %% Part - Display time Left to Deadline or display game end message
     HDeadLine =
         if PP#pp.mode == ?text ->
-                if PhaseType /= ?game_ended andalso is_integer(PP#pp.use_time) ->
+                if PhaseType /= ?game_ended, is_integer(PP#pp.use_time) ->
                         print_time_left_to_dl(PP);
                    PhaseType == ?game_ended ->
                         {EndTime, EndMsgId} = G#mafia_game.game_end,
                         {TzH, Dst} = mafia_time:get_tz_dst(G, EndTime),
-                        io:format(PP#pp.dev,
-                                  "\n"
-                                  "The GAME HAS ENDED ~s\n",
-                                  [print_time(EndTime, TzH, Dst, ?extensive)]),
+                        LastPhase =
+                            print_phase(?dl2phase(hd(G#mafia_game.deadlines))),
+                        io:format(
+                          PP#pp.dev,
+                          "\n"
+                          "The GAME HAS ENDED in phase ~s "
+                          "and the time was ~s\n",
+                          [LastPhase,
+                           print_time(EndTime, TzH, Dst, ?extensive)]),
                         io:format(PP#pp.dev,
                                   "\n"
                                   "Game Master End Message\n"
@@ -221,12 +237,17 @@ print_votesI(#pp{game = G,
                    PhaseType == ?game_ended ->
                         {EndTime, EndMsgId} = G#mafia_game.game_end,
                         {TzH, Dst} = mafia_time:get_tz_dst(G, EndTime),
-                        GmMessage = web:show_msg(EndMsgId),
+                        LastPhase =
+                            print_phase(?dl2phase(hd(G#mafia_game.deadlines))),
+                        GmMessage = web_impl:show_msg(EndMsgId),
                         ["<tr><td align=center>",
-                         "The GAME HAS ENDED ",
+                         "The GAME HAS ENDED in phase ",
+                         LastPhase,
+                         " and the time was ",
                          print_time(EndTime, TzH, Dst, ?extensive),
                          "</td></tr>",
-                         "<tr><td><table>", GmMessage, "</table></td></tr>"];
+                         "<tr><td><table cellpadding=6 cellspacing=3>",
+                         GmMessage, "</table></td></tr>"];
                    true ->
                         []
                 end
@@ -1049,7 +1070,7 @@ print_page(_ThId, [], _PrintFun) -> ok;
 print_page(ThId, MsgIds, PrintFun) ->
     %% print starting line with current phase
     %% does this thread have a game?
-    MsgsPage = r_msgs(MsgIds),
+    MsgsPage = read_msgs(MsgIds),
     case ?rgame(ThId) of
         [] ->
             [PrintFun(M) || M <- MsgsPage];
@@ -1075,14 +1096,14 @@ print_page(ThId, MsgIds, PrintFun) ->
                 Msg = #message{} ->
                     FirstTime = time(Msg),
                     Phase = mafia_time:calculate_phase(G, FirstTime),
-                    print_dl(Phase, "");
+                    print_dl_div_line(Phase, "");
                 _ -> ok
             end,
             [case E of
                  M = #message{} ->
                      PrintFun(M);
                  D ->
-                     print_dl(D, "End of ")
+                     print_dl_div_line(D, "End of ")
              end || E <- MixedSort]
     end,
     ok.
@@ -1093,7 +1114,7 @@ msgids(ThId, PageNum) ->
         [#page_rec{message_ids = MIds}] -> MIds
     end.
 
-r_msgs(MsgIds) ->
+read_msgs(MsgIds) ->
     [hd(mnesia:dirty_read(message, MsgId)) || MsgId <- MsgIds].
 
 cmp_time(A, B) -> time(A) =< time(B).
@@ -1101,12 +1122,20 @@ cmp_time(A, B) -> time(A) =< time(B).
 time({_,_,Time}) -> Time;
 time(#message{time = Time}) -> Time.
 
-print_dl({Num, DorN, _}, Txt) ->
-    print_dl({Num, DorN}, Txt);
-print_dl({Num, DorN}, Txt) ->
-    io:format("-------------------------------- ~s~s ~p "
+print_dl_div_line(DL = {_Num, _DorN, _}, Txt) ->
+    print_dl_div_line(?dl2phase(DL), Txt);
+print_dl_div_line(Phase, Txt) ->
+    print_dl_div_lineI(print_phase(Phase), Txt).
+
+print_dl_div_lineI(PhText, Txt) ->
+    io:format("-------------------------------- ~s~s "
               "--------------------------------\n",
-              [Txt, pr_don(DorN), Num]).
+              [Txt, PhText]).
+
+print_phase(?game_ended) ->
+    "Game has Ended";
+print_phase({Num, DoN}) ->
+    pr_don(DoN) ++ " " ++ ?i2l(Num).
 
 pr_don(?day) -> "Day";
 pr_don(?night) -> "Night".
@@ -1114,7 +1143,8 @@ pr_don(?night) -> "Night".
 %% -----------------------------------------------------------------------------
 
 print_message_full(Fd, M) ->
-    print_message_full(#pp{message = M, dev = Fd}).
+    {TzH, Dst} = mafia_time:get_tz_dst(),
+    print_message_full(#pp{message = M, dev = Fd, time_zone = TzH, dst = Dst}).
 
 print_message_full(M = #message{}) ->
     print_message_full(standard_io, M);
@@ -1139,7 +1169,8 @@ print_message_full(PP = #pp{}) ->
 %% -----------------------------------------------------------------------------
 
 print_message_summary(M = #message{}) ->
-    print_message_summary(#pp{message = M});
+    {TzH, Dst} = mafia_time:get_tz_dst(),
+    print_message_summary(#pp{message = M, time_zone = TzH, dst = Dst});
 print_message_summary(PP = #pp{}) ->
     #pp{message = M} = PP,
     Msg = rm_nl(html2txt(?b2l(M#message.message))),
@@ -1164,9 +1195,7 @@ print_message_summary(PP = #pp{}) ->
 
 %% -----------------------------------------------------------------------------
 
-%% print_time(Time) ->
-%%     print_time(Time, long).
-
+%% /2
 print_time(current_time, Mode) ->
     Time = mafia_time:utc_secs1970(),
     print_timeI([{?use_time, Time}, {?t_mode, Mode}]);
@@ -1174,11 +1203,12 @@ print_time(Time, Mode) when is_integer(Time) ->
     {TzH, Dst} = mafia_time:get_tz_dst(),
     print_time(Time, TzH, Dst, Mode).
 
+%% /4
 print_time(Time, TzH, Dst, Mode) when is_integer(Time) ->
     print_timeI([{?use_time, Time}, {?time_zone, TzH},
                  {?dst, Dst}, {?t_mode, Mode}]).
 
-%% record(pp
+%% /1
 print_timeI(Opts) when is_list(Opts) ->
     DefOpts = [{?time_zone, 0},
                {?dst, ?false},
@@ -1187,6 +1217,9 @@ print_timeI(Opts) when is_list(Opts) ->
     print_timeI(po(DefPP, Opts));
 
 %% half this fun should go to mafia_time
+print_timeI(PP = #pp{}) when PP#pp.use_time == ?undefined ->
+    MsgTime = (PP#pp.message)#message.time,
+    print_timeI(PP#pp{use_time = MsgTime});
 print_timeI(PP = #pp{}) ->
     #pp{use_time = Time,
         time_zone = TzH,

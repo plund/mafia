@@ -239,6 +239,7 @@ end_phase(#message{time = MsgTime}, DateTime, [G], false) ->
     NewDLs = get_some_extra_dls(G, DLs4, TargetTime),
     mnesia:dirty_write(G#mafia_game{deadlines = NewDLs}),
     mafia_web:regenerate_history(MsgTime, EarlyDL),
+    mafia_web:update_current(G#mafia_game.key),
     inserted;
 end_phase(_, _, _, _) ->
     already_inserted.
@@ -277,6 +278,7 @@ end_game(M, G, false) ->
     mnesia:dirty_write(G#mafia_game{deadlines = DLs3,
                                     game_end = {EndTime, MsgId}}),
     mafia_web:regenerate_history(EndTime, LastDL),
+    mafia_web:update_current(G#mafia_game.key),
     ?game_ended;
 end_game(_, _, _) ->
     already_game_ended.

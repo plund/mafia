@@ -1,0 +1,100 @@
+-module(mafia_file).
+
+-export([th_filenames/2, %% FN of thread file, relative run dir
+
+         cmd_filename/1, %% FN of manual commands issued, relative run dir
+
+         game_phase_full_fn/2, %% full FN to out text file
+         game_link_and_text/2  %% link to out text file, relative to DOCROOT
+         %%                       (for web page)
+        ]).
+
+-include("mafia.hrl").
+
+-define(CURRENT_GAME_FN, "current_game_status.txt").
+
+%% -----------------------------------------------------------------------------
+
+%% Filename to thread store file, relative to run dir (src).
+th_filenames(ThId, PageNum) ->
+    FileName = th_filename(ThId, PageNum),
+    TarBallName = FileName ++ ".tgz",
+    {FileName, TarBallName}.
+
+th_filename(Thread, Page) ->
+    DirName = "thread_pages",
+    verify_exist(DirName),
+    GamePrefix = game_file_prefix(Thread),
+    DirName2 = GamePrefix ++ ?i2l(Thread),
+    verify_exist(filename:join(DirName, DirName2)),
+    BaseName = ?i2l(Page) ++ ".txt",
+    filename:join([DirName, DirName2, BaseName]).
+
+%% -----------------------------------------------------------------------------
+
+cmd_filename(ThId) ->
+    DirName =  "command_files",
+    verify_exist(DirName),
+    GamePrefix = game_file_prefix(ThId),
+    BaseName = GamePrefix ++ ?i2l(ThId) ++ "_manual_cmds.txt",
+    filename:join([DirName, BaseName]).
+
+%% -----------------------------------------------------------------------------
+
+
+%% For ref to text version
+game_link_and_text(G, ?game_ended) ->
+    %% move "current" to game dir
+    {GameDir, _FilePrefix} = game_prefixes(G),
+    Href = filename:join(["/", GameDir, ?CURRENT_GAME_FN]),
+    Link = ?CURRENT_GAME_FN,
+    {Href, Link};
+game_link_and_text(G, Phase) ->
+    {GameDir, FilePrefix} = game_prefixes(G),
+    PhaseFN = phase_fn(FilePrefix, Phase),
+    Href = filename:join(["/", GameDir, PhaseFN]),
+    Link = PhaseFN,
+    {Href, Link}.
+
+game_phase_full_fn(G, Phase) ->
+    {GameDir, FilePrefix} = game_prefixes(G),
+    PhaseFN = if Phase == ?game_ended -> ?CURRENT_GAME_FN;
+                 true -> phase_fn(FilePrefix, Phase)
+              end,
+    DirName = filename:join(?DOC_ROOT, GameDir),
+    verify_exist(DirName),
+    filename:join(DirName, PhaseFN).
+
+phase_fn(FilePrefix, Phase) ->
+    {DNum, DoN} = Phase,
+    PhStr = case DoN of
+                ?day -> "d";
+                ?night -> "n"
+            end ++ ?i2l(DNum),
+    %% calculate "m25_d1.txt"
+    FilePrefix ++ PhStr ++ ".txt".
+
+game_prefixes(G) ->
+    Pre = game_prefix(G),
+    {Pre, Pre ++ "_"}.
+
+game_file_prefix(G) ->
+    case game_prefix(G) of
+        "" -> "";
+        Pre -> Pre ++ "_"
+    end.
+
+game_prefix(ThId) when is_integer(ThId) ->
+    game_prefix(?rgame(ThId));
+game_prefix([]) -> "";
+game_prefix([G]) ->
+    game_prefix(G);
+game_prefix(G) ->
+    "m" ++ ?i2l(G#mafia_game.game_num).
+
+verify_exist(DirName) ->
+    case file:read_file_info(DirName) of
+        {error, enoent} ->
+            file:make_dir(DirName);
+        _ -> ok
+    end.

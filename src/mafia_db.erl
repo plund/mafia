@@ -90,7 +90,7 @@ write_default_table(game, 26) ->
     MGame = #mafia_game{
       key = 'TO_BE_SET!!',
       game_num = 26,
-      name = <<"MAFIA XXVI: Asylum">>,
+      name = <<"MAFIA XXVI: Wjessop Asylum for the Chronically Insane">>,
       day_hours = 48,
       night_hours = 24,
       time_zone = 0,

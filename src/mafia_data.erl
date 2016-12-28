@@ -18,7 +18,6 @@
 %% library
 -export([
          rm_to_after_pos/2,
-         find_pos_and_split/2,
          get_after_pos/3,
          sum_stat/2
         ]).
@@ -103,10 +102,8 @@ downl_web([G]) ->
     case download(#s{thread_id = GameKey,
                      page_to_read = Page}) of
         {ok, S2} ->
-            %% ?dbg({downl_web_a, InitPage, Page, S2#s.page_to_read}),
             update_page_to_read(GameKey, S2#s.page_to_read);
         {{error, _R}, S2} ->
-            %% ?dbg({downl_web_b, InitPage, Page, S2#s.page_to_read}),
             update_page_to_read(GameKey, S2#s.page_to_read)
     end,
     ok.
@@ -217,7 +214,7 @@ refresh_votes(ThId, [G], PageFilter, Method) ->
     ok.
 
 check_vote_msgid_fun(ThId) ->
-    Cmds = case file:consult(cmd_filename(ThId)) of
+    Cmds = case file:consult(mafia_file:cmd_filename(ThId)) of
                {ok, CmdsOnFile} -> [C || C = #cmd{} <- CmdsOnFile];
                _ -> []
            end,
@@ -236,7 +233,6 @@ curr_page_to_read(ThId) when is_integer(ThId) ->
 
 %% clear #mafia_day and #stat for this ThId
 clear_mafia_day_and_stat(ThId) ->
-    ?dbg({clear_mafia_day_and_stat, ThId}),
     clear_mafia_day(ThId),
     clear_stat(ThId),
     ok.
@@ -519,41 +515,6 @@ get_body_from_file(S) ->
             no_file
     end.
 
-th_filenames_read(S) ->
-    th_filenames(th_filename(S#s.thread_id, S#s.page_to_read)).
-
-th_filenames_store(S) ->
-    th_filenames(th_filename(S#s.thread_id, S#s.page_last_read)).
-
-th_filenames(FileName) ->
-    TarBallName = FileName ++ ".tgz",
-    {FileName, TarBallName}.
-
-th_filename(Thread, Page) ->
-    DirName = "thread_pages",
-    verify_exist(DirName),
-    GamePrefix = mafia:game_file_prefix(Thread),
-    DirName2 = GamePrefix ++ ?i2l(Thread),
-    verify_exist(filename:join(DirName, DirName2)),
-    BaseName = ?i2l(Page) ++ ".txt",
-    filename:join([DirName, DirName2, BaseName]).
-
-cmd_filename(#s{thread_id = Thread}) ->
-    cmd_filename(Thread);
-cmd_filename(Thread) ->
-    DirName =  "command_files",
-    verify_exist(DirName),
-    GamePrefix = mafia:game_file_prefix(Thread),
-    BaseName = GamePrefix ++ ?i2l(Thread) ++ "_manual_cmds.txt",
-    filename:join([DirName, BaseName]).
-
-verify_exist(DirName) ->
-    case file:read_file_info(DirName) of
-        {error, enoent} ->
-            file:make_dir(DirName);
-        _ -> ok
-    end.
-
 %% -> ok | {error, Reason}
 store_page(S, Body) ->
     {FileName, TarBallName} = th_filenames_store(S),
@@ -566,8 +527,14 @@ store_page(S, Body) ->
             {error, efileexist}
     end.
 
+th_filenames_read(S) ->
+    mafia_file:th_filenames(S#s.thread_id, S#s.page_to_read).
+
+th_filenames_store(S) ->
+    mafia_file:th_filenames(S#s.thread_id, S#s.page_last_read).
+
 manual_cmd_to_file(ThId, Cmd) ->
-    FN = cmd_filename(ThId),
+    FN = mafia_file:cmd_filename(ThId),
     DoAppend =
         case file:consult(FN) of
             {error, enoent} -> true;
@@ -582,7 +549,7 @@ manual_cmd_to_file(ThId, Cmd) ->
     end.
 
 manual_cmd_from_file(ThId, Cmd) ->
-    FN = cmd_filename(ThId),
+    FN = mafia_file:cmd_filename(ThId),
     case file:consult(FN) of
         {error, enoent} -> true;
         {ok, CmdsOnFile} ->
@@ -700,15 +667,6 @@ rm_to_after_pos(Str, Search) ->
         0 -> {0, ""};
         P -> {P, get_after_pos(P, length(Search), Str)}
     end.
-
-find_pos_and_split(Str, Search) ->
-    case string:str(Str, Search) of
-        0 -> {0, "", ""};
-        P -> {P,
-              string:left(Str, P - 1),
-              get_after_pos(P, length(Search), Str)}
-    end.
-
 
 get_after_pos(P, Len, Str) ->
     lists:nthtail(P - 1 + Len, Str).

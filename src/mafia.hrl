@@ -66,7 +66,7 @@
 
 -define(M24ThId, 1404320).
 -define(M25ThId, 1420289).
-%% -define(DefThId, ?M25ThId).
+
 -define(UrlBeg, "http://webdiplomacy.net/forum.php?threadID=").
 -define(UrlMid, "&page-thread=").
 -define(UrlEnd, "#threadPager").
@@ -147,6 +147,8 @@
 -define(b2ul(B), ?l2u(?b2l(B))).
 -define(b2ub(B), ?l2b(?b2ul(B))).
 
+-define(dl2phase(DL), mafia_lib:dl2phase(DL)).
+
 -define(set(K, V), mafia_db:set(K, V)).
 -define(getv(K), mafia_db:getv(K)).
 
@@ -158,13 +160,13 @@
 -define(rday(GK, Phase), mafia:rday(GK, Phase)).
 
 -define(dbg(Term),
-        io:format("~s DBG ~999p\n",
+        io:format("~s DBG ~p ~999p\n",
                   [mafia_print:print_time(current_time, short),
-                   Term])).
+                   ?MODULE, Term])).
 -define(dbg(Time, Term),
-        io:format("~s DBG ~999p\n",
+        io:format("~s DBG ~p ~999p\n",
                   [mafia_print:print_time(Time, short),
-                   Term])).
+                   ?MODULE, Term])).
 -define(dbg_str(Str),
         io:format("~s DBG ~s\n",
                   [mafia_print:print_time(current_time, short),
@@ -184,7 +186,7 @@
   <body bgcolor=\"#cfffaf\">
     <center>
       <table" ++ TabAttrStr ++ ">
-      <tr><td align=\"center\"><h2>" ++ Title ++ "</h2><td><tr>").
+      <tr><td align=\"center\"><h2>" ++ Title ++ "</h2></td></tr>").
 
 -define(HTML_TAB_END, "
       </table>

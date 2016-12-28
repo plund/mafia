@@ -1,3 +1,26 @@
+Procedure Changing game M25 -> M24
+---------
+1. mafia_web:stop_polling().
+2. mafia_db:set(game_key, M24).
+3. mafia_db:set(page_to_read, 1).
+4. mafia_db:set(thread_id, M24).   %% IMPORTANT
+5. mafia_web:stop().   %% These two to set the #state.game_key
+6. mafia_web:start().
+7. mafia_data:downl().    %% downl() not ok, reading thread_id and _ in dir name
+8. mafia_db:write_default_table(game, 24). % game_end was 'false' (not ok)
+
+- Test changing to M24 and then back again to M25. Check Readme list
+  found a problem with
+12. fix one switch command?
+13. Fix mafia:help().
+
+DemonRHK wrote
+ZORCLEX, also known as THOMAS PHILLIPS, the CIVILIAN, has died!
+IKANEKO has DIED! He was JERRY RIVERA, a CIVILIAN
+GLEN_ALEXANDER, also known DOUGLAS YOUNG the CIVILIAN has died!
+JAMIET99UK, also known as RAYMOND SCOTT the CIVILIAN has died!
+
+
 %% Vash/Meme wrote in M25:
 %% D1   "THE DAY HAS BEGUN" at game start
 

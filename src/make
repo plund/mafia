@@ -1,2 +1,3 @@
 erlc mafia.erl mafia_db.erl mafia_data.erl mafia_print.erl mafia_time.erl \
-     mafia_vote.erl mafia_name.erl mafia_upgrade.erl mafia_web.erl web.erl
+     mafia_vote.erl mafia_name.erl mafia_upgrade.erl \
+     mafia_file.erl mafia_lib.erl mafia_web.erl web.erl web_impl.erl

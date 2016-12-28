@@ -3,7 +3,8 @@
 -export([check_for_vote/1,
          check_for_vote/2,
          verify_user/1,
-         print_verify_user/1]).
+         print_verify_user/1
+        ]).
 
 -include("mafia.hrl").
 
@@ -42,9 +43,8 @@ check_for_deathI(_S, M, G) ->
         false -> G;
         true ->
             G2 = check_for_deathI2(
-                   ?l2u(
-                      mafia_print:html2txt(
-                        ?b2l(M#message.message))), M, G),
+                   mafia_print:html2txt(
+                     ?b2l(M#message.message)), M, G),
 
             %% if time is 0 - 15 min after a deadline generate a history page
             Time = M#message.time,
@@ -58,49 +58,38 @@ check_for_deathI(_S, M, G) ->
             G2
     end.
 
-check_for_deathI2(MsgUC, M, G) ->
+check_for_deathI2(Msg, M, G) ->
     %% find "has died" on line
     SearchU1 = "DIED",
     SearchU2 = "DEAD",
     SearchU3 = "BEEN LYNCHED",
-    case {mafia_data:find_pos_and_split(MsgUC, SearchU1),
-          mafia_data:find_pos_and_split(MsgUC, SearchU2),
-          mafia_data:find_pos_and_split(MsgUC, SearchU3)} of
+    case {find_parts(Msg, SearchU1),
+          find_parts(Msg, SearchU2),
+          find_parts(Msg, SearchU3)} of
         {{0,_,_}, {0,_,_}, {0,_,_}} -> %% no-one has died
             G;
         {Pos1, Pos2, Pos3} ->
-            {_, HStr, TStr} =
+            {Pos, HStr, TStr} =
                 if element(1, Pos1) /= 0 -> Pos1;
                    element(1, Pos2) /= 0 -> Pos2;
                    true -> Pos3
                 end,
-            %% find any remaining players before on the same line.
-            RevStr = ?lrev(HStr),
-            RevStr2 = case string:tokens(RevStr, ".\n") of
-                          [] -> "";
-                          [Head | _] -> Head
-                      end,
-            LineU = ?lrev(RevStr2),
-            RemUsersU = [?b2ul(PremB)
-                         || PremB <- G#mafia_game.players_rem],
-            case lists:dropwhile(
-                   fun(UserU) ->
-                           case mafia_data:find_pos_and_split(LineU, UserU) of
-                               {0, _, _} -> true;
-                               {_, HStr2, TStr2} ->
-                                   not is_last_non_letter(HStr2) orelse
-                                       not is_first_non_letter(TStr2)
-                           end
-                   end,
-                   RemUsersU) of
-                [] -> %% no match
+            {KilledUser, WasComment, _MsgAfterNL} =
+                read_death_line(G, HStr, TStr),
+            DeathComment =
+                if WasComment == use_full_line ->
+                        get_line_at(Pos, Msg);
+                   true -> WasComment
+                end,
+            case KilledUser of
+                no_dead -> %% no match
                     check_for_deathI2(TStr, M, G);
-                [KilledUserU|_] ->
+                _ ->
                     %% remove player from _rem lists.
                     OldRems = G#mafia_game.players_rem,
                     NewRems =
                         lists:filter(
-                          fun(OldPlB) -> ?b2ul(OldPlB) /= KilledUserU
+                          fun(OldPlB) -> ?b2ul(OldPlB) /= ?l2u(KilledUser)
                           end,
                           OldRems),
                     if NewRems /= OldRems ->
@@ -115,7 +104,8 @@ check_for_deathI2(MsgUC, M, G) ->
                                            is_end = IsEnd,
                                            phase = Phase,
                                            msg_id = M#message.msg_id,
-                                           time = M#message.time
+                                           time = M#message.time,
+                                           comment = ?l2b(DeathComment)
                                           },
                             NewDeaths = add_death(Death, G),
                             update_day_rec(M, G, Death),
@@ -129,6 +119,54 @@ check_for_deathI2(MsgUC, M, G) ->
             end
     end.
 
+read_death_line(G, HStr, TStr) ->
+    %% find one remaining player before on the same line.
+    RevStr = ?lrev(HStr),
+    RevStr2 = case string:tokens(RevStr, ".\n") of
+                  [] -> "";
+                  [Head | _] -> Head
+              end,
+    PreLine = ?lrev(RevStr2),
+    RemUsersU = [?b2ul(PremB)
+                 || PremB <- G#mafia_game.players_rem],
+    Users =
+        lists:dropwhile(
+                  fun(UserU) ->
+                          case find_parts(PreLine, UserU) of
+                              {0, _, _} -> true;
+                              {_, HStr2, TStr2} ->
+                                  not is_last_non_letter(HStr2) orelse
+                                      not is_first_non_letter(TStr2)
+                          end
+                  end,
+                  RemUsersU),
+    DeadUser = case Users of
+                    [First | _] -> First;
+                    [] -> no_dead
+                end,
+    {_, RemLine, AfterNextNL} = find_parts(TStr, "\n"),
+    WasComment =
+        case {find_parts_match(RemLine, "SHE WAS"),
+              find_parts_match(RemLine, "HE WAS")} of
+            {{0, _, _, _}, {0, _, _, _}} -> % Neither found use full line
+                use_full_line;
+            {Find1, Find2} ->
+                {_, _Before, Match, After} =
+                    if element(1, Find1) /= 0 -> Find1;
+                       true -> Find2
+                    end,
+                Match ++ After
+        end,
+    {DeadUser, WasComment, AfterNextNL}.
+
+get_line_at(Pos, Msg) ->
+    Left = string:left(Msg, Pos - 1),
+    Right = lists:nthtail(Pos - 1, Msg),
+    NotNlF = fun($\n) -> false; (_) -> true end,
+    LeftLine = ?lrev(lists:takewhile(NotNlF, ?lrev(Left))),
+    RightLine = lists:takewhile(NotNlF, Right),
+    LeftLine ++ RightLine.
+
 -spec add_death(#death{}, #mafia_game{} | #mafia_day{})
                -> NewDeaths :: [#death{}].
 add_death(D, G=#mafia_game{})->
@@ -141,8 +179,12 @@ add_death(D, Day=#mafia_day{})->
 add_deathI(D, Deaths) ->
     case lists:keyfind(D#death.player, #death.player, Deaths) of
         false -> [D | Deaths];
-        D2 -> %% remove delete marking
-            D3 = D2#death{is_deleted = false},
+        D2 ->
+            D3 = if D#death.comment /= ?undefined -> D;
+                    true ->
+                         %% remove delete marking on D2
+                         D2#death{is_deleted = false}
+                 end,
             lists:keyreplace(D#death.player, #death.player, Deaths, D3)
     end.
 
@@ -213,7 +255,6 @@ check_for_voteI2(_S, M, G, true) ->
                           mafia_data:get_after_pos(
                             Pos, length(VoteStr), Msg)),
                         60))),
-            %%io:format("DBG ~p\n", [Players2]),
             case rank_options(Players2, RestUC) of
                 [{NumV, TopP}] when NumV >= 2; NumV >= length(TopP) ->
                     reg_vote(M, G, TopP, RawVote, true);
@@ -402,6 +443,36 @@ rank_options(Players, RestUC) ->
                 r_count(PlayerUCW, RestUCW, 0)
         end,
     ?lrev(lists:sort([{F(P), ?l2b(select_name(P))} || P <- Players])).
+
+%% Return {MatchPos, PreMatchStr, PostMatchStr}
+find_parts(Str, Search) ->
+    find_parts_I(Str, Search, no_match).
+
+%% Return {MatchPos, PreMatchStr, MatchStr, PostMatchStr}
+find_parts_match(Str, Search) ->
+    find_parts_I(Str, Search, w_match).
+
+find_parts_I(Str, Search, Mode) ->
+    StrU = ?l2u(Str),
+    SearchU = ?l2u(Search),
+    find_parts_reply(Mode,
+                     string:str(StrU, SearchU),
+                     Str,
+                     Search).
+
+find_parts_reply(no_match, 0, Str, _Search) ->
+    {0, Str, ""};
+find_parts_reply(w_match, 0, Str, _Search) ->
+    {0, Str, "", ""};
+find_parts_reply(no_match, P, Str, Search) ->
+    {P,
+     string:left(Str, P - 1),
+     mafia_data:get_after_pos(P, length(Search), Str)};
+find_parts_reply(w_match, P, Str, Search) ->
+    {P,
+     string:left(Str, P - 1),
+     string:substr(Str, P, length(Search)),
+     mafia_data:get_after_pos(P, length(Search), Str)}.
 
 waste_spaces(L) -> [E || E <- L, E /= $\s].
 

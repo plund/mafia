@@ -38,6 +38,7 @@
 %% -define(, ).
 
 %% KV keys
+-define(reg_threads, reg_threads).
 -define(thread_id, thread_id).
 -define(game_key, game_key).
 -define(page_to_read, page_to_read).

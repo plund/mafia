@@ -6,6 +6,8 @@
          set/2,
          getv/1,
          getv/2,
+         add_thread/2,
+         rm_thread/1,
 
          setup_mnesia/0,
          remove_mnesia/0,
@@ -68,6 +70,8 @@ insert_initial_data() ->
     ?set(?timezone_game, -5),
     ?set(?dst_game, false),
     ?set(?print_time, user),
+    add_thread(m24, ?M24ThId),
+    add_thread(m25, ?M25ThId),
     write_default_table(game),
     write_default_table(user).
 
@@ -167,6 +171,44 @@ set(K=?print_time, V)
 
 set_kv(Key, Value) ->
     mnesia:dirty_write(#kv_store{key = Key, value = Value}).
+
+-spec add_thread(atom(), integer()) -> {Result :: atom(), Details :: term()}.
+add_thread(ThName, ThId) ->
+    Regs = case getv(?reg_threads) of ?undefined -> []; L -> L end,
+    New = {ThName, ThId},
+    case lists:keyfind(ThName, 1, Regs) of
+        false ->
+            set_kv(?reg_threads, [New | Regs]),
+            {reg_add, New};
+        {_, ThId} ->
+            {reg_exists_already, New};
+        {_, OldThId} ->
+            Regs2 = lists:keyreplace(ThName, 1, Regs, New),
+            set_kv(?reg_threads, Regs2),
+            {reg_thid_changes, {ThName, {OldThId, ThId}}}
+    end.
+
+-spec rm_thread(atom() | integer()) ->  {Result :: atom(), Details :: term()}.
+rm_thread(ThName) when is_atom(ThName) ->
+    Regs = case getv(?reg_threads) of ?undefined -> []; L -> L end,
+    case lists:keyfind(ThName, 1, Regs) of
+        false ->
+            {reg_rm_error, thread_name_not_found};
+        Item ->
+            Regs2 = Regs -- [Item],
+            set_kv(?reg_threads, Regs2),
+            {reg_rm_ok, {item, Item}}
+    end;
+rm_thread(ThId) when is_integer(ThId) ->
+    Regs = case getv(?reg_threads) of ?undefined -> []; L -> L end,
+    case lists:keyfind(ThId, 2, Regs) of
+        false ->
+            {reg_rm_error, thread_id_not_found};
+        Item ->
+            Regs2 = Regs -- [Item],
+            set_kv(?reg_threads, Regs2),
+            {reg_rm_ok, {item, Item}}
+    end.
 
 create_tables() ->
     create_table(kv_store),

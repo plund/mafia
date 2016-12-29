@@ -3,38 +3,30 @@
 -include("mafia.hrl").
 %% - fix switch command between games
 %% - fix mafia:help().
-%% - Call the Game Status generation from the gen_server also for html variants
-%%   when they are ready to be stored on file
-%% - web:deliver game_status in parts out to browser?
-%% - split mafia_print. stats and tracker into own modules?
-
-%% - fix a manual replace player fun
 %% - set_death_comment should also register that player as dead.
-%% - implement the GM_commands. How to test them?
-%%   - define now and when to use a smarter vote reader!!
-%% - Display msgs since last login with a browser (cookie)
-%% - Make sure not to read votes before game start: EoD1 - day length
-%% - be DAY/NIGHT sensitive when reading "Day/night ... has ended early"
-%% ToDo:
-%% - check Death announcements by Vash.
-%%     - Can we make that a command INCLUDING Comment?
-%% - Some new mafia_web code should probably be elsewhere
-%% - Use new DL calc and remove old calculation
-%% ***** - define deadline() :: {phase(), secs1970()} and change at all places.
-%% - refresh_mafia HARD - clean all mnesia - delete schema - startup from files
-%%    - make proper interface fun for deadline() -> phase().
-%% - Fix proper server on lundata - start at MacOS reboot
-%% - fix a better player name recognition
-%% - check if abbrev code can loop forever
-%% ?- downl and pps should look similar, Died/Vote messages and deadline markers
-%% - webpage with GM command listing
+%% - fix a manual replace player fun
+%%   - GM command: XXX replaces YYY
 %% - GM orders :
 %%   - Phase END now (and possibly move deadline -24h)
 %%   - expand alias list
-%%   - XXX " has died",
-%%   - XXX replaces YYY
 %%   - Move current deadline, full 24 hours (local time)
 %%   - Move future deadline
+
+%% - Call the Game Status generation from the gen_server also for html variants
+%%   when they are ready to be stored on file
+%% - web:deliver game_status in parts out to browser?
+%% - split mafia_print. stats and tracker into separate modules?
+%% - implement the GM_commands. How to test them?
+%%   - define now and when to use a smarter vote reader!!
+%% - Display msgs since last login with a browser (cookie)
+%% - be DAY/NIGHT sensitive when reading "Day/night ... has ended early"
+%% ToDo:
+%% - Use new DL calc and remove old calculation
+%% ***** - define deadline() :: {phase(), secs1970()} and change at all places.
+%% - Fix proper server on lundata - start at MacOS reboot
+%% - fix a better player name recognition in votes and deaths?
+%% - check if abbrev code can loop forever
+%% ?- downl and pps should look similar, Died/Vote messages and deadline markers
 
 %% GOD QT https://www.quicktopic.com/52/H/gBqFhw3Bidb
 %% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
@@ -59,6 +51,8 @@
 
          verify_new_user_list/1,
          downl/0,
+         add_thread/2,
+         rm_thread/1,
          show_settings/0,
          set_thread_id/1,
          refresh_votes/0,
@@ -106,6 +100,9 @@ print_votes(DayNum, DoN) -> mafia_print:print_votes(DayNum, DoN).
 print_messages(User) -> mafia_print:print_messages(User).
 
 downl() -> mafia_data:downl().
+
+add_thread(ThName, ThId) -> mafia_db:add_thread(ThName, ThId).
+rm_thread(ThNameOrId) -> mafia_db:rm_thread(ThNameOrId).
 
 setup_mnesia() -> mafia_db:setup_mnesia().
 

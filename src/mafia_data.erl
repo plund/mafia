@@ -159,6 +159,7 @@ refresh_messages(ThId, DoVotes) ->
 -spec refresh_votes() -> ok.
 refresh_votes() ->
     ThId = ?getv(?game_key),
+    clear_mafia_day_and_stat(ThId),
     refresh_votes(ThId, ?rgame(ThId), all, soft).
 
 refresh_votes(?game_key = K) -> refresh_votes(?getv(K));

@@ -292,8 +292,8 @@ print_votesI(#pp{game = G,
                 %% Part - Non-votes
                 ValidVoters = [ Pl || {Pl, _} <- Votes]
                     -- [User || {User, _} <- InvalidVotes],
-                Unvoted = RemPlayers -- ValidVoters,
-                NoVoteTitle = if Unvoted == [] -> "Non-votes: -";
+                NonVoted = RemPlayers -- ValidVoters,
+                NoVoteTitle = if NonVoted == [] -> "Non-votes: -";
                                  true -> "Non-votes: "
                               end,
                 if PP#pp.mode == ?text ->
@@ -301,15 +301,57 @@ print_votesI(#pp{game = G,
                           PP#pp.dev,
                           "\n~s~s\n",
                           [NoVoteTitle,
-                           string:join([?b2l(U) || U <- Unvoted], ", ")]);
+                           string:join([?b2l(U) || U <- NonVoted], ", ")]);
                    PP#pp.mode == ?html ->
                         ["<tr><td><table align=center><tr><th>", NoVoteTitle,
                          "</th>",
                          [["<td", bgcolor(U), ">", ?b2l(U), "</td>"]
-                          || U <- Unvoted],
+                          || U <- NonVoted],
                          "</table></td></tr>"]
                 end;
            true -> []
+        end,
+
+    %% Part - List remaining players
+    DeathsUptoNow =
+        [D#death.player
+         || D = #death{phase = Ph, is_deleted = false}
+                <- G#mafia_game.player_deaths,
+            if PP#pp.phase == ?game_ended -> true;
+               true -> Ph =< PP#pp.phase
+            end],
+    %% split up remaining players into groups of 8
+    {LastRow, Rows2} =
+        lists:foldl(
+          fun(U, {R, Rows1}) ->
+                  if length(R) == 8 -> {[U], Rows1 ++ [R]};
+                     true -> {R ++[U], Rows1}
+                  end
+          end,
+          {[], []},
+          RemPlayers -- DeathsUptoNow),
+    RPRows = Rows2 ++ [LastRow],
+    HRemPlayers =
+        if PP#pp.mode == ?text ->
+                RPStr = [[string:join([?b2l(U) || U <- RPRow], ", "), "\n"]
+                         || RPRow <- RPRows],
+                io:format(PP#pp.dev,
+                          "\nRemaining Players"
+                          "\n-----------------\n~s\n",
+                          [RPStr]),
+                ok;
+           PP#pp.mode == ?html ->
+                ["<tr><td>"
+                 "<table align=center cellpadding=2 cellspacing=2><tr>"
+                 "<tr><th colspan=8><center>Remaining players</center>"
+                 "</th></tr>",
+                 [[ "<tr>",
+                    [["<td", bgcolor(U), "><center>", U, "</center></td>"]
+                     || U <- RPRow],
+                    "</tr>"
+                  ]
+                  || RPRow <- RPRows],
+                 "</table></td></tr>"]
         end,
 
     %% Part - Voting texts
@@ -447,7 +489,11 @@ print_votesI(#pp{game = G,
                  "Mafia game thread at: ", ?UrlBeg,
                  ?i2l(PP#pp.game_key),
                  "</td></tr>"],
-            [HTitle, HDeadLine, HVoteCount, EndVotes, NonVotes, "\r\n",
+            [HTitle,
+             HDeadLine, "\r\n", HVoteCount, "\r\n",
+             EndVotes, "\r\n", NonVotes, "\r\n",
+             "<br>",
+             HRemPlayers, "\r\n",
              ["<tr><td>\r\n", HTrackKey, "</td><tr>\r\n"],
              ["<tr><td>\r\n", HVoteTrack, "</td><tr>\r\n"],
              ["<tr><td>\r\n", HStats, "</td><tr>\r\n"],

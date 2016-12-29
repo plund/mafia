@@ -11,8 +11,6 @@ Procedure Changing game M25 -> M24
 
 - Test changing to M24 and then back again to M25. Check Readme list
   found a problem with
-12. fix one switch command?
-13. Fix mafia:help().
 
 DemonRHK wrote
 ZORCLEX, also known as THOMAS PHILLIPS, the CIVILIAN, has died!

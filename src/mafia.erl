@@ -1,6 +1,8 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% - fix switch command between games
+%% - fix mafia:help().
 %% - Call the Game Status generation from the gen_server also for html variants
 %%   when they are ready to be stored on file
 %% - web:deliver game_status in parts out to browser?

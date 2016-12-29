@@ -30,6 +30,11 @@
 -define(use_time, use_time).
 -define(time_zone, time_zone).
 -define(dst, dst).
+
+-define(gm, gm).
+-define(player, player).
+-define(dead_player, dead_player).
+-define(other, other).
 %% -define(, ).
 
 %% KV keys

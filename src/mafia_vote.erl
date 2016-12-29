@@ -31,34 +31,41 @@ check_for_vote(S, M, G = #mafia_game{}) ->
                       M#message.time =< EndTime
               end,
     if DoCheck ->
-            G2 = check_for_deathI(S, M, G),
-            check_for_voteI(S, M, G2);
+            case player_type(M, G) of
+                ?gm -> check_for_gm_cmds(S, M, G);
+                ?player -> check_for_votes(S, M, G);
+                ?dead_player -> log_unallowed_msg(?dead_player, M);
+                ?other -> log_unallowed_msg(?other, M)
+            end;
        true ->
             ignore
-    end.
+    end,
+    ok.
+
+log_unallowed_msg(Type, M) ->
+    MTime = M#message.time,
+    User = ?b2l(M#message.user_name),
+    MsgId = M#message.msg_id,
+    ?dbg(MTime, {Type, sent_message, MsgId, User}).
 
 %% Removes player from Game if dead
-check_for_deathI(_S, M, G) ->
-    case author_gm(M, G) of
-        false -> G;
-        true ->
-            G2 = check_for_deathI2(
-                   mafia_print:html2txt(
-                     ?b2l(M#message.message)), M, G),
+check_for_gm_cmds(_S, M, G) ->
+    G2 = check_for_gm_cmds2(
+           mafia_print:html2txt(
+             ?b2l(M#message.message)), M, G),
 
-            %% if time is 0 - 15 min after a deadline generate a history page
-            Time = M#message.time,
-            {RelTimeSecs, DL} = mafia_time:nearest_deadline(G2, Time),
-            if RelTimeSecs >= 0,
-               RelTimeSecs =< ?MAX_GM_DL_MINS * ?MinuteSecs ->
-                    mafia_web:regenerate_history(Time, DL);
-               true ->
-                    ok
-            end,
-            G2
-    end.
+    %% if time is 0 - 15 min after a deadline generate a history page
+    Time = M#message.time,
+    {RelTimeSecs, DL} = mafia_time:nearest_deadline(G2, Time),
+    if RelTimeSecs >= 0,
+       RelTimeSecs =< ?MAX_GM_DL_MINS * ?MinuteSecs ->
+            mafia_web:regenerate_history(Time, DL);
+       true ->
+            ok
+    end,
+    G2.
 
-check_for_deathI2(Msg, M, G) ->
+check_for_gm_cmds2(Msg, M, G) ->
     %% find "has died" on line
     SearchU1 = "DIED",
     SearchU2 = "DEAD",
@@ -83,7 +90,7 @@ check_for_deathI2(Msg, M, G) ->
                 end,
             case KilledUser of
                 no_dead -> %% no match
-                    check_for_deathI2(TStr, M, G);
+                    check_for_gm_cmds2(TStr, M, G);
                 _ ->
                     %% remove player from _rem lists.
                     OldRems = G#mafia_game.players_rem,
@@ -112,9 +119,9 @@ check_for_deathI2(Msg, M, G) ->
                             G2 = G#mafia_game{players_rem = NewRems,
                                               player_deaths = NewDeaths},
                             mnesia:dirty_write(G2),
-                            check_for_deathI2(TStr, M, G2);
+                            check_for_gm_cmds2(TStr, M, G2);
                        true ->
-                            check_for_deathI2(TStr, M, G)
+                            check_for_gm_cmds2(TStr, M, G)
                     end
             end
     end.
@@ -228,13 +235,8 @@ is_first_non_letter([]) -> true;
 is_first_non_letter([H|_]) ->
     lists:member(H, " ,.;:!\"#€%7&/()=+?´`<>-_\t\r\n").
 
-check_for_voteI(_S, M, G) ->
+check_for_votes(_S, M, G) ->
     verify_user(M),
-    check_for_voteI2(_S, M, G, author_user(M, G)).
-
-check_for_voteI2(_S, _M, _G, false) ->
-    ignore;
-check_for_voteI2(_S, M, G, true) ->
     Msg = ?b2l(M#message.message),
     MsgUC = string:to_upper(Msg),
     Players = G#mafia_game.players_rem,
@@ -397,23 +399,25 @@ correct_case_fun2() ->
 
 %% -----------------------------------------------------------------------------
 
-author_gm(M, G) ->
-    authorI(M, G#mafia_game.gms).
-
--spec author_user(M :: #message{}, G :: #mafia_game{}) -> boolean().
-author_user(M, G) ->
-    case authorI(M, G#mafia_game.players_rem) of
-        true -> true;
+-spec player_type(#message{}, #mafia_game{})
+                 -> ?gm | ?player | ?dead_player | ?other.
+player_type(M, G) ->
+    UserB = M#message.user_name,
+    case is_user_in_list(UserB, G#mafia_game.gms) of
+        true -> ?gm;
         false ->
-            User = ?b2l(M#message.user_name),
-            io:format("~s Message sent by non-player ~p\n",
-                      [mafia_print:print_time(M#message.time, short),
-                       User]),
-            false
+            case is_user_in_list(UserB, G#mafia_game.players_rem) of
+                true -> ?player;
+                false ->
+                    case is_user_in_list(UserB, G#mafia_game.players_orig) of
+                        true -> ?dead_player;
+                        false -> ?other
+                    end
+            end
     end.
 
-authorI(M, UsersB) ->
-    User = ?b2l(M#message.user_name),
+is_user_in_list(UserB, UsersB) ->
+    User = ?b2l(UserB),
     UserU = string:to_upper(User),
     UsersU = [?b2ul(U) || U <- UsersB],
     lists:member(UserU, UsersU).

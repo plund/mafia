@@ -725,7 +725,7 @@ do_print_stats(PP) ->
                 [];
            PP#pp.mode == ?html ->
                 ["<tr><th colspan=\"4\">",
-                 "<br>", "Posting statistics (",
+                 "Posting statistics (",
                  pr_phase_long(Phase),
                  ")\n",
                  "</th></tr>",
@@ -755,7 +755,8 @@ do_print_stats(PP) ->
                                        (tr, _) -> "Total Counts";
                                        (_, _) -> []
                                     end),
-    HtmlStats = ["<table align=center>", Html2, "</table>"],
+    HtmlStats = ["<br><table align=center bgcolor=\"#dfffdf\">",
+                 Html2, "</table>"],
     NonPostTitle =
         case NonPosters of
             [] -> "Non-posters: -";
@@ -889,7 +890,7 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                           FmtTime,
                           [pr_ivs_user(IterVotes, fun(_) -> "===" end)]);
            PP#pp.mode == ?html ->
-                ["<table><tr>"
+                ["<table bgcolor=\"#dfffdf\"><tr>"
                  "<th align=\"right\">Voter</th>"
                  "<th>Time</th>",
                  pr_ivs_user_html(IterVotes, PrAbbrF),
@@ -957,7 +958,7 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                      "<th>Time</th>",
                      "<th align=\"left\">Voter</th>",
                      "</tr></table>\r\n"]],
-            ["<table align=center>",
+            ["<br><table align=center>",
              "<tr><th>Vote Tracker (Day ", ?i2l(PP#pp.day_num), ")</th></tr>",
              "<tr><td>", Tab2, "</td></tr>",
              "</table>"]

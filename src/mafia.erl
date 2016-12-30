@@ -37,6 +37,7 @@
          stop/0,
          stop_polling/0,
          start_polling/0,
+         get_state/0,
 
          setup_mnesia/0,
          remove_mnesia/0,
@@ -109,6 +110,7 @@ mafia:start()          - start the gen_server and the http server
 mafia:stop()           - stop the gen_server and the http server
 mafia:stop_polling()   - Stop regular polling of source
 mafia:start_polling()  - Start regular polling of source
+mafia:get_state()      - Get gen_server state.
 
 mafia:refresh_votes()  - Clear mafia_day and mafia_game and reread all"
 " messages.
@@ -142,7 +144,7 @@ mafia:kill_player(MsgId, Player, Comment) - Player name must be exact."
 " NEEDS to ALSO kill the
          player given.
 mafia:replace_player(MsgId, OldPlayer, NewPlayer) - NEEDS IMPL! New is"
-" replaceing old in game. Exact names!
+" replacing old in game. Exact names!
          Both must exist in user DB.
 ").
 
@@ -156,6 +158,7 @@ start() -> mafia_web:start().
 stop() -> mafia_web:stop().
 stop_polling() -> mafia_web:stop_polling().
 start_polling() -> mafia_web:start_polling().
+get_state() -> mafia_web:get_state().
 
 pm(MsgId) -> mafia_print:pm(MsgId).
 pp() -> mafia_print:pp().

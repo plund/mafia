@@ -295,6 +295,7 @@ start_web(S) ->
     os:cmd("cp ../priv/search_form.html " ++ ?DOC_ROOT),
     os:cmd("cp ../priv/index.html " ++ ?DOC_ROOT),
     os:cmd("cp ../priv/current_vote.txt " ++ ?DOC_ROOT),
+    os:cmd("cp ../priv/GM_commands.html " ++ ?DOC_ROOT),
     IP_en1 = get_en1_ip(),
     io:format("Starting up a webserver listening on ~s\n", [IP_en1]),
     Params = [{port, ?WEBPORT},

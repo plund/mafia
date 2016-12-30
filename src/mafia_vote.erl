@@ -3,7 +3,9 @@
 -export([check_for_vote/1,
          check_for_vote/2,
          verify_user/1,
-         print_verify_user/1
+         print_verify_user/1,
+
+         kill_player/4
         ]).
 
 -include("mafia.hrl").
@@ -81,51 +83,56 @@ check_for_gm_cmds2(Msg, M, G) ->
                    element(1, Pos2) /= 0 -> Pos2;
                    true -> Pos3
                 end,
-            {KilledUser, WasComment, _MsgAfterNL} =
+            {KilledUserB, Comment, _MsgAfterNL} =
                 read_death_line(G, HStr, TStr),
             DeathComment =
-                if WasComment == use_full_line ->
-                        get_line_at(Pos, Msg);
-                   true -> WasComment
+                if Comment == use_full_line -> get_line_at(Pos, Msg);
+                   true -> Comment
                 end,
-            case KilledUser of
+            case KilledUserB of
                 no_dead -> %% no match
                     check_for_gm_cmds2(TStr, M, G);
                 _ ->
-                    %% remove player from _rem lists.
-                    OldRems = G#mafia_game.players_rem,
-                    NewRems =
-                        lists:filter(
-                          fun(OldPlB) -> ?b2ul(OldPlB) /= ?l2u(KilledUser)
-                          end,
-                          OldRems),
-                    if NewRems /= OldRems ->
-                            DeadB = hd(OldRems -- NewRems),
-                            DeadStr = ?b2l(DeadB),
-                            io:format(
-                              "~s Player ~s died\n",
-                              [mafia_print:print_time(M#message.time, short),
-                               DeadStr]),
-                            {IsEnd, Phase} = is_end_of_phase(M, G),
-                            Death = #death{player = DeadB,
-                                           is_end = IsEnd,
-                                           phase = Phase,
-                                           msg_id = M#message.msg_id,
-                                           time = M#message.time,
-                                           comment = ?l2b(DeathComment)
-                                          },
-                            NewDeaths = add_death(Death, G),
-                            update_day_rec(M, G, Death),
-                            G2 = G#mafia_game{players_rem = NewRems,
-                                              player_deaths = NewDeaths},
-                            mnesia:dirty_write(G2),
-                            check_for_gm_cmds2(TStr, M, G2);
-                       true ->
-                            check_for_gm_cmds2(TStr, M, G)
-                    end
+                    {_, G2} = kill_player(G, M, KilledUserB, DeathComment),
+                    check_for_gm_cmds2(TStr, M, G2)
             end
     end.
 
+-spec kill_player(#mafia_game{}, #message{}, user(), string())
+                 -> {Resp :: term(), #mafia_game{}}.
+kill_player(G, M, DeadB, DeathComment) ->
+    IsMember = lists:member(DeadB, G#mafia_game.players_rem),
+    kill_player(G, M, DeadB, DeathComment, IsMember).
+
+kill_player(G, _M, _DeadB, _DeathComment, false) ->
+    {not_remaining_player, G};
+kill_player(G, M, DeadB, DeathComment, true) ->
+    %% remove player from _rem lists.
+    NewRems = G#mafia_game.players_rem -- [DeadB],
+    DeadStr = ?b2l(DeadB),
+    io:format(
+      "~s Player ~s died\n",
+      [mafia_print:print_time(M#message.time, short),
+       DeadStr]),
+    {IsEnd, DeathPhase} = is_end_of_phase(M, G),
+    Death = #death{player = DeadB,
+                   is_end = IsEnd,
+                   phase = DeathPhase,
+                   msg_id = M#message.msg_id,
+                   time = M#message.time,
+                   comment = ?l2b(DeathComment),
+                   is_deleted = false
+                  },
+    NewDeaths = add_death(Death, G),
+    update_day_rec(M, G, Death),
+    G2 = G#mafia_game{players_rem = NewRems,
+                      player_deaths = NewDeaths},
+    mnesia:dirty_write(G2),
+    {{ok, DeathPhase}, G2}.
+
+%% Returns exact User binary.
+-spec read_death_line(#mafia_game{}, string(), string())
+                     -> {user(), Comment :: string(), StrAfterNL :: string()}.
 read_death_line(G, HStr, TStr) ->
     %% find one remaining player before on the same line.
     RevStr = ?lrev(HStr),
@@ -134,19 +141,18 @@ read_death_line(G, HStr, TStr) ->
                   [Head | _] -> Head
               end,
     PreLine = ?lrev(RevStr2),
-    RemUsersU = [?b2ul(PremB)
-                 || PremB <- G#mafia_game.players_rem],
+    RemUsersU = G#mafia_game.players_rem,
     Users =
         lists:dropwhile(
-                  fun(UserU) ->
-                          case find_parts(PreLine, UserU) of
-                              {0, _, _} -> true;
-                              {_, HStr2, TStr2} ->
-                                  not is_last_non_letter(HStr2) orelse
-                                      not is_first_non_letter(TStr2)
-                          end
-                  end,
-                  RemUsersU),
+          fun(UserU) ->
+                  case find_parts(PreLine, ?b2ul(UserU)) of
+                      {0, _, _} -> true;
+                      {_, HStr2, TStr2} ->
+                          not is_last_non_letter(HStr2) orelse
+                              not is_first_non_letter(TStr2)
+                  end
+          end,
+          RemUsersU),
     DeadUser = case Users of
                     [First | _] -> First;
                     [] -> no_dead

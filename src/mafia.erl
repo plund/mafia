@@ -2,10 +2,8 @@
 
 -include("mafia.hrl").
 %% - fix switch command between games
-%% - fix mafia:help().
-%% - set_death_comment should also register that player as dead.
 %% - fix a manual replace player fun
-%%   - GM command: XXX replaces YYY
+%%    - implement GM command: XXX replaces YYY
 %% - GM orders :
 %%   - Phase END now (and possibly move deadline -24h)
 %%   - expand alias list
@@ -33,13 +31,21 @@
 
 %% interface
 -export([
+         help/0,
+
+         start/0,
+         stop/0,
+         stop_polling/0,
+         start_polling/0,
+
          setup_mnesia/0,
          remove_mnesia/0,
 
          end_phase/2,
          end_game/1,
          unend_game/1,
-         set_death_comment/3,
+         kill_player/3,
+         set_death_comment/3, %% deprecated
 
          pp/0, pp/1, pp/2,
          pps/0, pps/1, pps/2,
@@ -84,9 +90,73 @@
 -export([cmp_vote_raw/0
         ]).
 
+-define(HELP,
+"MAFIA HELP
+==========
+General
+-------
+In the thread_pages directory you find raw downloaded source thread pages,"
+" which can be reread in case
+the message table is cleared.
+In the command_files directory you find manual commands issued that are rerun"
+" when running refresh_votes.
+
+Erlang shell commands
+---------------------
+mafia:l()              - load all beams found in src dir. Run "
+"./make in a unix shell first.
+mafia:start()          - start the gen_server and the http server
+mafia:stop()           - stop the gen_server and the http server
+mafia:stop_polling()   - Stop regular polling of source
+mafia:start_polling()  - Start regular polling of source
+
+mafia:refresh_votes()  - Clear mafia_day and mafia_game and reread all"
+" messages.
+mafia:refresh_votes({upto, PageNum}) - clear data and reread messages upto"
+" and including the page given.
+                            To see the status do surf into /game_status?debug
+mafia:refresh_votes(hard) - reinitialize also the mafia_game record.
+
+mafia:pps()           - last page in current game
+mafia:pps(ThId)       -
+mafia:pps(ThId, Page) -
+mafia:pm(MsgId)       -
+mafia:print_votes()   - Current status
+
+mafia:show_all_users()          - List primary keys in User DB
+mafia:show_all_users(Search)    - List primary keys matching Search
+mafia:show_all_aliases()        - Display all defined
+mafia:show_aliases(Search)      - User search string.
+mafia:add_alias(User, Alias)    - Add one alias
+mafia:remove_alias(User, Alias) - Remove one alias
+
+Manual Commands
+---------------
+mafia:end_phase(MsgId, NextDL) - NEEDS CHANGE to match GM commands
+mafia:end_phase(MsgId) - New version1
+mafia:move_next_deadline(MsgId, later | earlier, H | {H, M}) - Moves current"
+" deadline earlier or later.
+         A deadline can not be moved into the past.
+mafia:end_game(MsgId) - Ends the game with the given msg_id
+mafia:kill_player(MsgId, Player, Comment) - Player name must be exact."
+" NEEDS to ALSO kill the
+         player given.
+mafia:replace_player(MsgId, OldPlayer, NewPlayer) - NEEDS IMPL! New is"
+" replaceing old in game. Exact names!
+         Both must exist in user DB.
+").
+
+help() ->
+    io:format("~s", [?HELP]).
+
 %% =============================================================================
 %% EXPORTED FUNCTIONS
 %% =============================================================================
+start() -> mafia_web:start().
+stop() -> mafia_web:stop().
+stop_polling() -> mafia_web:stop_polling().
+start_polling() -> mafia_web:start_polling().
+
 pm(MsgId) -> mafia_print:pm(MsgId).
 pp() -> mafia_print:pp().
 pp(Page) -> mafia_print:pp(Page).
@@ -181,43 +251,41 @@ unend_game(MsgId) ->
 %% @doc Read the GM message and add good comment about who the dead player was.
 %% @end
 %% -----------------------------------------------------------------------------
--spec set_death_comment(MsgId :: msg_id(),
+-spec kill_player(MsgId :: msg_id(),
                         Player :: string(),
                         Comment :: string())
                        -> ok | {error, not_found}.
-set_death_comment(MsgId, Player, Comment) ->
+kill_player(MsgId, Player, Comment) ->
     case ?rmess(MsgId) of
         [] -> no_message_found;
         [#message{thread_id = ThId,
-                  time = Time}] ->
+                  time = Time} = M] ->
             Cmd = #cmd{time = Time,
                        msg_id = MsgId,
-                       mfa = {mafia, set_death_comment,
+                       mfa = {mafia, kill_player,
                               [MsgId, Player, Comment]}},
-            ?man(Time, Cmd),
-            mafia_data:manual_cmd_to_file(ThId, Cmd),
-            set_death_commentI(?rgame(ThId), Time, Player, Comment)
+            case kill_playerI(?rgame(ThId), M, Player, Comment) of
+                {ok, DeathPhase} ->
+                    ?man(Time, Cmd),
+                    mafia_data:manual_cmd_to_file(ThId, Cmd),
+                    mafia_web:regenerate_history(M#message.time, DeathPhase),
+                    {player_killed, DeathPhase};
+                Other -> Other
+            end
     end.
 
-set_death_commentI([], _Time, _Player, _Comment) -> no_game;
-set_death_commentI([G], Time, Player, Comment) ->
+kill_playerI([], _M, _Player, _Comment) -> no_game;
+kill_playerI([G], M, Player, Comment) ->
+    %% Time = M#message.time,
     PlayerB = ?l2b(Player),
-    CommentB = ?l2b(Comment),
-    case lists:member(PlayerB,
-                      [D#death.player
-                       || D <- G#mafia_game.player_deaths]) of
-        false ->
-            {error, not_found};
-        true ->
-            SetComment =
-                fun(D = #death{}) when PlayerB == D#death.player ->
-                        mafia_web:regenerate_history(Time, D#death.phase),
-                        D#death{comment = CommentB};
-                   (D) -> D
-                end,
-            Deaths2 = [SetComment(D)  || D <- G#mafia_game.player_deaths],
-            mnesia:dirty_write(G#mafia_game{player_deaths = Deaths2})
-    end.
+    %% CommentB = ?l2b(Comment),
+    %% Deaths = G#mafia_game.player_deaths,
+    {Resp, _} = mafia_vote:kill_player(G, M, PlayerB, Comment),
+    Resp.
+
+%% deprecated - kept only for command_files
+set_death_comment(MsgId, Player, Comment) ->
+    kill_player(MsgId, Player, Comment).
 
 %% -----------------------------------------------------------------------------
 
@@ -348,7 +416,7 @@ all_users(Search) ->
 show_all_aliases() ->
     show_aliases(all).
 
--spec show_aliases(User :: string()) -> ok | {error, Reason :: term()}.
+-spec show_aliases(UserSearch :: string()) -> ok | {error, Reason :: term()}.
 show_aliases(all) ->
     io:format("~-15s ~s\n", ["User", "Aliases"]),
     io:format("~-15s ~s\n", ["----", "-------"]),

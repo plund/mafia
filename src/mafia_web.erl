@@ -199,7 +199,6 @@ handle_call(_Request, _From, State) ->
 %% rewrite one history txt file
 handle_cast(Ev = {regenerate_history, {DNum, DoN}}, State) ->
     timer:sleep(300),
-    ?dbg({"HC REGENERATE_HISTORY", DNum, DoN}),
     case ?rgame(State#state.game_key) of
         [] -> ok;
         [G] ->

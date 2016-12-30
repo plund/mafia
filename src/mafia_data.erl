@@ -193,6 +193,7 @@ refresh_votes(_ThId, [], _F, _Method) ->
     ok;
 refresh_votes(ThId, [G], PageFilter, Method) ->
     if Method == soft ->
+            ?dbg(soft_game_update),
             G2 = G#mafia_game{
                    players_rem = G#mafia_game.players_orig,
                    player_deaths = [D#death{is_deleted = true}
@@ -200,6 +201,7 @@ refresh_votes(ThId, [G], PageFilter, Method) ->
                   },
             mnesia:dirty_write(G2);
        Method == hard ->
+            ?dbg(hard_game_update),
             %% Reinitialize the game table
             mafia_db:write_default_table(game, ThId)
     end,

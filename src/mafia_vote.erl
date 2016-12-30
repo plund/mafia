@@ -52,9 +52,8 @@ log_unallowed_msg(Type, M) ->
 
 %% Removes player from Game if dead
 check_for_gm_cmds(_S, M, G) ->
-    G2 = check_for_gm_cmds2(
-           mafia_print:html2txt(
-             ?b2l(M#message.message)), M, G),
+    MsgText = mafia_print:html2txt(?b2l(M#message.message)),
+    G2 = check_for_deaths(MsgText, M, G),
 
     %% if time is 0 - 15 min after a deadline generate a history page
     Time = M#message.time,
@@ -67,7 +66,7 @@ check_for_gm_cmds(_S, M, G) ->
     end,
     G2.
 
-check_for_gm_cmds2(Msg, M, G) ->
+check_for_deaths(Msg, M, G) ->
     %% find "has died" on line
     SearchU1 = "DIED",
     SearchU2 = "DEAD",
@@ -91,10 +90,10 @@ check_for_gm_cmds2(Msg, M, G) ->
                 end,
             case KilledUserB of
                 no_dead -> %% no match
-                    check_for_gm_cmds2(TStr, M, G);
+                    check_for_deaths(TStr, M, G);
                 _ ->
                     {_, G2} = kill_player(G, M, KilledUserB, DeathComment),
-                    check_for_gm_cmds2(TStr, M, G2)
+                    check_for_deaths(TStr, M, G2)
             end
     end.
 

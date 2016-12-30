@@ -1,6 +1,7 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% - Add 3 DL schedule relative and in Game TZ.  1 day 24 hours 33 min
 %% - fix switch command between games
 %% - fix a manual replace player fun
 %%    - implement GM command: XXX replaces YYY

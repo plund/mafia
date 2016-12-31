@@ -15,7 +15,7 @@
 check_for_vote(MsgId) -> check_for_vote(unused_state, MsgId).
 
 check_for_vote(S, MsgId) when is_integer(MsgId) ->
-    case mnesia:dirty_read(message, MsgId) of
+    case ?rmess(MsgId) of
         [] -> ignore;
         [Msg] -> check_for_vote(S, Msg)
     end;

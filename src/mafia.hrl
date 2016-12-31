@@ -47,6 +47,8 @@
 -define(timezone_game, timezone_game).
 -define(dst_game, dst_game).
 -define(print_time, print_time).
+-define(time_offset, time_offset). %% integer in seconds
+%% positive offset means that simulated time is in the past.
 
 
 -define(SERVER, ?MODULE).
@@ -158,12 +160,12 @@
 -define(set(K, V), mafia_db:set(K, V)).
 -define(getv(K), mafia_db:getv(K)).
 
--define(rmess(MsgId), mnesia:dirty_read(message, MsgId)).
--define(rpage(ThId, Page), mnesia:dirty_read(page_rec, {ThId, Page})).
--define(rpage(Key), mnesia:dirty_read(page_rec, Key)).
+-define(rmess(MsgId), mafia_lib:rmess(MsgId)).
+-define(rpage(ThId, Page), mafia_lib:rpage(ThId, Page)).
+-define(rpage(Key), mafia_lib:rpage(Key)).
 
--define(rgame(ThId), mnesia:dirty_read(mafia_game, ThId)).
--define(rday(GK, Phase), mafia:rday(GK, Phase)).
+-define(rgame(ThId), mafia_lib:rgame(ThId)).
+-define(rday(GK, Phase), mafia_lib:rday(GK, Phase)).
 
 -define(dbg(Term),
         io:format("~s DBG ~p ~999p\n",
@@ -219,6 +221,7 @@
          user_name :: user(),
          time :: seconds1970(),
          message :: message()
+         %% is_deleted = false :: boolean()  %% Delete marking
         }).
 
 -record(vote,

@@ -27,7 +27,7 @@
 %% - check if abbrev code can loop forever
 %% ?- downl and pps should look similar, Died/Vote messages and deadline markers
 
-%% GOD QT https://www.quicktopic.com/52/H/gBqFhw3Bidb
+%% M25 GOD QT https://www.quicktopic.com/52/H/gBqFhw3Bidb
 %% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
 
 %% interface
@@ -38,7 +38,7 @@
          stop/0,
          stop_polling/0,
          start_polling/0,
-         get_state/0,
+         state/0,
 
          setup_mnesia/0,
          remove_mnesia/0,
@@ -79,8 +79,8 @@
          last_msg_in_thread/1,
          rmess/1,
          rpage/2,
-         rgame/1,
-         rday/2
+         rday/2,
+         rgame/1
         ]).
 
 %% utilities
@@ -111,13 +111,12 @@ mafia:start()          - start the gen_server and the http server
 mafia:stop()           - stop the gen_server and the http server
 mafia:stop_polling()   - Stop regular polling of source
 mafia:start_polling()  - Start regular polling of source
-mafia:get_state()      - Get gen_server state.
+mafia:state()          - Get gen_server state.
 
 mafia:refresh_votes()  - Clear mafia_day and mafia_game and reread all"
 " messages.
-mafia:refresh_votes({upto, PageNum}) - clear data and reread messages upto"
-" and including the page given.
-                            To see the status do surf into /game_status?debug
+mafia:refresh_votes({upto, PageNum}) - clear data and reread messages upto and
+         including the page given.
 mafia:refresh_votes(hard) - reinitialize also the mafia_game record.
 
 mafia:pps()           - last page in current game
@@ -125,6 +124,10 @@ mafia:pps(ThId)       -
 mafia:pps(ThId, Page) -
 mafia:pm(MsgId)       -
 mafia:print_votes()   - Current status
+
+mafia_time:show_time_offset()
+mafia_time:set_time_offset(Offset) - do a refresh_votes() after set
+         Offset = Secs | {msg_id, MsgId} | {days_hours, Days, Hours})
 
 mafia:show_all_users()          - List primary keys in User DB
 mafia:show_all_users(Search)    - List primary keys matching Search
@@ -137,16 +140,13 @@ Manual Commands
 ---------------
 mafia:end_phase(MsgId, NextDL) - NEEDS CHANGE to match GM commands
 mafia:end_phase(MsgId) - New version1
-mafia:move_next_deadline(MsgId, later | earlier, H | {H, M}) - Moves current"
-" deadline earlier or later.
-         A deadline can not be moved into the past.
+mafia:move_next_deadline(MsgId, later | earlier, H | {H, M}) - Moves current
+         deadline earlier or later. A deadline can not be moved into the past.
 mafia:end_game(MsgId) - Ends the game with the given msg_id
-mafia:kill_player(MsgId, Player, Comment) - Player name must be exact."
-" NEEDS to ALSO kill the
-         player given.
-mafia:replace_player(MsgId, OldPlayer, NewPlayer) - NEEDS IMPL! New is"
-" replacing old in game. Exact names!
-         Both must exist in user DB.
+mafia:kill_player(MsgId, Player, Comment) - Player name must be exact.
+         NEEDS to ALSO kill the player given.
+mafia:replace_player(MsgId, OldPlayer, NewPlayer) - NEEDS IMPL! New is
+         replacing old in game. Exact names! Both must exist in user DB.
 ").
 
 help() ->
@@ -159,7 +159,7 @@ start() -> mafia_web:start().
 stop() -> mafia_web:stop().
 stop_polling() -> mafia_web:stop_polling().
 start_polling() -> mafia_web:start_polling().
-get_state() -> mafia_web:get_state().
+state() -> mafia_web:get_state().
 
 pm(MsgId) -> mafia_print:pm(MsgId).
 pp() -> mafia_print:pp().
@@ -179,7 +179,6 @@ add_thread(ThName, ThId) -> mafia_db:add_thread(ThName, ThId).
 rm_thread(ThNameOrId) -> mafia_db:rm_thread(ThNameOrId).
 
 setup_mnesia() -> mafia_db:setup_mnesia().
-
 remove_mnesia() -> mafia_db:remove_mnesia().
 
 refresh_votes() -> mafia_data:refresh_votes().
@@ -187,6 +186,15 @@ refresh_votes(P) -> mafia_data:refresh_votes(P).
 
 grep(Str) -> mafia_data:grep(Str).
 grep(Str, Mode) -> mafia_data:grep(Str, Mode).
+
+rmess(MsgId) -> ?rmess(MsgId).
+rpage(ThId, Page) -> ?rpage(ThId, Page).
+
+rday(ThId, DayNum) -> ?rday(ThId, DayNum).
+
+rgame(?game_key = K) -> ?rgame(?getv(K));
+rgame(?thread_id = K) -> ?rgame(?getv(K));
+rgame(K) -> ?rgame(K).
 
 verify_users(m26) ->
     [mafia_vote:print_verify_user(U)
@@ -303,35 +311,6 @@ l() ->
     [begin code:purge(M), code:load_file(M), M end
      || M <- Beams2].
 
-rmess(MsgId) -> ?rmess(MsgId).
-rpage(ThId, Page) -> ?rpage(ThId, Page).
-
-rgame(?game_key = K) -> ?rgame(?getv(K));
-rgame(?thread_id = K) -> ?rgame(?getv(K));
-rgame(K) -> ?rgame(K).
-
-rday(ThId, {DayNum, _}) ->
-    rday(ThId, DayNum);
-rday(ThId, DayNum) when is_integer(ThId) ->
-    rday(?rgame(ThId), DayNum);
-rday([#mafia_game{} = G], DayNum) ->
-    rday(G, DayNum);
-rday(#mafia_game{} = G, DayNum) ->
-    ThId = G#mafia_game.key,
-    case mnesia:dirty_read(mafia_day, Key = {ThId, DayNum}) of
-        [] ->
-            [#mafia_day{key = Key,
-                        thread_id = ThId,
-                        day = DayNum,
-                        votes = [],
-                        end_votes = [],
-                        players_rem = G#mafia_game.players_rem,
-                        player_deaths = []
-                       }];
-        [Day] ->
-            [Day]
-    end.
-
 %% Pre-check user list given by GM in initial game PM
 verify_new_user_list(25) ->
     Users = ?M25_GMs ++ ?M25_players,
@@ -379,7 +358,7 @@ show_settings() ->
                   SetVal = element(3, Setting),
                   io:format("~p: ~p\n", [SetKey, SetVal])
         end,
-    [PrintSettings(K) || K <- mnesia:dirty_all_keys(?kv_store)],
+    [PrintSettings(K) || K <- lists:sort(mnesia:dirty_all_keys(?kv_store))],
     ok.
 
 pages_for_thread(ThId) ->

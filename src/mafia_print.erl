@@ -65,8 +65,12 @@ po(P, []) -> P.
 %% -----------------------------------------------------------------------------
 
 pp() ->
-    Page = ?getv(?page_to_read),
-    pp(Page).
+    ThId = ?getv(?thread_id),
+    Page = case ?rgame(ThId) of
+               [] -> ?getv(?page_to_read);
+               [G] -> G#mafia_game.page_to_read
+           end,
+    pp(ThId, Page).
 
 pp({ThId, Page}) ->
     pp(ThId, Page);
@@ -74,7 +78,8 @@ pp(Page) ->
     ThId = ?getv(?thread_id),
     pp(ThId, Page).
 
-pp(ThId, Page) ->
+pp(ThId0, Page) ->
+    ThId = th(ThId0),
     %% Select MsgIds here
     MsgIds = msgids(ThId, Page),
     print_page(ThId, MsgIds, fun print_message_full/1).
@@ -83,15 +88,30 @@ pp(ThId, Page) ->
 
 pps() ->
     ThId = ?getv(?thread_id),
-    pps(ThId).
+    Page = case ?rgame(ThId) of
+               [] -> ?getv(?page_to_read);
+               [G] -> G#mafia_game.page_to_read
+           end,
+    pps(ThId, Page).
 
 pps({ThId, Page}) ->
     pps(ThId, Page);
-pps(ThId) when is_integer(ThId) ->
-    LastPage = lists:max(mafia:pages_for_thread(ThId)),
-    pps(ThId, LastPage).
+pps(Page) when is_integer(Page) ->
+    ThId = ?getv(?thread_id),
+    pps(ThId, Page).
 
-pps(ThId, Page) ->
+th(Th) when is_atom(Th) ->
+    case lists:keyfind(Th, 1, ?getv(?reg_threads)) of
+        {_, Id} ->
+            io:format("Translating ~p to ~p\n", [Th, Id]),
+            Id;
+        false -> ?undefined
+    end;
+th(Th) when is_integer(Th) -> Th.
+
+
+pps(ThId0, Page) ->
+    ThId = th(ThId0),
     %% Select MsgIds here
     MsgIds = msgids(ThId, Page),
 
@@ -184,8 +204,11 @@ print_votesI(#pp{game = G,
                           string:join([?b2l(GM) || GM <- G#mafia_game.gms],
                                       " and ")]);
            PP#pp.mode == ?html ->
+                LinkPhase = if is_integer(PP#pp.use_time) -> ?game_ended;
+                               true -> PP#pp.phase
+                            end,
                 {Href, Link} =
-                    mafia_file:game_link_and_text(PP#pp.game, PP#pp.phase),
+                    mafia_file:game_link_and_text(PP#pp.game, LinkPhase),
                 ["<tr><th>", GName, "</th></tr>\r\n",
                  "<tr><td><table align=center cellpadding=4 cellspacing=6 >"
                  "<tr><td>Game Moderators:<td>",
@@ -341,7 +364,7 @@ print_votesI(#pp{game = G,
                           [RPStr]),
                 ok;
            PP#pp.mode == ?html ->
-                ["<tr><td>"
+                ["<td><tr>"
                  "<table align=center cellpadding=2 cellspacing=2><tr>"
                  "<tr><th colspan=8><center>Remaining players</center>"
                  "</th></tr>",
@@ -516,11 +539,11 @@ print_time_left_to_dl(PP) ->
                       "  ~s~p hours, ~p minutes\n",
                       [pr_don(DoN), Num, DayStr, HH, MM]);
        PP#pp.mode == ?html ->
-            ["<tr><td>",
-             "Remaining time to next ",
+            ["<tr><th>",
+             "<center>Remaining time to next ",
              pr_don(DoN), " ", ?i2l(Num), " deadline:"
-             "  ", DayStr, ?i2l(HH), "hours, ", ?i2l(MM), " minutes\n",
-             "</td></tr>"]
+             "  ", DayStr, ?i2l(HH), " hours, ", ?i2l(MM), " minutes\n",
+             "</center></th></tr>"]
     end.
 
 %% Votes per user are time ordered (oldest first)
@@ -1074,21 +1097,11 @@ print_messages(User) when is_list(User) ->
     print_messages(?l2b(User));
 print_messages(User) when is_binary(User) ->
     ThId = ?getv(?thread_id),
-    Pages = mafia:pages_for_thread(ThId),
-    AllMsgIds =
-        lists:foldl(
-          fun(Page, Acc) ->
-                  case ?rpage(ThId, Page) of
-                      [#page_rec{message_ids = PMids}] -> Acc ++ PMids;
-                      [] -> Acc
-                  end
-          end,
-          [],
-          Pages),
+    AllMsgIds = mafia_lib:all_msgids(ThId),
     UserMsgIds =
         lists:filter(
           fun(MsgId) ->
-                  case mnesia:dirty_read(message, MsgId) of
+                  case ?rmess(MsgId) of
                       [#message{user_name = U}]
                         when U == User -> true;
                       _ -> false
@@ -1161,8 +1174,7 @@ msgids(ThId, PageNum) ->
         [#page_rec{message_ids = MIds}] -> MIds
     end.
 
-read_msgs(MsgIds) ->
-    [hd(mnesia:dirty_read(message, MsgId)) || MsgId <- MsgIds].
+read_msgs(MsgIds) -> [hd(?rmess(MsgId)) || MsgId <- MsgIds].
 
 cmp_time(A, B) -> time(A) =< time(B).
 

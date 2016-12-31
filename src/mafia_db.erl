@@ -157,13 +157,14 @@ write_default_table(game, 24) ->
     MGame2 = mafia_time:initial_deadlines(MGame),
     mnesia:dirty_write(MGame2).
 
-set(K=?thread_id, V) when is_integer(V), V > 0 -> set_kv(K,V);
-set(K=?game_key, V) when is_integer(V), V > 0 -> set_kv(K,V);
-set(K=?page_to_read, V) when is_integer(V), V > 0 -> set_kv(K,V);
-set(K=?timezone_user, V) when is_integer(V), -12 =< V, V =< 12 -> set_kv(K,V);
-set(K=?timezone_game, V) when is_integer(V), -12 =< V, V =< 12 -> set_kv(K,V);
-set(K=?dst_user, V) when is_boolean(V) -> set_kv(K,V);
-set(K=?dst_game, V) when is_boolean(V) -> set_kv(K,V);
+set(K=?thread_id, V) when is_integer(V), V > 0 -> set_kv(K, V);
+set(K=?game_key, V) when is_integer(V), V > 0 -> set_kv(K, V);
+set(K=?page_to_read, V) when is_integer(V), V > 0 -> set_kv(K, V);
+set(K=?timezone_user, V) when is_integer(V), -12 =< V, V =< 12 -> set_kv(K, V);
+set(K=?timezone_game, V) when is_integer(V), -12 =< V, V =< 12 -> set_kv(K, V);
+set(K=?time_offset, V) when is_integer(V) -> set_kv(K, V);
+set(K=?dst_user, V) when is_boolean(V) -> set_kv(K, V);
+set(K=?dst_game, V) when is_boolean(V) -> set_kv(K, V);
 set(K=?print_time, V)
   when V == user; V == game; V == utc;
        V == zulu; V == gmt ->

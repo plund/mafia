@@ -42,8 +42,7 @@ catch_debug(Sid, Tag, F) ->
         TimeA = erlang:monotonic_time(millisecond),
         case catch F(do) of
             {'EXIT', Term} ->
-                Str = lists:flatten(io_lib:format("~p\n", [{Tag, Term}])),
-                ?dbg_str({F(in), Str}),
+                ?dbg({catch_debug, {Tag, Term}}),
                 deliver(Sid,
                         [?HTML_TAB_START(?a2l(Tag), ""),
                          "<tr><td>", "An error occured!", "</td></tr>",

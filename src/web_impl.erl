@@ -224,23 +224,8 @@ del_end(Sid) ->
 game_status(Sid, _Env, In) ->
     Html =
         case get_phase(In) of
-            {ok, Phase} ->
-                PeriodOpts =
-                    case catch mafia_web:get_state() of
-                        {'EXIT', _} -> [];
-                        KVs ->
-                            case {lists:keyfind(timer, 1, KVs),
-                                  lists:keyfind(timer_minutes, 1, KVs)} of
-                                {{_, TRef},
-                                 {_, PeriodMins}} when TRef /= ?undefined ->
-                                    [{?period, PeriodMins}];
-                                _ -> []
-                            end
-                    end,
-                mafia_print:print_votes([{?game_key, ?getv(?game_key)},
-                                         {?phase, Phase},
-                                         {?mode, ?html}]
-                                        ++ PeriodOpts);
+            {S, Phase} when S == ok; S == current ->
+                game_status_out(S, Phase);
             {error, ErrorHtml} ->
                 ErrorHtml
         end,
@@ -249,10 +234,45 @@ game_status(Sid, _Env, In) ->
     C = del_end(Sid),
     A + B + C.
 
+
+game_status_out(current, Phase) ->
+    UseTime = [{?use_time, mafia_time:utc_secs1970()}],
+    game_status_out2(Phase, UseTime);
+game_status_out(ok, Phase) ->
+    %% Check that phase is not in the future
+    GameKey = ?getv(?game_key),
+    Time = mafia_time:utc_secs1970(),
+    case mafia_time:get_time_for_phase(GameKey, Phase) of
+        PhaseTime when PhaseTime =< Time ->
+            game_status_out2(Phase, []);
+        _ ->
+            "<tr><td>Phase has not happened yet.</td></tr>"
+    end.
+
+game_status_out2(Phase, UseTime) ->
+    PeriodOpts =
+        case catch mafia_web:get_state() of
+            {'EXIT', _} -> [];
+            KVs ->
+                case {lists:keyfind(timer, 1, KVs),
+                      lists:keyfind(timer_minutes, 1, KVs)} of
+                    {{_, TRef},
+                     {_, PeriodMins}} when TRef /= ?undefined ->
+                        [{?period, PeriodMins}];
+                    _ -> []
+                end
+        end,
+    mafia_print:print_votes([{?game_key, ?getv(?game_key)},
+                             {?phase, Phase},
+                             {?mode, ?html}
+                            ]
+                            ++ UseTime
+                            ++ PeriodOpts).
+
 get_phase([]) ->
     GameKey = ?getv(?game_key),
     Phase = mafia_time:calculate_phase(GameKey),
-    {ok, Phase};
+    {current, Phase};
 get_phase(In) ->
     PQ = httpd:parse_query(In),
     NotAllowed = [Key || {Key, _} <- PQ] -- ["phase", "num", "debug"],
@@ -267,6 +287,8 @@ get_phase(In) ->
                      " not allowed."]}
     end.
 
+%% Is this not the same as setting time offset now?
+%% maybe all "debug" stuff can be removed?
 gs_phase(_, _, {"debug", ""}) ->
     GameKey = ?getv(?game_key),
     case ?rgame(GameKey) of
@@ -281,7 +303,7 @@ gs_phase(_, _, {"debug", ""}) ->
             Msg = hd(?rmess(MsgId)),
             Time = Msg#message.time,
             MsgPhase = mafia_time:calculate_phase(GameKey, Time),
-            {ok, MsgPhase}
+            {current, MsgPhase}
     end;
 gs_phase({"phase", "end"},
             _, _) ->

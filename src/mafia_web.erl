@@ -25,7 +25,7 @@
          get_state/0,
          regenerate_history/1,  % used to print txt files when refresh_votes
          regenerate_history/2,
-         update_current/1
+         update_current/0
         ]).
 
 %% deprecated
@@ -121,6 +121,9 @@ regenerate_historyI({DNum, DoN, _}) ->
 regenerate_historyI(Phase) ->
     gen_server:cast(?SERVER, {regenerate_history, Phase}).
 
+update_current() ->
+        gen_server:cast(?SERVER, update_current).
+
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -211,6 +214,9 @@ handle_cast(Ev = {regenerate_history, {DNum, DoN}}, State) ->
             flush({'$gen_cast', Ev})
     end,
     {noreply, State};
+handle_cast(update_current, State) ->
+    update_current(State#state.game_key, State#state.timer_minutes),
+    {noreply, State};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -233,25 +239,6 @@ handle_info(do_polling, State) ->
     {noreply, S2};
 handle_info(_Info, State) ->
     {noreply, State}.
-
-
-update_current(GameKey) ->
-    update_currentI(GameKey, []).
-
-update_current(GameKey, Minutes) ->
-    update_currentI(GameKey, [{?period, Minutes}]).
-
-update_currentI(GameKey, UpdateOpts) ->
-    FileName = mafia_file:game_phase_full_fn(
-                 GameKey, ?game_ended),
-    {ok, Fd} = file:open(FileName, [write]),
-    Phase = mafia_time:calculate_phase(GameKey),
-    mafia_print:print_votes([{?game_key, GameKey},
-                             {?phase, Phase},
-                             {?dev, Fd},
-                             {?use_time, mafia_time:utc_secs1970()}
-                            ] ++ UpdateOpts),
-    file:close(Fd).
 
 %%--------------------------------------------------------------------
 %% @private
@@ -281,6 +268,21 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+
+update_current(GameKey, Minutes) ->
+    update_currentI(GameKey, [{?period, Minutes}]).
+
+update_currentI(GameKey, UpdateOpts) ->
+    FileName = mafia_file:game_phase_full_fn(
+                 GameKey, ?game_ended),
+    {ok, Fd} = file:open(FileName, [write]),
+    Phase = mafia_time:calculate_phase(GameKey),
+    mafia_print:print_votes([{?game_key, GameKey},
+                             {?phase, Phase},
+                             {?dev, Fd},
+                             {?use_time, mafia_time:utc_secs1970()}
+                            ] ++ UpdateOpts),
+    file:close(Fd).
 
 get_en1_ip() ->
     lists:nth(2, lists:dropwhile(

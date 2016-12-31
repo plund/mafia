@@ -49,6 +49,8 @@
          thread_id :: thread_id(),
          url :: string(),
          body :: string(),
+         utc_time :: seconds1970(),
+         check_vote_fun :: function(),
          dl_time :: ?undefined | millisecs(),
          do_refresh_msgs = false :: boolean()
         }).
@@ -74,17 +76,21 @@ downl2(S) ->
     ok.
 
 -spec download(#s{}) -> {ok | {error, Reason :: term()}, #s{}}.
+download(S) when S#s.utc_time == ?undefined ->
+    download(
+      S#s{utc_time = mafia_time:utc_secs1970(),
+          check_vote_fun = check_vote_msgid_fun(S#s.thread_id)});
 download(S) ->
     case get_body(S#s{dl_time = ?undefined}) of
         {ok, S2} ->
-            analyse_body(S2),
-            if not S2#s.is_last_page ->
-                    if not S2#s.body_on_file ->
+            S3 = analyse_body(S2),
+            if not S3#s.is_last_page ->
+                    if not S3#s.body_on_file ->
                             sleep(10000);
                        true -> ok
                     end,
-                    download(S2);
-               true -> {ok, S2}
+                    download(S3);
+               true -> {ok, S3}
             end;
         {error, _Error} = Err ->
             {Err, S}
@@ -100,7 +106,8 @@ downl_web([G]) ->
     InitPage = G#mafia_game.page_to_read,
     Page = check_db(GameKey, InitPage),
     case download(#s{thread_id = GameKey,
-                     page_to_read = Page}) of
+                     page_to_read = Page
+                    }) of
         {ok, S2} ->
             update_page_to_read(GameKey, S2#s.page_to_read);
         {{error, _R}, S2} ->
@@ -108,6 +115,7 @@ downl_web([G]) ->
     end,
     ok.
 
+%% Read DB for messages first
 check_db(Key, P) ->
     MsgIdF = check_vote_msgid_fun(Key),
     ReadF = fun(P2) -> ?rpage(Key, P2) end,
@@ -214,15 +222,22 @@ refresh_votes(ThId, [G], PageFilter, Method) ->
             ?dbg({last_iter_msg_ref, ThId, PageNum, MsgId}),
             update_page_to_read(ThId, PageNum)
     end,
+    mafia_web:update_current(),
     ok.
 
+%% MsgId and #message{} are ok
 check_vote_msgid_fun(ThId) ->
     Cmds = case file:consult(mafia_file:cmd_filename(ThId)) of
                {ok, CmdsOnFile} -> [C || C = #cmd{} <- CmdsOnFile];
                _ -> []
            end,
-    fun(MsgId) ->
+    fun(MsgId) when is_integer(MsgId) ->
             mafia_vote:check_for_vote(MsgId),
+            [erlang:apply(M, F, A) || #cmd{msg_id = MId,
+                                           mfa = {M, F, A}} <- Cmds,
+                                      MId == MsgId];
+       (Msg = #message{msg_id = MsgId})  ->
+            mafia_vote:check_for_vote(Msg),
             [erlang:apply(M, F, A) || #cmd{msg_id = MId,
                                            mfa = {M, F, A}} <- Cmds,
                                       MId == MsgId]
@@ -380,8 +395,7 @@ iterate_all_msgs(ThId, MsgFun, {arity,1}) ->
     Pages = mafia:pages_for_thread(ThId),
     F = fun(Page) ->
                 [PR] = ?rpage(ThId, Page),
-                Msgs = [hd(mnesia:dirty_read(message, MsgId))
-                        || MsgId <- PR#page_rec.message_ids],
+                Msgs = [hd(?rmess(MsgId)) || MsgId <- PR#page_rec.message_ids],
                 lists:foreach(MsgFun, Msgs),
                 {ThId, Page}
         end,
@@ -398,7 +412,7 @@ iterate_all_msgs(ThId, MsgFun, {arity,2}) ->
                [],
                Pages),
     lists:foldl(fun(MsgId, Acc2) ->
-                        MsgFun(hd(mnesia:dirty_read(message, MsgId)), Acc2)
+                        MsgFun(hd(?rmess(MsgId)), Acc2)
                 end,
                 MsgFun(acc, init),
                 MsgIds).
@@ -423,24 +437,13 @@ iterate_all_msg_ids(ThId, Fun, Filter) ->
 %% Return reference to last iterated message
 -spec iterate_all_msg_idsI(ThId :: integer(),
                            Fun :: function(),
-                           Pages :: [integer()])
+                           PageNums :: [integer()])
                           -> last_iter_msg_ref().
-iterate_all_msg_idsI(ThId, Fun, Pages) ->
-    F = fun(Page) ->
-                [PR] = ?rpage(ThId, Page),
-                MsgIds = PR#page_rec.message_ids,
-                lists:foreach(Fun, MsgIds),
-                %% get last msg id
-                case MsgIds of
-                    [] -> none;
-                    _ -> {ThId, Page, lists:max(MsgIds)}
-                end
-        end,
-    PageRes = [F(P) || P <- Pages],
-    case [PR || PR <- PageRes, PR /= none] of
-        [] -> none;
-        PRs2 -> lists:last(PRs2)
-    end.
+iterate_all_msg_idsI(ThId, MsgIdFun, PageNums) ->
+    PageMsgIds = mafia_lib:all_msgids(ThId, PageNums),
+    {LastPage, LastMsgId} = lists:last(PageMsgIds),
+    _ = [MsgIdFun(MId) || {_, MId} <- PageMsgIds],
+    {ThId, LastPage, LastMsgId}.
 
 %% -----------------------------------------------------------------------------
 
@@ -459,7 +462,8 @@ get_body(S, no_file) ->
     get_body2(S2, http_request(S2)).
 
 make_url(S) ->
-    Url = ?UrlBeg ++ ?i2l(S#s.thread_id) ++ ?UrlMid ++ ?i2l(S#s.page_to_read) ++ ?UrlEnd,
+    Url = ?UrlBeg ++ ?i2l(S#s.thread_id) ++ ?UrlMid ++ ?i2l(S#s.page_to_read)
+        ++ ?UrlEnd,
     S#s{url = Url}.
 
 -spec get_body2(#s{}, term()) -> {ok, Body::term()} | {error, term()}.
@@ -638,23 +642,35 @@ analyse_body(S) ->
     {B6, MsgRaw} = read_to_before(B5, "</div>"),
     Msg = strip(MsgRaw),
 
-    if UserStr /= "" ->
-            MsgId = ?l2i(MsgIdStr),
-            Msgs = ?rmess(MsgId),
-            if Msgs == [] orelse S#s.do_refresh_msgs ->
-                    Time = ?l2i(TimeStr),
-                    User = ?l2b(UserStr),
-                    update_page_rec(S, MsgId),
-                    MsgR = write_message_rec(S, MsgId, User, Time, Msg),
-                    mafia_vote:verify_user(MsgR),
-                    mafia_vote:check_for_vote(S, MsgR),
-                    mafia_print:print_message_summary(MsgR);
-               true ->
-                    ok
-            end;
-       true -> ok
-    end,
-    analyse_body(S#s{body = B6}).
+    analyse_body(S#s{body = B6}, {UserStr, MsgIdStr, TimeStr, Msg}).
+
+analyse_body(S, {"", _MsgIdStr, _TimeStr, _Msg}) -> S;
+analyse_body(S, {UserStr, MsgIdStr, TimeStr, Msg}) ->
+    analyse_body(S, ?l2b(UserStr), ?l2i(MsgIdStr), ?l2i(TimeStr), Msg).
+
+analyse_body(S, _User, _MsgId, Time, _Msg)
+  when Time > S#s.utc_time ->
+    %% ?dbg({analyse_body, utc_time}),
+    PageLastRead = S#s.page_last_read,
+    ?set(?page_to_read, PageLastRead),
+    S#s{is_last_page = true,
+        page_to_read = PageLastRead
+       };
+analyse_body(S, User, MsgId, Time, Msg) ->
+    CheckVote = S#s.check_vote_fun,
+    %% We should MAYBE start use #message.is_deleted = true.
+    %% case ?rmess(MsgId) of
+    %%     Msgs when Msgs == [] orelse S#s.do_refresh_msgs ->
+    update_page_rec(S, MsgId),
+    MsgR = write_message_rec(S, MsgId, User, Time, Msg),
+    mafia_vote:verify_user(MsgR),
+    CheckVote(MsgR),
+    %% mafia_vote:check_for_vote(S, MsgR),
+    mafia_print:print_message_summary(MsgR),
+    %%     _ ->
+    %%         ok
+    %% end,
+    analyse_body(S).
 
 %% -----------------------------------------------------------------------------
 

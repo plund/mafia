@@ -3,7 +3,10 @@
 -export([get_next_deadline/1,
          get_next_deadline/2,
          hh_mm_to_deadline/2,
+
          utc_secs1970/0,
+         get_time_for_phase/2,
+
          get_tz_dst/0,
          get_tz_dst/2,
          secs1970_to_local_datetime/3,
@@ -21,6 +24,9 @@
 
          inc_phase/1,
          conv_gtime_secs1970/2,
+
+         show_time_offset/0,
+         set_time_offset/1,
 
          test/0
         ]).
@@ -106,7 +112,7 @@ adjust_secs1970_to_tz_dst(Time, TzH, Dst) ->
                       Time :: seconds1970())
                      -> phase().
 calculate_phase(ThId) ->
-    Time = mafia_time:utc_secs1970(),
+    Time = utc_secs1970(),
     calculate_phase(ThId, Time).
 
 calculate_phase(ThId, Time) when is_integer(ThId) ->
@@ -239,7 +245,7 @@ end_phase(#message{time = MsgTime}, DateTime, [G], false) ->
     NewDLs = get_some_extra_dls(G, DLs4, TargetTime),
     mnesia:dirty_write(G#mafia_game{deadlines = NewDLs}),
     mafia_web:regenerate_history(MsgTime, EarlyDL),
-    mafia_web:update_current(G#mafia_game.key),
+    mafia_web:update_current(),
     inserted;
 end_phase(_, _, _, _) ->
     already_inserted.
@@ -278,7 +284,7 @@ end_game(M, G, false) ->
     mnesia:dirty_write(G#mafia_game{deadlines = DLs3,
                                     game_end = {EndTime, MsgId}}),
     mafia_web:regenerate_history(EndTime, LastDL),
-    mafia_web:update_current(G#mafia_game.key),
+    mafia_web:update_current(),
     ?game_ended;
 end_game(_, _, _) ->
     already_game_ended.
@@ -403,10 +409,62 @@ utc_gs(DateTime, TZ, Dst) ->
     calendar:datetime_to_gregorian_seconds(DateTime)
         - (TZ + if Dst -> 1; true -> 0 end) * ?HourSecs.
 
+get_time_for_phase(G, Phase) when is_integer(G) ->
+    get_time_for_phase(?rgame(G), Phase);
+get_time_for_phase([G], Phase) -> get_time_for_phase(G, Phase);
+get_time_for_phase(G = #mafia_game{}, ?game_ended) ->
+    case G#mafia_game.game_end of
+        ?undefined -> ?undefined;
+        {Time, _MsgId} -> Time
+    end;
+get_time_for_phase(G = #mafia_game{}, Phase) ->
+    case lists:dropwhile(fun(DL) -> case ?dl2phase(DL) of
+                                        Phase -> false;
+                                        _ -> true
+                                    end
+                         end,
+                         G#mafia_game.deadlines) of
+        [] -> ?undefined;
+        [{_N, _DoN, Time} | _] -> Time
+    end.
+
 utc_secs1970() ->
+    utc_secs1970I() - get_time_offset().
+
+utc_secs1970I() ->
     calendar:datetime_to_gregorian_seconds(
       calendar:universal_time())
         - ?GSECS_1970.
+
+%% -----------------------------------------------------------------------------
+
+show_time_offset() ->
+    {Days, {H, M , S}} = calendar:seconds_to_daystime(get_time_offset()),
+    io:format("Time offset: ~p days, ~p hours, ~p mins, ~p secs\n",
+              [Days, H, M , S]).
+
+get_time_offset() ->
+    case ?getv(?time_offset) of
+        ?undefined -> 0;
+        OS when is_integer(OS) -> OS
+    end.
+
+set_time_offset(Offset) ->
+    Off = set_time_offsetI(Offset),
+    ?set(?time_offset, Off),
+    Off.
+
+set_time_offsetI(Offset) when is_integer(Offset) -> Offset;
+set_time_offsetI({msg_id, MsgId}) when is_integer(MsgId) ->
+    case mafia_lib:rmessI(MsgId) of
+        [] -> 0;
+        [M] -> utc_secs1970I() - M#message.time
+    end;
+set_time_offsetI({days_hours, NumDays, NumHours})
+  when is_integer(NumDays), is_integer(NumHours) ->
+    (NumDays * 24 + NumHours) * ?HourSecs.
+
+%% -----------------------------------------------------------------------------
 
 -spec timer_minutes(ThId :: thread_id()) -> none | integer().
 timer_minutes(ThId) ->

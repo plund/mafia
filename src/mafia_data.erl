@@ -626,7 +626,7 @@ check_this_page(S) ->
 
 %% -----------------------------------------------------------------------------
 
-analyse_body(#s{body = ""}) -> ok;
+analyse_body(S = #s{body = ""}) -> S;
 analyse_body(S) ->
     Body = S#s.body,
     B3 = rm_to_after(Body, ["<div class=\"reply",

@@ -1,5 +1,8 @@
 -module(mafia_print).
 
+-define(NumColsInGrp, 8).
+-define(TURQUOISE, "bgcolor=\"#dfffdf\"").
+
 %% Manual API
 -export([
          print_stats/0, print_stats/1, print_stats/2,
@@ -200,7 +203,7 @@ print_votesI(#pp{game = G,
                           "Game Moderators: ~s\n"
                           "\n"
                           "Previous days found at http://mafia.peterlund.se/\n",
-                          [GName, [$= || _ <- GName],
+                          [GName, ul($=, GName),
                           string:join([?b2l(GM) || GM <- G#mafia_game.gms],
                                       " and ")]);
            PP#pp.mode == ?html ->
@@ -255,7 +258,9 @@ print_votesI(#pp{game = G,
                    true -> ok
                 end;
            PP#pp.mode == ?html ->
-                if PhaseType /= ?game_ended andalso is_integer(PP#pp.use_time) ->
+                if PhaseType /= ?game_ended
+                   andalso
+                   is_integer(PP#pp.use_time) ->
                         print_time_left_to_dl(PP);
                    PhaseType == ?game_ended ->
                         {EndTime, EndMsgId} = G#mafia_game.game_end,
@@ -319,17 +324,18 @@ print_votesI(#pp{game = G,
                 NoVoteTitle = if NonVoted == [] -> "Non-votes: -";
                                  true -> "Non-votes: "
                               end,
+                NVRows = split_into_groups(?NumColsInGrp, NonVoted),
                 if PP#pp.mode == ?text ->
+                        NVStr = object_rows_text(NVRows, fun(U) -> ?b2l(U) end),
                         io:format(
                           PP#pp.dev,
-                          "\n~s~s\n",
-                          [NoVoteTitle,
-                           string:join([?b2l(U) || U <- NonVoted], ", ")]);
+                          "\n~s\n~s\n~s\n",
+                          [NoVoteTitle, ul($-, NoVoteTitle), NVStr]);
                    PP#pp.mode == ?html ->
-                        ["<tr><td><table align=center><tr><th>", NoVoteTitle,
-                         "</th>",
-                         [["<td", bgcolor(U), ">", ?b2l(U), "</td>"]
-                          || U <- NonVoted],
+                        ["<tr><td><table align=center><tr><th colspan=",
+                         ?i2l(?NumColsInGrp), ">",
+                         NoVoteTitle, "</th></tr>",
+                         object_rows(NVRows),
                          "</table></td></tr>"]
                 end;
            true -> []
@@ -343,21 +349,11 @@ print_votesI(#pp{game = G,
             if PP#pp.phase == ?game_ended -> true;
                true -> Ph =< PP#pp.phase
             end],
-    %% split up remaining players into groups of 8
-    {LastRow, Rows2} =
-        lists:foldl(
-          fun(U, {R, Rows1}) ->
-                  if length(R) == 8 -> {[U], Rows1 ++ [R]};
-                     true -> {R ++[U], Rows1}
-                  end
-          end,
-          {[], []},
-          RemPlayers -- DeathsUptoNow),
-    RPRows = Rows2 ++ [LastRow],
+    %% split up remaining players into groups of ?NumColsInGrp (10)
+    RPRows = split_into_groups(?NumColsInGrp, RemPlayers -- DeathsUptoNow),
     HRemPlayers =
         if PP#pp.mode == ?text ->
-                RPStr = [[string:join([?b2l(U) || U <- RPRow], ", "), "\n"]
-                         || RPRow <- RPRows],
+                RPStr = object_rows_text(RPRows, fun(U) -> ?b2l(U) end),
                 io:format(PP#pp.dev,
                           "\nRemaining Players"
                           "\n-----------------\n~s\n",
@@ -366,14 +362,10 @@ print_votesI(#pp{game = G,
            PP#pp.mode == ?html ->
                 ["<td><tr>"
                  "<table align=center cellpadding=2 cellspacing=2><tr>"
-                 "<tr><th colspan=8><center>Remaining players</center>"
+                 "<tr><th colspan=", ?i2l(?NumColsInGrp),
+                 ">Remaining players"
                  "</th></tr>",
-                 [[ "<tr>",
-                    [["<td", bgcolor(U), "><center>", U, "</center></td>"]
-                     || U <- RPRow],
-                    "</tr>"
-                  ]
-                  || RPRow <- RPRows],
+                 object_rows(RPRows),
                  "</table></td></tr>"]
         end,
 
@@ -442,6 +434,7 @@ print_votesI(#pp{game = G,
                    PP#pp.use_time == ?undefined -> Ph == PP#pp.phase;
                    true -> Ph =< PP#pp.phase
                 end]),
+    IsZeroDeaths = [] == DeathsToReport,
     PrFun = fun(IsEnd, Ph) ->
                     pr_eodon(IsEnd, Ph)
             end,
@@ -468,40 +461,51 @@ print_votesI(#pp{game = G,
                                     comment = Com}
                                  <- DeathsToReport],
                          Div)]),
-            io:format(PP#pp.dev, "\n", []),
-            if is_integer(PP#pp.period) ->
-                    io:format(
-                      PP#pp.dev,
-                      "Updates currently every ~p minutes "
-                      "(more often near deadlines).\n",
-                      [PP#pp.period]);
-               true -> ok
-            end,
-            io:format(
-              PP#pp.dev,
-              "Mafia game thread at: ~s\n",
-              [?UrlBeg ++ ?i2l(PP#pp.game_key)]);
+            HtmlDeaths = ?dummy;
        PP#pp.mode == ?html ->
             HtmlDeaths =
                 ["<table align=center>",
                  "<tr><th colspan=2 align=left><br>Dead Players</th></tr>",
-                 [["<tr><td><table align=left><tr><td", bgcolor(DeadPl), ">",
-                   ?b2l(DeadPl), "</td><td>", PrFun(IsEnd, Ph),
-                   if Com == ?undefined ->
-                           " - msg: " ++ ?i2l(MsgId);
-                      is_binary(Com) ->
-                           " - " ++ ?b2l(Com)
-                   end,
-                   "</td></tr></table></td></tr>"]
-                  || #death{player = DeadPl,
-                            is_end = IsEnd,
-                            phase = Ph,
-                            msg_id = MsgId,
-                            comment = Com,
-                            is_deleted = false}
-                         <- DeathsToReport],
-                 "</table>"],
-            HFooter =
+                 if IsZeroDeaths -> "<tr><th>(none)</th></tr>";
+                    not IsZeroDeaths ->
+                         [["<tr><td><table align=left><tr><td", bgcolor(DeadPl), ">",
+                           ?b2l(DeadPl), "</td><td>", PrFun(IsEnd, Ph),
+                           if Com == ?undefined ->
+                                   " - msg: " ++ ?i2l(MsgId);
+                              is_binary(Com) ->
+                                   " - " ++ ?b2l(Com)
+                           end,
+                           "</td></tr></table></td></tr>"]
+                          || #death{player = DeadPl,
+                                    is_end = IsEnd,
+                                    phase = Ph,
+                                    msg_id = MsgId,
+                                    comment = Com}
+                                 <- DeathsToReport]
+                 end,
+                 "</table>"]
+    end,
+
+    %% Part - Deadlines
+    HDeadlines = print_num_dls(PP, 4),
+
+    %% Part - Footer
+    HFooter =
+        if PP#pp.mode == ?text ->
+                io:format(PP#pp.dev, "\n", []),
+                if is_integer(PP#pp.period) ->
+                        io:format(
+                          PP#pp.dev,
+                          "Updates currently every ~p minutes "
+                          "(more often near deadlines).\n",
+                          [PP#pp.period]);
+                   true -> ok
+                end,
+                io:format(
+                  PP#pp.dev,
+                  "Mafia game thread at: ~s\n",
+                  [?UrlBeg ++ ?i2l(PP#pp.game_key)]);
+           PP#pp.mode == ?html ->
                 ["<tr><td align=center><br>",
                  if is_integer(PP#pp.period) ->
                          ["Updates currently every ", ?i2l(PP#pp.period),
@@ -511,7 +515,10 @@ print_votesI(#pp{game = G,
                  end,
                  "Mafia game thread at: ", ?UrlBeg,
                  ?i2l(PP#pp.game_key),
-                 "</td></tr>"],
+                 "</td></tr>"]
+        end,
+    if PP#pp.mode == ?text -> ok;
+       PP#pp.mode == ?html ->
             [HTitle,
              HDeadLine, "\r\n", HVoteCount, "\r\n",
              EndVotes, "\r\n", NonVotes, "\r\n",
@@ -522,9 +529,38 @@ print_votesI(#pp{game = G,
              ["<tr><td>\r\n", HStats, "</td><tr>\r\n"],
              ["<tr><td>\r\n", HNonPosters, "</td><tr>\r\n"],
              ["<tr><td>\r\n", HtmlDeaths, "</td><tr>\r\n"],
+             ["<tr><td>\r\n", HDeadlines, "</td><tr>\r\n"],
              ["<tr><td>\r\n", HFooter, "</td><tr>\r\n"]
             ]
     end.
+
+object_rows_text(Rows, ToText) ->
+    [[string:join([ToText(U) %%?b2l(U)
+                   || U <- Row], ", "), "\n"]
+     || Row <- Rows].
+
+object_rows(Groups) ->
+    [[ "<tr>",
+       [["<td", bgcolor(U), "><center>", U, "</center></td>"]
+        || U <- Group],
+       "</tr>"
+     ]
+     || Group <- Groups].
+
+%% for mafia_lib...
+split_into_groups(NumPerRow, Objects) ->
+    {LastRow, Rows2} =
+        lists:foldl(
+          fun(U, {R, Rows1}) ->
+                  if length(R) == NumPerRow ->
+                          {[U], Rows1 ++ [R]};
+                     true ->
+                          {R ++[U], Rows1}
+                  end
+          end,
+          {[], []},
+          Objects),
+    Rows2 ++ [LastRow].
 
 print_time_left_to_dl(PP) ->
     {{Days, {HH, MM, _}}, {Num, DoN, _}} =
@@ -545,6 +581,66 @@ print_time_left_to_dl(PP) ->
              "  ", DayStr, ?i2l(HH), " hours, ", ?i2l(MM), " minutes\n",
              "</center></th></tr>"]
     end.
+
+print_num_dls(PP, Num) ->
+    Time = mafia_time:utc_secs1970(),
+    G = PP#pp.game,
+    DLs = mafia_time:next_deadlines(G, Time, Num),
+    {PastDLs, ComingDLs} =
+        lists:partition(fun(DL) -> element(3, DL) < Time end, DLs),
+    Past2 = prep_dl_info(G, Time, PastDLs),
+    Coming2 = prep_dl_info(G, Time, ComingDLs),
+    if PP#pp.mode == ?text ->
+            print_past_dls_text(PP, Past2, "Deadlines in the past"),
+            print_past_dls_text(PP, Coming2, "Deadlines in the future");
+       PP#pp.mode == ?html ->
+            ["<br>"
+             "<table border=1 align=center ", ?TURQUOISE, ">",
+             print_past_dls(Past2, "Deadlines in the past"),
+             print_past_dls(Coming2, "Deadlines in the future"),
+             "</table>"]
+    end.
+
+print_past_dls_text(_PP, DLs, _Title) when length(DLs) =< 0 -> ok;
+print_past_dls_text(PP, DLs, Title) ->
+    Fmt = "~-8s ~-13s ~s\n",
+    io:format(PP#pp.dev,
+              "\n"
+              "~s\n"
+              "~s\n"
+              ++ Fmt ++ Fmt,
+              [Title, ul($-, Title),
+               "Phase", "Relative now", "Absolute time",
+               ul($-, "Phase"), ul($-, "Relative now"), ul($-, 56)]),
+    [io:format(PP#pp.dev,
+               Fmt,
+               [[DoNStr, " ", Nstr],
+                [?i2l(Days), "D ",?i2l(HH), "H ", ?i2l(MM), "M"],
+                TimeStr])
+     || {Nstr, DoNStr, {Days, {HH, MM, _}}, TimeStr} <- DLs].
+
+ul(Char, N) when is_integer(N), N > 0 -> [Char|| _ <- lists:seq(1, N)];
+ul(Char, Str) when is_list(Str) -> [Char || _ <- Str].
+
+prep_dl_info(G, Time, DLs) ->
+    [{?i2l(N), pr_don(DoN),
+      mafia_time:secs2day_hour_min_sec(Time - DLT),
+      print_game_time(G, DLT, ?extensive)}
+     || {N, DoN, DLT} <- DLs].
+
+print_past_dls(DLs, _Title) when length(DLs) =< 0 -> [];
+print_past_dls(DLs, Title) ->
+    ["<tr>"
+     "<th colspan=3 align=center>", Title, "</th>"
+     "</tr>",
+     "<tr>"
+     "<th>Phase</th><th>Relative now</th><th>Absolute time</th>"
+     "</tr>",
+     [["<tr><td>", DoNStr, " ", Nstr, "</td>"
+       "<td>", ?i2l(Days), "D ",?i2l(HH), "H ", ?i2l(MM), "M","</td>"
+       "<td>", TimeStr, "</td>"
+       "</tr>"]
+      || {Nstr, DoNStr, {Days, {HH, MM, _}}, TimeStr} <- DLs]].
 
 %% Votes per user are time ordered (oldest first)
 %% Users sorted time ordered after they oldest vote (first vote)
@@ -604,7 +700,7 @@ pr_votes(PP) ->
            PP#pp.mode == ?html ->
                 ["<tr><th>","<br>",
                  "Vote Count ", pr_phase_long(PP#pp.phase), "</th></tr>",
-                 "<tr><td><table border=0 align=center bgcolor=\"#dfffdf\">",
+                 "<tr><td><table border=0 align=center ", ?TURQUOISE, ">",
                  "<tr><th>Wagon</th><th>#</th><th>Voters</th></tr>",
                  [["<tr><td", bgcolor(Vote), " align=center>", ?b2l(Vote),
                    "</td><td align=center>(", ?i2l(N), ")</td>",
@@ -778,24 +874,29 @@ do_print_stats(PP) ->
                                        (tr, _) -> "Total Counts";
                                        (_, _) -> []
                                     end),
-    HtmlStats = ["<br><table align=center bgcolor=\"#dfffdf\">",
+    HtmlStats = ["<br><table align=center ", ?TURQUOISE, ">",
                  Html2, "</table>"],
     NonPostTitle =
         case NonPosters of
             [] -> "Non-posters: -";
             _ -> "Non-posters: "
         end,
+    NPRows = split_into_groups(?NumColsInGrp, NonPosters),
     if PP#pp.mode == ?text ->
+            NPStr = object_rows_text(NPRows, fun(U) -> U end),
             io:format(PP#pp.dev,
-                      "\n~s~s\n",
-                      [NonPostTitle, string:join(NonPosters, ", ")]),
+                      "\n~s\n~s\n~s\n",
+                      [NonPostTitle, ul($-, NonPostTitle),
+                       NPStr %%string:join(NonPosters, ", ")
+                      ]),
             [[], []];
        PP#pp.mode == ?html ->
             HtmlNonPosters =
-                ["<table align=center><tr>",
-                 "<th colspan=\"4\">", NonPostTitle, "</th>",
-                 [["<td", bgcolor(NP), ">", NP, "</td>"] || NP <- NonPosters],
-                 "</tr></table>"],
+                ["<br><table align=center><tr>",
+                 "<th colspan=", ?i2l(?NumColsInGrp), ">", NonPostTitle,
+                 "</th></tr>",
+                 object_rows(NPRows),
+                 "</table>"],
             [HtmlStats, HtmlNonPosters]
     end.
 
@@ -913,7 +1014,7 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                           FmtTime,
                           [pr_ivs_user(IterVotes, fun(_) -> "===" end)]);
            PP#pp.mode == ?html ->
-                ["<table bgcolor=\"#dfffdf\"><tr>"
+                ["<table ", ?TURQUOISE, "><tr>"
                  "<th align=\"right\">Voter</th>"
                  "<th>Time</th>",
                  pr_ivs_user_html(IterVotes, PrAbbrF),
@@ -1254,6 +1355,10 @@ print_message_summary(PP = #pp{}) ->
 
 %% -----------------------------------------------------------------------------
 
+print_game_time(G, Time, Mode) ->
+    {TzH, Dst} = mafia_time:get_tz_dst(G, Time),
+    print_time(Time, TzH, Dst, Mode).
+
 %% /2
 print_time(current_time, Mode) ->
     Time = mafia_time:utc_secs1970(),
@@ -1306,7 +1411,7 @@ print_timeI(PP = #pp{}) ->
                                     [p(Y), p(M), p(D), Char, p(HH), p(MM), p(SS),
                                      ?i2l(TzH), DstStr]);
                   ?extensive ->
-                      io_lib:format("~s-~s-~s ~s:~s:~s (TZ: ~s~s)",
+                      io_lib:format("~s-~s-~s ~s:~s:~s (Timezone: ~s~s)",
                                     [p(Y), p(M), p(D), p(HH), p(MM), p(SS),
                                      ?i2l(TzH), DstStr])
               end,

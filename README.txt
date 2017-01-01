@@ -1,3 +1,4 @@
+
 Procedure Changing game M25 -> M24
 ---------
 1. mafia_web:stop_polling().

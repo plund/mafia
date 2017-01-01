@@ -73,8 +73,15 @@
         </tr>
         <tr>
           <td valign="top"><font size="-1">
-              DEADLINE&nbsp;...&nbsp;MOVED&nbsp;24H&nbsp;LATER<br>
-              DEADLINE&nbsp;...&nbsp;MOVED&nbsp;24H&nbsp;EARLIER
+              DEADLINE&nbsp;...&nbsp;MOVED&nbsp;1&nbsp;DAY&nbsp;LATER<br>
+              DEADLINE&nbsp;...&nbsp;MOVED&nbsp;24&nbsp;H&nbsp;EARLIER
+              <p>
+                <i>Time can be given using days, hours and<br>
+                 minutes. Valid expressions are:</i><br>
+                "2D", "1H", "1 D 12 H",<br>
+                "1D12H", "1D 23H 30M"<br>
+                <i>or written out:</i> "2 days", "24 hours" <br>
+                "1 day 12 hours 34 minutes"
           </font></td>
           <td valign="top"><font size="-0">
               The bot moves the deadline time of the current phase earlier or
@@ -92,10 +99,11 @@
                 not ended.
               <p>
                 <b>Method</b><br>
-                1. Bot search for "DEADLINE" in GM messages.<br>
-                2. Bot search for "LATER" or "EARLIER" after on same line<br>
-                3. Before on the same line the bot will look for the number of
-                hours
+                1. The bot looks for one line in a GM message containing
+                the words "DEADLINE", "MOVED" and either "LATER" or "EARLIER"
+                in the order listed.<br>
+                2. The Bot expects to find the time after "MOVED" and before
+                "LATER" or "EARLIER".
           </font></td>
         </tr>
         <tr>

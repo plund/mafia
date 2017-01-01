@@ -1,6 +1,9 @@
 -define(true, true).
 -define(false, false).
 -define(undefined, undefined).
+-define(ok, ok).
+-define(error, error).
+-define(dummy, dummy).
 
 -define(kv_store, kv_store).
 -define(day  , day__).
@@ -30,6 +33,11 @@
 -define(use_time, use_time).
 -define(time_zone, time_zone).
 -define(dst, dst).
+
+-define(sorted, sorted).
+-define(seconds, seconds).
+-define(earlier, earlier).
+-define(later, later).
 
 -define(gm, gm).
 -define(player, player).
@@ -99,7 +107,7 @@
          "teacon7", "Chaqa", "WardenDresden", "xorxes", "Vecna", "rdrivera2005",
          "Glen_Alexander", "Jamiet99uk", "Maniac", "dargorygel", "zorclex"]).
 -define(M26_GMs, ["Jamiet99uk", "Chaqa"]).
--define(M26_players,
+-define(M26_players_old,
         ["Ezio", "peterlund", "brainbomb", "bo_sox48", "DemonOverlord", "ND",
          "Tom Bombadil",
          %%"Tom Bomabadil",
@@ -110,6 +118,17 @@
          "Maniac", "Kakarroto", "DeathLlama8", "rdrivera2005", "arj11", "ghug",
          "teacon7", "Hellenic Riot", "Glen_Alexander", "CaptainMeme",
          "Reedeer1", "Vecna"]).
+
+-define(M26_players,
+        ["arj11", "Balki Bartokomous", % "BalkiBartokomous",
+         "bo_sox48", "brainbomb", "captainmeme", %"CaptainMeme",
+         "DeathLlama8", "DemonOverlord", "Ezio", "Floodgates", "Fluminator",
+         "ghug", "Glen_Alexander", "Hellenic Riot", "Kakarroto", "Maniac",
+         "MoscowFleet", "ND", "peterlund", "RagingIke297", % "Ragingike297",
+         "rdrivera2005",
+         "teacon7", "Tom Bombadil", "VashtaNeurotic", "Vecna", "WardenDresden",
+         "xorxes"]).
+
 -define(M26_Subs, ["WardenDresden", "Dargorygel", "Zorclex", "DemonRHK"]).
 
 -type year()   :: non_neg_integer().
@@ -156,7 +175,7 @@
 -define(b2ub(B), ?l2b(?b2ul(B))).
 
 -define(dl2phase(DL), mafia_lib:dl2phase(DL)).
-
+-define(phase_time2dl(Phase, Time), mafia_lib:phase_time2dl(Phase, Time)).
 -define(set(K, V), mafia_db:set(K, V)).
 -define(getv(K), mafia_db:getv(K)).
 

@@ -1,15 +1,11 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% - Add 3 DL schedule relative and in Game TZ.  1 day 24 hours 33 min
+%% - Next rewrite end_phase/2 as 2 commands, TEST it
 %% - fix switch command between games
+%% - GM command: XXX replaces YYY
 %% - fix a manual replace player fun
-%%    - implement GM command: XXX replaces YYY
-%% - GM orders :
-%%   - Phase END now (and possibly move deadline -24h)
-%%   - expand alias list
-%%   - Move current deadline, full 24 hours (local time)
-%%   - Move future deadline
+%% - GM command expand alias list (Manual exist already)
 
 %% - Call the Game Status generation from the gen_server also for html variants
 %%   when they are ready to be stored on file
@@ -20,7 +16,7 @@
 %% - Display msgs since last login with a browser (cookie)
 %% - be DAY/NIGHT sensitive when reading "Day/night ... has ended early"
 %% ToDo:
-%% - Use new DL calc and remove old calculation
+%% - Use new DL calc and remove old calculation NEW: "get_some_extra_dls"
 %% ***** - define deadline() :: {phase(), secs1970()} and change at all places.
 %% - Fix proper server on lundata - start at MacOS reboot
 %% - fix a better player name recognition in votes and deaths?
@@ -43,9 +39,12 @@
          setup_mnesia/0,
          remove_mnesia/0,
 
-         end_phase/2,
+         end_phase/1,
+         end_phase/2, %% deprecated
+         move_next_deadline/3,
          end_game/1,
          unend_game/1,
+
          kill_player/3,
          set_death_comment/3, %% deprecated
 
@@ -138,7 +137,6 @@ mafia:remove_alias(User, Alias) - Remove one alias
 
 Manual Commands
 ---------------
-mafia:end_phase(MsgId, NextDL) - NEEDS CHANGE to match GM commands
 mafia:end_phase(MsgId) - New version1
 mafia:move_next_deadline(MsgId, later | earlier, H | {H, M}) - Moves current
          deadline earlier or later. A deadline can not be moved into the past.
@@ -206,6 +204,36 @@ verify_users(m26) ->
 %% the game's local date and time given by the GM in the same message
 %% @end
 %% -----------------------------------------------------------------------------
+end_phase(MsgId) ->
+    case find_mess_game(MsgId) of
+        {ok, G, M} ->
+            Time = M#message.time,
+            ThId = M#message.thread_id,
+            case mafia_time:calculate_phase(G, Time) of
+                ?game_ended -> {?error, ?game_ended};
+                Phase ->
+                    Cmd = #cmd{time = Time,
+                               msg_id = MsgId,
+                               mfa = {mafia, end_phase, [MsgId]}},
+                    ?man(Time, Cmd),
+                    mafia_data:manual_cmd_to_file(ThId, Cmd),
+                    mafia_time:end_phase(G, Phase, Time)
+            end;
+        {?error, _} = E -> E
+    end.
+
+find_mess_game(MsgId) ->
+    case ?rmess(MsgId) of
+        [] -> {?error, msg_not_found};
+        [M] ->
+            ThId = M#message.thread_id,
+            case ?rgame(ThId) of
+                [] -> {?error, game_not_found};
+                [G] -> {ok, G, M}
+            end
+    end.
+
+%% OLD DEPRECATED - should call end_phase/1 and then
 %% Example: mafia:end_phase(1427098, {{2016, 12, 13}, {18,0,0}}).
 -spec end_phase(MsgId :: msg_id(),
                 TimeNextDL :: datetime()) -> ok.
@@ -219,6 +247,21 @@ end_phase(MsgId, TimeNextDL) ->
             ?man(M#message.time, Cmd),
             mafia_data:manual_cmd_to_file(M#message.thread_id, Cmd),
             mafia_time:end_phase(M, TimeNextDL)
+    end.
+
+
+%% -----------------------------------------------------------------------------
+%% @doc Move next and all following deadlines forward or backward in time
+%% keeping the day/night lengths
+%% @end
+%% -----------------------------------------------------------------------------
+-spec move_next_deadline(msg_id(), later|earlier, hour() | {hour(), minute()})
+                        -> term().
+move_next_deadline(MsgId, Direction, TimeDiff) ->
+    case find_mess_game(MsgId) of
+        {ok, G, M} ->
+            mafia_time:move_next_deadline(G, M, Direction, TimeDiff);
+        {?error, _} = E -> E
     end.
 
 %% -----------------------------------------------------------------------------
@@ -312,6 +355,13 @@ l() ->
      || M <- Beams2].
 
 %% Pre-check user list given by GM in initial game PM
+verify_new_user_list(26) ->
+    io:format("New--Old \"~s\"\n"
+              "Old--New \"~s\"\n",
+              [string:join(?M26_players -- ?M26_players_old, "\", \""),
+               string:join(?M26_players_old -- ?M26_players, "\", \"")]),
+    Users = ?M26_GMs ++ ?M26_players,
+    verify_new_user_list2(Users);
 verify_new_user_list(25) ->
     Users = ?M25_GMs ++ ?M25_players,
     verify_new_user_list2(Users);
@@ -325,18 +375,20 @@ verify_new_user_list2(Users) ->
          UserUB = ?l2ub(U),
          case mnesia:dirty_read(user, UserUB) of
              [] ->
-                 io:format("User ~p is new\n",[U]);
+                 io:format("User ~p does not exist\n",[U]);
              [#user{name = UserB,
                     verification_status = Ver}] ->
-                 io:format("User ~p exist with correct case "
+                 io:format("User ~p exists with correct case "
                            "and is ~p\n", [U, Ver]);
              [#user{name = UserB2,
                     verification_status = Ver}] ->
-                 io:format("User exist with incorrect case. "
-                           "Correct is ~p and it is ~p\n", [?b2l(UserB2), Ver])
+                 io:format("User ~p exists but has incorrect case. "
+                           "Correct case is ~p and is ~p\n",
+                           [U, ?b2l(UserB2), Ver])
          end
      end
-     || U <- Users].
+     || U <- Users],
+    done.
 
 %% Seems to be unused
 -spec set_thread_id(ThId :: integer())  -> ok.

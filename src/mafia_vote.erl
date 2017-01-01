@@ -8,6 +8,11 @@
          kill_player/4
         ]).
 
+%% debug
+-export([check_for_early_end/3,
+         find_early_end/1,
+         find_deadline_move/1]).
+
 -include("mafia.hrl").
 
 %% -----------------------------------------------------------------------------
@@ -54,17 +59,21 @@ log_unallowed_msg(Type, M) ->
 check_for_gm_cmds(_S, M, G) ->
     MsgText = mafia_print:html2txt(?b2l(M#message.message)),
     G2 = check_for_deaths(MsgText, M, G),
+    G3 = check_for_early_end(MsgText, M#message.time, G2),
+    G4 = check_for_deadline_move(MsgText, M, G3),
+    G5 = check_for_player_replacement(MsgText, M, G4),
+    G6 = check_for_game_end(MsgText, M, G5),
 
     %% if time is 0 - 15 min after a deadline generate a history page
     Time = M#message.time,
-    {RelTimeSecs, DL} = mafia_time:nearest_deadline(G2, Time),
+    {RelTimeSecs, DL} = mafia_time:nearest_deadline(G6, Time),
     if RelTimeSecs >= 0,
        RelTimeSecs =< ?MAX_GM_DL_MINS * ?MinuteSecs ->
             mafia_web:regenerate_history(Time, DL);
        true ->
             ok
     end,
-    G2.
+    G6.
 
 check_for_deaths(Msg, M, G) ->
     %% find "has died" on line
@@ -239,6 +248,123 @@ is_last_non_letter(HStr) ->
 is_first_non_letter([]) -> true;
 is_first_non_letter([H|_]) ->
     lists:member(H, " ,.;:!\"#€%7&/()=+?´`<>-_\t\r\n").
+
+%% -----------------------------------------------------------------------------
+
+check_for_early_end(MsgText, Time, G) ->
+    case find_early_end(MsgText) of
+        {?error, _} -> G;
+        {ok, DoN} ->
+            case mafia_time:calculate_phase(G, Time) of
+                ?game_ended ->
+                    ?dbg("GM early end command for game that has ended"),
+                    G;
+                {_, DoN} = Phase ->
+                    mafia_time:end_phase(G, Phase, Time);
+                _ ->
+                    ?dbg({"GM early end command with wrong phase type", DoN}),
+                    G
+            end
+    end.
+
+-spec find_early_end(string()) -> {ok, ?day | ?night} | {?error, atom()}.
+find_early_end(MsgText) ->
+    SearchU1 = "ENDED EARLY",
+    case find_parts(MsgText, SearchU1) of
+        {0, _, _} -> {?error, no_early_end};
+        {_, HStr1, _TStr1} ->
+            SearchU2 = "DAY",
+            SearchU3 = "NIGHT",
+            case {find_parts(HStr1, SearchU2),
+                  find_parts(HStr1, SearchU3)} of
+                {{0, _, _}, {0, _, _}} ->
+                    {?error, no_phase_type};  %% no "DAY" or "NIGHT"
+                {Pos1, _Pos2} ->
+                    if element(1, Pos1) /= 0 ->
+                            {ok, ?day};
+                       true ->
+                            {ok, ?night}
+                    end
+            end
+    end.
+
+%% -----------------------------------------------------------------------------
+
+check_for_deadline_move(MsgText, M, G) ->
+    G3 = case find_deadline_move(MsgText) of
+             {found, DeltaSecs} ->
+                 {_, G2} = mafia_time:move_next_deadline(G, M, DeltaSecs),
+                 G2;
+             not_found -> G;
+             {?error, _} -> G
+         end,
+    G3.
+
+%% DEADLINE ... MOVED 24H LATER
+%% DEADLINE ... MOVED 24H EARLIER
+-spec find_deadline_move(string())
+                        -> {found, Secs :: integer()} |
+                           not_found |
+                           {?error, term()}.
+find_deadline_move(MsgText) ->
+    MsgTextU = ?l2u(MsgText),
+    Reg = "DEADLINE(.*)MOVED(.*)(LATER|EARLIER)",
+    case re:run(MsgTextU, Reg) of
+        nomatch -> not_found;
+        {match, Ms} ->
+            [_, _, TimeStr, Dir] = substr(MsgTextU, Ms),
+            Sign = case Dir of "LATER" -> +1; "EARLIER" -> -1 end,
+            case find_time(TimeStr) of
+                {?error, _} = E -> E;
+                {ok, D, H, M} ->
+                    Int =
+                        fun(I) when is_integer(I) -> I;
+                           (_) -> 0
+                        end,
+                    DeltaSecs =
+                        Sign * ((Int(D) * 24 + Int(H)) * 60 + Int(M)) * 60,
+                    {found, DeltaSecs}
+            end
+    end.
+
+find_time(Text) ->
+    TextU = ?l2u(Text),
+    RegDays = "^\\W+([0-9]+) *(DAYS?|D)",
+    {NumD, RestD} = find_expr(TextU, RegDays),
+    RegHours = "^\\W*([0-9]+) *(HOURS?|H)",
+    {NumH, RestH} = find_expr(RestD, RegHours),
+    RegMins = "^\\W*([0-9]+) *(MINUTES?|M)",
+    {NumM, RestM} = find_expr(RestH, RegMins),
+    RegEnd = "^\\W+$",
+    case re:run(RestM, RegEnd) of
+        nomatch -> {?error, bad_time};
+        _ -> {ok, NumD, NumH, NumM}
+    end.
+
+find_expr(Text, Reg) ->
+    case re:run(Text, Reg) of
+        {match, Matches} ->
+            {S, L} = hd(Matches),
+            Rest = string:substr(Text, S + L + 1),
+            [_, NumStr, _] = substr(Text, Matches),
+            {?l2i(NumStr), Rest};
+        nomatch ->
+            {not_found, Text}
+    end.
+
+substr(_Str, []) -> [];
+substr(Str, [{S, L}|SubStrs]) ->
+    [string:substr(Str, S+1, L) | substr(Str, SubStrs)].
+
+%% -----------------------------------------------------------------------------
+
+check_for_player_replacement(_MsgText, _M, G) -> G.
+
+%% -----------------------------------------------------------------------------
+
+check_for_game_end(_MsgText, _M, G) -> G.
+
+%% -----------------------------------------------------------------------------
 
 check_for_votes(_S, M, G) ->
     verify_user(M),

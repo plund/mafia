@@ -8,6 +8,7 @@
 
          rmessI/1,
          dl2phase/1,
+         phase_time2dl/2,
          all_msgids/1,
          all_msgids/2
         ]).
@@ -97,6 +98,9 @@ rgameI(ThId) ->
 
 dl2phase({?game_ended, _Time}) -> ?game_ended;
 dl2phase({Num, Don, _Time}) -> {Num, Don}.
+
+phase_time2dl(?game_ended, Time) -> {?game_ended, Time};
+phase_time2dl({Num, Don}, Time) -> {Num, Don, Time}.
 
 %% -----------------------------------------------------------------------------
 

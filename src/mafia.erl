@@ -1,7 +1,6 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% - Next rewrite end_phase/2 as 2 commands, TEST it
 %% - fix switch command between games
 %% - GM command: XXX replaces YYY
 %% - fix a manual replace player fun
@@ -217,7 +216,8 @@ end_phase(MsgId) ->
                                mfa = {mafia, end_phase, [MsgId]}},
                     ?man(Time, Cmd),
                     mafia_data:manual_cmd_to_file(ThId, Cmd),
-                    mafia_time:end_phase(G, Phase, Time)
+                    mafia_time:end_phase(G, Phase, Time),
+                    done
             end;
         {?error, _} = E -> E
     end.
@@ -237,16 +237,12 @@ find_mess_game(MsgId) ->
 %% Example: mafia:end_phase(1427098, {{2016, 12, 13}, {18,0,0}}).
 -spec end_phase(MsgId :: msg_id(),
                 TimeNextDL :: datetime()) -> ok.
-end_phase(MsgId, TimeNextDL) ->
+end_phase(MsgId, _TimeNextDL) ->
     case ?rmess(MsgId) of
         [] -> msg_not_found;
-        [M] ->
-            Cmd = #cmd{time = M#message.time,
-                       msg_id = MsgId,
-                       mfa = {mafia, end_phase, [MsgId, TimeNextDL]}},
-            ?man(M#message.time, Cmd),
-            mafia_data:manual_cmd_to_file(M#message.thread_id, Cmd),
-            mafia_time:end_phase(M, TimeNextDL)
+        [_] ->
+            end_phase(MsgId),
+            move_next_deadline(MsgId, earlier, 24)
     end.
 
 
@@ -260,7 +256,20 @@ end_phase(MsgId, TimeNextDL) ->
 move_next_deadline(MsgId, Direction, TimeDiff) ->
     case find_mess_game(MsgId) of
         {ok, G, M} ->
-            mafia_time:move_next_deadline(G, M, Direction, TimeDiff);
+            {Reply, _} =
+                mafia_time:move_next_deadline(G, M, Direction, TimeDiff),
+            if Reply == ok ->
+                    Cmd =
+                        #cmd{time = M#message.time,
+                             msg_id = MsgId,
+                             mfa = {mafia, move_next_deadline,
+                                    [MsgId, Direction, TimeDiff]}},
+                    ?man(M#message.time, Cmd),
+                    mafia_data:manual_cmd_to_file(M#message.thread_id, Cmd);
+               true ->
+                    ok
+            end,
+            Reply;
         {?error, _} = E -> E
     end.
 

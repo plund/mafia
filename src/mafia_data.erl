@@ -52,7 +52,8 @@
          utc_time :: seconds1970(),
          check_vote_fun :: function(),
          dl_time :: ?undefined | millisecs(),
-         do_refresh_msgs = false :: boolean()
+         do_refresh_msgs = false :: boolean(),
+         last_msg_time
         }).
 
 %% Download any thread
@@ -101,17 +102,19 @@ download(S) ->
 downl_web(GameKey) when is_integer(GameKey) ->
     downl_web(?rgame(GameKey));
 downl_web([]) -> ok;
-downl_web([G]) ->
+downl_web([G]) -> downl_web(G);
+downl_web(G = #mafia_game{}) ->
     GameKey = G#mafia_game.key,
     InitPage = G#mafia_game.page_to_read,
     Page = check_db(GameKey, InitPage),
     case download(#s{thread_id = GameKey,
-                     page_to_read = Page
+                     page_to_read = Page,
+                     last_msg_time = G#mafia_game.last_msg_time
                     }) of
         {ok, S2} ->
-            update_page_to_read(GameKey, S2#s.page_to_read);
+            update_page_to_read(GameKey, S2#s.page_to_read, S2#s.last_msg_time);
         {{error, _R}, S2} ->
-            update_page_to_read(GameKey, S2#s.page_to_read)
+            update_page_to_read(GameKey, S2#s.page_to_read, S2#s.last_msg_time)
     end,
     ok.
 
@@ -128,11 +131,13 @@ check_db(MsgIdF, ReadF, P, Start, [PageRec]) ->
     NextP = P + 1,
     check_db(MsgIdF, ReadF, NextP, Start, ReadF(NextP)).
 
-update_page_to_read(GameKey, PageToRead)
+update_page_to_read(GameKey, PageToRead, LastMsgTime)
   when is_integer(GameKey), is_integer(PageToRead) ->
     G = hd(?rgame(GameKey)),
-    if PageToRead /= G#mafia_game.page_to_read ->
-            mnesia:dirty_write(G#mafia_game{page_to_read = PageToRead});
+    if PageToRead /= G#mafia_game.page_to_read;
+       LastMsgTime /= G#mafia_game.last_msg_time ->
+            mnesia:dirty_write(G#mafia_game{page_to_read = PageToRead,
+                                            last_msg_time = LastMsgTime});
        true -> ok
     end.
 
@@ -220,7 +225,8 @@ refresh_votes(ThId, [G], PageFilter, Method) ->
             ok;
         {ThId, PageNum, MsgId} ->
             ?dbg({last_iter_msg_ref, ThId, PageNum, MsgId}),
-            update_page_to_read(ThId, PageNum)
+            M = hd(?rmess(MsgId)),
+            update_page_to_read(ThId, PageNum, M#message.time)
     end,
     mafia_web:update_current(),
     ok.
@@ -658,19 +664,18 @@ analyse_body(S, _User, _MsgId, Time, _Msg)
        };
 analyse_body(S, User, MsgId, Time, Msg) ->
     CheckVote = S#s.check_vote_fun,
-    %% We should MAYBE start use #message.is_deleted = true.
-    %% case ?rmess(MsgId) of
-    %%     Msgs when Msgs == [] orelse S#s.do_refresh_msgs ->
-    update_page_rec(S, MsgId),
-    MsgR = write_message_rec(S, MsgId, User, Time, Msg),
-    mafia_vote:verify_user(MsgR),
-    CheckVote(MsgR),
-    %% mafia_vote:check_for_vote(S, MsgR),
-    mafia_print:print_message_summary(MsgR),
-    %%     _ ->
-    %%         ok
-    %% end,
-    analyse_body(S).
+    LMT = S#s.last_msg_time,
+    S2 = if Time > LMT; LMT == ?undefined ->
+                 update_page_rec(S, MsgId),
+                 MsgR = write_message_rec(S, MsgId, User, Time, Msg),
+                 mafia_vote:verify_user(MsgR),
+                 CheckVote(MsgR),
+                 mafia_print:print_message_summary(MsgR),
+                 S#s{last_msg_time = Time};
+            true ->
+                 S
+         end,
+    analyse_body(S2).
 
 %% -----------------------------------------------------------------------------
 

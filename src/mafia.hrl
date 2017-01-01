@@ -283,12 +283,13 @@
          dst_changes,  %% DstChanges  % [{date_time(), IsDst::boolean()}]
          deadlines = [] :: [deadline()],
          gms,          %% set_kv(mafia_GMs, ["DemonRHK", "MoscowFleet"]),
-         players_orig :: [player()], %% set_kv(mafia_players, ?M24_players),
-         players_rem  :: [player()],
-         game_num = 24,
+         players_orig  :: [player()], %% set_kv(mafia_players, ?M24_players),
+         players_rem   :: [player()],
+         game_num      :: integer(),
          player_deaths :: [#death{}],
          page_to_read, %% set_kv(page_to_read, 1),
-         game_end :: ?undefined | {seconds1970(), msg_id()}
+         game_end :: ?undefined | {seconds1970(), msg_id()},
+         last_msg_time
         }).
 
 -record(user,

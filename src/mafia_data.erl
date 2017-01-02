@@ -170,6 +170,7 @@ refresh_messages(ThId) -> refresh_messages(ThId, true).
 -spec refresh_messages(ThId :: integer(), DoVotes :: boolean()) -> ok.
 refresh_messages(ThId, DoVotes) ->
     ?set(?page_to_read, 1),
+    mafia_db:write_default_table(game, ThId), %% to reset last_msg_time...
     %% Remove messages for msg_ids found in page_rec of thread
     MsgIdFun = fun(MsgId) -> mnesia:dirty_delete(message, MsgId) end,
     iterate_all_msg_ids(ThId, MsgIdFun, all),
@@ -717,7 +718,7 @@ analyse_body(S, _User, _MsgId, Time, _Msg)
 analyse_body(S, User, MsgId, Time, Msg) ->
     CheckVote = S#s.check_vote_fun,
     LMT = S#s.last_msg_time,
-    S2 = if Time > LMT; LMT == ?undefined ->
+    S2 = if Time >= LMT; LMT == ?undefined ->
                  update_page_rec(S, MsgId),
                  MsgR = write_message_rec(S, MsgId, User, Time, Msg),
                  mafia_vote:verify_user(MsgR),

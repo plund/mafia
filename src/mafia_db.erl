@@ -92,7 +92,7 @@ write_default_table(user) ->
 write_default_table(game, 26) ->
     io:format("Initializing Mafia Game M26\n", []),
     MGame = #mafia_game{
-      key = 'TO_BE_SET!!',
+      key = 'TO_BE_SET!!',     %%%  <------- SET THIS ONE HERE!!
       game_num = 26,
       name = <<"MAFIA XXVI: Wjessop Asylum for the Chronically Insane">>,
       day_hours = 48,
@@ -100,11 +100,12 @@ write_default_table(game, 26) ->
       time_zone = 0,
       day1_dl_time = {{2017,1,5},{23,0,0}},
       is_init_dst = false,
+      %% EU 2017
       dst_changes = [{{{2017,3,26},{2,0,0}}, true},
-                     {{{2017,10,29},{2,0,0}}, true}],
-      gms = [<<"Jamiet99uk">>, <<"Chaqa">>],
-      %% players_orig = to_bin(?M26_players),
-      %% players_rem = to_bin(?M26_players),
+                     {{{2017,10,29},{2,0,0}}, false}],
+      gms = to_bin(?M26_GMs),
+      players_orig = to_bin(?M26_players),
+      players_rem = to_bin(?M26_players),
       player_deaths = [],
       page_to_read = 1
      },

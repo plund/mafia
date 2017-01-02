@@ -16,7 +16,10 @@
 -include("mafia.hrl").
 
 %% -----------------------------------------------------------------------------
-
+%% Returns ignore when #message or #mafia_game cannot be found
+%% -----------------------------------------------------------------------------
+-spec check_for_vote(MsgId :: integer() | #message{})
+                    -> MsgTime :: seconds1970() | ignore.
 check_for_vote(MsgId) -> check_for_vote(unused_state, MsgId).
 
 check_for_vote(S, MsgId) when is_integer(MsgId) ->
@@ -47,7 +50,7 @@ check_for_vote(S, M, G = #mafia_game{}) ->
        true ->
             ignore
     end,
-    ok.
+    M#message.time.
 
 log_unallowed_msg(Type, M) ->
     MTime = M#message.time,

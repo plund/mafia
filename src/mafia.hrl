@@ -107,6 +107,15 @@
          "teacon7", "Chaqa", "WardenDresden", "xorxes", "Vecna", "rdrivera2005",
          "Glen_Alexander", "Jamiet99uk", "Maniac", "dargorygel", "zorclex"]).
 -define(M26_GMs, ["Jamiet99uk", "Chaqa"]).
+-define(M26_players,
+        ["arj11", "Balki Bartokomous", % "BalkiBartokomous",
+         "bo_sox48", "brainbomb", "captainmeme", %"CaptainMeme",
+         "DeathLlama8", "DemonOverlord", "Ezio", "Floodgates", "Fluminator",
+         "ghug", "Glen_Alexander", "Hellenic Riot", "Kakarroto", "Maniac",
+         "MoscowFleet", "ND", "peterlund", "RagingIke297", % "Ragingike297",
+         "rdrivera2005",
+         "teacon7", "Tom Bombadil", "VashtaNeurotic", "Vecna", "WardenDresden",
+         "xorxes"]).
 -define(M26_players_old,
         ["Ezio", "peterlund", "brainbomb", "bo_sox48", "DemonOverlord", "ND",
          "Tom Bombadil",
@@ -118,16 +127,6 @@
          "Maniac", "Kakarroto", "DeathLlama8", "rdrivera2005", "arj11", "ghug",
          "teacon7", "Hellenic Riot", "Glen_Alexander", "CaptainMeme",
          "Reedeer1", "Vecna"]).
-
--define(M26_players,
-        ["arj11", "Balki Bartokomous", % "BalkiBartokomous",
-         "bo_sox48", "brainbomb", "captainmeme", %"CaptainMeme",
-         "DeathLlama8", "DemonOverlord", "Ezio", "Floodgates", "Fluminator",
-         "ghug", "Glen_Alexander", "Hellenic Riot", "Kakarroto", "Maniac",
-         "MoscowFleet", "ND", "peterlund", "RagingIke297", % "Ragingike297",
-         "rdrivera2005",
-         "teacon7", "Tom Bombadil", "VashtaNeurotic", "Vecna", "WardenDresden",
-         "xorxes"]).
 
 -define(M26_Subs, ["WardenDresden", "Dargorygel", "Zorclex", "DemonRHK"]).
 

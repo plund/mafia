@@ -1,6 +1,13 @@
 
 Procedure Changing game M25 -> M24
 ---------
+8. mafia_db:write_default_table(game, 25). % game_end was 'false' (not ok)
+2. mafia_db:set(game_key, M25).
+4. mafia_db:set(thread_id, M25).   %% IMPORTANT
+3. mafia_db:set(page_to_read, 1).
+5. mafia_web:stop().   %% These two to set the #state.game_key
+6. mafia_web:start().
+
 1. mafia_web:stop_polling().
 2. mafia_db:set(game_key, M24).
 3. mafia_db:set(page_to_read, 1).

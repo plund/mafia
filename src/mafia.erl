@@ -2,8 +2,11 @@
 
 -include("mafia.hrl").
 %% - fix switch command between games
-%% - GM command: XXX replaces YYY
+%% - add unend_phase putting previous phase correct number hours (48/24) later
+%%   than now
 %% - fix a manual replace player fun
+%% - GM command: XXX replaces YYY
+%% - align new deadlines to next full minute.
 %% - GM command expand alias list (Manual exist already)
 
 %% - Call the Game Status generation from the gen_server also for html variants

@@ -103,15 +103,9 @@ pps(Page) when is_integer(Page) ->
     ThId = ?getv(?thread_id),
     pps(ThId, Page).
 
-th(Th) when is_atom(Th) ->
-    case lists:keyfind(Th, 1, ?getv(?reg_threads)) of
-        {_, Id} ->
-            io:format("Translating ~p to ~p\n", [Th, Id]),
-            Id;
-        false -> ?undefined
-    end;
+th(GN) when is_atom(GN) ->
+    th(mafia_lib:gamename_to_thid(GN));
 th(Th) when is_integer(Th) -> Th.
-
 
 pps(ThId0, Page) ->
     ThId = th(ThId0),

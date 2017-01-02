@@ -1,10 +1,9 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% - fix switch command between games
+%% - fix a manual replace player fun
 %% - add unend_phase putting previous phase correct number hours (48/24) later
 %%   than now
-%% - fix a manual replace player fun
 %% - GM command: XXX replaces YYY
 %% - align new deadlines to next full minute.
 %% - GM command expand alias list (Manual exist already)
@@ -46,6 +45,7 @@
          move_next_deadline/3,
          end_game/1,
          unend_game/1,
+         switch_to_game/1,
 
          kill_player/3,
          set_death_comment/3, %% deprecated
@@ -114,20 +114,22 @@ mafia:stop_polling()   - Stop regular polling of source
 mafia:start_polling()  - Start regular polling of source
 mafia:state()          - Get gen_server state.
 
+mafia:switch_to_game(GN) - GN = m25 | thread_id()
 mafia:refresh_votes()  - Clear mafia_day and mafia_game and reread all"
 " messages.
 mafia:refresh_votes({upto, PageNum}) - clear data and reread messages upto and
          including the page given.
 mafia:refresh_votes(hard) - reinitialize also the mafia_game record.
 
-mafia:pps()           - last page in current game
-mafia:pps(ThId)       -
-mafia:pps(ThId, Page) -
-mafia:pm(MsgId)       -
-mafia:print_votes()   - Current status
+mafia:pps()          - Display last message page in current game
+mafia:pps(Page)      - Display message page in current game
+mafia:pps(Game,Page) - Display message page in game
+mafia:pm(MsgId)      - Display one complete message
+mafia:print_votes()  - Current status
 
-mafia_time:show_time_offset()
-mafia_time:set_time_offset(Offset) - do a refresh_votes() after set
+mafia_time:show_time_offset()   - Display offset
+mafia_time:set_time_offset(Off) - Change the time offset
+         do a refresh_votes() after changing offset
          Offset = Secs | {msg_id, MsgId} | {days_hours, Days, Hours})
 
 mafia:show_all_users()          - List primary keys in User DB
@@ -139,12 +141,14 @@ mafia:remove_alias(User, Alias) - Remove one alias
 
 Manual Commands
 ---------------
-mafia:end_phase(MsgId) - New version1
-mafia:move_next_deadline(MsgId, later | earlier, H | {H, M}) - Moves current
-         deadline earlier or later. A deadline can not be moved into the past.
-mafia:end_game(MsgId) - Ends the game with the given msg_id
-mafia:kill_player(MsgId, Player, Comment) - Player name must be exact.
-         NEEDS to ALSO kill the player given.
+mafia:end_phase(MsgId) - Ends current phase.
+mafia:move_next_deadline(MsgId, Dir, Time) - Moves next deadline
+         earlier or later. A deadline can not be moved into the past.
+         Dir = later | earlier
+         Time = H | {H, M}
+mafia:end_game(MsgId)   - Ends the game with the given msg_id
+mafia:unend_game(MsgId) - Unend game
+mafia:kill_player(MsgId, Player, Comment) - Kill a player
 mafia:replace_player(MsgId, OldPlayer, NewPlayer) - NEEDS IMPL! New is
          replacing old in game. Exact names! Both must exist in user DB.
 ").
@@ -166,7 +170,7 @@ pp() -> mafia_print:pp().
 pp(Page) -> mafia_print:pp(Page).
 pp(ThId, Page) -> mafia_print:pp(ThId, Page).
 pps() -> mafia_print:pps().
-pps(ThId) -> mafia_print:pps(ThId).
+pps(Page) -> mafia_print:pps(Page).
 pps(ThId, Page) -> mafia_print:pps(ThId, Page).
 print_votes() -> mafia_print:print_votes().
 print_votes(DayNum) -> mafia_print:print_votes(DayNum).
@@ -200,6 +204,26 @@ verify_users(m26) ->
     [mafia_vote:print_verify_user(U)
      || U <- ?M26_GMs ++ ?M26_players ++ ?M26_Subs],
     ok.
+
+%% -----------------------------------------------------------------------------
+%% @doc Switch to other game and reread all info
+%% @end
+%% -----------------------------------------------------------------------------
+-spec switch_to_game(GameId :: atom() | thread_id()) -> term().
+switch_to_game(?undefined) -> no_reg_game_name;
+switch_to_game(GN) when is_atom(GN) ->
+    switch_to_game(mafia_lib:gamename_to_thid(GN));
+switch_to_game(ThId) ->
+    mafia_db:write_default_table(game, ThId),
+    ?set(game_key, ThId),
+    ?set(thread_id, ThId),
+    ?set(page_to_read, 1),
+    %% These two to set the #state.game_key
+    mafia:stop(),
+    timer:sleep(100),
+    mafia:start(),
+    timer:sleep(100),
+    mafia:refresh_votes().
 
 %% -----------------------------------------------------------------------------
 %% @doc End current phase with GM message and set next phase at

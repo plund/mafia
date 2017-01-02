@@ -5,10 +5,12 @@
          rpage/2,
          rday/2,
          rgame/1,
-
          rmessI/1,
+
+         gamename_to_thid/1,
          dl2phase/1,
          phase_time2dl/2,
+
          all_msgids/1,
          all_msgids/2
         ]).
@@ -93,6 +95,20 @@ rgame(ThId) ->
 
 rgameI(ThId) ->
     mnesia:dirty_read(mafia_game, ThId).
+
+%% -----------------------------------------------------------------------------
+
+gamename_to_thid(GN) when is_atom(GN) ->
+    case ?getv(?reg_threads) of
+        ?undefined -> ?undefined;
+        Regs ->
+            case lists:keyfind(GN, 1, Regs) of
+                {_, ThId} ->
+                    io:format("Translating ~p to ~p\n", [GN, ThId]),
+                    ThId;
+                false -> ?undefined
+            end
+    end.
 
 %% -----------------------------------------------------------------------------
 

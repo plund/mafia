@@ -94,7 +94,7 @@ download(S) ->
             S3 = analyse_body(S2),
             if not S3#s.is_last_page ->
                     if not S3#s.body_on_file ->
-                            sleep(10000);
+                            timer:sleep(10000);
                        true -> ok
                     end,
                     download(S3);
@@ -160,9 +160,6 @@ update_page_to_read(GameKey, PageToRead, LastMsgTime)
                                             last_msg_time = LastMsgTime});
        true -> ok
     end.
-
-sleep(MilliSecs) ->
-    receive after MilliSecs -> ok end.
 
 refresh_messages() -> refresh_messages(?game_key).
 

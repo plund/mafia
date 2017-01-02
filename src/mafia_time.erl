@@ -255,7 +255,7 @@ end_phase(G, Phase, Time, false) ->
     G2 = G#mafia_game{deadlines = NewDLs},
     mnesia:dirty_write(G2),
     G2;
-end_phase(G, _Phase, _Time, true) ->
+end_phase(G, _Phase, _Time, _DL) ->
     %%already_inserted.
     G.
 

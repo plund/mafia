@@ -220,10 +220,10 @@ switch_to_game(ThId) ->
     ?set(page_to_read, 1),
     %% These two to set the #state.game_key
     mafia:stop(),
-    timer:sleep(100),
+    timer:sleep(1000),
     mafia:start(),
-    timer:sleep(100),
-    mafia:refresh_votes().
+    timer:sleep(4000),
+    mafia:refresh_votes(hard).
 
 %% -----------------------------------------------------------------------------
 %% @doc End current phase with GM message and set next phase at

@@ -717,18 +717,17 @@ analyse_body(S, _User, _MsgId, Time, _Msg)
        };
 analyse_body(S, User, MsgId, Time, Msg) ->
     CheckVote = S#s.check_vote_fun,
-    LMT = S#s.last_msg_time,
-    S2 = if Time >= LMT; LMT == ?undefined ->
-                 update_page_rec(S, MsgId),
+    S2 = case update_page_rec(S, MsgId) of
+             ?unchanged ->
+                 S;
+             A when A == ?new_page; A== ?add_id ->
                  MsgR = write_message_rec(S, MsgId, User, Time, Msg),
                  mafia_vote:verify_user(MsgR),
                  if is_function(CheckVote) -> CheckVote(MsgR);
                     true -> ok
                  end,
                  mafia_print:print_message_summary(MsgR),
-                 S#s{last_msg_time = Time};
-            true ->
-                 S
+                 S#s{last_msg_time = Time}
          end,
     analyse_body(S2).
 
@@ -764,25 +763,31 @@ read_to_before(Str, Search) ->
 
 %% -----------------------------------------------------------------------------
 
-%% Data base stuff?
+-spec update_page_rec(#s{}, msg_id()) -> ?new_page | ?add_id | ?unchanged.
 update_page_rec(S, MsgIdInt) ->
-    PageRec =
+    {Action, PageRec} =
         case ?rpage(S#s.thread_id, S#s.page_last_read) of
-            [] -> #page_rec{key = {S#s.thread_id, S#s.page_last_read},
-                            message_ids = [MsgIdInt],
-                            thread_id = S#s.thread_id,
-                            complete = false};
+            [] -> {?new_page,
+                   #page_rec{key = {S#s.thread_id, S#s.page_last_read},
+                             message_ids = [MsgIdInt],
+                             thread_id = S#s.thread_id,
+                             complete = false}};
             [P = #page_rec{message_ids = MsgIds, complete = Comp}] ->
+                IsMember = lists:member(MsgIdInt, MsgIds),
                 MsgIds2 = MsgIds ++
-                    case lists:member(MsgIdInt, MsgIds) of
+                    case IsMember of
                         false -> [MsgIdInt];
                         true -> []
                     end,
+                Act = if IsMember -> ?unchanged;
+                         not IsMember -> ?add_id
+                      end,
                 Comp2 = Comp orelse not S#s.is_last_page,
-                P#page_rec{message_ids = MsgIds2,
-                           complete = Comp2}
+                {Act, P#page_rec{message_ids = MsgIds2,
+                                 complete = Comp2}}
         end,
-    mnesia:dirty_write(PageRec).
+    mnesia:dirty_write(PageRec),
+    Action.
 
 write_message_rec(S, MsgIdInt, User, Time, Msg) ->
     mnesia:dirty_write(

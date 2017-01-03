@@ -4,6 +4,9 @@
 -define(ok, ok).
 -define(error, error).
 -define(dummy, dummy).
+-define(new_page, new_page).
+-define(add_id, add_id).
+-define(unchanged, unchanged).
 
 -define(kv_store, kv_store).
 -define(day  , day__).

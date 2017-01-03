@@ -111,11 +111,12 @@ write_game({GName, ThId}) ->
     end.
 
 get_game_rec(m26) ->
+    %% Game Thread 1432756
     %% M26 signup threadid = 1429158
     io:format("Initializing Mafia Game M26\n", []),
     _ = #mafia_game{
       game_num = 26,
-      name = <<"MAFIA XXVI: Wjessop Asylum for the Chronically Insane">>,
+      name = <<"MAFIA XXVI: W. Jessop Asylum for the Chronically Insane">>,
       day_hours = 48,
       night_hours = 24,
       time_zone = 0,

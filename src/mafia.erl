@@ -1,8 +1,6 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% - add unend_phase putting previous phase correct number hours (48/24) later
-%%   than now
 %% - GM command: XXX replaces YYY
 %% - align new deadlines to next full minute.
 %% - GM command expand alias list (Manual exist already)
@@ -42,6 +40,7 @@
 
          game_start/2,
          end_phase/1,
+         unend_phase/1,
          end_phase/2, %% deprecated
          move_next_deadline/3,
          end_game/1,
@@ -145,7 +144,8 @@ mafia:remove_alias(User, Alias) - Remove one alias
 
 Manual Commands
 ---------------
-mafia:end_phase(MsgId) - Ends current phase.
+mafia:end_phase(MsgId)   - Ends current phase.
+mafia:unend_phase(MsgId) - Remove early end of this last phase
 mafia:move_next_deadline(MsgId, Dir, Time) - Moves next deadline
          earlier or later. A deadline can not be moved into the past.
          Dir = later | earlier
@@ -279,6 +279,23 @@ end_phase(MsgId) ->
             end;
         {?error, _} = E -> E
     end.
+
+%% - add unend_phase putting previous phase correct number hours (48/24) later
+%%   than now
+unend_phase(MsgId) ->
+    case find_mess_game(MsgId) of
+        {ok, G, M} ->
+            Time = M#message.time,
+            ThId = M#message.thread_id,
+            Cmd = #cmd{time = Time,
+                       msg_id = MsgId,
+                       mfa = {mafia, end_phase, [MsgId]}},
+            ?man(Time, {'UNDO', Cmd}),
+            mafia_file:manual_cmd_from_file(ThId, Cmd),
+            mafia_time:unend_phase(G, M);
+        {?error, _} = E -> E
+    end.
+
 
 find_mess_game(MsgId) ->
     case ?rmess(MsgId) of

@@ -22,6 +22,7 @@
          timer_minutes/1,
 
          end_phase/3,
+         unend_phase/2,
          move_next_deadline/3,
          move_next_deadline/4,
          end_game/1,
@@ -261,6 +262,25 @@ end_phase(G, Phase, Time, false) ->
 end_phase(G, _Phase, _Time, _DL) ->
     %%already_inserted.
     G.
+
+unend_phase(G, M) ->
+    MsgTime = M#message.time,
+    DLs = G#mafia_game.deadlines,
+    %% remove all DLs downto MsgTime, leave
+    DLs2 = lists:dropwhile(fun({_, _, Time}) -> Time >= MsgTime end, DLs),
+    %% Depending on top
+    NewDLs =
+        case DLs2 of
+            [] -> %% reset first from start
+                expand_deadlines(G#mafia_game{deadlines = []});
+            _ ->
+                %%[EndDL|DLs] = G#mafia_game.deadlines,
+                TargetTime = utc_secs1970() + 11 * ?DaySecs,
+                get_some_extra_dls(G, DLs2, TargetTime)
+        end,
+    G2 = G#mafia_game{deadlines = NewDLs},
+    mnesia:dirty_write(G2),
+    ok.
 
 change_dl_time(OldDLs, Phase, Time) ->
     NewDL = ?phase_time2dl(Phase, Time),

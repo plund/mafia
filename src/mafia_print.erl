@@ -81,8 +81,11 @@ pp(Page) ->
     ThId = ?getv(?thread_id),
     pp(ThId, Page).
 
-pp(ThId0, Page) ->
-    ThId = th(ThId0),
+pp(Id, Page) ->
+    ppI(?thid(Id), Page).
+
+ppI(E = {?error, _}, _Page) -> E;
+ppI(ThId, Page) ->
     %% Select MsgIds here
     MsgIds = msgids(ThId, Page),
     print_page(ThId, MsgIds, fun print_message_full/1).
@@ -103,12 +106,11 @@ pps(Page) when is_integer(Page) ->
     ThId = ?getv(?thread_id),
     pps(ThId, Page).
 
-th(GN) when is_atom(GN) ->
-    th(mafia_lib:gamename_to_thid(GN));
-th(Th) when is_integer(Th) -> Th.
+pps(Id, Page) ->
+    ppsI(?thid(Id), Page).
 
-pps(ThId0, Page) ->
-    ThId = th(ThId0),
+ppsI(E = {?error, _}, _Page) -> E;
+ppsI(ThId, Page) ->
     %% Select MsgIds here
     MsgIds = msgids(ThId, Page),
 

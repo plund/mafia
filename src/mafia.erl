@@ -1,7 +1,6 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% - fix a manual replace player fun
 %% - add unend_phase putting previous phase correct number hours (48/24) later
 %%   than now
 %% - GM command: XXX replaces YYY
@@ -46,7 +45,9 @@
          end_game/1,
          unend_game/1,
          switch_to_game/1,
+         switch_to_game/2,
 
+         replace_player/3,
          kill_player/3,
          set_death_comment/3, %% deprecated
 
@@ -198,7 +199,7 @@ rday(ThId, DayNum) -> ?rday(ThId, DayNum).
 
 rgame(?game_key = K) -> ?rgame(?getv(K));
 rgame(?thread_id = K) -> ?rgame(?getv(K));
-rgame(K) -> ?rgame(K).
+rgame(Id) -> ?rgame(?thid(Id)).
 
 verify_users(m26) ->
     [mafia_vote:print_verify_user(U)
@@ -210,19 +211,31 @@ verify_users(m26) ->
 %% @end
 %% -----------------------------------------------------------------------------
 -spec switch_to_game(GameId :: atom() | thread_id()) -> term().
-switch_to_game(?undefined) -> no_reg_game_name;
-switch_to_game(GN) when is_atom(GN) ->
-    switch_to_game(mafia_lib:gamename_to_thid(GN));
-switch_to_game(ThId) ->
+switch_to_game(Id) ->
+    switch_to_gameI(?thid(Id), normal).
+
+switch_to_game(Id, Method) ->
+    switch_to_gameI(?thid(Id), Method).
+
+%% -----------------------------------------------------------------------------
+
+switch_to_gameI({?error, _} = E, _) -> E;
+switch_to_gameI(ThId, normal) ->
+    ?set(game_key, ThId),
+    ?set(thread_id, ThId),
+    ?set(page_to_read, 1),
+    mafia:stop(),
+    mafia:start();
+switch_to_gameI(ThId, hard) -> %% Should always work
     mafia_db:write_default_table(game, ThId),
     ?set(game_key, ThId),
     ?set(thread_id, ThId),
     ?set(page_to_read, 1),
     %% These two to set the #state.game_key
     mafia:stop(),
-    timer:sleep(1000),
+    timer:sleep(2000),
     mafia:start(),
-    timer:sleep(4000),
+    timer:sleep(5000),
     mafia:refresh_votes(hard).
 
 %% -----------------------------------------------------------------------------
@@ -242,7 +255,7 @@ end_phase(MsgId) ->
                                msg_id = MsgId,
                                mfa = {mafia, end_phase, [MsgId]}},
                     ?man(Time, Cmd),
-                    mafia_data:manual_cmd_to_file(ThId, Cmd),
+                    mafia_file:manual_cmd_to_file(ThId, Cmd),
                     mafia_time:end_phase(G, Phase, Time),
                     done
             end;
@@ -292,7 +305,7 @@ move_next_deadline(MsgId, Direction, TimeDiff) ->
                              mfa = {mafia, move_next_deadline,
                                     [MsgId, Direction, TimeDiff]}},
                     ?man(M#message.time, Cmd),
-                    mafia_data:manual_cmd_to_file(M#message.thread_id, Cmd);
+                    mafia_file:manual_cmd_to_file(M#message.thread_id, Cmd);
                true ->
                     ok
             end,
@@ -315,7 +328,7 @@ end_game(MsgId) ->
                        msg_id = MsgId,
                        mfa = {mafia, end_game, [MsgId]}},
             ?man(Time, Cmd),
-            mafia_data:manual_cmd_to_file(ThId, Cmd),
+            mafia_file:manual_cmd_to_file(ThId, Cmd),
             mafia_time:end_game(M)
     end.
 
@@ -334,8 +347,43 @@ unend_game(MsgId) ->
                        msg_id = MsgId,
                        mfa = {mafia, end_game, [MsgId]}},
             ?man(Time, {'UNDO', Cmd}),
-            mafia_data:manual_cmd_from_file(ThId, Cmd),
+            mafia_file:manual_cmd_from_file(ThId, Cmd),
             mafia_time:unend_game(M)
+    end.
+
+%% -----------------------------------------------------------------------------
+%% @doc Read the GM message and add good comment about who the dead player was.
+%% @end
+%% -----------------------------------------------------------------------------
+-spec replace_player(MsgId :: msg_id(),
+                     OldPlayer :: string(),
+                     NewPlayer :: string()) -> term().
+replace_player(MsgId, OldPlayer, NewPlayer) ->
+    case find_mess_game(MsgId) of
+        {ok, G, M} ->
+            OldPlayU = ?l2b(OldPlayer),
+            case lists:member(OldPlayU, G#mafia_game.players_orig) of
+                true ->
+                    NewPlayU = ?l2b(NewPlayer),
+                    Repl = fun(PlayU) when PlayU == OldPlayU -> NewPlayU;
+                              (PlayU) -> PlayU
+                           end,
+                    NewPlayOri = [Repl(P) || P <- G#mafia_game.players_orig],
+                    NewPlayRem = [Repl(P) || P <- G#mafia_game.players_rem],
+                    mnesia:dirty_write(G#mafia_game{players_orig = NewPlayOri,
+                                                    players_rem = NewPlayRem}),
+                    Cmd =
+                        #cmd{time = M#message.time,
+                             msg_id = MsgId,
+                             mfa = {mafia, replace_player,
+                                    [MsgId, OldPlayer, NewPlayer]}},
+                    ?man(M#message.time, Cmd),
+                    mafia_file:manual_cmd_to_file(M#message.thread_id, Cmd),
+                    ok;
+                false ->
+                    old_player_not_in_game
+            end;
+        {?error, _} = E -> E
     end.
 
 %% -----------------------------------------------------------------------------
@@ -358,7 +406,7 @@ kill_player(MsgId, Player, Comment) ->
             case kill_playerI(?rgame(ThId), M, Player, Comment) of
                 {ok, DeathPhase} ->
                     ?man(Time, Cmd),
-                    mafia_data:manual_cmd_to_file(ThId, Cmd),
+                    mafia_file:manual_cmd_to_file(ThId, Cmd),
                     mafia_web:regenerate_history(M#message.time, DeathPhase),
                     {player_killed, DeathPhase};
                 Other -> Other

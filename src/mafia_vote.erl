@@ -2,7 +2,8 @@
 
 -export([check_for_vote/1,
          check_for_vote/2,
-         verify_user/1,
+         verify_msg_user/1,
+         check_user/1,
          print_verify_user/1,
 
          kill_player/4
@@ -370,7 +371,7 @@ check_for_game_end(_MsgText, _M, G) -> G.
 %% -----------------------------------------------------------------------------
 
 check_for_votes(_S, M, G) ->
-    verify_user(M),
+    verify_msg_user(M),
     Msg = ?b2l(M#message.message),
     MsgUC = string:to_upper(Msg),
     Players = G#mafia_game.players_rem,
@@ -443,19 +444,20 @@ reg_end_vote(Op, M) ->
 
 %% -----------------------------------------------------------------------------
 
-verify_user(M = #message{user_name = User}) ->
+verify_msg_user(M = #message{user_name = User}) ->
     CheckRes = check_user(User),
     case CheckRes of
-        ok -> ok;
-        {user_new, UserRec} ->
+        ?dbuser_ok -> ok;
+        {?dbuser_none, UserRec} ->
             io:format(
               "~s Warning: created new user ~p\n",
               [mafia_print:print_time(M#message.time, short), User]),
-            mnesia:dirty_write(UserRec);
-        {user_game, _UserRec} ->
+            mnesia:dirty_write(
+              UserRec#user{verification_status = ?verified});
+        {?dbuser_wrong_case, _UserRec} ->
             auto_correct_case(?b2l(User), M#message.thread_id);
-        {user, UserRec} ->
-            mnesia:dirty_write(UserRec)
+        {?dbuser_unver, UserRec} ->
+            mnesia:dirty_write(UserRec#user{verification_status = ?verified})
     end.
 
 -spec print_verify_user(string()) -> ok.
@@ -463,33 +465,33 @@ print_verify_user(User) ->
     CheckRes = check_user(?l2b(User)),
     io:format("User name \"~s\" ", [User]),
     case CheckRes of
-        ok -> io:format("is ok\n", []);
-        {user, _} -> io:format("is unverified\n", []);
-        {user_game, _} -> io:format("has wrong case\n", []);
-        {user_new, _} -> io:format("does not exist\n", [])
+        ?dbuser_ok -> io:format("is ok\n", []);
+        {?dbuser_unver, _} -> io:format("is unverified\n", []);
+        {?dbuser_wrong_case, _} -> io:format("has wrong case\n", []);
+        {?dbuser_none, _} -> io:format("does not exist\n", [])
     end.
 
+%% checks the user name
 -spec check_user(User :: user())
-                -> ok |                   % found ok
-                   {user, #user{}} |      % found unverified
-                   {user_game, #user{}} | % wrong case
-                   {user_new, #user{}}.   % did not find
+                -> ?dbuser_ok |                    % found ok
+                   {?dbuser_unver, #user{}} |      % found unverified
+                   {?dbuser_wrong_case, #user{}} | % wrong case
+                   {?dbuser_none, #user{}}.        % did not find
 check_user(User) ->
     UserU = ?b2ub(User),
     case mnesia:dirty_read(user, UserU) of
         [#user{verification_status = ?verified}] ->
-            ok;
-        [#user{name = User} = U] -> %% found unverified user
-            {user, U#user{verification_status = ?verified}};
-        [#user{} = U] ->  %% found wrong case
-            {user_game,
+            ?dbuser_ok;
+        [#user{name = User} = U] -> %% found correct but unverified user
+            {?dbuser_unver, U};
+        [#user{} = U] ->            %% found user with wrong case
+            {?dbuser_wrong_case,
              U#user{name = User,
                     verification_status = ?verified}};
-        [] -> %% user not found
-            {user_new, #user{name_upper = ?b2ub(User),
-                             name = User,
-                             aliases = [],
-                             verification_status = ?verified}}
+        [] ->                       %% user not found
+            {?dbuser_none, #user{name_upper = ?b2ub(User),
+                                 name = User,
+                                 aliases = []}}
     end.
 
 %% -----------------------------------------------------------------------------

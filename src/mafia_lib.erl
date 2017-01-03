@@ -7,6 +7,7 @@
          rgame/1,
          rmessI/1,
 
+         thid/1,
          gamename_to_thid/1,
          dl2phase/1,
          phase_time2dl/2,
@@ -97,6 +98,15 @@ rgameI(ThId) ->
     mnesia:dirty_read(mafia_game, ThId).
 
 %% -----------------------------------------------------------------------------
+
+thid(ThId) when is_integer(ThId) ->
+    ThId;
+thid(GN) when is_atom(GN) ->
+    case gamename_to_thid(GN) of
+        ThId when is_integer(ThId) ->
+            ThId;
+        ?undefined -> {?error, ?undefined}
+    end.
 
 gamename_to_thid(GN) when is_atom(GN) ->
     case ?getv(?reg_threads) of

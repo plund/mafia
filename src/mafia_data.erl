@@ -26,10 +26,8 @@
 -export([update_stat/1,
          compress_txt_files/0,
          grep/1, grep/2,
-         iterate_all_msgs/2,
+         iterate_all_msgs/2
          %%iterate_all_msg_ids/3,
-         manual_cmd_to_file/2,
-         manual_cmd_from_file/2
         ]).
 
 -include("mafia.hrl").
@@ -599,36 +597,6 @@ th_filenames_read(S) ->
 th_filenames_store(S) ->
     mafia_file:th_filenames(S#s.thread_id, S#s.page_last_read).
 
-manual_cmd_to_file(ThId, Cmd) ->
-    FN = mafia_file:cmd_filename(ThId),
-    DoAppend =
-        case file:consult(FN) of
-            {error, enoent} -> true;
-            {ok, CmdsOnFile} ->
-                not lists:member(Cmd, CmdsOnFile)
-        end,
-    if DoAppend ->
-            {ok, Fd} = file:open(FN, [append]),
-            io:format(Fd, "~999p.\n", [Cmd]),
-            file:close(Fd);
-       not DoAppend -> ok
-    end.
-
-manual_cmd_from_file(ThId, Cmd) ->
-    FN = mafia_file:cmd_filename(ThId),
-    case file:consult(FN) of
-        {error, enoent} -> true;
-        {ok, CmdsOnFile} ->
-            NewCmds = CmdsOnFile -- [Cmd],
-            if NewCmds /= CmdsOnFile ->
-                    NewCmdsSorted = lists:keysort(#cmd.msg_id, NewCmds),
-                    {ok, Fd} = file:open(FN, [write]),
-                    [io:format(Fd, "~999p.\n", [C]) || C <- NewCmdsSorted],
-                    file:close(Fd);
-               true -> ok
-            end
-    end.
-
 %% -----------------------------------------------------------------------------
 
 %% compressed 1656 K data in less than 0.09 sec
@@ -722,7 +690,7 @@ analyse_body(S, User, MsgId, Time, Msg) ->
                  S;
              A when A == ?new_page; A== ?add_id ->
                  MsgR = write_message_rec(S, MsgId, User, Time, Msg),
-                 mafia_vote:verify_user(MsgR),
+                 mafia_vote:verify_msg_user(MsgR),
                  if is_function(CheckVote) -> CheckVote(MsgR);
                     true -> ok
                  end,

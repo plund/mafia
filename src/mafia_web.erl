@@ -13,6 +13,7 @@
 %% API
 -export([start_link/0,
          start/0,
+         start/1,
          stop/0,
 
          start_polling/0,
@@ -62,7 +63,11 @@ start_link() ->
 
 start() ->
     mafia:setup_mnesia(),
-    gen_server:start({local, ?SERVER}, ?MODULE, [], []).
+    gen_server:start({local, ?SERVER}, ?MODULE, [polling], []).
+
+start(no_polling) ->
+    mafia:setup_mnesia(),
+    gen_server:start({local, ?SERVER}, ?MODULE, [no_polling], []).
 
 start_web() ->
     gen_server:call(?SERVER, start_web).
@@ -78,10 +83,18 @@ stop_polling() -> gen_server:call(?SERVER, 'stop_polling').
 
 stop_httpd() ->
     IpStr = get_en1_ip(),
-    IP = list_to_tuple([?l2i(Str)
-                        || Str <- string:tokens(IpStr, ".")]),
-    io:format("Stopping webserver at ~s, port ~p\n", [IpStr, ?WEBPORT]),
-    inets:stop(httpd, {IP, ?WEBPORT}).
+    RespStr = os:cmd("telnet " ++ IpStr ++ " " ++ ?i2l(?WEBPORT)),
+    case string:str(RespStr, "Escape character is") of
+        0 -> %% nothing running on port
+            io:format("Verify no webserver running at ~s, port ~p\n",
+                      [IpStr, ?WEBPORT]);
+        _ ->
+            io:format("Stopping webserver running at ~s, port ~p\n",
+                      [IpStr, ?WEBPORT]),
+            IP = list_to_tuple([?l2i(Str)
+                                || Str <- string:tokens(IpStr, ".")]),
+            inets:stop(httpd, {IP, ?WEBPORT})
+    end.
 
 stop_httpd(a) ->
     io:format("Stopping webserver at ~p, port ~p\n",
@@ -139,12 +152,14 @@ update_current() ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
-init([]) ->
+init([Arg]) ->
     mafia:setup_mnesia(),
     GameKey = ?getv(?game_key),
     State = start_web(#state{game_key = GameKey}),
     {_Reply, S2} = set_timer_interval(State, 10),
-    self() ! do_polling,
+    if Arg == polling -> self() ! do_polling;
+       Arg == no_polling -> ok
+    end,
     {ok, S2}.
 
 %%--------------------------------------------------------------------
@@ -299,7 +314,6 @@ start_web(S) ->
     os:cmd("cp ../priv/current_vote.txt " ++ ?DOC_ROOT),
     os:cmd("cp ../priv/GM_commands.html " ++ ?DOC_ROOT),
     IP_en1 = get_en1_ip(),
-    io:format("Starting up a webserver listening on ~s\n", [IP_en1]),
     Params = [{port, ?WEBPORT},
               {server_name, "mafia_test.peterlund.se"},
               {server_root, ?SERVER_ROOT},
@@ -326,6 +340,8 @@ start_web(S) ->
               {transfer_log, "logs/transfer_log.txt"}
              ],
     S2 = stop_web(S),
+    io:format("Starting up a webserver listening on ~s port ~p\n",
+              [IP_en1, ?WEBPORT]),
     case inets:start(httpd, Params) of
         {ok, Pid} ->
             S2#state{web_pid = Pid};

@@ -151,6 +151,9 @@ calculate_phase(ThId, Time) when is_integer(ThId) ->
         [G] -> calculate_phase(G, Time);
         [] -> false
     end;
+calculate_phase(#mafia_game{game_end = {EndTime, _}}, Time)
+  when Time >= EndTime ->
+    ?game_ended;
 calculate_phase(Game, Time) ->
     Game2 = if Game#mafia_game.game_end == ?undefined,
                Time > element(3, hd(Game#mafia_game.deadlines)) ->
@@ -298,7 +301,7 @@ move_next_deadline(G, M, Direction, TimeDiffIn) ->
                         -> {Reply :: term(), #mafia_game{}}.
 move_next_deadline(G, M, DeltaSecs) ->
     Time = M#message.time,
-    move_dls2(G, M, DeltaSecs, mafia_time:calculate_phase(G, Time)).
+    move_dls2(G, M, DeltaSecs, calculate_phase(G, Time)).
 
 move_dls2(G, _M, _TimeDiff, ?game_ended) ->
     {{?error, ?game_ended}, G};

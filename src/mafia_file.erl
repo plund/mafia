@@ -1,6 +1,9 @@
 -module(mafia_file).
 
--export([th_filenames/2, %% FN of thread file, relative run dir
+-export([manual_cmd_to_file/2,
+         manual_cmd_from_file/2,
+
+         th_filenames/2, %% FN of thread file, relative run dir
 
          cmd_filename/1, %% FN of manual commands issued, relative run dir
 
@@ -12,6 +15,36 @@
 -include("mafia.hrl").
 
 -define(CURRENT_GAME_FN, "current_game_status.txt").
+
+manual_cmd_to_file(ThId, Cmd) ->
+    FN = cmd_filename(ThId),
+    DoAppend =
+        case file:consult(FN) of
+            {error, enoent} -> true;
+            {ok, CmdsOnFile} ->
+                not lists:member(Cmd, CmdsOnFile)
+        end,
+    if DoAppend ->
+            {ok, Fd} = file:open(FN, [append]),
+            io:format(Fd, "~999p.\n", [Cmd]),
+            file:close(Fd);
+       not DoAppend -> ok
+    end.
+
+manual_cmd_from_file(ThId, Cmd) ->
+    FN = cmd_filename(ThId),
+    case file:consult(FN) of
+        {error, enoent} -> true;
+        {ok, CmdsOnFile} ->
+            NewCmds = CmdsOnFile -- [Cmd],
+            if NewCmds /= CmdsOnFile ->
+                    NewCmdsSorted = lists:keysort(#cmd.msg_id, NewCmds),
+                    {ok, Fd} = file:open(FN, [write]),
+                    [io:format(Fd, "~999p.\n", [C]) || C <- NewCmdsSorted],
+                    file:close(Fd);
+               true -> ok
+            end
+    end.
 
 %% -----------------------------------------------------------------------------
 

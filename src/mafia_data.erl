@@ -168,7 +168,7 @@ refresh_messages(ThId) -> refresh_messages(ThId, true).
 -spec refresh_messages(ThId :: integer(), DoVotes :: boolean()) -> ok.
 refresh_messages(ThId, DoVotes) ->
     ?set(?page_to_read, 1),
-    mafia_db:write_default_table(game, ThId), %% to reset last_msg_time...
+    mafia_db:reset_game(ThId), %% to reset last_msg_time...
     %% Remove messages for msg_ids found in page_rec of thread
     MsgIdFun = fun(MsgId) -> mnesia:dirty_delete(message, MsgId) end,
     iterate_all_msg_ids(ThId, MsgIdFun, all),
@@ -201,7 +201,7 @@ refresh_votes(hard) ->
     clear_mafia_day_and_stat(ThId),
     ?dbg(hard_game_reset),
     %% Reinitialize the game table
-    mafia_db:write_default_table(game, ThId),
+    mafia_db:reset_game(ThId),
     refresh_votes(ThId, ?rgame(ThId), all);
 refresh_votes({upto, EndPage}) when is_integer(EndPage) ->
     ThId = ?getv(?game_key),

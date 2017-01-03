@@ -196,7 +196,7 @@ print_votesI(#pp{game = G,
                           "~s\n"
                           "~s\n"
                           "\n"
-                          "Game Moderators: ~s\n"
+                          "Game Masters: ~s\n"
                           "\n"
                           "Previous days found at http://mafia.peterlund.se/\n",
                           [GName, ul($=, GName),
@@ -210,7 +210,7 @@ print_votesI(#pp{game = G,
                     mafia_file:game_link_and_text(PP#pp.game, LinkPhase),
                 ["<tr><th>", GName, "</th></tr>\r\n",
                  "<tr><td><table align=center cellpadding=4 cellspacing=6 >"
-                 "<tr><td>Game Moderators:<td>",
+                 "<tr><td>Game Masters:<td>",
                  [["<td", bgcolor(GM), ">",
                    ?b2l(GM), "</td>"] || GM <- G#mafia_game.gms],
                  "</tr></table></td></tr>"

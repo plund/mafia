@@ -13,8 +13,10 @@
          remove_mnesia/0,
          create_tables/0,
          create_table/1,
-         write_default_table/1,
-         write_default_table/2
+
+         reset_game/1,
+         write_game/1,
+         write_default_user_table/0
         ]).
 
 getv(Key) -> getv(Key, ?undefined).
@@ -72,27 +74,46 @@ insert_initial_data() ->
     ?set(?print_time, user),
     add_thread(m24, ?M24ThId),
     add_thread(m25, ?M25ThId),
-    write_default_table(game),
-    write_default_table(user).
+    write_game(m25),
+    write_game(m24),
+    write_default_user_table().
 
-write_default_table(game) ->
-    write_default_table(game, 25),
-    write_default_table(game, 24);
-
-write_default_table(user) ->
+write_default_user_table() ->
     [ mnesia:dirty_write(
         #user{name_upper = ?l2b(string:to_upper(U)),
               name = ?l2b(U),
               aliases = mafia_upgrade:get_aliases(?l2b(U)),
               verification_status = ?unverified})
-      || U <- ?M24_players ++ ?M24_GMs],
+      || U <- lists:usort(?M24_players ++ ?M24_GMs ++
+                              ?M25_players ++ ?M25_GMs ++
+                              ?M26_players ++ ?M26_GMs)],
     ok.
 
-%% M26 signup threadid = 1429158
-write_default_table(game, 26) ->
+reset_game(ThId) ->
+    mnesia:dirty_delete(mafia_game, ThId),
+    write_game(ThId).
+
+write_game(?false) -> ?error;
+write_game(GName) when is_atom(GName) ->
+    {ok, L} = file:consult("game_info.txt"),
+    write_game(lists:keyfind(GName, 1, L ++ ?getv(?reg_threads)));
+write_game(ThId) when is_integer(ThId) ->
+    {ok, L} = file:consult("game_info.txt"),
+    write_game(lists:keyfind(ThId, 2, L ++ ?getv(?reg_threads)));
+write_game({GName, ThId}) ->
+    case ?rgame(ThId) of
+        [] ->
+            G = get_game_rec(GName),
+            G2 = G#mafia_game{key = ThId},
+            Game = mafia_time:initial_deadlines(G2),
+            mnesia:dirty_write(Game);
+        [_] -> e_exists
+    end.
+
+get_game_rec(m26) ->
+    %% M26 signup threadid = 1429158
     io:format("Initializing Mafia Game M26\n", []),
-    MGame = #mafia_game{
-      key = 'TO_BE_SET!!',     %%%  <------- SET THIS ONE HERE!!
+    _ = #mafia_game{
       game_num = 26,
       name = <<"MAFIA XXVI: Wjessop Asylum for the Chronically Insane">>,
       day_hours = 48,
@@ -108,14 +129,10 @@ write_default_table(game, 26) ->
       players_rem = to_bin(?M26_players),
       player_deaths = [],
       page_to_read = 1
-     },
-    MGame2 = mafia_time:initial_deadlines(MGame),
-    mnesia:dirty_write(MGame2);
-write_default_table(game, ?M25ThId) ->
-    write_default_table(game, 25);
-write_default_table(game, 25) ->
+     };
+get_game_rec(m25) ->
     io:format("Initializing Mafia Game M25\n", []),
-    MGame = #mafia_game{
+    _ = #mafia_game{
       key = ?M25ThId,
       game_num = 25,
       name = <<"MAFIA XXV: Kanye's Quest">>,
@@ -130,15 +147,10 @@ write_default_table(game, 25) ->
       players_rem = to_bin(?M25_players),
       player_deaths = [],
       page_to_read = 1
-     },
-    MGame2 = mafia_time:initial_deadlines(MGame),
-    mnesia:dirty_write(MGame2);
-
-write_default_table(game, ?M24ThId) ->
-    write_default_table(game, 24);
-write_default_table(game, 24) ->
+     };
+get_game_rec(m24) ->
     io:format("Adding Mafia Game M24\n", []),
-    MGame = #mafia_game{
+    _ = #mafia_game{
       key = ?M24ThId,
       game_num = 24,
       name = <<"MAFIA XXIV: Webdiplomacy's Tom Clancy's The Division">>,
@@ -154,9 +166,7 @@ write_default_table(game, 24) ->
       players_rem = to_bin(?M24_players),
       player_deaths = [],
       page_to_read = 1
-     },
-    MGame2 = mafia_time:initial_deadlines(MGame),
-    mnesia:dirty_write(MGame2).
+     }.
 
 set(K=?thread_id, V) when is_integer(V), V > 0 -> set_kv(K, V);
 set(K=?game_key, V) when is_integer(V), V > 0 -> set_kv(K, V);
@@ -176,7 +186,7 @@ set_kv(Key, Value) ->
 
 -spec add_thread(atom(), integer()) -> {Result :: atom(), Details :: term()}.
 add_thread(ThName, ThId) ->
-    Regs = case getv(?reg_threads) of ?undefined -> []; L -> L end,
+    Regs = case ?getv(?reg_threads) of ?undefined -> []; L -> L end,
     New = {ThName, ThId},
     case lists:keyfind(ThName, 1, Regs) of
         false ->

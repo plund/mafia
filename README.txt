@@ -1,21 +1,15 @@
 
-Procedure Changing game M25 -> M24
+Procedure
+start game M26
 ---------
-8. mafia_db:write_default_table(game, 25). % game_end was 'false' (not ok)
-2. mafia_db:set(game_key, M25).
-4. mafia_db:set(thread_id, M25).   %% IMPORTANT
-3. mafia_db:set(page_to_read, 1).
-5. mafia_web:stop().   %% These two to set the #state.game_key
-6. mafia_web:start().
+1. Delete test m26:
+mnesia:dirty_delete(mafia_game, 1).
+mafia_db:rm_thread(m26).
+(delete in game_info.txt)
 
-1. mafia_web:stop_polling().
-2. mafia_db:set(game_key, M24).
-3. mafia_db:set(page_to_read, 1).
-4. mafia_db:set(thread_id, M24).   %% IMPORTANT
-5. mafia_web:stop().   %% These two to set the #state.game_key
-6. mafia_web:start().
-7. mafia_data:downl().    %% downl() not ok, reading thread_id and _ in dir name
-8. mafia_db:write_default_table(game, 24). % game_end was 'false' (not ok)
+2. start for real
+mafia:game_start(m26, Thid).
+mafia:switch_to_game(m26).
 
 - Test changing to M24 and then back again to M25. Check Readme list
   found a problem with

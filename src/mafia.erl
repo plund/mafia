@@ -7,6 +7,7 @@
 %% - align new deadlines to next full minute.
 %% - GM command expand alias list (Manual exist already)
 
+%% - Fix T-time in console
 %% - Call the Game Status generation from the gen_server also for html variants
 %%   when they are ready to be stored on file
 %% - web:deliver game_status in parts out to browser?
@@ -39,6 +40,7 @@
          setup_mnesia/0,
          remove_mnesia/0,
 
+         game_start/2,
          end_phase/1,
          end_phase/2, %% deprecated
          move_next_deadline/3,
@@ -115,6 +117,7 @@ mafia:stop_polling()   - Stop regular polling of source
 mafia:start_polling()  - Start regular polling of source
 mafia:state()          - Get gen_server state.
 
+mafia:game_start(GName, ThId) - Creates game and defines ThId for game
 mafia:switch_to_game(GN) - GN = m25 | thread_id()
 mafia:refresh_votes()  - Clear mafia_day and mafia_game and reread all"
 " messages.
@@ -227,7 +230,7 @@ switch_to_gameI(ThId, normal) ->
     mafia:stop(),
     mafia:start();
 switch_to_gameI(ThId, hard) -> %% Should always work
-    mafia_db:write_default_table(game, ThId),
+    mafia_db:reset_game(ThId),
     ?set(game_key, ThId),
     ?set(thread_id, ThId),
     ?set(page_to_read, 1),
@@ -237,6 +240,21 @@ switch_to_gameI(ThId, hard) -> %% Should always work
     mafia:start(),
     timer:sleep(5000),
     mafia:refresh_votes(hard).
+
+%% -----------------------------------------------------------------------------
+%% @doc Starts up a game giving it e.g. m26, 1234567
+%% @end
+%% -----------------------------------------------------------------------------
+-spec game_start(GName :: atom(), ThId :: thread_id()) -> ok | term().
+game_start(GName, ThId) ->
+    case mafia_db:add_thread(GName, ThId) of
+        {reg_add, _} ->
+            file:write_file("game_info.txt",
+                            io_lib:format("{~p, ~p}.\n", [GName, ThId]),
+                            [append]),
+            mafia_db:write_game({GName, ThId});
+        E -> E
+    end.
 
 %% -----------------------------------------------------------------------------
 %% @doc End current phase with GM message and set next phase at

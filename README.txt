@@ -8,7 +8,7 @@ mafia_db:rm_thread(m26).
 (delete in game_info.txt)
 
 2. start for real
-mafia:game_start(m26, Thid).
+mafia:game_start(m26, 1432756).
 mafia:switch_to_game(m26).
 
 - Test changing to M24 and then back again to M25. Check Readme list

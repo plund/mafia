@@ -1,6 +1,7 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% - bug minor: num bytes too low on msg_search_result (only 339 byte)
 %% - GM command: XXX replaces YYY
 %% - align new deadlines to next full minute.
 %% - GM command expand alias list (Manual exist already)

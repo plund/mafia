@@ -12,6 +12,8 @@
          dl2phase/1,
          phase_time2dl/2,
 
+         merge_intervals/1,
+
          all_msgids/1,
          all_msgids/2
         ]).
@@ -128,9 +130,63 @@ dl2phase({Num, Don, _Time}) -> {Num, Don}.
 phase_time2dl(?game_ended, Time) -> {?game_ended, Time};
 phase_time2dl({Num, Don}, Time) -> {Num, Don, Time}.
 
+
+-type interval() :: {term(), term()}.
+-type intervals() :: [interval()].
+
+%% -----------------------------------------------------------------------------
+%% Merge overlapping intervals (treat Intervals as an unordered set)
+%% Example:
+%%    merge_intervals([{1,5},{3,7},{10,14},{1,9},{13,20}]) -> [{1,9},{10,20}])
+%% -----------------------------------------------------------------------------
+-spec merge_intervals(Intervals::intervals()) -> intervals().
+merge_intervals(Intervals) ->
+    lists:sort(merge_intervals2(Intervals)).
+
+merge_intervals2([]) -> [];
+merge_intervals2([H | T]) ->
+    case find_overlaps(H, T) of
+        [] ->
+            [H | merge_intervals2(T)];
+        OverlappingIntervals ->
+            MergedInterval = merge_overlap([H | OverlappingIntervals]),
+            Rest = T -- OverlappingIntervals,
+            merge_intervals2([MergedInterval | Rest])
+    end.
+
+%% -----------------------------------------------------------------------------
+%% Returns all intervals in Intervals that overlaps with First
+%% -----------------------------------------------------------------------------
+-spec find_overlaps(First::interval(), Intervals::intervals()) -> intervals().
+find_overlaps(_, []) -> [];
+find_overlaps(First, [HInt | Intervals]) ->
+    IsNeig = is_overlap(First, HInt),
+    if IsNeig -> [HInt | find_overlaps(First, Intervals)];
+       not IsNeig -> find_overlaps(First, Intervals)
+    end.
+
+%% -----------------------------------------------------------------------------
+%% Checks if interval A and B are overlapping
+%% -----------------------------------------------------------------------------
+-define(IS_IN(P, Lo, Hi), ((Lo =< P) andalso (P =< Hi)) ).
+-spec is_overlap(A::interval(), B::interval()) -> boolean().
+is_overlap({ALo, _AHi}, {BLo, BHi}) when ?IS_IN(ALo, BLo, BHi) -> true;
+is_overlap({_ALo, AHi}, {BLo, BHi}) when ?IS_IN(AHi, BLo, BHi) -> true;
+is_overlap({ALo, AHi}, {BLo, _BHi}) when ?IS_IN(BLo, ALo, AHi) -> true;
+is_overlap({ALo, AHi}, {_BLo, BHi}) when ?IS_IN(BHi, ALo, AHi) -> true;
+is_overlap(_, _) -> false.
+
+%% -----------------------------------------------------------------------------
+%% Returns one interval spanning over the overlapping intervals
+%% -----------------------------------------------------------------------------
+-spec merge_overlap(intervals()) -> interval().
+merge_overlap(L) ->
+    {Lows, Highs} = lists:unzip(L),
+    {lists:min(Lows), lists:max(Highs)}.
+
+
 %% -----------------------------------------------------------------------------
 
-%% Get all msg ids on a page list.
 all_msgids(ThId) ->
     AllPages = mafia:pages_for_thread(ThId),
     all_msgids(ThId, AllPages).

@@ -25,6 +25,7 @@ msg_search_result(Sid, _Env, In) ->
             DayNumU = ?l2u(DayNumText),
             case DayNumU of
                 "END" ++ _ -> ?game_ended;
+                %% "CURRENT" -> %% the current phase only.
                 _ ->
                     case string:tokens(DayNumU, "-") of
                         [LoStr, "END" ++ _] ->
@@ -109,6 +110,7 @@ msg_search_result(Sid, _Env, In) ->
                                      {DNum, ?night} -> "Night-" ++ ?i2l(DNum);
                                      ?game_ended -> "Game End "
                                  end,
+                        MsgBoldMarked = bold_mark_words(Msg, WordsU),
                         Hash = erlang:phash2(MsgUserB, 16#1000000),
                         Color = Hash bor 16#C0C0C0,
                         ColorStr = integer_to_list(Color, 16),
@@ -118,7 +120,7 @@ msg_search_result(Sid, _Env, In) ->
                                     "</b><br>",
                                     DayStr, " ", p(HH), ":", p(MM),
                                     "<br> page ", ?i2l(PageNum),
-                                    "</td><td valign=\"top\">", Msg,
+                                    "</td><td valign=\"top\">", MsgBoldMarked,
                                     "</td></tr>\r\n"]),
                         SizeOut = web:deliver(Sid, OutB),
                         Acc + SizeOut;
@@ -147,20 +149,20 @@ msg_search_result(Sid, _Env, In) ->
 
 find_word_searches(WordText) ->
     [?l2u(Str) || Str <- fws(WordText,
-                            _InQuotes = false,
+                            _InQuotes = out,
                             _QStrs = [],
                             _CharAcc = "")].
 
 fws("", _IsInQ, QStrs, Acc) ->
     QStrs2 = add_cond(QStrs, Acc),
     ?lrev(QStrs2);
-fws("\""++T, true, QStrs, Acc) ->
-    fws(T, false, QStrs, Acc);
-fws("\""++T, false, QStrs, Acc) ->
-    fws(T, true, QStrs, Acc);
-fws(" "++T, false, QStrs, Acc) ->
+fws("\""++T, out, QStrs, Acc) ->
+    fws(T, in, QStrs, Acc);
+fws("\""++T, in, QStrs, Acc) ->
+    fws(T, out, QStrs, Acc);
+fws(" "++T, out, QStrs, Acc) ->
     QStr2 = add_cond(QStrs, Acc),
-    fws(T, false, QStr2, "");
+    fws(T, out, QStr2, "");
 fws([H|T], IsInQ, QStrs, Acc) ->
     fws(T, IsInQ, QStrs, [H|Acc]).
 
@@ -169,13 +171,74 @@ add_cond(QStrs, Acc) ->
        true -> QStrs
     end.
 
-is_word(MsgU, Search) ->
-    AllPos = allpos(MsgU, Search),
-    LenMsg = length(MsgU),
-    LenSea = length(Search),
-    lists:any(fun(P) -> is_word(MsgU, P, LenMsg, LenSea) end,
-              AllPos).
+bold_mark_words(Msg, WordsU) ->
+    MsgU = ?l2u(Msg),
+    WordsU2 = get_all_words_to_mark(WordsU),
+    Intervals =
+        mafia_lib:merge_intervals(
+          lists:sort(
+            lists:foldl(
+              fun(SearchU, Acc) ->
+                      %% ?dbg({bold_mark_words_l, }).
+                      Len = length(SearchU),
+                      Acc ++ [{P, P+Len-1} || P <- allpos(MsgU, SearchU)]
+              end,
+              [],
+              WordsU2))),
+    Start = "<b><font size=\"+1\">",
+    Stop = "</font></b>",
+    {_P, In2, Out2} =
+        lists:foldl(fun({A, B}, {P, In, Out}) ->
+                            P2 = A - P,
+                            {S1, In2} = lists:split(P2, In),
+                            P3 = B - A + 1,
+                            {S2, In3} = lists:split(P3, In2),
+                            {B+1, In3, Out ++ S1 ++ Start ++ S2 ++ Stop}
+                    end,
+                    {1, Msg, ""},
+                    Intervals),
+    Out2 ++ In2.
 
+%% What to mark in bold in out text.
+get_all_words_to_mark(WordsU) ->
+    lists:foldl(
+      fun(WordU, Acc) ->
+              WordsUnoWC = [element(1, check_edges_for_wildcard(Str))
+                            || Str <- string:tokens(WordU, "|")],
+              Acc ++ [Str || Str <- WordsUnoWC, "" /= Str]
+      end,
+      [],
+      WordsU).
+
+is_word(MsgU, Search1) ->
+    %% check if "*" at first or last char or both in Search
+    case check_edges_for_wildcard(Search1) of
+        {"", _IsWcAtBeg, _IsWcAtEnd} -> false;
+        {Search, IsWcAtBeg, IsWcAtEnd} ->
+            AllPos = allpos(MsgU, Search),
+            LenMsg = length(MsgU),
+            LenSea = length(Search),
+            lists:any(fun(P) ->
+                              is_word(MsgU, P, LenMsg, LenSea,
+                                      {IsWcAtBeg, IsWcAtEnd})
+                      end,
+                      AllPos)
+    end.
+
+check_edges_for_wildcard(Search1) ->
+    {IsWcAtBeg, Search2} =
+        case Search1 of
+            [$* | Tb] -> {true, Tb};
+            _ -> {false, Search1}
+        end,
+    {IsWcAtEnd, Search} =
+        case ?lrev(Search2) of
+            [$* | Te] -> {true, ?lrev(Te)};
+            _ -> {false, Search2}
+        end,
+    {Search, IsWcAtBeg, IsWcAtEnd}.
+
+%% Return all positions in Msg where Search can be found
 allpos(MsgU, Search) -> allpos(MsgU, Search, 0, []).
 
 allpos(MsgU, Search, Offset, Acc) ->
@@ -190,16 +253,16 @@ allpos(MsgU, Search, Offset, Acc) ->
 
 -define(BoundaryChars, " !\"@#€$%&/\\|()[]{}=≈≠´`^*'™’-_.:…·,;‚„<>≥≤").
 
-is_word(MsgU, Pos, LenMsg, LenSea) ->
-    IsAtBeg = Pos == 1,
+is_word(MsgU, Pos, LenMsg, LenSea, {IsWcAtBeg, IsWcAtEnd}) ->
+    IsWordAtBeg = Pos == 1,
     NextPosAfterSearch = Pos + LenSea,
     LastPosInSearch = NextPosAfterSearch - 1,
-    IsAtEnd = LenMsg == LastPosInSearch,
-    IsBoundA = IsAtBeg orelse
+    IsWordAtEnd = LenMsg == LastPosInSearch,
+    IsBoundA = IsWordAtBeg orelse
         lists:member(lists:nth(Pos - 1, MsgU), ?BoundaryChars),
-    IsBoundB = IsAtEnd orelse
+    IsBoundB = IsWordAtEnd orelse
         lists:member(lists:nth(NextPosAfterSearch, MsgU), ?BoundaryChars),
-    IsBoundA and IsBoundB.
+    (IsBoundA or IsWcAtBeg) and (IsBoundB or IsWcAtEnd).
 
 del_start(Sid, Title, 0) ->
     Border = "",

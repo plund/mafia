@@ -2,6 +2,7 @@
 /src/thread_pages
 /src/command_files
 /src/upgrade_bak_files
+/src/debug_files
 *beam
 *~
 src/game_info.txt

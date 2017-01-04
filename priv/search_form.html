@@ -37,6 +37,10 @@
             <td colspan="3">
               <br>
               <br>
+              <b>Notes:</b>
+              <p>
+                Upper or lower case does not matter in any type of search
+                condition. Case do not matter for the word "end" either.
               <p>
                 Quotes must be used to search for something containing a space.
                 Normally spaces divide up words so then you may need to use
@@ -49,19 +53,27 @@
                 one or more words that must be found in the message or
                 one single day number.
               <p>
-                Spaces (and) between words in the word condition, means that
-                all words must be found in the message.
-                If "|" (or) is used between the words only one of the words
-                must be found in the message.
+                In the User condition a space between two user is "or".
+                Messages for both users are listed.
               <p>
-                Spaces in the User name fields is "or". Do not use "|" here.
+                In word conditions, a space between two words is "and", meaning
+                that both words need to exist in the message for it to match.
+                The "|" character between two words is or, meaning that only
+                one of the two words must be found in the message.
+                Words normally need to have word bondaries, so that a search
+                for "nd" does not match the word "and". Add the "*" char at the
+                beginning or end to remove the word boundary requirement.
+                Searching for "*nd*" matches "and" but also "mandelbrot".
+                Searching for "Jamie*|pete*" will result in all message where
+                a word starts with either "Jamie" or "pete"
+              <p>
+                Words searched for will be
+                <b><font size=\"+1\">highlightened</font></b> in the resulting
+                output.
               <p>
                 Inserting anything starting with "end" in the day number field
                 will display messages posted after the game has ended. It is
                 also possible to search day number to end, e.g. "5-end".
-              <p>
-                Upper or lower case does not matter in user name and word
-                searches. Case do not matter for the word "end" either.
             </td>
           </tr>
         </table>

@@ -258,7 +258,24 @@ print_all_cntsI(Guard) ->
     MatchExpr3 = [{MatchHead3, Guard, [Result]}],
     Cnts2 = mnesia:dirty_select(cnt, MatchExpr2),
     Cnts3 = mnesia:dirty_select(cnt, MatchExpr3),
-    AllCnts = lists:sort(Cnts2 ++ Cnts3),
+    LessEq =
+        fun(#cnt{key = A}, #cnt{key = B}) ->
+                A1 = element(1, A), B1 = element(1, B),
+                A2 = element(2, A), B2 = element(2, B),
+                A3 = if size(A) < 3 -> ?undefined; true -> element(3, A) end,
+                B3 = if size(B) < 3 -> ?undefined; true -> element(3, B) end,
+                if A1 < B1 -> true;
+                   A1 > B1 -> false;
+                   is_atom(A2), is_integer(B2) -> true;
+                   is_integer(A2), is_atom(B2) -> false;
+                   A2 < B2 -> true;
+                   A2 > B2 -> false;
+                   A3 == ?undefined -> true;
+                   B3 == ?undefined -> false;
+                   true -> A3 =< B3
+                end
+        end,
+    AllCnts = lists:sort(LessEq, Cnts2 ++ Cnts3),
     R = fun(I) -> string:right(?l(I), 2, $0) end,
     PrDay = fun(Day) ->
                     {Y, M, D} = mafia_time:utc_day2date(Day),
@@ -269,18 +286,17 @@ print_all_cntsI(Guard) ->
                 ?l(CntNameB);
            ({CntNameB, Day}) ->
                 [?l(CntNameB), ".", PrDay(Day)];
-           ({CntNameB, ?global, ?transmit}) ->
-                [?l(CntNameB), ".", ?l(?transmit)];
-           ({CntNameB, ?global, {?transmit, Args}}) ->
-                [?l(CntNameB), ".", ?l(?transmit), ".",
-                 string:join([?b2l(A)|| A <- Args], ".")
+           ({CntNameB, ?global, Atom}) when is_atom(Atom) ->
+                [?l(CntNameB), ".", ?l(Atom)];
+           ({CntNameB, ?global, {Atom, Args}}) when is_atom(Atom) ->
+                [?l(CntNameB), ".", ?l(Atom), ".",
+                 print_args(Args)
                 ];
-           ({CntNameB, Day, ?transmit}) ->
-                [?l(CntNameB), ".", PrDay(Day), ".", ?l(?transmit)];
-           ({CntNameB, Day, {?transmit, Args}}) ->
-                [?l(CntNameB), ".", PrDay(Day), ".", ?l(?transmit), ".",
-                 string:join([?b2l(A)|| A <- Args], ".")
-                ]
+           ({CntNameB, Day, Atom}) when is_atom(Atom) ->
+                [?l(CntNameB), ".", PrDay(Day), ".", ?l(Atom)];
+           ({CntNameB, Day, {Atom, Args}}) when is_atom(Atom) ->
+                [?l(CntNameB), ".", PrDay(Day), ".", ?l(Atom), ".",
+                 print_args(Args)]
         end,
     PrintCnt =
         fun(#cnt{key = K, value = V}) ->
@@ -289,6 +305,13 @@ print_all_cntsI(Guard) ->
         end,
     [PrintCnt(C) || C <- AllCnts],
     ok.
+
+print_args([]) -> "no_args";
+print_args(Args) -> string:join([repl(?b2l(A), $\s, $_)|| A <- Args], ".").
+
+repl(L, In, Out) ->
+    [if C == In -> Out ; true -> C end
+     || C <- L].
 
 to_list(A) when is_atom(A) -> ?a2l(A);
 to_list(I) when is_integer(I) -> ?i2l(I);

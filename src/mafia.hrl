@@ -21,7 +21,7 @@
 -define(game_ended, game_ended).
 -define(total_stats, total_stats).
 -define(global, global).
--define(transmit, transmit).
+-define(bytes, bytes).
 
 -define(verified, verified).
 -define(unverified, unverified).

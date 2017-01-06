@@ -51,10 +51,10 @@ catch_debug(Sid, Tag, F) ->
                          "<tr><td>", "An error occured!", "</td></tr>",
                          ?HTML_TAB_END]);
             {NumBytes, Args} ->
-                ?inc_cnt(ReqType, ?transmit, NumBytes),
+                ?inc_cnt(ReqType, ?bytes, NumBytes),
                 if Args /= ?none ->
                         ?inc_cnt(ReqType,
-                                 {?transmit, Args},
+                                 {?bytes, Args},
                                  NumBytes);
                    true -> ok
                 end,

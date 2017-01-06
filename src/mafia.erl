@@ -1,7 +1,6 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% - fix webusage counters per game in persistent mnesia
 %% - GM command: XXX replaces YYY
 %% - align new deadlines to next full minute.
 %% - GM command expand alias list (Manual exist already)

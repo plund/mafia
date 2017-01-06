@@ -6,6 +6,10 @@
          hh_mm_to_deadline/2,
 
          utc_secs1970/0,
+         utc_day1970/0,
+         utc_day2date/1,
+         date2utc_day/1,
+
          get_time_for_phase/2,
 
          get_tz_dst/0,
@@ -530,6 +534,23 @@ utc_secs1970I() ->
     calendar:datetime_to_gregorian_seconds(
       calendar:universal_time())
         - ?GSECS_1970.
+
+%% Return the current number of days since Jan 1 1970
+-spec utc_day1970() -> Day :: integer().
+utc_day1970() ->
+    (calendar:datetime_to_gregorian_seconds(
+      calendar:universal_time())
+        - ?GSECS_1970) div ?DaySecs.
+
+-spec date2utc_day(Date :: date()) -> Day :: integer().
+date2utc_day(Date) ->
+    (calendar:datetime_to_gregorian_seconds({Date, {0,0,0}})
+     - ?GSECS_1970) div ?DaySecs.
+
+-spec utc_day2date(Day :: integer()) -> date().
+utc_day2date(DayNum) ->
+    element(1, calendar:gregorian_seconds_to_datetime(
+                 DayNum * ?DaySecs + ?GSECS_1970)).
 
 %% -----------------------------------------------------------------------------
 

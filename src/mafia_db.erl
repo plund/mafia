@@ -230,7 +230,8 @@ create_tables() ->
     create_table(mafia_day),
     create_table(mafia_game),
     create_table(user),
-    create_table(stat).
+    create_table(stat),
+    create_table(cnt).
 
 create_table(RecName) ->
     Opts = create_table_opts(RecName),
@@ -262,4 +263,5 @@ rec_info(message) -> record_info(fields, message);
 rec_info(mafia_day) -> record_info(fields, mafia_day);
 rec_info(mafia_game) -> record_info(fields, mafia_game);
 rec_info(user) -> record_info(fields, user);
-rec_info(stat) -> record_info(fields, stat).
+rec_info(stat) -> record_info(fields, stat);
+rec_info(cnt) -> record_info(fields, cnt).

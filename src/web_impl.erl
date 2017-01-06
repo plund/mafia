@@ -146,7 +146,8 @@ msg_search_result(Sid, _Env, In) ->
                 web:deliver(Sid, MsgB)
         end,
     C = del_end(Sid),
-    A + B + C.
+    Args = [list_to_binary(K) || {K, V} <- PQ, V/=""] -- [<<"button">>],
+    {A + B + C, Args}.
 
 find_word_searches(WordText) ->
     [?l2u(Str) || Str <- fws(WordText,
@@ -180,7 +181,6 @@ bold_mark_words(Msg, WordsU) ->
           lists:sort(
             lists:foldl(
               fun(SearchU, Acc) ->
-                      %% ?dbg({bold_mark_words_l, }).
                       Len = length(SearchU),
                       Acc ++ [{P, P+Len-1} || P <- allpos(MsgU, SearchU)]
               end,
@@ -296,8 +296,9 @@ game_status(Sid, _Env, In) ->
     A = del_start(Sid, "Game Status", 0),
     B = web:deliver(Sid, Html),
     C = del_end(Sid),
-    A + B + C.
-
+    PQ = httpd:parse_query(In),
+    Args = make_args(PQ),
+    {A + B + C, Args}.
 
 game_status_out(current, Phase) ->
     UseTime = [{?use_time, mafia_time:utc_secs1970()}],
@@ -409,7 +410,8 @@ vote_tracker(Sid, _Env, In) ->
     end,
     B = web:deliver(Sid, Out),
     C = del_end(Sid),
-    A + B + C.
+    Args = make_args(PQ),
+    {A + B + C, Args}.
 
 vote_tracker2({"day", Str},
               _) ->
@@ -464,7 +466,8 @@ stats(Sid, _Env, In) ->
     A = del_start(Sid, "Posting Stats", 0),
     B = web:deliver(Sid, Html),
     C = del_end(Sid),
-    A + B + C.
+    Args = make_args(PQ),
+    {A + B + C, Args}.
 
 stats2({"phase", "total"},
        _) ->
@@ -538,7 +541,14 @@ show_msg([#message{user_name = MsgUserB,
           "</td><td valign=\"top\">", MsgB,
           "</td></tr>\r\n"]).
 
-%% -----------------------------------------------------------------------------
+%% ----------------------------------------------------------------------------
+
+make_args(PQ) ->
+    lists:foldl(fun({_K, ""}, Acc) -> Acc;
+                   ({K, V}, Acc) -> Acc ++ [?l2b(K), ?l2b(V)]
+                end,
+                [],
+                PQ).
 
 p(I) when I > 9 -> ?i2l(I);
 p(I) -> string:right(?i2l(I), 2, $0).

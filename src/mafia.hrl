@@ -3,6 +3,7 @@
 -define(undefined, undefined).
 -define(ok, ok).
 -define(error, error).
+-define(none, none).
 -define(dummy, dummy).
 -define(new_page, new_page).
 -define(add_id, add_id).
@@ -19,6 +20,8 @@
 -define(phase, phase).
 -define(game_ended, game_ended).
 -define(total_stats, total_stats).
+-define(global, global).
+-define(transmit, transmit).
 
 -define(verified, verified).
 -define(unverified, unverified).
@@ -192,6 +195,9 @@
 -define(b2ul(B), ?l2u(?b2l(B))).
 -define(b2ub(B), ?l2b(?b2ul(B))).
 
+-define(inc_cnt(CntName), mafia_lib:inc_cnt(CntName)).
+-define(inc_cnt(CntName, Inc), mafia_lib:inc_cnt(CntName, Inc)).
+-define(inc_cnt(CntName, Args, Inc), mafia_lib:inc_cnt(CntName, Args, Inc)).
 -define(dl2phase(DL), mafia_lib:dl2phase(DL)).
 -define(phase_time2dl(Phase, Time), mafia_lib:phase_time2dl(Phase, Time)).
 -define(thid(Id), mafia_lib:thid(Id)).
@@ -325,6 +331,12 @@
          num_chars :: integer(),
          num_words :: integer(),
          num_postings :: integer()
+        }).
+
+-record(cnt,
+        {key   :: {CounterName :: binary()} |
+                  {CounterName :: binary(), Day1970 :: integer()},
+         value :: integer()
         }).
 
 -record(cmd,

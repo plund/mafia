@@ -15,7 +15,13 @@
          merge_intervals/1,
 
          all_msgids/1,
-         all_msgids/2
+         all_msgids/2,
+
+         inc_cnt/1,
+         inc_cnt/2,
+         inc_cnt/3,
+         print_all_cnts/0,
+         print_all_cnts/1
         ]).
 
 -include("mafia.hrl").
@@ -210,3 +216,80 @@ all_msgids2(_ThId, _PageNums, _MIds, []) -> [];
 all_msgids2(ThId, PageNums = [P|_], [MId|MIds], _) ->
     [{P, MId} | all_msgids2(ThId, PageNums, MIds)].
 
+%% -----------------------------------------------------------------------------
+%% Counter updates
+%% -----------------------------------------------------------------------------
+
+inc_cnt(CntNameB) ->
+    inc_cnt(CntNameB, ?none, 1).
+
+inc_cnt(CntNameB, Inc) ->
+    inc_cnt(CntNameB, ?none, Inc).
+
+inc_cnt(CntNameB, Args, Inc) ->
+    DayNum = mafia_time:utc_day1970(),
+    [KeyGlobal, KeyDay] =
+        if Args == ?none ->
+                [{CntNameB, ?global},
+                 {CntNameB, DayNum}];
+           true ->
+                [{CntNameB, ?global, Args},
+                 {CntNameB, DayNum, Args}]
+        end,
+    mnesia:dirty_update_counter(cnt, KeyGlobal, Inc),
+    mnesia:dirty_update_counter(cnt, KeyDay, Inc).
+
+print_all_cnts() ->
+    Guard = [],
+    print_all_cntsI(Guard).
+
+print_all_cnts(NumLastDays) ->
+    DayNum = mafia_time:utc_day1970() - NumLastDays,
+    Guard = [{'or', {'>=', '$2', DayNum}, {'==', '$2', ?global}}],
+    print_all_cntsI(Guard).
+
+-define(l(V), to_list(V)).
+
+print_all_cntsI(Guard) ->
+    MatchHead2 = #cnt{key = {'$1', '$2'}, _='_'},
+    MatchHead3 = #cnt{key = {'$1', '$2', '$3'}, _='_'},
+    Result = '$_',
+    MatchExpr2 = [{MatchHead2, Guard, [Result]}],
+    MatchExpr3 = [{MatchHead3, Guard, [Result]}],
+    Cnts2 = mnesia:dirty_select(cnt, MatchExpr2),
+    Cnts3 = mnesia:dirty_select(cnt, MatchExpr3),
+    AllCnts = lists:sort(Cnts2 ++ Cnts3),
+    R = fun(I) -> string:right(?l(I), 2, $0) end,
+    PrDay = fun(Day) ->
+                    {Y, M, D} = mafia_time:utc_day2date(Day),
+                    [R(Y), R(M), R(D)]
+            end,
+    PrintKey =
+        fun({CntNameB, ?global}) ->
+                ?l(CntNameB);
+           ({CntNameB, Day}) ->
+                [?l(CntNameB), ".", PrDay(Day)];
+           ({CntNameB, ?global, ?transmit}) ->
+                [?l(CntNameB), ".", ?l(?transmit)];
+           ({CntNameB, ?global, {?transmit, Args}}) ->
+                [?l(CntNameB), ".", ?l(?transmit), ".",
+                 string:join([?b2l(A)|| A <- Args], ".")
+                ];
+           ({CntNameB, Day, ?transmit}) ->
+                [?l(CntNameB), ".", PrDay(Day), ".", ?l(?transmit)];
+           ({CntNameB, Day, {?transmit, Args}}) ->
+                [?l(CntNameB), ".", PrDay(Day), ".", ?l(?transmit), ".",
+                 string:join([?b2l(A)|| A <- Args], ".")
+                ]
+        end,
+    PrintCnt =
+        fun(#cnt{key = K, value = V}) ->
+                Row = [string:right(?i2l(V), 10), " ", PrintKey(K), "\n"],
+                io:format("~s", [Row])
+        end,
+    [PrintCnt(C) || C <- AllCnts],
+    ok.
+
+to_list(A) when is_atom(A) -> ?a2l(A);
+to_list(I) when is_integer(I) -> ?i2l(I);
+to_list(V) -> V.

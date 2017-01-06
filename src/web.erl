@@ -40,6 +40,9 @@ stats(Sid, Env, In) ->
 
 catch_debug(Sid, Tag, F) ->
         TimeA = erlang:monotonic_time(millisecond),
+        Req = F(in),
+        ReqType = element(1, Req),
+        ?inc_cnt(ReqType),
         case catch F(do) of
             {'EXIT', Term} ->
                 ?dbg({catch_debug, {Tag, Term}}),
@@ -47,10 +50,17 @@ catch_debug(Sid, Tag, F) ->
                         [?HTML_TAB_START(?a2l(Tag), ""),
                          "<tr><td>", "An error occured!", "</td></tr>",
                          ?HTML_TAB_END]);
-            NumBytes ->
+            {NumBytes, Args} ->
+                ?inc_cnt(ReqType, ?transmit, NumBytes),
+                if Args /= ?none ->
+                        ?inc_cnt(ReqType,
+                                 {?transmit, Args},
+                                 NumBytes);
+                   true -> ok
+                end,
                 TimeB = erlang:monotonic_time(millisecond),
                 MilliSecs = TimeB - TimeA,
-                ?dbg({F(in), sent, [{bytes, NumBytes}, {millisecs, MilliSecs}]}),
+                ?dbg({Req, sent, [{bytes, NumBytes}, {millisecs, MilliSecs}]}),
                 ok
         end.
 

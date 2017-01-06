@@ -21,6 +21,7 @@
          print_messages/1,
          print_message_summary/1,
          print_message_full/1,
+         print_time/1,
          print_time/2,
 
          print_pages_for_thread/0,
@@ -1355,10 +1356,23 @@ print_game_time(G, Time, Mode) ->
     {TzH, Dst} = mafia_time:get_tz_dst(G, Time),
     print_time(Time, TzH, Dst, Mode).
 
+%% /1
+print_time(Opts) when is_list(Opts) ->
+    print_timeI(Opts);
+print_time(?console) ->
+    {TzH, Dst} = mafia_time:get_tz_dst(),
+    print_timeI([{?use_time, mafia_time:utc_secs1970()},
+                 {?time_zone, TzH},
+                 {?dst, Dst},
+                 {?t_mode, short}]).
+
 %% /2
-print_time(current_time, Mode) ->
-    Time = mafia_time:utc_secs1970(),
-    print_timeI([{?use_time, Time}, {?t_mode, Mode}]);
+print_time(?console, Time) ->
+    {TzH, Dst} = mafia_time:get_tz_dst(),
+    print_timeI([{?use_time, Time},
+                 {?time_zone, TzH},
+                 {?dst, Dst},
+                 {?t_mode, short}]);
 print_time(Time, Mode) when is_integer(Time) ->
     {TzH, Dst} = mafia_time:get_tz_dst(),
     print_time(Time, TzH, Dst, Mode).

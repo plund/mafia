@@ -246,7 +246,7 @@ handle_cast(_Msg, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_info(do_polling, State) ->
-    TimeStr = mafia_print:print_time(current_time, short),
+    TimeStr = mafia_print:print_time(?console),
     io:format("~s poll for new messages\n", [TimeStr]),
     mafia_data:downl_web(State#state.game_key),
     {_Reply, S2} = maybe_change_timer(State),

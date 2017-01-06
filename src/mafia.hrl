@@ -52,6 +52,7 @@
 -define(dead_player, dead_player).
 -define(other, other).
 %% -define(, ).
+-define(console, console).
 
 %% KV keys
 -define(reg_threads, reg_threads).
@@ -62,7 +63,7 @@
 -define(dst_user, dst_user).
 -define(timezone_game, timezone_game).
 -define(dst_game, dst_game).
--define(print_time, print_time).
+-define(console_tz, console_tz).
 -define(time_offset, time_offset). %% integer in seconds
 %% positive offset means that simulated time is in the past.
 
@@ -206,19 +207,19 @@
 
 -define(dbg(Term),
         io:format("~s DBG ~p ~999p\n",
-                  [mafia_print:print_time(current_time, short),
+                  [mafia_print:print_time(?console),
                    ?MODULE, Term])).
 -define(dbg(Time, Term),
         io:format("~s DBG ~p ~999p\n",
-                  [mafia_print:print_time(Time, short),
+                  [mafia_print:print_time(?console, Time),
                    ?MODULE, Term])).
 -define(dbg_str(Str),
         io:format("~s DBG ~s\n",
-                  [mafia_print:print_time(current_time, short),
+                  [mafia_print:print_time(?console),
                    Str])).
 -define(man(Time, Cmd),
         io:format("~s MANUAL ~999p\n",
-                  [mafia_print:print_time(Time, short),
+                  [mafia_print:print_time(?console, Time),
                    Cmd])).
 
 -define(HTML_TAB_START(Title, TabAttrStr),

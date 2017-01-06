@@ -133,9 +133,10 @@ msg_search_result(Sid, _Env, In) ->
     B = if DoCont ->
                 TabStart = "<tr><td><table cellpadding=6 cellspacing=3>",
                 TabEnd = "</table></td></tr>",
-                web:deliver(Sid, TabStart),
-                mafia_data:iterate_all_msgs(ThId, Fun),
-                web:deliver(Sid, TabEnd);
+                B1 = web:deliver(Sid, TabStart),
+                B2 = mafia_data:iterate_all_msgs(ThId, Fun),
+                B3 = web:deliver(Sid, TabEnd),
+                B1 + B2 + B3;
            true ->
                 MsgB = ?l2b(["<tr><td valign=\"top\">",
                             "Error: Minimum one condition needs to be "

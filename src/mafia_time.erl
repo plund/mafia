@@ -118,7 +118,7 @@ secs2day_hour_min_sec(Secs) when is_integer(Secs), Secs >=0 ->
 
 -spec get_tz_dst() -> {TZ :: integer(), IsDst :: boolean()}.
 get_tz_dst() ->
-    case ?getv(?print_time) of
+    case ?getv(?console_tz) of
         ?game -> {?getv(?timezone_game), ?getv(?dst_game)};
         ?user -> {?getv(?timezone_user), ?getv(?dst_user)};
         Loc when Loc == ?utc;

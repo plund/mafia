@@ -53,9 +53,8 @@ catch_debug(Sid, Tag, F) ->
             {NumBytes, Args} ->
                 ?inc_cnt(ReqType, ?bytes, NumBytes),
                 if Args /= ?none ->
-                        ?inc_cnt(ReqType,
-                                 {?bytes, Args},
-                                 NumBytes);
+                        ?inc_cnt(ReqType, {reqs, Args}, 1),
+                        ?inc_cnt(ReqType, {?bytes, Args}, NumBytes);
                    true -> ok
                 end,
                 TimeB = erlang:monotonic_time(millisecond),

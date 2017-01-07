@@ -67,6 +67,7 @@
 -define(timezone_game, timezone_game).
 -define(dst_game, dst_game).
 -define(console_tz, console_tz).
+-define(mod_msg, mod_msg).
 -define(time_offset, time_offset). %% integer in seconds
 %% positive offset means that simulated time is in the past.
 

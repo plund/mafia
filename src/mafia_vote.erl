@@ -6,13 +6,16 @@
          check_user/1,
          print_verify_user/1,
 
-         kill_player/4
+         kill_player/4,
+         replace_player/4
         ]).
 
 %% debug
 -export([check_for_early_end/3,
          find_early_end/1,
-         find_deadline_move/1]).
+         find_deadline_move/1,
+         check_for_player_replacement/3
+        ]).
 
 -include("mafia.hrl").
 
@@ -362,7 +365,87 @@ substr(Str, [{S, L}|SubStrs]) ->
 
 %% -----------------------------------------------------------------------------
 
-check_for_player_replacement(_MsgText, _M, G) -> G.
+-spec check_for_player_replacement(
+        MsgText::string(), #message{}, #mafia_game{}
+       ) -> #mafia_game{}.
+check_for_player_replacement(MsgText, M, G) ->
+    MsgTextU = ?l2u(MsgText),
+    Reg = "^[ \\t]*([^\\s].*[^\\s])[ \\t]+(HAS REPLACED|IS REPLACING)"
+        "[ \\t]+([^\\s].*[^\\s])[ \\t]*$",
+    case re:run(MsgTextU, Reg) of
+        nomatch ->
+            G;
+        {match, Ms} ->
+            [_, NewPlayer, _, OldPlayer] = substr(MsgTextU, Ms),
+            case replace_player(G, M, NewPlayer, OldPlayer) of
+                {ok, G2} ->
+                    G2;
+                {Err, G2} ->
+                    case M of
+                        #message{time = Time} ->
+                            ?dbg(Time, {replace, Err});
+                        _ -> ?dbg({replace, Err})
+                    end,
+                    G2
+            end
+    end.
+
+-spec replace_player(
+        #mafia_game{}, #message{}, New::string(), Old::string()) ->
+                            {ok | term(), #mafia_game{}}.
+replace_player(G, M, NewPlayer, OldPlayer) ->
+    replace1(G, M, NewPlayer, ruser(OldPlayer)).
+
+replace1(G, _M, _NewPlayer, []) -> {old_no_exists, G};
+replace1(G, M, NewPlayer, [Old]) ->
+    replace2(G, M, NewPlayer, Old,
+             lists:member(Old#user.name, G#mafia_game.players_rem)).
+
+replace2(G, _M, _NewPlayer, _Old, false) -> {not_remain, G};
+replace2(G, M, NewPlayer, Old, true) ->
+    replace3(G, M, NewPlayer, Old, ruser(NewPlayer)).
+
+replace3(G, _M, NewPlayer, Old, []) ->
+    NewNameUB = ?l2ub(NewPlayer),
+    replace4(G, Old#user.name, NewNameUB);
+replace3(G, M, _NewPlayer, Old, [New]) ->
+    %% replace ALSO in #mafia_day.players_rem
+    case mafia_time:calculate_phase(G#mafia_game.key, M#message.time) of
+        {DayNum, _DoN} ->
+            case ?rday(G#mafia_game.key, DayNum) of
+                [D] ->
+                    ?dbg({replace_in_day_rec, Old#user.name, New#user.name}),
+                    Rems2 = repl_user(Old#user.name,
+                                      New#user.name,
+                                      D#mafia_day.players_rem),
+                    mnesia:dirty_write(D#mafia_day{players_rem = Rems2}),
+                    ?dbg({?b2l(New#user.name), replaces,
+                          ?b2l(Old#user.name)}),
+                    replace4(G, Old#user.name, New#user.name);
+                [] ->
+                    {no_day, G}
+            end;
+        ?game_ended -> {?game_ended, G}
+    end.
+
+replace4(G, OldUB, NewUB) ->
+    NewOrig = repl_user(OldUB, NewUB, G#mafia_game.players_orig),
+    NewRem = repl_user(OldUB, NewUB, G#mafia_game.players_rem),
+    ?dbg({replace_in_game_rec, OldUB, NewUB}),
+    G2 = G#mafia_game{players_orig = NewOrig, players_rem = NewRem},
+    mnesia:dirty_write(G2),
+    {ok, G2}.
+
+repl_user(OldUB, NewUB, Users) ->
+    R = fun(U) when U == OldUB -> NewUB;
+           (U) -> U
+        end,
+    [R(U) || U <- Users].
+
+ruser(User) when is_list(User) -> ruserI(?l2ub(User));
+ruser(User) when is_binary(User) -> ruserI(?b2ub(User)).
+
+ruserI(UserUB) -> mnesia:dirty_read(user, UserUB).
 
 %% -----------------------------------------------------------------------------
 
@@ -636,7 +719,6 @@ r_count([], [], N) ->
 %% -----------------------------------------------------------------------------
 
 reg_vote(M, G, Vote, RawVote, IsOkVote) ->
-    %% io:format("REGVOTE ~p, ~p\n",[M#message.user_name, Vote]),
     case is_remaining_player(
            M#message.user_name,
            G#mafia_game.players_rem) of

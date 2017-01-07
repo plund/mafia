@@ -1,7 +1,7 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% - GM command: XXX replaces YYY
+%% - add fake message to test GM commands
 %% - align new deadlines to next full minute.
 %% - GM command expand alias list (Manual exist already)
 
@@ -88,7 +88,8 @@
 %% utilities
 -export([verify_users/1,
          grep/1, grep/2,
-         l/0
+         l/0,
+         add_sim_gm_message/4
         ]).
 
 -export([cmp_vote_raw/0
@@ -395,17 +396,10 @@ unend_game(MsgId) ->
 replace_player(MsgId, OldPlayer, NewPlayer) ->
     case find_mess_game(MsgId) of
         {ok, G, M} ->
-            OldPlayU = ?l2b(OldPlayer),
-            case lists:member(OldPlayU, G#mafia_game.players_orig) of
-                true ->
-                    NewPlayU = ?l2b(NewPlayer),
-                    Repl = fun(PlayU) when PlayU == OldPlayU -> NewPlayU;
-                              (PlayU) -> PlayU
-                           end,
-                    NewPlayOri = [Repl(P) || P <- G#mafia_game.players_orig],
-                    NewPlayRem = [Repl(P) || P <- G#mafia_game.players_rem],
-                    mnesia:dirty_write(G#mafia_game{players_orig = NewPlayOri,
-                                                    players_rem = NewPlayRem}),
+            case mafia_vote:replace_player(G, M,
+                                           NewPlayer,
+                                           OldPlayer) of
+                {ok, _} ->
                     Cmd =
                         #cmd{time = M#message.time,
                              msg_id = MsgId,
@@ -414,11 +408,16 @@ replace_player(MsgId, OldPlayer, NewPlayer) ->
                     ?man(M#message.time, Cmd),
                     mafia_file:manual_cmd_to_file(M#message.thread_id, Cmd),
                     ok;
-                false ->
-                    old_player_not_in_game
+                _ ->
+                    replace_failed
             end;
         {?error, _} = E -> E
     end.
+
+ %% M26 = 1432756.
+ %% D1 = hd(mafia:rday(M26, 1)).
+ %% Rem2 = [case U of <<"ND">> -> <<"zorclex">>; _ -> U end || U <- D1#mafia_day.players_rem].
+ %% mnesia:dirty_write(D1#mafia_day{players_rem = Rem2}).
 
 %% -----------------------------------------------------------------------------
 %% @doc Read the GM message and add good comment about who the dead player was.
@@ -644,6 +643,19 @@ remove_alias(User, Alias) ->
                 false ->
                     {error, alias_does_not_exist}
             end
+    end.
+
+add_sim_gm_message(Page, TplMsgId, MsgId, Text) ->
+    ThId = ?getv(?game_key),
+    case {?rpage(ThId, Page), ?rmess(TplMsgId), ?rmess(MsgId)} of
+        {[], _, _} -> no_page;
+        {_, [], _} -> no_template_message;
+        {_, _, [_]} -> message_exit_already;
+        {[P], [M], []} ->
+            SimM = M#message{msg_id = MsgId, message = ?l2b(Text)},
+            P2 = P#page_rec{message_ids = [SimM | P#page_rec.message_ids]},
+            mnesia:dirty_write(SimM),
+            mnesia:dirty_write(P2)
     end.
 
 %% =============================================================================

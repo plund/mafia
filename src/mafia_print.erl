@@ -207,9 +207,17 @@ print_votesI(#pp{game = G,
                 LinkPhase = if is_integer(PP#pp.use_time) -> ?game_ended;
                                true -> PP#pp.phase
                             end,
+                ModMsgV = ?getv(?mod_msg),
+                ModMsg =
+                    if is_list(ModMsgV) ->
+                            ["<tr><td align=center><i>", ModMsgV,
+                             "</i></td></tr>\r\n"];
+                       true -> ""
+                    end,
                 {Href, Link} =
                     mafia_file:game_link_and_text(PP#pp.game, LinkPhase),
                 ["<tr><th>", GName, "</th></tr>\r\n",
+                 ModMsg,
                  "<tr><td><table align=center cellpadding=4 cellspacing=6 >"
                  "<tr><td>Game Masters:<td>",
                  [["<td", bgcolor(GM), ">",

@@ -144,13 +144,15 @@ get_tz_dst(G = #mafia_game{}, Time) ->
 adjust_secs1970_to_tz_dst(Time, TzH, Dst) ->
     Time + (TzH + if Dst -> 1; true -> 0 end) * ?HourSecs.
 
--spec calculate_phase(Game :: integer() | #mafia_game{},
-                      Time :: seconds1970())
+-spec calculate_phase(Game :: integer() | #mafia_game{})
                      -> phase().
 calculate_phase(ThId) ->
     Time = utc_secs1970(),
     calculate_phase(ThId, Time).
 
+-spec calculate_phase(Game :: integer() | #mafia_game{},
+                      Time :: seconds1970())
+                     -> phase().
 calculate_phase(ThId, Time) when is_integer(ThId) ->
     case ?rgame(ThId) of
         [G] -> calculate_phase(G, Time);

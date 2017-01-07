@@ -72,6 +72,7 @@ insert_initial_data() ->
     ?set(?timezone_game, -5),
     ?set(?dst_game, false),
     ?set(?console_tz, user),
+    ?set(?mod_msg, ?undefined),
     add_thread(m24, ?M24ThId),
     add_thread(m25, ?M25ThId),
     write_game(m25),
@@ -177,6 +178,7 @@ set(K=?timezone_game, V) when is_integer(V), -12 =< V, V =< 12 -> set_kv(K, V);
 set(K=?time_offset, V) when is_integer(V) -> set_kv(K, V);
 set(K=?dst_user, V) when is_boolean(V) -> set_kv(K, V);
 set(K=?dst_game, V) when is_boolean(V) -> set_kv(K, V);
+set(K=?mod_msg, V) when is_list(V) -> set_kv(K, V);
 set(K=?console_tz, V)
   when V == user; V == game; V == utc;
        V == zulu; V == gmt ->

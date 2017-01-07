@@ -88,8 +88,16 @@ rgame(ThId) ->
         [] -> [];
         [G] ->
             %% - reading game need to filter out "future" deaths
-            Deaths2 = [ D || D <- G#mafia_game.player_deaths,
-                             D#death.time =< OffsetNow],
+            Deaths2 =
+                lists:foldr(
+                  fun(#death{time = Time} = D, Acc)
+                        when Time =< OffsetNow -> [D | Acc];
+                     (#replacement{time = Time} = R, Acc)
+                        when Time =< OffsetNow -> [R | Acc];
+                     (_, Acc) -> Acc
+                  end,
+                  [],
+                  G#mafia_game.player_deaths),
             %% - fix game_end if it is too early for it.
             GameEnd2 =
                 case G#mafia_game.game_end of

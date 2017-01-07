@@ -1,6 +1,12 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% - FLush the POLL TIMER when polling!!
+%% 01-07T09:05 poll for new messages
+%% Download wait 184 millisecs
+%% - how get rid of "***" for ND day one. Should the game deaths list also
+%%     contain replacement info?
+%% - add GM CMD for end_game
 %% - add fake message to test GM commands
 %% - align new deadlines to next full minute.
 %% - GM command expand alias list (Manual exist already)

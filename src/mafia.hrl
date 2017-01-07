@@ -288,6 +288,14 @@
          is_deleted = false :: boolean()
         }).
 
+-record(replacement,
+        {new_player :: player(),
+         replaced_player :: player(),
+         phase :: phase(),
+         msg_id :: msg_id(),
+         time :: seconds1970()
+        }).
+
 -record(mafia_day,
         {key :: {thread_id(), day_num()},
          thread_id :: thread_id(),

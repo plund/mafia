@@ -11,10 +11,11 @@
         ]).
 
 %% debug
--export([check_for_early_end/3,
-         find_early_end/1,
-         find_deadline_move/1,
-         check_for_player_replacement/3
+-export([
+         %% check_for_early_end/3,
+         %% find_early_end/1,
+         %% find_deadline_move/1,
+         %% check_for_player_replacement/3
         ]).
 
 -include("mafia.hrl").
@@ -205,7 +206,10 @@ add_death(D, Day=#mafia_day{})->
     add_deathI(D, Deaths).
 
 add_deathI(D, Deaths) ->
-    case lists:keyfind(D#death.player, #death.player, Deaths) of
+    Match = fun(#death{player = P}) -> P == D#death.player;
+               (_) -> false
+            end,
+    case find(Match, Deaths) of
         false -> [D | Deaths];
         D2 ->
             D3 = if D#death.comment /= ?undefined -> D;
@@ -213,8 +217,19 @@ add_deathI(D, Deaths) ->
                          %% remove delete marking on D2
                          D2#death{is_deleted = false}
                  end,
-            lists:keyreplace(D#death.player, #death.player, Deaths, D3)
+            replace(Match, Deaths, D3)
     end.
+
+%% mafia_lib?
+find(MatchF, List) ->
+    case lists:dropwhile(fun(E) -> not MatchF(E) end, List) of
+        [] -> false;
+        [MatchElement | _] -> MatchElement
+    end.
+
+%% mafia_lib?
+replace(MatchF, List, NewR) ->
+    [case MatchF(E) of true -> NewR; false -> E end || E <- List].
 
 -spec is_end_of_phase(M :: #message{}, G :: #mafia_game{})
                      -> {IsEnd :: boolean(), phase()}.
@@ -378,13 +393,13 @@ check_for_player_replacement(MsgText, M, G) ->
         {match, Ms} ->
             [_, NewPlayer, _, OldPlayer] = substr(MsgTextU, Ms),
             case replace_player(G, M, NewPlayer, OldPlayer) of
-                {ok, G2} ->
-                    G2;
+                {ok, G2} -> G2;
                 {Err, G2} ->
                     case M of
                         #message{time = Time} ->
                             ?dbg(Time, {replace, Err});
-                        _ -> ?dbg({replace, Err})
+                        _ ->
+                            ?dbg({replace, Err})
                     end,
                     G2
             end
@@ -411,17 +426,27 @@ replace3(G, _M, NewPlayer, Old, []) ->
 replace3(G, M, _NewPlayer, Old, [New]) ->
     %% replace ALSO in #mafia_day.players_rem
     case mafia_time:calculate_phase(G#mafia_game.key, M#message.time) of
-        {DayNum, _DoN} ->
+        {DayNum, _DoN} = Phase ->
             case ?rday(G#mafia_game.key, DayNum) of
                 [D] ->
                     ?dbg({replace_in_day_rec, Old#user.name, New#user.name}),
                     Rems2 = repl_user(Old#user.name,
                                       New#user.name,
                                       D#mafia_day.players_rem),
-                    mnesia:dirty_write(D#mafia_day{players_rem = Rems2}),
-                    ?dbg({?b2l(New#user.name), replaces,
-                          ?b2l(Old#user.name)}),
-                    replace4(G, Old#user.name, New#user.name);
+                    Replacement = #replacement{
+                      new_player = New#user.name,
+                      replaced_player = Old#user.name,
+                      phase = Phase,
+                      msg_id = M#message.msg_id,
+                      time = M#message.time
+                     },
+                    DeathsD2 = [Replacement | D#mafia_day.player_deaths],
+                    mnesia:dirty_write(D#mafia_day{players_rem = Rems2,
+                                                   player_deaths = DeathsD2}),
+                    DeathsG2 = [Replacement | G#mafia_game.player_deaths],
+                    G2 = G#mafia_game{player_deaths = DeathsG2},
+                    ?dbg({?b2l(New#user.name), replaces, ?b2l(Old#user.name)}),
+                    replace4(G2, Old#user.name, New#user.name);
                 [] ->
                     {no_day, G}
             end;
@@ -431,7 +456,6 @@ replace3(G, M, _NewPlayer, Old, [New]) ->
 replace4(G, OldUB, NewUB) ->
     NewOrig = repl_user(OldUB, NewUB, G#mafia_game.players_orig),
     NewRem = repl_user(OldUB, NewUB, G#mafia_game.players_rem),
-    ?dbg({replace_in_game_rec, OldUB, NewUB}),
     G2 = G#mafia_game{players_orig = NewOrig, players_rem = NewRem},
     mnesia:dirty_write(G2),
     {ok, G2}.

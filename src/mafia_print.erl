@@ -38,6 +38,7 @@
 %% print params
 -record(pp, {game  :: #mafia_game{},
              day   :: #mafia_day{},
+             players_rem :: [player()],
              game_key :: thread_id(),
              phase  :: phase(),
              day_num :: integer(),
@@ -148,6 +149,36 @@ don_arg(DoN) ->
        %% DoN == e; DoN == 'end'; DoN == ?game_end -> ?game_ended
     end.
 
+setup_pp(PP) when PP#pp.game == ?undefined ->
+    setup_pp(PP#pp{game = hd(?rgame(PP#pp.game_key))});
+setup_pp(PP) when PP#pp.day == ?undefined ->
+    setup_pp(PP#pp{day = hd(?rday(PP#pp.game_key, PP#pp.phase))});
+setup_pp(PP) when PP#pp.players_rem == ?undefined ->
+    %% print_votesI(PP) when PP#pp.players_rem == ?undefined ->
+    #mafia_day{players_rem = PlayersRem,
+               player_deaths = Deaths} = PP#pp.day,
+    PhTime = mafia_time:get_time_for_phase(PP#pp.game, PP#pp.phase),
+    AllPlayersB0 = PlayersRem
+        ++ [DeadB || #death{player = DeadB,
+                            is_deleted = false} <- Deaths],
+    AllPlayersB =
+        lists:foldl(fun(#replacement{new_player = NewB,
+                                     replaced_player = RepB,
+                                     time = RTime},
+                        PlayersU) ->
+                            Ps2 = PlayersU ++ [RepB],
+                            %% Did replacement occur before EoD?
+                            if RTime >= PhTime -> Ps2 -- [NewB];
+                               true -> Ps2
+                            end
+                    end,
+                    AllPlayersB0,
+                    [R || R = #replacement{} <- Deaths]),
+    PP#pp{players_rem = AllPlayersB};
+setup_pp(PP) -> PP.
+
+%% -----------------------------------------------------------------------------
+
 %% /0 human
 print_votes() ->
     GameKey = ?getv(?game_key),
@@ -168,25 +199,15 @@ print_votes(Opts) ->
     PP2 = po(PP, Opts),
     print_votesI(PP2).
 
-print_votes_game(_PP, []) -> ok;
-print_votes_game(PP, [G]) -> print_votesI(PP#pp{game = G}).
-
-print_votes_day(_PP, []) -> ok;
-print_votes_day(PP, [D]) -> print_votesI(PP#pp{day = D}).
-
-print_votesI(PP) when PP#pp.game == ?undefined ->
-    print_votes_game(PP, ?rgame(PP#pp.game_key));
-print_votesI(PP) when PP#pp.day == ?undefined ->
-    print_votes_day(PP, ?rday(PP#pp.game_key, PP#pp.phase));
-print_votesI(#pp{game = G,
-                 day = Day
-                } = PP) ->
+print_votesI(PPin) ->
+    PP = setup_pp(PPin),
+    #pp{game = G, day = Day} = PP,
     PhaseType = case PP#pp.phase of
                     ?game_ended -> ?game_ended;
                     _ -> element(2, PP#pp.phase)
                 end,
     Day = PP#pp.day,
-    RemPlayers = Day#mafia_day.players_rem,
+    RemPlayers = PP#pp.players_rem,
     %% Part - Page heading
     %% Print Game Name
     GName = ?b2l(G#mafia_game.name),
@@ -209,7 +230,7 @@ print_votesI(#pp{game = G,
                             end,
                 ModMsgV = ?getv(?mod_msg),
                 ModMsg =
-                    if is_list(ModMsgV) ->
+                    if is_list(ModMsgV), ModMsgV /= "" ->
                             ["<tr><td align=center><i>", ModMsgV,
                              "</i></td></tr>\r\n"];
                        true -> ""
@@ -722,7 +743,7 @@ pr_votes(PP) ->
 rem_play_votes(PP) ->
     Day = PP#pp.day,
     Votes0 = Day#mafia_day.votes,
-    RemPlayers = Day#mafia_day.players_rem,
+    RemPlayers = PP#pp.players_rem,
     [V || V <- Votes0,
           lists:member(element(1, V), RemPlayers)].
 
@@ -774,7 +795,7 @@ print_stats(Num, DoN) ->
     print_stats_opts([{?phase, {Num, DoN2}}]).
 
 print_stats_opts(Opts) ->
-    DefOpts = [{?game_key, 1420289},
+    DefOpts = [{?game_key, ?getv(?game_key)},
                {?phase, {1, ?day}},
                {?dev, standard_io}],
     PP = po(#pp{}, DefOpts),
@@ -782,16 +803,15 @@ print_stats_opts(Opts) ->
     print_statsI(PP2).
 
 %% API
-print_statsI(PP) when PP#pp.game == ?undefined ->
-    print_stats_game(PP, ?rgame(PP#pp.game_key));
+print_statsI(PP)
+  when PP#pp.game == ?undefined;
+       PP#pp.day == ?undefined;
+       PP#pp.players_rem == ?undefined
+       -> print_statsI(setup_pp(PP));
 print_statsI(PP) when PP#pp.match_expr == ?undefined ->
     print_stats_match(PP);
 print_statsI(PP) ->
     do_print_stats(PP).
-
-%% stats support funs
-print_stats_game(_PP, []) -> ok;
-print_stats_game(PP, [G]) -> print_statsI(PP#pp{game = G}).
 
 print_stats_match(PP) when PP#pp.phase == ?total_stats ->
     %% TOTAL stats
@@ -819,7 +839,7 @@ print_stats_match(PP) ->
     print_statsI(PP#pp{match_expr = MatchExpr}).
 
 do_print_stats(PP) ->
-    #pp{game = G, phase = Phase, match_expr = MatchExpr} = PP,
+    #pp{phase = Phase, match_expr = MatchExpr} = PP,
     Stats = mnesia:dirty_select(stat, MatchExpr),
     LE = fun(#stat{num_postings = PA, num_words = WA},
              #stat{num_postings = PB, num_words = WB}) ->
@@ -835,7 +855,8 @@ do_print_stats(PP) ->
               (bgcolor, S) -> bgcolor(transl(element(1, S#stat.key)));
               (_, _) -> []
            end,
-    NonPosters = [?b2l(PRem) || PRem <- G#mafia_game.players_rem]
+    PlayersRem = PP#pp.players_rem,
+    NonPosters = [?b2l(PRem) || PRem <- PlayersRem]
         -- [PrFn(tr, S) || S <- Stats],
     HtmlHead =
         if PP#pp.mode == ?text ->
@@ -968,16 +989,14 @@ web_vote_tracker(_PP, _, []) -> ok;
 web_vote_tracker(PP, [Game], [Day]) ->
     PP2 = PP#pp{game = Game,
                 day = Day},
-    print_tracker(PP2).
+    PP3 = setup_pp(PP2),
+    print_tracker(PP3).
 
 print_tracker(PP) when PP#pp.day_num == ?undefined ->
     print_tracker(PP#pp{day_num = element(1, PP#pp.phase)});
 print_tracker(PP) ->
-    #mafia_day{players_rem = PlayersRem,
-               player_deaths = Deaths} = PP#pp.day,
     %% player_deaths contains players dying in the middle of the day.
-    AllPlayersB = PlayersRem ++ [DeadB || #death{player = DeadB,
-                                                 is_deleted = false} <- Deaths],
+    AllPlayersB = PP#pp.players_rem,
     Abbrs = mafia_name:get_abbrevs(AllPlayersB),
     if PP#pp.mode == ?text ->
             io:format(PP#pp.dev, "\n", []);
@@ -995,9 +1014,7 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
     PrAbbrF = fun("---") -> "---";
                  ("INV") -> "INV";
                  (V) -> case lists:keyfind(V, 2, Abbrs) of
-                            false ->
-                                %%io:format(PP#pp.dev, "~s\n", [V]),
-                                "***";
+                            false -> "***";
                             {_, _, Abbr, _} -> Abbr
                        end
               end,

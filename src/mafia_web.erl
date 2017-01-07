@@ -250,6 +250,7 @@ handle_info(do_polling, State) ->
     io:format("~s poll for new messages\n", [TimeStr]),
     mafia_data:downl_web(State#state.game_key),
     {_Reply, S2} = maybe_change_timer(State),
+    flush(do_polling),
     update_current(S2#state.game_key, S2#state.timer_minutes),
     {noreply, S2};
 handle_info(_Info, State) ->

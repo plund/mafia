@@ -122,12 +122,22 @@
         </tr>
         <tr>
           <td valign="top"><font size="-1">
-              GAME HAS ENDED</font></td>
+              GAME HAS ENDED<br>
+              GAME ENDED<br>
+              GAME IS OVER
+              <p>
+                UNEND GAME<br>
+                GAME HAS UNENDED<br>
+                GAME UNENDED<br>
+          </font></td>
           <td valign="top"><font size="-0">
-              The bot put the game into phase end of game. The bot change its
-              presentation to the end of game version of the current_vote page.
-              This GM message where "GAME HAS ENDED" if found will be
-              included as well as the game global posting statistics.
+              The game END messages put the game into the end of game phase.
+              The bot change its game status presentation to present the
+              end of game. The bot stops looking for player votes and
+              all other GM commands except the UNEND command.
+              <p>
+                The various game UNEND commands remove the game end AND
+                restores a new deadline schedule from the last past deadline.
           </font></td>
         </tr>
         <tr>

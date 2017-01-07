@@ -12,6 +12,8 @@
 
 %% debug
 -export([
+         find_game_end/1,
+         find_game_unend/1
          %% check_for_early_end/3,
          %% find_early_end/1,
          %% find_deadline_move/1,
@@ -40,12 +42,12 @@ check_for_vote(_S, _M, []) -> ignore;
 check_for_vote(S, M, [G = #mafia_game{}]) ->
     check_for_vote(S, M, G);
 check_for_vote(S, M, G = #mafia_game{}) ->
-    DoCheck = case G#mafia_game.game_end of
-                  ?undefined -> true;
-                  {EndTime, _MsgId} ->
-                      M#message.time =< EndTime
+    NotEnded = case G#mafia_game.game_end of
+                   ?undefined -> true;
+                   {EndTime, _MsgId} ->
+                       M#message.time =< EndTime
               end,
-    if DoCheck ->
+    if NotEnded ->
             case player_type(M, G) of
                 ?gm -> check_for_gm_cmds(S, M, G);
                 ?player -> check_for_votes(S, M, G);
@@ -53,7 +55,12 @@ check_for_vote(S, M, G = #mafia_game{}) ->
                 ?other -> log_unallowed_msg(?other, M)
             end;
        true ->
-            ignore
+            case player_type(M, G) of
+                ?gm ->
+                    MsgText = mafia_print:html2txt(?b2l(M#message.message)),
+                    check_for_game_unend(MsgText, M, G);
+                _ -> ignore
+            end
     end,
     M#message.time.
 
@@ -279,12 +286,13 @@ check_for_early_end(MsgText, Time, G) ->
         {ok, DoN} ->
             case mafia_time:calculate_phase(G, Time) of
                 ?game_ended ->
-                    ?dbg("GM early end command for game that has ended"),
+                    ?dbg(Time, "GM early end command for game that has ended"),
                     G;
                 {_, DoN} = Phase ->
                     mafia_time:end_phase(G, Phase, Time);
                 _ ->
-                    ?dbg({"GM early end command with wrong phase type", DoN}),
+                    ?dbg(Time,
+                         {"GM early end command with wrong phase type", DoN}),
                     G
             end
     end.
@@ -395,12 +403,7 @@ check_for_player_replacement(MsgText, M, G) ->
             case replace_player(G, M, NewPlayer, OldPlayer) of
                 {ok, G2} -> G2;
                 {Err, G2} ->
-                    case M of
-                        #message{time = Time} ->
-                            ?dbg(Time, {replace, Err});
-                        _ ->
-                            ?dbg({replace, Err})
-                    end,
+                    ?dbg(M#message.time, {replace, Err}),
                     G2
             end
     end.
@@ -429,13 +432,13 @@ replace3(G, M, _NewPlayer, Old, [New]) ->
         {DayNum, _DoN} = Phase ->
             case ?rday(G#mafia_game.key, DayNum) of
                 [D] ->
-                    ?dbg({replace_in_day_rec, Old#user.name, New#user.name}),
-                    Rems2 = repl_user(Old#user.name,
-                                      New#user.name,
-                                      D#mafia_day.players_rem),
+                    NewP = New#user.name,
+                    OldP = Old#user.name,
+                    ?dbg(M#message.time, {?b2l(NewP), replaces, ?b2l(OldP)}),
+                    Rems2 = repl_user(OldP, NewP, D#mafia_day.players_rem),
                     Replacement = #replacement{
-                      new_player = New#user.name,
-                      replaced_player = Old#user.name,
+                      new_player = NewP,
+                      replaced_player = OldP,
                       phase = Phase,
                       msg_id = M#message.msg_id,
                       time = M#message.time
@@ -445,8 +448,7 @@ replace3(G, M, _NewPlayer, Old, [New]) ->
                                                    player_deaths = DeathsD2}),
                     DeathsG2 = [Replacement | G#mafia_game.player_deaths],
                     G2 = G#mafia_game{player_deaths = DeathsG2},
-                    ?dbg({?b2l(New#user.name), replaces, ?b2l(Old#user.name)}),
-                    replace4(G2, Old#user.name, New#user.name);
+                    replace4(G2, OldP, NewP);
                 [] ->
                     {no_day, G}
             end;
@@ -473,7 +475,35 @@ ruserI(UserUB) -> mnesia:dirty_read(user, UserUB).
 
 %% -----------------------------------------------------------------------------
 
-check_for_game_end(_MsgText, _M, G) -> G.
+check_for_game_end(MsgText, M, G) ->
+    case find_game_end(MsgText) of
+        nomatch ->
+            G;
+        {match, _Ms} ->
+            {_Reply, G2} = mafia_time:end_game(M, G),
+            G2
+    end.
+
+find_game_end(Msg) ->
+    Reg = "GAME ((HAS )?ENDED|IS OVER)",
+    MsgTextU = ?l2u(Msg),
+    re:run(MsgTextU, Reg).
+
+%% -----------------------------------------------------------------------------
+
+check_for_game_unend(MsgText, M, G) ->
+    case find_game_unend(MsgText) of
+        nomatch ->
+            G;
+        {match, _Ms} ->
+            {_Reply, G2} = mafia_time:end_game(M, G),
+            G2
+    end.
+
+find_game_unend(Msg) ->
+    Reg = "(GAME (HAS )?UNENDED|UNEND GAME)",
+    MsgTextU = ?l2u(Msg),
+    re:run(MsgTextU, Reg).
 
 %% -----------------------------------------------------------------------------
 

@@ -515,7 +515,6 @@ get_body(S, {file, Body}) ->
     {ok, S2};
 get_body(S, no_file) ->
     S2 = make_url(S#s{body_on_file = false}),
-    %% io:format("gb ~p\n", [S2#s.page_to_read]),
     get_body2(S2, http_request(S2)).
 
 make_url(S) ->
@@ -526,14 +525,12 @@ make_url(S) ->
 -spec get_body2(#s{}, term()) -> {ok, Body::term()} | {error, term()}.
 get_body2(_S2, {error, _} = Error) -> Error;
 get_body2(S2, {ok, Body}) ->
-    %% io:format("gb2 ~p\n", [S2#s.page_to_read]),
     Body2 = get_thread_section(Body),
     S3 = check_this_page(S2#s{body=Body2}),
     if not S3#s.is_last_page -> % page complete > STORE IT!
             store_page(S3, Body2);
        true -> ok
     end,
-    %% io:format("gb2 ~p\n", [S3#s.page_to_read]),
     {ok, S3}.
 
 get_thread_section(Body) ->
@@ -545,19 +542,24 @@ get_thread_section(Body) ->
     ThreadStr.
 
 http_request(S2) ->
+    ?inc_cnt(http_requests),
     A = erlang:monotonic_time(millisecond),
     case httpc:request(S2#s.url) of
         {ok, {_StatusLine, _Headers, Body}} ->
+            ?inc_cnt(http_responses),
             B = erlang:monotonic_time(millisecond),
-            io:format("Download wait ~w millisecs\n", [B - A]),
+            ?dbg({download_wait_ms, B - A}),
             {ok, Body};
         {ok, {_StatusCode, Body}} ->
+            ?inc_cnt(http_responses),
             B = erlang:monotonic_time(millisecond),
-            io:format("Download wait ~w millisecs\n", [B - A]),
+            ?dbg({download_wait_ms, B - A}),
             {ok, Body};
         {ok, _ReqId} ->
+            ?inc_cnt(http_errors),
             {error, no_body};
         {error, _Reason} ->
+            ?inc_cnt(http_errors),
             {error, http_req}
     end.
 

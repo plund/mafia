@@ -1,15 +1,11 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% - FLush the POLL TIMER when polling!!
-%% 01-07T09:05 poll for new messages
-%% Download wait 184 millisecs
-%% - how get rid of "***" for ND day one. Should the game deaths list also
-%%     contain replacement info?
-%% - add GM CMD for end_game
-%% - add fake message to test GM commands
-%% - align new deadlines to next full minute.
-%% - GM command expand alias list (Manual exist already)
+%% - Handle new player that is NOT yet in the DB.
+%% - add/remove fake GM message to test commands
+%% ? - align new deadlines to next full minute. - can it come off full minutes?
+%% ? - GM command expand alias list (Manual exist already).
+%%        - Game startup is too hard.
 
 %% - Call the Game Status generation from the gen_server also for html variants
 %%   when they are ready to be stored on file
@@ -361,16 +357,17 @@ move_next_deadline(MsgId, Direction, TimeDiff) ->
 %% Example: mafia:end_game(1427800).
 -spec end_game(MsgId :: msg_id()) -> term().
 end_game(MsgId) ->
-    case ?rmess(MsgId) of
-        [] -> no_message_found;
-        [M = #message{thread_id = ThId,
-                      time = Time}] ->
+    case find_mess_game(MsgId) of
+        {ok, G, M} ->
+            #message{thread_id = ThId, time = Time} = M,
             Cmd = #cmd{time = Time,
                        msg_id = MsgId,
                        mfa = {mafia, end_game, [MsgId]}},
             ?man(Time, Cmd),
-            mafia_file:manual_cmd_to_file(ThId, Cmd),
-            mafia_time:end_game(M)
+            Reply = mafia_file:manual_cmd_to_file(ThId, Cmd),
+            {Reply, _G2} = mafia_time:end_game(M, G),
+            Reply;
+        {?error, _} = E -> E
     end.
 
 %% -----------------------------------------------------------------------------
@@ -380,16 +377,17 @@ end_game(MsgId) ->
 %% Example: mafia:unend_game(1427800).
 -spec unend_game(MsgId :: msg_id()) -> term().
 unend_game(MsgId) ->
-    case ?rmess(MsgId) of
-        [] -> no_message_found;
-        [M = #message{thread_id = ThId,
-                      time = Time}] ->
+    case find_mess_game(MsgId) of
+        {ok, G, M} ->
+            #message{thread_id = ThId, time = Time} = M,
             Cmd = #cmd{time = Time,
                        msg_id = MsgId,
                        mfa = {mafia, end_game, [MsgId]}},
             ?man(Time, {'UNDO', Cmd}),
             mafia_file:manual_cmd_from_file(ThId, Cmd),
-            mafia_time:unend_game(M)
+            {Reply, _G2} = mafia_time:unend_game(G),
+            Reply;
+        {?error, _} = E -> E
     end.
 
 %% -----------------------------------------------------------------------------

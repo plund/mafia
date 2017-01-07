@@ -2,7 +2,7 @@
 
 -include("mafia.hrl").
 %% - Handle new player that is NOT yet in the DB.
-%% - add/remove fake GM message to test commands
+
 %% ? - align new deadlines to next full minute. - can it come off full minutes?
 %% ? - GM command expand alias list (Manual exist already).
 %%        - Game startup is too hard.
@@ -91,7 +91,8 @@
 -export([verify_users/1,
          grep/1, grep/2,
          l/0,
-         add_sim_gm_message/4
+         add_sim_gm_message/4,
+         rm_sim_gm_message/2
         ]).
 
 -export([cmp_vote_raw/0
@@ -649,17 +650,43 @@ remove_alias(User, Alias) ->
             end
     end.
 
-add_sim_gm_message(Page, TplMsgId, MsgId, Text) ->
+%% Use one message as template to create a new
+%% put it first on any page
+%% refresh({upto, })
+add_sim_gm_message(Page, SimMsgId, TplMsgId, Text) ->
     ThId = ?getv(?game_key),
-    case {?rpage(ThId, Page), ?rmess(TplMsgId), ?rmess(MsgId)} of
-        {[], _, _} -> no_page;
-        {_, [], _} -> no_template_message;
-        {_, _, [_]} -> message_exit_already;
-        {[P], [M], []} ->
-            SimM = M#message{msg_id = MsgId, message = ?l2b(Text)},
-            P2 = P#page_rec{message_ids = [SimM | P#page_rec.message_ids]},
-            mnesia:dirty_write(SimM),
-            mnesia:dirty_write(P2)
+    case {?rgame(ThId), ?rpage(ThId, Page), ?rmess(TplMsgId), ?rmess(SimMsgId)} of
+        {[], _, _, _} -> no_game;
+        {_, [], _, _} -> no_page;
+        {_, _, [], _} -> no_template_message;
+        {_, _, _, [_]} -> message_exist_already;
+        {[G], [P], [M], []} ->
+            GM1 = hd(G#mafia_game.gms),
+            SimMsg = M#message{user_name = GM1,
+                               msg_id = SimMsgId,
+                               page_num = Page,
+                               message = ?l2b(Text)},
+            P2 = P#page_rec{message_ids = [SimMsgId | P#page_rec.message_ids]},
+            mnesia:dirty_write(SimMsg),
+            mnesia:dirty_write(P2),
+            ok
+    end.
+
+rm_sim_gm_message(Page, SimMsgId) ->
+    ThId = ?getv(?game_key),
+    case ?rpage(ThId, Page) of
+        [P] ->
+            case P#page_rec.message_ids of
+                [SimMsgId|T]  ->
+                    P2 = P#page_rec{message_ids = T},
+                    mnesia:dirty_delete(messsage, SimMsgId),
+                    mnesia:dirty_write(P2),
+                    sim_msg_deleted;
+                _ ->
+                    {page_has_not_msg_id, Page, SimMsgId}
+            end;
+        [] ->
+            {page_do_not_exist, ThId, Page}
     end.
 
 %% =============================================================================

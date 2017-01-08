@@ -220,10 +220,11 @@ print_votesI(PPin) ->
                           "\n"
                           "Game Masters: ~s\n"
                           "\n"
-                          "Previous days found at http://mafia.peterlund.se/\n",
+                          "Previous days found at ~s\n",
                           [GName, ul($=, GName),
                           string:join([?b2l(GM) || GM <- G#mafia_game.gms],
-                                      " and ")]);
+                                      " and "),
+                          ?BotUrl]);
            PP#pp.mode == ?html ->
                 LinkPhase = if is_integer(PP#pp.use_time) -> ?game_ended;
                                true -> PP#pp.phase
@@ -246,8 +247,7 @@ print_votesI(PPin) ->
                  "</tr></table></td></tr>"
                  "<tr><td align=center>",
                  "Previous days found at "
-                 "<a href=\"http://mafia.peterlund.se/\">"
-                 "http://mafia.peterlund.se/</a>",
+                 "<a href=\"", ?BotUrl, "\">", ?BotUrl, "</a>",
                  "</td></tr>\r\n",
                  "<tr><td align=center>",
                  "Text version of this page is found at "
@@ -1056,14 +1056,16 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                                                    {User, NewVote, VFull}),
                               {IVs2, IVs2};
                          not V#vote.valid ->
-                              VFull =  "INVALID",
-                              NewVote =  "INV",
+                              VFull = "INVALID",
+                              NewVote = "INV",
                               IVs2 =
                                   lists:keyreplace(User, 1, IVs,
                                                    {User, NewVote, VFull}),
                               {IVs, IVs2}
                       end,
                   TimeStr = print_time_5d(PP#pp.game, V#vote.time),
+                  %% "&nbsp;"
+                  ReplSpace = fun(Str) -> [ if C ==$\s -> "&nbsp;"; true -> C end || C <- Str] end,
                   if PP#pp.mode == ?text ->
                           io:format(PP#pp.dev,
                                     "~s~s~s\n",
@@ -1077,7 +1079,7 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                            [Html|
                             ["<tr>",
                              "<td", bgcolor(User), " align=\"right\">",
-                             User, "</td>",
+                             ReplSpace(User), "</td>",
                              "<td>", TimeStr, "</td>",
                              pr_ivs_vote_html(PrIVs, User, V#vote.id),
                              "<td>", TimeStr, "</td>",

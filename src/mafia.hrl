@@ -54,21 +54,23 @@
 -define(player, player).
 -define(dead_player, dead_player).
 -define(other, other).
-%% -define(, ).
 -define(console, console).
 
+%% -define(, ).
+
 %% KV keys
+-define(console_tz, console_tz).
+-define(dst_game, dst_game).
+-define(dst_user, dst_user).
+-define(game_key, game_key).
+-define(mod_msg, mod_msg).
+-define(page_to_read, page_to_read).
 -define(reg_threads, reg_threads).
 -define(thread_id, thread_id).
--define(game_key, game_key).
--define(page_to_read, page_to_read).
--define(timezone_user, timezone_user).
--define(dst_user, dst_user).
--define(timezone_game, timezone_game).
--define(dst_game, dst_game).
--define(console_tz, console_tz).
--define(mod_msg, mod_msg).
 -define(time_offset, time_offset). %% integer in seconds
+-define(timer_minutes, timer_minutes).
+-define(timezone_game, timezone_game).
+-define(timezone_user, timezone_user).
 %% positive offset means that simulated time is in the past.
 
 
@@ -95,6 +97,8 @@
 
 -define(M24ThId, 1404320).
 -define(M25ThId, 1420289).
+
+-define(BotUrl, "http://mafia.peterlund.se/").
 
 -define(UrlBeg, "http://webdiplomacy.net/forum.php?threadID=").
 -define(UrlMid, "&page-thread=").

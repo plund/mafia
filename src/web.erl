@@ -2,7 +2,7 @@
 
 -include("mafia.hrl").
 
--export([msg_search_result/3,
+-export([msgs/3,
          game_status/3,
          vote_tracker/3,
          stats/3,
@@ -17,11 +17,11 @@ game_status(Sid, Env, In) ->
          (in) -> {game_status, In}
       end).
 
-msg_search_result(Sid, Env, In) ->
+msgs(Sid, Env, In) ->
     catch_debug(
-      Sid, msg_search_result,
-      fun(do) -> web_impl:msg_search_result(Sid, Env, In);
-         (in) -> {msg_search_result, In}
+      Sid, msgs,
+      fun(do) -> web_impl:msgs(Sid, Env, In);
+         (in) -> {msgs, In}
       end).
 
 vote_tracker(Sid, Env, In) ->

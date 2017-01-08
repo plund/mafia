@@ -1,7 +1,9 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% - Handle new player that is NOT yet in the DB.
+%% - How to handle replacement player that is NOT yet in the DB.
+%% - fix so GET msg_search ... &day=d1 n2, p23 works.
+%%    put up links on index and status page
 
 %% ? - align new deadlines to next full minute. - can it come off full minutes?
 %% ? - GM command expand alias list (Manual exist already).
@@ -35,9 +37,6 @@
          stop_polling/0,
          start_polling/0,
          state/0,
-
-         setup_mnesia/0,
-         remove_mnesia/0,
 
          game_start/2,
          end_phase/1,
@@ -75,7 +74,12 @@
          show_all_aliases/0,
          show_aliases/1,
          add_alias/2,
-         remove_alias/2
+         remove_alias/2,
+
+         setup_mnesia/0,
+         remove_mnesia/0,
+         set/2,
+         getv/1
         ]).
 
 %% libary
@@ -191,6 +195,8 @@ rm_thread(ThNameOrId) -> mafia_db:rm_thread(ThNameOrId).
 
 setup_mnesia() -> mafia_db:setup_mnesia().
 remove_mnesia() -> mafia_db:remove_mnesia().
+set(K, V) -> mafia_db:set(K, V).
+getv(K) -> mafia_db:getv(K).
 
 refresh_votes() -> mafia_data:refresh_votes().
 refresh_votes(P) -> mafia_data:refresh_votes(P).

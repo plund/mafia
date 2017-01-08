@@ -236,8 +236,12 @@ refresh_votes(ThId, [G], PageFilter, softer) ->
 refresh_votes_soft(ThId, G, PageFilter) ->
     G2 = G#mafia_game{
            players_rem = G#mafia_game.players_orig,
-           player_deaths = [D#death{is_deleted = true}
-                            || D <- G#mafia_game.player_deaths]
+           player_deaths =
+               [case D of
+                    #death{} = D -> D#death{is_deleted = true};
+                    Other -> Other
+                end
+                || D <- G#mafia_game.player_deaths]
           },
     mnesia:dirty_write(G2),
     refresh_votes(ThId, G2, PageFilter).

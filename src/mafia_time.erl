@@ -570,13 +570,17 @@ set_time_offsetI({days_hours, NumDays, NumHours})
 
 -spec timer_minutes(ThId :: thread_id()) -> none | integer().
 timer_minutes(ThId) ->
-    %% ThId = ?getv(?thread_id),
-    case nearest_deadline(ThId) of
-        none -> none;
-        {RelTimeSecs, ?game_ended} ->
-            t_mins(?game_ended, RelTimeSecs);
-        {RelTimeSecs, {_, DoN, _}} ->
-            t_mins(DoN, RelTimeSecs)
+    case ?getv(?timer_minutes) of
+        Mins when is_integer(Mins), Mins > 0 ->
+            Mins;
+        _ ->
+            case nearest_deadline(ThId) of
+                none -> none;
+                {RelTimeSecs, ?game_ended} ->
+                    t_mins(?game_ended, RelTimeSecs);
+                {RelTimeSecs, {_, DoN, _}} ->
+                    t_mins(DoN, RelTimeSecs)
+            end
     end.
 
 -define(m2s(Min), (Min * ?MinuteSecs)).

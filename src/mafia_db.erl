@@ -173,6 +173,8 @@ get_game_rec(m24) ->
 set(K=?thread_id, V) when is_integer(V), V > 0 -> set_kv(K, V);
 set(K=?game_key, V) when is_integer(V), V > 0 -> set_kv(K, V);
 set(K=?page_to_read, V) when is_integer(V), V > 0 -> set_kv(K, V);
+set(K=?timer_minutes, ?undefined) -> remk(K);
+set(K=?timer_minutes, V) when is_integer(V)-> set_kv(K, V);
 set(K=?timezone_user, V) when is_integer(V), -12 =< V, V =< 12 -> set_kv(K, V);
 set(K=?timezone_game, V) when is_integer(V), -12 =< V, V =< 12 -> set_kv(K, V);
 set(K=?time_offset, V) when is_integer(V) -> set_kv(K, V);
@@ -183,6 +185,8 @@ set(K=?console_tz, V)
   when V == user; V == game; V == utc;
        V == zulu; V == gmt ->
     set_kv(K,V).
+
+remk(Key) -> mnesia:dirty_delete(kv_store, Key).
 
 set_kv(Key, Value) ->
     mnesia:dirty_write(#kv_store{key = Key, value = Value}).

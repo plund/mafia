@@ -393,12 +393,14 @@ substr(Str, [{S, L}|SubStrs]) ->
        ) -> #mafia_game{}.
 check_for_player_replacement(MsgText, M, G) ->
     MsgTextU = ?l2u(MsgText),
-    Reg = "^[ \\t]*([^\\s].*[^\\s])[ \\t]+(HAS REPLACED|IS REPLACING)"
-        "[ \\t]+([^\\s].*[^\\s])[ \\t]*$",
+    Reg = "[ \\t]*([^\\s].*[^\\s])[ \\t]+(HAS REPLACED|IS REPLACING)"
+        "[ \\t]+([^\\s].*[^\\s])[ \\t]*",
     case re:run(MsgTextU, Reg) of
         nomatch ->
+            ?dbg(M#message.time, replace_no_match),
             G;
         {match, Ms} ->
+            ?dbg(M#message.time, replace_match),
             [_, NewPlayer, _, OldPlayer] = substr(MsgTextU, Ms),
             case replace_player(G, M, NewPlayer, OldPlayer) of
                 {ok, G2} -> G2;

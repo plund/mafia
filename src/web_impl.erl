@@ -1,7 +1,7 @@
 -module(web_impl).
 
 %% web
--export([msg_search_result/3,
+-export([msgs/3,
          game_status/3,
          vote_tracker/3,
          stats/3,
@@ -13,13 +13,13 @@
 
 %% -----------------------------------------------------------------------------
 
-%% http://mafia_test.peterlund.se/e/web/msg_search_result
-msg_search_result(Sid, _Env, In) ->
+%% http://mafia_test.peterlund.se/e/web/msgs
+msgs(Sid, _Env, In) ->
     ThId = ?getv(?game_key),
     PQ = httpd:parse_query(In),
-    {_, UsersText} = lists:keyfind("user names", 1, PQ),
-    {_, WordsText} = lists:keyfind("contained words", 1, PQ),
-    {_, DayNumText} = lists:keyfind("day numbers", 1, PQ),
+    UsersText = get_arg(PQ, "user"),
+    WordsText = get_arg(PQ, "word"),
+    DayNumText = get_arg(PQ, "part"),
     DayCond =
         try
             DayNumU = ?l2u(DayNumText),
@@ -67,7 +67,7 @@ msg_search_result(Sid, _Env, In) ->
                     [
                      %% 1. Test if any of Users in form matches MsgUser
                      fun() ->
-                             UsersU == [] orelse
+                             not IsUserCond orelse
                                  lists:any(
                                    fun(UserU) ->
                                            0 /= string:str(MsgUserU, UserU)
@@ -130,10 +130,15 @@ msg_search_result(Sid, _Env, In) ->
                 Acc
         end,
     A = del_start(Sid, "Mafia Search Result", 0),
+    In3 = [string:tokens(I, "=") || I <- string:tokens(In, "&")],
+    In4 = string:join([ [K, "=", V] || [K, V] <- In3, K /= "button", V /= ""], "&"),
     B = if DoCont ->
                 TabStart = "<tr><td><table cellpadding=6 cellspacing=3>",
+                Row1 = ["<tr><td colspan=\"2\" align=center>"
+                        "Copy/paste URL: ", ?BotUrl, "e/web/msgs?", In4,
+                        "<br><br></td></tr>"],
                 TabEnd = "</table></td></tr>",
-                B1 = web:deliver(Sid, TabStart),
+                B1 = web:deliver(Sid, [TabStart, Row1]),
                 B2 = mafia_data:iterate_all_msgs(ThId, Fun),
                 B3 = web:deliver(Sid, TabEnd),
                 B1 + B2 + B3;
@@ -542,6 +547,12 @@ show_msg([#message{user_name = MsgUserB,
           "</td></tr>\r\n"]).
 
 %% ----------------------------------------------------------------------------
+
+get_arg(PQ, ArgStr) ->
+    case lists:keyfind(ArgStr, 1, PQ) of
+        false -> "";
+        {_, V} -> V
+    end.
 
 make_args(PQ) ->
     lists:foldl(fun({_K, ""}, Acc) -> Acc;

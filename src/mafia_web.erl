@@ -16,6 +16,7 @@
          start/1,
          stop/0,
 
+         poll/0,
          start_polling/0,
          stop_polling/0,
 
@@ -77,6 +78,8 @@ start_web() ->
 %% @end
 %%--------------------------------------------------------------------
 stop() -> gen_server:call(?SERVER, 'stop').
+
+poll() -> ?SERVER ! do_polling.
 
 start_polling() -> gen_server:call(?SERVER, 'start_polling').
 stop_polling() -> gen_server:call(?SERVER, 'stop_polling').

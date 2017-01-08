@@ -1084,7 +1084,7 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                              pr_ivs_vote_html(PrIVs, User, V#vote.id),
                              "<td>", TimeStr, "</td>",
                              "<td", bgcolor(User), " align=\"left\">",
-                             User, "</td>",
+                             ReplSpace(User), "</td>",
                              "</tr>\r\n"]]}
                   end
           end,

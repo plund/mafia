@@ -38,7 +38,8 @@
 %% print params
 -record(pp, {game  :: #mafia_game{},
              day   :: #mafia_day{},
-             players_rem :: [player()],  %% for vote tracker/stat
+             players_rem :: [player()],  %% for vote-coutn, non-votes, non-posts
+             players_vote :: [player()],  %% for vote tracker
              game_key :: thread_id(),
              phase  :: phase(),
              day_num :: integer(),
@@ -153,36 +154,70 @@ setup_pp(PP) when PP#pp.game == ?undefined ->
     setup_pp(PP#pp{game = hd(?rgame(PP#pp.game_key))});
 setup_pp(PP) when PP#pp.day == ?undefined ->
     setup_pp(PP#pp{day = hd(?rday(PP#pp.game_key, PP#pp.phase))});
+
+%% D2
+%% rema : votecount/nonvote/non-post  Flum + Vecna (not GA)
+%%        New + DeadAtEnd (not Dead+Old)
+%% vote : votetracker Flum + Vecna + GA
+%%        New + Dead + Old ()
 setup_pp(PP) when PP#pp.players_rem == ?undefined ->
-    %% print_votesI(PP) when PP#pp.players_rem == ?undefined ->
     #mafia_day{players_rem = PlayersRem,
                player_deaths = Deaths} = PP#pp.day,
-    PhTimePrev = mafia_time:get_time_for_prev_phase(PP#pp.game, PP#pp.phase),
-    PhTimeCurr = mafia_time:get_time_for_phase(PP#pp.game, PP#pp.phase),
-    ?dbg({1,PlayersRem}),
-    AllPlayersB0 = PlayersRem
-        ++ [DeadB || #death{player = DeadB,
-                            is_deleted = false} <- Deaths],
+    Phase = PP#pp.phase,
+    PlayersRem2 =
+        lists:foldl(
+          %% Include IsEnd same phase
+          fun(#death{player = DeadB,
+                     phase = DPhase,
+                     is_end = IsEnd,
+                     is_deleted = false},
+              Acc) ->
+                  if Phase == DPhase andalso IsEnd
+                     orelse
+                     Phase < DPhase  ->
+                          Acc ++ [DeadB];
+                     true -> Acc
+                  end;
+             (#replacement{new_player = NewB,
+                           replaced_player = RepB,
+                           phase = RPhase},
+              Acc) when Phase < RPhase->
+                  (Acc ++ [RepB]) -- [NewB];
+             (_, Acc) -> Acc
+          end,
+          PlayersRem,
+          Deaths),
+    setup_pp(PP#pp{players_rem = PlayersRem2});
+setup_pp(PP) when PP#pp.players_vote == ?undefined ->
+    #mafia_day{players_rem = PlayersRem,
+               player_deaths = Deaths} = PP#pp.day,
+    Phase = PP#pp.phase,
     AllPlayersB =
-        lists:foldl(fun(#replacement{%%new_player = NewB,
-                                     replaced_player = RepB,
-                                     time = RTime},
-                        PlayersU) ->
-                            %% Ps2 = PlayersU ++ [RepB],
-                            %% ?dbg({2, RepB}),
-                            %% Did replacement occur before EoD?
-                            if RTime >= PhTimePrev,
-                               RTime =< PhTimeCurr ->
-                                    ?dbg({3, RepB}),
-                                    PlayersU ++ [RepB];
-                               true ->
-                                    ?dbg({4}),
-                                    PlayersU
-                            end
-                    end,
-                    AllPlayersB0,
-                    [R || R = #replacement{} <- Deaths]),
-    PP#pp{players_rem = AllPlayersB};
+        lists:foldl(
+          fun(#replacement{new_player = NewB,
+                           replaced_player = RepB,
+                           phase = RPhase
+                           %% time = RTime
+                          },
+              Acc) ->
+                  if Phase > RPhase ->
+                          Acc;
+                     Phase == RPhase ->
+                          (Acc ++ [RepB]);
+                     Phase < RPhase ->
+                          (Acc ++ [RepB]) -- [NewB]
+                  end;
+             (#death{player = DeadB,
+                     %% time = DTime,
+                     phase = DPhase,
+                     is_deleted = false}, Acc)
+                when DPhase >= Phase ->
+                  Acc ++ [DeadB];
+             (_, Acc) -> Acc
+          end,
+          PlayersRem,
+          Deaths),
+    setup_pp(PP#pp{players_vote = AllPlayersB});
 setup_pp(PP) -> PP.
 
 %% -----------------------------------------------------------------------------
@@ -215,10 +250,9 @@ print_votesI(PPin) ->
                     _ -> element(2, PP#pp.phase)
                 end,
     Day = PP#pp.day,
-    %%RemPlayers = PP#pp.players_rem, Vote and Stats only
-    RealRemPlayers = Day#mafia_day.players_rem,
-    %% Part - Page heading
-    %% Print Game Name
+    RealRemPlayers = PP#pp.players_rem,
+
+    %% Part - Page heading - Print Game Name
     GName = ?b2l(G#mafia_game.name),
     HTitle =
         if PP#pp.mode == ?text ->
@@ -317,12 +351,12 @@ print_votesI(PPin) ->
         end,
 
     %% votes, from remaining players only
-    {HVoteCount, VoteSumSort, InvalidVotes} =
+    HVoteCount =
         if PhaseType == ?day ->
                 %% Part - Votes
                 pr_votes(PP);
            true ->
-                {[], na, na}
+                []
         end,
 
     %% Part - End votes
@@ -349,7 +383,8 @@ print_votesI(PPin) ->
            true -> []
         end,
 
-    Votes = rem_play_votes(PP),
+    {VoteSumSort, InvalidVotes} = vote_summary(Day, PP#pp.players_rem),
+    Votes = rem_play_votes(PP#pp.day, PP#pp.players_rem),
     NonVotes =
         if PhaseType == ?day ->
                 %% Part - Non-votes
@@ -681,42 +716,8 @@ print_past_dls(DLs, Title) ->
 %% Users sorted time ordered after they oldest vote (first vote)
 -spec pr_votes(PP :: #pp{}) -> term().
 pr_votes(PP) ->
-    Votes = rem_play_votes(PP),
-    {VoteSummary, InvalidVotes} =
-        lists:foldl(
-          %% UserVotes are time ordered
-          fun({User, UserVotes}, {Acc, Acc2}) ->
-                  %% Look for vote when user starts to vote for end vote
-                  case user_vote(UserVotes) of
-                      #vote{valid = true} = V ->
-                          {add_vote(V, User, Acc), Acc2};
-                      #vote{valid = false} = V ->
-                          {Acc, [{User, V} | Acc2]};
-                      no_vote -> % no votes at all
-                          {Acc, Acc2}
-                  end
-          end,
-          {[], []},
-          Votes),
-    %% Sort votes in each wagons on time so we have oldest first
-    VoteSum2 = [setelement(3, Wgn, lists:sort(VoteInfos))
-                || Wgn = {_, _, VoteInfos} <- VoteSummary],
-
-    %% Sort summary first on number of received votes, if equal
-    %% second sort should be on having the oldest vote
-    GtEq =
-        fun(A, B) ->
-                NumVotesA = element(2, A),
-                NumVotesB = element(2, B),
-                if NumVotesA /= NumVotesB ->
-                        NumVotesA > NumVotesB;
-                   true ->
-                        %% Sort on oldest vote in wagon
-                        element(3, A) =< element(3, B)
-                end
-        end,
-    VoteSumSort = lists:sort(GtEq, VoteSum2),
-
+    Day = PP#pp.day,
+    {VoteSumSort, _InvalidVotes} = vote_summary(Day, PP#pp.players_rem),
     Html =
         if PP#pp.mode == ?text ->
                 io:format(PP#pp.dev,
@@ -747,14 +748,50 @@ pr_votes(PP) ->
                  "</table></td></tr>"
                 ]
         end,
-    {Html, VoteSumSort, InvalidVotes}.
+    Html.
 
-rem_play_votes(PP) ->
-    Day = PP#pp.day,
-    Votes0 = Day#mafia_day.votes,
-    RemPlayers = Day#mafia_day.players_rem, %% REAL rem
-    [V || V <- Votes0,
-          lists:member(element(1, V), RemPlayers)].
+vote_summary(Day, Players) ->
+    Votes = rem_play_votes(Day, Players),
+    {VoteSummary, InvalidVotes} =
+        lists:foldl(
+          %% UserVotes are time ordered
+          fun({User, UserVotes}, {Acc, Acc2}) ->
+                  %% Look for vote when user starts to vote for end vote
+                  case user_vote(UserVotes) of
+                      #vote{valid = true} = V ->
+                          {add_vote(V, User, Acc), Acc2};
+                      #vote{valid = false} = V ->
+                          {Acc, [{User, V} | Acc2]};
+                      no_vote -> % no votes at all
+                          {Acc, Acc2}
+                  end
+          end,
+          {[], []},
+          Votes),
+    %% Sort votes in each wagons on time so we have oldest first
+    VoteSum2 = [setelement(3, Wgn, lists:sort(VoteInfos))
+                || Wgn = {_, _, VoteInfos} <- VoteSummary],
+
+    %% Sort Wagons first on number of received votes, if equal
+    %% second sort should be on having the oldest vote
+    GtEq =
+        fun(A, B) ->
+                NumVotesA = element(2, A),
+                NumVotesB = element(2, B),
+                if NumVotesA /= NumVotesB ->
+                        NumVotesA > NumVotesB;
+                   true ->
+                        %% Sort on oldest vote in wagon
+                        element(3, A) =< element(3, B)
+                end
+        end,
+    VoteSumSort = lists:sort(GtEq, VoteSum2),
+    {VoteSumSort, InvalidVotes}.
+
+rem_play_votes(Day, Players) ->
+    Votes = Day#mafia_day.votes,
+    [V || V <- Votes,
+          lists:member(element(1, V), Players)].
 
 %% find oldest vote in unbroken sequence, for ppl reiterating their last votes
 -spec user_vote([#vote{}]) -> no_vote | #vote{}.
@@ -815,7 +852,7 @@ print_stats_opts(Opts) ->
 print_statsI(PP)
   when PP#pp.game == ?undefined;
        PP#pp.day == ?undefined;
-       PP#pp.players_rem == ?undefined
+       PP#pp.players_vote == ?undefined
        -> print_statsI(setup_pp(PP));
 print_statsI(PP) when PP#pp.match_expr == ?undefined ->
     print_stats_match(PP);
@@ -1005,7 +1042,7 @@ print_tracker(PP) when PP#pp.day_num == ?undefined ->
     print_tracker(PP#pp{day_num = element(1, PP#pp.phase)});
 print_tracker(PP) ->
     %% player_deaths contains players dying in the middle of the day.
-    AllPlayersB = PP#pp.players_rem,
+    AllPlayersB = PP#pp.players_vote,
     Abbrs = mafia_name:get_abbrevs(AllPlayersB),
     if PP#pp.mode == ?text ->
             io:format(PP#pp.dev, "\n", []);

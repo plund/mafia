@@ -250,24 +250,15 @@ is_end_of_phase(M, G) ->
 
 %% In case someone votes before GM annouce dead, the day record
 %% will have too many remaining players
-update_day_rec(M, G, Death) ->
-    TimeMsg = M#message.time,
-    case mafia_time:calculate_phase(G, TimeMsg) of
-        {DayNum, ?day} -> %% New day appears with new day record.
+update_day_rec(_M, G, Death) ->
+    case Death#death.phase of
+        {DayNum, ?day} ->
             [D] = ?rday(G, DayNum),
-            case Death of
-                #death{is_end = true} ->
-                    NewRems = D#mafia_day.players_rem -- [Death#death.player],
-                    mnesia:dirty_write(
-                      D#mafia_day{players_rem = NewRems});
-                #death{is_end = false} ->
-                    %% For the "Jamie" case  when Vig kills in mid day
-                    NewDeaths = add_death(Death, D),
-                    NewRems = D#mafia_day.players_rem -- [Death#death.player],
-                    mnesia:dirty_write(
-                      D#mafia_day{players_rem = NewRems,
-                                  player_deaths = NewDeaths})
-            end;
+            NewDeaths = add_death(Death, D),
+            NewRems = D#mafia_day.players_rem -- [Death#death.player],
+            mnesia:dirty_write(
+              D#mafia_day{players_rem = NewRems,
+                          player_deaths = NewDeaths});
         _ -> ok
     end.
 

@@ -11,6 +11,7 @@
          date2utc_day/1,
 
          get_time_for_phase/2,
+         get_time_for_prev_phase/2,
 
          get_tz_dst/0,
          get_tz_dst/2,
@@ -33,6 +34,7 @@
          unend_game/1,
 
          inc_phase/1,
+         decr_phase/1,
          conv_gtime_secs1970/2,
 
          show_time_offset/0,
@@ -232,7 +234,7 @@ calc_one_deadlineI({Num, DayNight}, Game)
       day_hours = DayHours,
       night_hours = NightHours,
       time_zone = TZ,
-      day1_dl_time = DeadD1LocalDateTime,
+      %% day1_dl_time = DeadD1LocalDateTime,
       is_init_dst = IsInitDst,
       dst_changes = DstChanges
      } = Game,
@@ -240,7 +242,9 @@ calc_one_deadlineI({Num, DayNight}, Game)
     %% know time and phase D1
     %% know where we want to go
 
-    UtcGS = utc_gs(DeadD1LocalDateTime, TZ, IsInitDst),  %% D1 utc secs
+    %% UtcGS = utc_gs(DeadD1LocalDateTime, TZ, IsInitDst),  %% D1 utc secs
+    UtcGS = calc_game_start_time(Game),
+
     UtcGS2 = UtcGS + (Num-1) * (DayHours + NightHours) * ?HourSecs,
     UtcGS2b = UtcGS2 + if DayNight == ?night ->
                                NightHours * ?HourSecs;
@@ -251,6 +255,13 @@ calc_one_deadlineI({Num, DayNight}, Game)
                               DstChanges,
                               UtcGS2b), %% Target DL utc secs
     {Num, DayNight, UtcGS3 - ?GSECS_1970}.
+
+calc_game_start_time(G) ->
+    #mafia_game{time_zone = TZ,
+                day1_dl_time = DeadD1LocalDateTime,
+                is_init_dst = IsInitDst
+               } = G,
+    utc_gs(DeadD1LocalDateTime, TZ, IsInitDst).
 
 %% -----------------------------------------------------------------------------
 
@@ -403,6 +414,11 @@ inc_phase({Num, D, _Time}) -> inc_phase({Num, D});
 inc_phase({Num, ?day}) when is_integer(Num) -> {Num, ?night};
 inc_phase({Num, ?night}) when is_integer(Num) -> {Num + 1, ?day}.
 
+-spec decr_phase(phase() | deadline()) -> phase().
+decr_phase({Num, D, _Time}) -> decr_phase({Num, D});
+decr_phase({Num, ?day}) when is_integer(Num) -> {Num - 1, ?night};
+decr_phase({Num, ?night}) when is_integer(Num) -> {Num, ?day}.
+
 inc_deadline(G, DL = {_DNum, _DoN, Time}) ->
     {NDNum, NDoN} = inc_phase(DL),
     NHours = case NDoN of
@@ -493,6 +509,15 @@ conv_gtime_secs1970(G, DateTime) ->
 utc_gs(DateTime, TZ, Dst) ->
     calendar:datetime_to_gregorian_seconds(DateTime)
         - (TZ + if Dst -> 1; true -> 0 end) * ?HourSecs.
+
+
+get_time_for_prev_phase(G, Phase) ->
+    PrevPhase = decr_phase(Phase),
+    case get_time_for_phase(G, PrevPhase) of
+        ?undefined ->
+            calc_game_start_time(G);
+        Time -> Time
+    end.
 
 get_time_for_phase(G, Phase) when is_integer(G) ->
     get_time_for_phase(?rgame(G), Phase);

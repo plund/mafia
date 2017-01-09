@@ -38,7 +38,7 @@
 %% print params
 -record(pp, {game  :: #mafia_game{},
              day   :: #mafia_day{},
-             players_rem :: [player()],
+             players_rem :: [player()],  %% for vote tracker/stat
              game_key :: thread_id(),
              phase  :: phase(),
              day_num :: integer(),
@@ -157,19 +157,27 @@ setup_pp(PP) when PP#pp.players_rem == ?undefined ->
     %% print_votesI(PP) when PP#pp.players_rem == ?undefined ->
     #mafia_day{players_rem = PlayersRem,
                player_deaths = Deaths} = PP#pp.day,
-    PhTime = mafia_time:get_time_for_phase(PP#pp.game, PP#pp.phase),
+    PhTimePrev = mafia_time:get_time_for_prev_phase(PP#pp.game, PP#pp.phase),
+    PhTimeCurr = mafia_time:get_time_for_phase(PP#pp.game, PP#pp.phase),
+    ?dbg({1,PlayersRem}),
     AllPlayersB0 = PlayersRem
         ++ [DeadB || #death{player = DeadB,
                             is_deleted = false} <- Deaths],
     AllPlayersB =
-        lists:foldl(fun(#replacement{new_player = NewB,
+        lists:foldl(fun(#replacement{%%new_player = NewB,
                                      replaced_player = RepB,
                                      time = RTime},
                         PlayersU) ->
-                            Ps2 = PlayersU ++ [RepB],
+                            %% Ps2 = PlayersU ++ [RepB],
+                            %% ?dbg({2, RepB}),
                             %% Did replacement occur before EoD?
-                            if RTime >= PhTime -> Ps2 -- [NewB];
-                               true -> Ps2
+                            if RTime >= PhTimePrev,
+                               RTime =< PhTimeCurr ->
+                                    ?dbg({3, RepB}),
+                                    PlayersU ++ [RepB];
+                               true ->
+                                    ?dbg({4}),
+                                    PlayersU
                             end
                     end,
                     AllPlayersB0,
@@ -207,7 +215,8 @@ print_votesI(PPin) ->
                     _ -> element(2, PP#pp.phase)
                 end,
     Day = PP#pp.day,
-    RemPlayers = PP#pp.players_rem,
+    %%RemPlayers = PP#pp.players_rem, Vote and Stats only
+    RealRemPlayers = Day#mafia_day.players_rem,
     %% Part - Page heading
     %% Print Game Name
     GName = ?b2l(G#mafia_game.name),
@@ -346,7 +355,7 @@ print_votesI(PPin) ->
                 %% Part - Non-votes
                 ValidVoters = [ Pl || {Pl, _} <- Votes]
                     -- [User || {User, _} <- InvalidVotes],
-                NonVoted = RemPlayers -- ValidVoters,
+                NonVoted = RealRemPlayers -- ValidVoters,
                 NoVoteTitle = if NonVoted == [] -> "Non-votes: -";
                                  true -> "Non-votes: "
                               end,
@@ -376,7 +385,7 @@ print_votesI(PPin) ->
                true -> Ph =< PP#pp.phase
             end],
     %% split up remaining players into groups of ?NumColsInGrp (10)
-    RPRows = split_into_groups(?NumColsInGrp, RemPlayers -- DeathsUptoNow),
+    RPRows = split_into_groups(?NumColsInGrp, RealRemPlayers -- DeathsUptoNow),
     HRemPlayers =
         if PP#pp.mode == ?text ->
                 RPStr = object_rows_text(RPRows, fun(U) -> ?b2l(U) end),
@@ -743,7 +752,7 @@ pr_votes(PP) ->
 rem_play_votes(PP) ->
     Day = PP#pp.day,
     Votes0 = Day#mafia_day.votes,
-    RemPlayers = PP#pp.players_rem,
+    RemPlayers = Day#mafia_day.players_rem, %% REAL rem
     [V || V <- Votes0,
           lists:member(element(1, V), RemPlayers)].
 

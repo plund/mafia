@@ -10,17 +10,9 @@
          replace_player/4
         ]).
 
-%% debug
--export([
-         find_game_end/1,
-         find_game_unend/1
-         %% check_for_early_end/3,
-         %% find_early_end/1,
-         %% find_deadline_move/1,
-         %% check_for_player_replacement/3
-        ]).
-
 -include("mafia.hrl").
+
+-include_lib("eunit/include/eunit.hrl").
 
 %% -----------------------------------------------------------------------------
 %% Returns ignore when #message or #mafia_game cannot be found
@@ -374,6 +366,7 @@ find_expr(Text, Reg) ->
     end.
 
 substr(_Str, []) -> [];
+substr(Str, [{-1, _L}|SubStrs]) -> ["-1" |substr(Str, SubStrs)];
 substr(Str, [{S, L}|SubStrs]) ->
     [string:substr(Str, S+1, L) | substr(Str, SubStrs)].
 
@@ -383,22 +376,30 @@ substr(Str, [{S, L}|SubStrs]) ->
         MsgText::string(), #message{}, #mafia_game{}
        ) -> #mafia_game{}.
 check_for_player_replacement(MsgText, M, G) ->
-    MsgTextU = ?l2u(MsgText),
-    Reg = "[ \\t]*([^\\s].*[^\\s])[ \\t]+(HAS REPLACED|IS REPLACING)"
-        "[ \\t]+([^\\s].*[^\\s])[ \\t]*",
-    case re:run(MsgTextU, Reg) of
-        nomatch ->
-            ?dbg(M#message.time, replace_no_match),
+    case find_player_replacement(MsgText) of
+        no_replace ->
+            %%?dbg(M#message.time, replace_no_match),
             G;
-        {match, Ms} ->
+        {replace, OldPlayer, NewPlayer} ->
             ?dbg(M#message.time, replace_match),
-            [_, NewPlayer, _, OldPlayer] = substr(MsgTextU, Ms),
             case replace_player(G, M, NewPlayer, OldPlayer) of
                 {ok, G2} -> G2;
                 {Err, G2} ->
                     ?dbg(M#message.time, {replace, Err}),
                     G2
             end
+    end.
+
+find_player_replacement(MsgText) ->
+    MsgTextU = ?l2u(MsgText),
+    Reg = "^((.|\\s)*\\s)?([^\\s].*[^\\s]) +(HAS +REPLACED|IS +REPLACING)"
+        " +([^\\s].*[^\\s])(\\s(.|\\s)*)?$",
+    case re:run(MsgTextU, Reg, [{capture, [3, 5]}]) of
+        nomatch ->
+            no_replace;
+        {match, Ms} ->
+            [NewPlayer, OldPlayer] = substr(MsgTextU, Ms),
+            {replace, OldPlayer, NewPlayer}
     end.
 
 -spec replace_player(
@@ -478,7 +479,7 @@ check_for_game_end(MsgText, M, G) ->
     end.
 
 find_game_end(Msg) ->
-    Reg = "GAME ((HAS )?ENDED|IS OVER)",
+    Reg = "^((.|\\s)*\\s)?GAME +((HAS +)?ENDED|IS +OVER)(\\s(.|\\s)*)?$",
     MsgTextU = ?l2u(Msg),
     re:run(MsgTextU, Reg).
 
@@ -494,7 +495,7 @@ check_for_game_unend(MsgText, M, G) ->
     end.
 
 find_game_unend(Msg) ->
-    Reg = "(GAME (HAS )?UNENDED|UNEND GAME)",
+    Reg = "^((.|\\s)*\\s)?(GAME +(HAS +)?UNENDED|UNEND +GAME)(\\s(.|\\s)*)?$",
     MsgTextU = ?l2u(Msg),
     re:run(MsgTextU, Reg).
 
@@ -826,3 +827,103 @@ vote2(M, G, Vote, RawVote, IsOkVote) ->
         _ ->
             ignore
     end.
+
+%% -------------------------------------------------
+
+find_player_replacement_test_() ->
+    [
+     ?_assertMatch(
+        {replace, "BBB", "AAA"},
+        find_player_replacement("Aaa is replacing Bbb")),
+     ?_assertMatch(
+        {replace, "BBB", "AAA"},
+        find_player_replacement(
+          "\nsadf\raf\nAaa is replacing Bbb\nfsda\nfdsa")),
+     ?_assertMatch(
+        {replace, "BBB", "AAA"},
+        find_player_replacement("Aaa    has replaced   Bbb\r\n   \n  jj")),
+     ?_assertMatch(
+        {replace, "BBB", "AAA"},
+        find_player_replacement("Aaa    has  replaced   Bbb"))
+    ].
+
+find_deadline_move_test_() ->
+    [
+     ?_assertMatch(not_found, find_deadline_move("deadline move 24 H earlier")),
+     ?_assertMatch(
+        {found, -86400},
+        find_deadline_move("deadline moved 24 H earlier")),
+     ?_assertMatch(
+        {found, -86400},
+        find_deadline_move("deadline moved 24H earlier")),
+     ?_assertMatch(
+        {found, 86400},
+        find_deadline_move("s \n deadline moved 24H  later\n \nsf")),
+     ?_assertMatch(
+        {found, -86400},
+        find_deadline_move(" \n deadline moved 24H earlier  sadf\n  \nsf")),
+     ?_assertMatch(
+        {found, 86400},
+        find_deadline_move(
+          " \n deadlineasfsadf moved 24H later  sadf\n  \nsf")),
+     ?_assertMatch(
+        {found, -86400},
+        find_deadline_move(
+          "  \n deadline asfsadf moved 24H earlier  sadf\n  \nsf")),
+     ?_assertMatch(
+        not_found,
+        find_deadline_move(
+          "  \n deaddline day 1 moved 24H earlier  sadf\n  \nsf")),
+     ?_assertMatch(
+        {found, -86400},
+        find_deadline_move("  \n deadline d2 moved 24H earlier  sadf\n  \nsf")),
+     ?_assertMatch(
+        {found, -86700},
+        find_deadline_move(
+          "  \n deadline n3 moved 24H 5m earlier  sadf\n  \nsf")),
+     ?_assertMatch(
+        {error, bad_time},
+        find_deadline_move(
+          "  \n deadline  moved 24H 5m3s earlier  sadf\n  \nsf")),
+     ?_assertMatch(
+        {found, -86700},
+        find_deadline_move(
+          "  \n deadline night 3 moved 24H 5m earlier  sadf\n  \nsf"))
+    ].
+
+%% GAME ((HAS )?ENDED|IS OVER)
+find_game_end_test_() ->
+    [
+     ?_assertMatch(
+        {match, _},
+        find_game_end("game has ended")),
+     ?_assertMatch(
+        {match, _},
+        find_game_end("game ended")),
+     ?_assertMatch(
+        {match, _},
+        find_game_end("game is over")),
+     ?_assertMatch(
+        {match, _},
+        find_game_end(" a \nasfs s \n a d f\n the game  has  ended night 5 \r \n \n"))
+    ].
+
+%% (GAME (HAS )?UNENDED|UNEND GAME)
+find_game_unend_test_() ->
+    [
+     ?_assertMatch(
+        {match, _},
+        find_game_unend("game has unended")),
+     ?_assertMatch(
+        {match, _},
+        find_game_unend("game unended")),
+     ?_assertMatch(
+        {match, _},
+        find_game_unend("unend game")),
+     ?_assertMatch(
+        {match, _},
+        find_game_unend(" \rg\n g \n  game  has  unended  \n g  \r g ")),
+     ?_assertMatch(
+        {match, _},
+        find_game_unend(" \rg\n g \n the game  has  unended now \n g  \r g "))
+    ].

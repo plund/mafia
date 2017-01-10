@@ -6,9 +6,6 @@
 
 -export([get_abbrevs/1]).
 
-%% eunit tests
--export([test/0]).
-
 -type abbr_calc() :: {IsUniq :: boolean(),
                       OrigName :: string(),
                       AbbrAcc :: string(),
@@ -128,9 +125,6 @@ adv_read_vote(_, _) ->
     "brainbomb".
 
 %% -------------------------------------------------
-
-test() ->
-    eunit:test(?MODULE).
 
 -define(TestPlayers ,
         ["brainbomb", "ND", "Chaqa", "Floodgates", "Maniac", "krellin",

@@ -38,9 +38,7 @@
          conv_gtime_secs1970/2,
 
          show_time_offset/0,
-         set_time_offset/1,
-
-         test/0
+         set_time_offset/1
         ]).
 
 %% Debug
@@ -660,9 +658,6 @@ nearest_deadline(G = #mafia_game{}, Time) ->
     {TDiff, NearestDL}.
 
 %% -------------------------------------------------
-
-test() ->
-    eunit:test(?MODULE).
 
 -define(D1, {{2016,12,21},{18,0,0}}).
 -define(D2, {{2016,12,22},{18,0,0}}).

@@ -1,7 +1,6 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% - How to handle replacement player that is NOT yet in the DB.
 %% - fix so GET msg_search ... &day=d1 n2, p23 works.
 %%    put up links on index and status page
 

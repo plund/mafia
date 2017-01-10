@@ -417,9 +417,14 @@ replace2(G, _M, _NewPlayer, _Old, false) -> {not_remain, G};
 replace2(G, M, NewPlayer, Old, true) ->
     replace3(G, M, NewPlayer, Old, ruser(NewPlayer)).
 
-replace3(G, _M, NewPlayer, Old, []) ->
+replace3(G, M, NewPlayer, Old, []) ->
     NewNameUB = ?l2ub(NewPlayer),
-    replace4(G, Old#user.name, NewNameUB);
+    New = #user{name_upper = NewNameUB,
+                name = ?l2b(NewPlayer),
+                aliases = [],
+                verification_status = ?unverified},
+    mnesia:dirty_write(New),
+    replace3(G, M, NewPlayer, Old, [New]);
 replace3(G, M, _NewPlayer, Old, [New]) ->
     %% replace ALSO in #mafia_day.players_rem
     case mafia_time:calculate_phase(G#mafia_game.key, M#message.time) of

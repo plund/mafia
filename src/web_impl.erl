@@ -19,50 +19,29 @@ msgs(Sid, _Env, In) ->
     PQ = httpd:parse_query(In),
     UsersText = get_arg(PQ, "user"),
     WordsText = get_arg(PQ, "word"),
-    DayNumText = get_arg(PQ, "part"),
-    DayCond =
-        try
-            DayNumU = ?l2u(DayNumText),
-            case DayNumU of
-                "END" ++ _ -> ?game_ended;
-                %% "CURRENT" -> %% the current phase only.
-                _ ->
-                    case string:tokens(DayNumU, "-") of
-                        [LoStr, "END" ++ _] ->
-                            {list_to_integer(string:strip(LoStr)),
-                             ?game_ended};
-                        [LoStr, HiStr] ->
-                            {list_to_integer(string:strip(LoStr)),
-                             list_to_integer(string:strip(HiStr))};
-                        [Str] ->
-                            Num = list_to_integer(string:strip(Str)),
-                            {Num, Num};
-                        _ -> all
-                    end
-            end
-        catch _:_ -> all
-        end,
+    PartsText = get_arg(PQ, "part"),
+    DayCond = find_part(PartsText),
     UsersU = find_word_searches(UsersText),
     WordsU = find_word_searches(WordsText),
-    IsDayCondSingle = case DayCond of
-                          {DNumC, DNumC} -> true;
-                          ?game_ended -> true;
-                          _ -> false
-                      end,
+    IsDayCond = DayCond /= ?undefined,
     IsWordCond = WordsU /= [],
     IsUserCond = UsersU /= [],
-    DoCont = IsUserCond orelse IsWordCond orelse IsDayCondSingle,
+    DoCont = IsUserCond orelse IsWordCond orelse IsDayCond,
     Fun =
         fun(acc, init) -> 0;
            (#message{user_name = MsgUserB,
-                     page_num = PageNum,
+                     page_num = Page,
                      time = Time,
                      message = MsgB},
-            Acc) ->
+            Acc) when Acc < 400000  ->
                 MsgPhase = mafia_time:calculate_phase(ThId, Time),
                 Msg = ?b2l(MsgB),
                 B2U = fun(B) -> string:to_upper(binary_to_list(B)) end,
                 MsgUserU = B2U(MsgUserB),
+                PhLE = fun(?game_ended, {_, _}) -> false;
+                          (_, ?game_ended) -> true;
+                          (A, B) -> A =< B
+                       end,
                 TestFuns =
                     [
                      %% 1. Test if any of Users in form matches MsgUser
@@ -90,18 +69,27 @@ msgs(Sid, _Env, In) ->
                      end,
 
                      %% 3. Test Day
-                     fun() ->
-                             case {DayCond, MsgPhase} of
-                                 {all, _} -> true;
-                                 {?game_ended, ?game_ended} -> true;
-                                 %% Next condition works as expected also
-                                 %% if NHi is ?game_ended
-                                 {{NLo, NHi}, {DNum, _DoN}}
-                                   when NLo =< DNum,
-                                        DNum =< NHi -> true;
-                                 {{_NLo, ?game_ended}, ?game_ended} -> true;
-                                 _ -> false
-                             end
+                     fun() when not IsDayCond -> true;
+                        %% need DayNum, DoN, Page, find_part
+                        () ->
+                             {Ua, Na, Ub, Nb} = DayCond,
+                             IsAok =
+                                 case {Ua, Na} of
+                                     {_, ?undefined} -> true;
+                                     {page, _} -> Page >= Na;
+                                     _ ->
+                                         SPhaseA = {Na, Ua},
+                                         PhLE(SPhaseA, MsgPhase)
+                                 end,
+                             IsBok =
+                                 case {Ub, Nb} of
+                                     {_, ?undefined} -> true;
+                                     {page, _} -> Page =< Nb;
+                                     _ ->
+                                         SPhaseB = {Nb, Ub},
+                                         PhLE(MsgPhase, SPhaseB)
+                                 end,
+                             IsAok and IsBok
                      end],
                 AllTestsOk = lists:all(fun(F) -> F() end, TestFuns),
                 if AllTestsOk ->
@@ -119,7 +107,7 @@ msgs(Sid, _Env, In) ->
                                     "\"><td valign=\"top\"><b>", MsgUserB,
                                     "</b><br>",
                                     DayStr, " ", p(HH), ":", p(MM),
-                                    "<br> page ", ?i2l(PageNum),
+                                    "<br> page ", ?i2l(Page),
                                     "</td><td valign=\"top\">", MsgBoldMarked,
                                     "</td></tr>\r\n"]),
                         SizeOut = web:deliver(Sid, OutB),
@@ -282,6 +270,45 @@ del_start(Sid, Title, Border) ->
 
 del_end(Sid) ->
     web:deliver(Sid, ?HTML_TAB_END).
+
+find_part(Text) ->
+    %% p3-n8, p1-2, n7-d8, p33-, -55
+    %% default type is p=page
+    TextU = ?l2u(Text),
+    Reg6 = "^\\s*((D|N|P)?([0-9]+))?(-((D|N|P)?([0-9]+))?)?\\s*$",
+    case re:run(TextU, Reg6, [{capture, [1,2,3,4,5,6,7]}]) of
+        nomatch ->
+            ?undefined;
+        {match, Ms} ->
+            case mafia_lib:re_matches(TextU, Ms) of
+                [_, Ua0, Na0, Dash, _, Ub0, Nb0] ->
+                    Ua = s_unit(Ua0),
+                    Ub = s_unit(Ub0),
+                    Na = mk_int(Na0),
+                    Nb = mk_int(Nb0),
+                    if Na == ?undefined, Nb == ?undefined ->
+                            ?undefined;
+                       Nb == ?undefined, Dash == "-1" -> % dash missing
+                            {Ua, Na, Ua, Na};
+                       true ->
+                            {Ua, Na, Ub, Nb}
+                    end
+            end
+    end.
+
+mk_int("-1") -> ?undefined;
+mk_int(Str) ->
+    case catch ?l2i(Str) of
+        {'EXIT', _} ->
+            ?undefined;
+        Int -> Int
+    end.
+
+s_unit("-1") -> page;
+s_unit("P") -> page;
+s_unit("D") -> ?day;
+s_unit("N") -> ?night.
+
 
 %% -----------------------------------------------------------------------------
 
@@ -563,3 +590,16 @@ make_args(PQ) ->
 
 p(I) when I > 9 -> ?i2l(I);
 p(I) -> string:right(?i2l(I), 2, $0).
+
+%% ----------------------------------------------------------------------------
+
+-include_lib("eunit/include/eunit.hrl").
+
+find_part_test_() ->
+    [
+     ?_assertMatch({page, 23, page, 88}, find_part("p23-p88")),
+     ?_assertMatch({page, 23, page, 88}, find_part("23-88")),
+     ?_assertMatch({night, 23, day, 88}, find_part("n23-d88")),
+     ?_assertMatch({page, undefined, page, 88}, find_part("-p88")),
+     ?_assertMatch({page, 23, page, undefined}, find_part("p23-"))
+    ].

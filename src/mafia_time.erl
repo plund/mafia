@@ -47,8 +47,6 @@
 
 -include("mafia.hrl").
 
--include_lib("eunit/include/eunit.hrl").
-
 %% -----------------------------------------------------------------------------
 
 -spec hh_mm_to_deadline(G :: integer() | #mafia_game{},
@@ -658,6 +656,8 @@ nearest_deadline(G = #mafia_game{}, Time) ->
     {TDiff, NearestDL}.
 
 %% -------------------------------------------------
+
+-include_lib("eunit/include/eunit.hrl").
 
 -define(D1, {{2016,12,21},{18,0,0}}).
 -define(D2, {{2016,12,22},{18,0,0}}).

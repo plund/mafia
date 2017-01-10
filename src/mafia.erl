@@ -1,7 +1,6 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% - fix so GET msg_search ... &day=d1 n2, p23 works.
 %%    put up links on index and status page
 
 %% ? - align new deadlines to next full minute. - can it come off full minutes?

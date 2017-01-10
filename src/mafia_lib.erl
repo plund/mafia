@@ -12,6 +12,7 @@
          dl2phase/1,
          phase_time2dl/2,
 
+         re_matches/2,
          merge_intervals/1,
 
          all_msgids/1,
@@ -144,6 +145,11 @@ dl2phase({Num, Don, _Time}) -> {Num, Don}.
 phase_time2dl(?game_ended, Time) -> {?game_ended, Time};
 phase_time2dl({Num, Don}, Time) -> {Num, Don, Time}.
 
+%% read re:run matches
+re_matches(_Str, []) -> [];
+re_matches(Str, [{-1, _L}|SubStrs]) -> ["-1" |re_matches(Str, SubStrs)];
+re_matches(Str, [{S, L}|SubStrs]) ->
+    [string:substr(Str, S+1, L) | re_matches(Str, SubStrs)].
 
 -type interval() :: {term(), term()}.
 -type intervals() :: [interval()].

@@ -19,12 +19,16 @@
           <tr>
             <td>Contained words</td>
             <td><input name="word" type="text" size="40"></td>
-            <td>Zero, one or more words, separated either by space or "|". </td>
+            <td>Zero, one or more words, separated either by space or "|".
+            </td>
           </tr>
           <tr>
-            <td>Day/Night numbers</td>
-            <td><input name="part" type="text" size="7"></td>
-            <td>examples: "1" or "2-4", "end" or "4-end"</td>
+            <td>Page(s) or Phase(s)</td>
+            <td><input name="part" type="text" size="15"></td>
+            <td>
+              Examples: D3, N3, P1-7, 1-7, n2-d3, d3- or -p7<br>
+              P is page, D is Day, N is Night
+              (default is P = page none of P, D, N is present)</td>
           </tr>
           <tr>
             <td></td>
@@ -38,6 +42,9 @@
               <br>
               <br>
               <b>Notes:</b>
+              <p>
+                The <b>MAX output</b> of any search is <b>400k byte</b>!<br>
+                You need to refine your search if it get shortened by this limit.
               <p>
                 Upper or lower case does not matter in any type of search
                 condition. Case do not matter for the word "end" either.

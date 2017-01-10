@@ -2,8 +2,6 @@
 
 -include("mafia.hrl").
 
--include_lib("eunit/include/eunit.hrl").
-
 -export([get_abbrevs/1]).
 
 -type abbr_calc() :: {IsUniq :: boolean(),
@@ -125,6 +123,8 @@ adv_read_vote(_, _) ->
     "brainbomb".
 
 %% -------------------------------------------------
+
+-include_lib("eunit/include/eunit.hrl").
 
 -define(TestPlayers ,
         ["brainbomb", "ND", "Chaqa", "Floodgates", "Maniac", "krellin",

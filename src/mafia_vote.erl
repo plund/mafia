@@ -12,8 +12,6 @@
 
 -include("mafia.hrl").
 
--include_lib("eunit/include/eunit.hrl").
-
 %% -----------------------------------------------------------------------------
 %% Returns ignore when #message or #mafia_game cannot be found
 %% -----------------------------------------------------------------------------
@@ -325,7 +323,7 @@ find_deadline_move(MsgText) ->
     case re:run(MsgTextU, Reg) of
         nomatch -> not_found;
         {match, Ms} ->
-            [_, _, TimeStr, Dir] = substr(MsgTextU, Ms),
+            [_, _, TimeStr, Dir] = mafia_lib:re_matches(MsgTextU, Ms),
             Sign = case Dir of "LATER" -> +1; "EARLIER" -> -1 end,
             case find_time(TimeStr) of
                 {?error, _} = E -> E;
@@ -359,16 +357,11 @@ find_expr(Text, Reg) ->
         {match, Matches} ->
             {S, L} = hd(Matches),
             Rest = string:substr(Text, S + L + 1),
-            [_, NumStr, _] = substr(Text, Matches),
+            [_, NumStr, _] = mafia_lib:re_matches(Text, Matches),
             {?l2i(NumStr), Rest};
         nomatch ->
             {not_found, Text}
     end.
-
-substr(_Str, []) -> [];
-substr(Str, [{-1, _L}|SubStrs]) -> ["-1" |substr(Str, SubStrs)];
-substr(Str, [{S, L}|SubStrs]) ->
-    [string:substr(Str, S+1, L) | substr(Str, SubStrs)].
 
 %% -----------------------------------------------------------------------------
 
@@ -398,7 +391,7 @@ find_player_replacement(MsgText) ->
         nomatch ->
             no_replace;
         {match, Ms} ->
-            [NewPlayer, OldPlayer] = substr(MsgTextU, Ms),
+            [NewPlayer, OldPlayer] = mafia_lib:re_matches(MsgTextU, Ms),
             {replace, OldPlayer, NewPlayer}
     end.
 
@@ -835,6 +828,8 @@ vote2(M, G, Vote, RawVote, IsOkVote) ->
 
 %% -------------------------------------------------
 
+-include_lib("eunit/include/eunit.hrl").
+
 find_player_replacement_test_() ->
     [
      ?_assertMatch(
@@ -910,7 +905,8 @@ find_game_end_test_() ->
         find_game_end("game is over")),
      ?_assertMatch(
         {match, _},
-        find_game_end(" a \nasfs s \n a d f\n the game  has  ended night 5 \r \n \n"))
+        find_game_end(
+          " a \nasfs s \n a d f\n the game  has  ended night 5 \r \n \n"))
     ].
 
 %% (GAME (HAS )?UNENDED|UNEND GAME)

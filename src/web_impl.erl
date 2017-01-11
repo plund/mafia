@@ -13,6 +13,8 @@
 
 %% -----------------------------------------------------------------------------
 
+-define(OUT_LIMIT, 400000).
+
 %% http://mafia_test.peterlund.se/e/web/msgs
 msgs(Sid, _Env, In) ->
     ThId = ?getv(?game_key),
@@ -23,17 +25,17 @@ msgs(Sid, _Env, In) ->
     DayCond = find_part(PartsText),
     UsersU = find_word_searches(UsersText),
     WordsU = find_word_searches(WordsText),
-    IsDayCond = DayCond /= ?undefined,
-    IsWordCond = WordsU /= [],
     IsUserCond = UsersU /= [],
+    IsWordCond = WordsU /= [],
+    IsDayCond = DayCond /= ?undefined,
     DoCont = IsUserCond orelse IsWordCond orelse IsDayCond,
     Fun =
-        fun(acc, init) -> 0;
+        fun(acc, init) -> {0, init, phase, page};
            (#message{user_name = MsgUserB,
                      page_num = Page,
                      time = Time,
                      message = MsgB},
-            Acc) when Acc < 400000  ->
+            {Acc, ASt, APh, APg}) when Acc < ?OUT_LIMIT  ->
                 MsgPhase = mafia_time:calculate_phase(ThId, Time),
                 Msg = ?b2l(MsgB),
                 B2U = fun(B) -> string:to_upper(binary_to_list(B)) end,
@@ -93,6 +95,34 @@ msgs(Sid, _Env, In) ->
                      end],
                 AllTestsOk = lists:all(fun(F) -> F() end, TestFuns),
                 if AllTestsOk ->
+                        DivStr =
+                            if not IsUserCond, not IsWordCond ->
+                                    DS1 = if MsgPhase /= APh ->
+                                                  mafia_print:print_phase(
+                                                    MsgPhase);
+                                             true -> ""
+                                          end,
+                                    DS2 = if Page /= APg ->
+                                                  "Page "++?i2l(Page);
+                                             true -> ""
+                                          end,
+                                    if DS1 /= "", DS2 /= "" ->
+                                            DS1 ++ ", " ++ DS2;
+                                       true ->
+                                            DS1 ++ DS2
+                                    end;
+                               true -> ""
+                            end,
+                        SizeDiv =
+                            if DivStr /= "" ->
+                                    web:deliver(
+                                      Sid,
+                                      ["<tr bgcolor=\"#aaaaff\">"
+                                       "<th colspan=2><font size=+1>",
+                                       DivStr,
+                                       "</font></th></tr>"]);
+                               true -> 0
+                            end,
                         DayStr = case MsgPhase of
                                      {DNum, ?day} -> "Day-" ++ ?i2l(DNum);
                                      {DNum, ?night} -> "Night-" ++ ?i2l(DNum);
@@ -111,15 +141,30 @@ msgs(Sid, _Env, In) ->
                                     "</td><td valign=\"top\">", MsgBoldMarked,
                                     "</td></tr>\r\n"]),
                         SizeOut = web:deliver(Sid, OutB),
-                        Acc + SizeOut;
-                   true -> Acc
+                        {Acc + SizeDiv + SizeOut,
+                         ASt,
+                         MsgPhase,
+                         Page};
+                   true ->
+                        {Acc, ASt, APh, APg}
                 end;
-           (_, Acc) ->
-                Acc
+
+           (_, {Acc, init, APh, APg}) when Acc >= ?OUT_LIMIT ->
+                SizeOut =
+                    web:deliver(
+                      Sid,
+                      ["</tr><td bgcolor=\"#ff8888\" colspan=2 align=center>"
+                       "You have reached the MAX OUTPUT LIMIT on 400 KB! "
+                       "Please refine your search..."
+                       "</td></tr>"]),
+                {Acc + SizeOut, limit, APh, APg};
+
+           (_, Acc)  -> Acc
         end,
     A = del_start(Sid, "Mafia Search Result", 0),
     In3 = [string:tokens(I, "=") || I <- string:tokens(In, "&")],
-    In4 = string:join([ [K, "=", V] || [K, V] <- In3, K /= "button", V /= ""], "&"),
+    In4 = string:join(
+            [[K, "=", V] || [K, V] <- In3, K /= "button", V /= ""], "&"),
     B = if DoCont ->
                 TabStart = "<tr><td><table cellpadding=6 cellspacing=3>",
                 Row1 = ["<tr><td colspan=\"2\" align=center>"
@@ -127,7 +172,7 @@ msgs(Sid, _Env, In) ->
                         "<br><br></td></tr>"],
                 TabEnd = "</table></td></tr>",
                 B1 = web:deliver(Sid, [TabStart, Row1]),
-                B2 = mafia_data:iterate_all_msgs(ThId, Fun),
+                {B2, _, _, _} = mafia_data:iterate_all_msgs(ThId, Fun),
                 B3 = web:deliver(Sid, TabEnd),
                 B1 + B2 + B3;
            true ->
@@ -275,7 +320,8 @@ find_part(Text) ->
     %% p3-n8, p1-2, n7-d8, p33-, -55
     %% default type is p=page
     TextU = ?l2u(Text),
-    Reg6 = "^\\s*((D|N|P)?([0-9]+))?(-((D|N|P)?([0-9]+))?)?\\s*$",
+    Reg6 = "^\\s*((D|N|P|DAY|NIGHT|PAGE)? *([0-9]+))? *"
+        "(- *((D|N|P|DAY|NIGHT|PAGE)? *([0-9]+))?)?\\s*$",
     case re:run(TextU, Reg6, [{capture, [1,2,3,4,5,6,7]}]) of
         nomatch ->
             ?undefined;
@@ -306,12 +352,14 @@ mk_int(Str) ->
 
 s_unit("-1") -> page;
 s_unit("P") -> page;
+s_unit("PAGE") -> page;
 s_unit("D") -> ?day;
-s_unit("N") -> ?night.
+s_unit("DAY") -> ?day;
+s_unit("N") -> ?night;
+s_unit("NIGHT") -> ?night.
 
 
 %% -----------------------------------------------------------------------------
-
 %% http://mafia_test.peterlund.se/e/web/game_status
 %% http://mafia_test.peterlund.se/e/web/game_status?debug
 %% http://mafia_test.peterlund.se/e/web/game_status?phase=day&num=1
@@ -599,7 +647,10 @@ find_part_test_() ->
     [
      ?_assertMatch({page, 23, page, 88}, find_part("p23-p88")),
      ?_assertMatch({page, 23, page, 88}, find_part("23-88")),
-     ?_assertMatch({night, 23, day, 88}, find_part("n23-d88")),
+     ?_assertMatch({night, 23, day__, 88}, find_part("n23-d88")),
      ?_assertMatch({page, undefined, page, 88}, find_part("-p88")),
-     ?_assertMatch({page, 23, page, undefined}, find_part("p23-"))
+     ?_assertMatch({page, 23, page, undefined}, find_part("p23-")),
+
+     ?_assertMatch({page, 23, day__, 1}, find_part("page 23 - day 1")),
+     ?_assertMatch({page, 23, day__, 1}, find_part(" page23-day1 "))
     ].

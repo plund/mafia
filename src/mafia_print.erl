@@ -18,6 +18,7 @@
 
 %% API
 -export([
+         print_phase/1,
          print_messages/1,
          print_message_summary/1,
          print_message_full/1,

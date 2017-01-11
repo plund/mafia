@@ -10,25 +10,24 @@
       <p><b>Search for Message in Current Game</b>
       </p>
       <form method="post" action="e/web/msgs">
-        <table cellspan="10" width="700">
-          <tr>
+        <table cellspan="10" cellspacing=5 cellpadding=5 width="700">
+          <tr bgcolor="#afefaf">
             <td>User Names</td>
-            <td><input name="user" type="text" size="40"></td>
+            <td><input name="user" type="text" size="30"></td>
             <td>One or more user names or parts of user names.</td>
           </tr>
-          <tr>
-            <td>Contained words</td>
-            <td><input name="word" type="text" size="40"></td>
+          <tr bgcolor="#afefaf">
+            <td>Words in Message</td>
+            <td><input name="word" type="text" size="30"></td>
             <td>Zero, one or more words, separated either by space or "|".
             </td>
           </tr>
-          <tr>
+          <tr bgcolor="#afefaf">
             <td>Page(s) or Phase(s)</td>
-            <td><input name="part" type="text" size="15"></td>
+            <td><input name="part" type="text" size="25"></td>
             <td>
-              Examples: D3, N3, P1-7, 1-7, n2-d3, d3- or -p7<br>
-              P is page, D is Day, N is Night
-              (default is P = page none of P, D, N is present)</td>
+              Examples: day1, page 44, p11-17, D3, N3, n2 - d3, d3-, -p7
+              day 2 - night 2</td>
           </tr>
           <tr>
             <td></td>

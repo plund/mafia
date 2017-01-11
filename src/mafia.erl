@@ -477,7 +477,14 @@ l() ->
              || "maeb." ++ ModRev
                     <- [?lrev(F) || F <- Files]],
     Beams2 = (Beams -- [mafia]) ++ [mafia],
-    [begin code:purge(M), code:load_file(M), M end
+    [begin
+         code:purge(M),
+         code:load_file(M),
+         case lists:keyfind(test, 1, M:module_info(exports)) of
+             {test, 0} -> eunit:test(M);
+             false -> ok
+         end,
+         M end
      || M <- Beams2].
 
 %% Pre-check user list given by GM in initial game PM

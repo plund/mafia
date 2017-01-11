@@ -317,6 +317,7 @@ start_web(S) ->
     os:cmd("cp ../priv/index.html " ++ ?DOC_ROOT),
     os:cmd("cp ../priv/current_vote.txt " ++ ?DOC_ROOT),
     os:cmd("cp ../priv/GM_commands.html " ++ ?DOC_ROOT),
+    os:cmd("cp ../priv/PlayerVoting.html " ++ ?DOC_ROOT),
     IP_en1 = get_en1_ip(),
     Params = [{port, ?WEBPORT},
               {server_name, "mafia_test.peterlund.se"},

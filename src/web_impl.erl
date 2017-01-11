@@ -95,24 +95,21 @@ msgs(Sid, _Env, In) ->
                      end],
                 AllTestsOk = lists:all(fun(F) -> F() end, TestFuns),
                 if AllTestsOk ->
-                        DivStr =
-                            if not IsUserCond, not IsWordCond ->
-                                    DS1 = if MsgPhase /= APh ->
-                                                  mafia_print:print_phase(
-                                                    MsgPhase);
-                                             true -> ""
-                                          end,
-                                    DS2 = if Page /= APg ->
-                                                  "Page "++?i2l(Page);
-                                             true -> ""
-                                          end,
-                                    if DS1 /= "", DS2 /= "" ->
-                                            DS1 ++ ", " ++ DS2;
-                                       true ->
-                                            DS1 ++ DS2
-                                    end;
-                               true -> ""
-                            end,
+                        %% if not IsUserCond, not IsWordCond ->
+                        DS1 = if MsgPhase /= APh ->
+                                      mafia_print:print_phase(
+                                        MsgPhase);
+                                 true -> ""
+                              end,
+                        DS2 = if Page /= APg ->
+                                      "Page "++?i2l(Page);
+                                 true -> ""
+                              end,
+                        DivStr = if DS1 /= "", DS2 /= "" ->
+                                         DS1 ++ ", " ++ DS2;
+                                    true ->
+                                         DS1 ++ DS2
+                                 end,
                         SizeDiv =
                             if DivStr /= "" ->
                                     web:deliver(

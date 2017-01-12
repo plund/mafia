@@ -749,12 +749,12 @@ pr_thread_links(PP) ->
                    true -> StartPage0
                 end,
     UrlPart = "/e/web/msgs?part=p",
-    Links =
-        string:join(
-          [["<a href=\"",UrlPart, ?i2l(PN),"-\">p", ?i2l(PN), "-</a>"]
-           || PN <- (lists:seq(StartPage, EndPage, 5)
-                     -- [EndPage]) ++ [EndPage]],
-          " "),
+    PageNs = fun(PN) -> [?i2l(PN),"-", ?i2l(PN + 4)] end,
+    Links0 = [["<a href=\"",UrlPart, PageNs(PN),"\">p", PageNs(PN), "</a>"]
+              || PN <- lists:seq(StartPage, EndPage, 5) -- [EndPage]],
+    LastPs = [?i2l(EndPage), "-", ?i2l(EndPage + 10)],
+    LastLink = ["<a href=\"", UrlPart, LastPs, "\">p", LastPs, "</a>"],
+    Links = string:join( Links0 ++ [LastLink], " "),
     ["<tr><td align=center>Links to the thread pages: ", Links, "</td></tr>"].
 
 %% Votes per user are time ordered (oldest first)

@@ -239,7 +239,7 @@ calc_one_deadlineI({Num, DayNight}, Game)
     %% know where we want to go
 
     %% UtcGS = utc_gs(DeadD1LocalDateTime, TZ, IsInitDst),  %% D1 utc secs
-    UtcGS = calc_game_start_time(Game),
+    UtcGS = calc_game_start_time_greg_secs(Game),
 
     UtcGS2 = UtcGS + (Num-1) * (DayHours + NightHours) * ?HourSecs,
     UtcGS2b = UtcGS2 + if DayNight == ?night ->
@@ -252,7 +252,8 @@ calc_one_deadlineI({Num, DayNight}, Game)
                               UtcGS2b), %% Target DL utc secs
     {Num, DayNight, UtcGS3 - ?GSECS_1970}.
 
-calc_game_start_time(G) ->
+%% gregorian_seconds().
+calc_game_start_time_greg_secs(G) ->
     #mafia_game{time_zone = TZ,
                 day1_dl_time = DeadD1LocalDateTime,
                 is_init_dst = IsInitDst
@@ -506,12 +507,14 @@ utc_gs(DateTime, TZ, Dst) ->
     calendar:datetime_to_gregorian_seconds(DateTime)
         - (TZ + if Dst -> 1; true -> 0 end) * ?HourSecs.
 
-
+%% seconds_1970().
 get_time_for_prev_phase(G, Phase) ->
     PrevPhase = decr_phase(Phase),
     case get_time_for_phase(G, PrevPhase) of
         ?undefined ->
-            calc_game_start_time(G);
+            calc_game_start_time_greg_secs(G)
+                - ?GSECS_1970
+                - G#mafia_game.day_hours * ?DaySecs;
         Time -> Time
     end.
 

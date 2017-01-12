@@ -351,6 +351,9 @@ print_votesI(PPin) ->
                 end
         end,
 
+    %% Part - Thread Links
+    HThreadLinks = pr_thread_links(PP),
+
     %% votes, from remaining players only
     HVoteCount =
         if PhaseType == ?day ->
@@ -590,9 +593,12 @@ print_votesI(PPin) ->
         end,
     if PP#pp.mode == ?text -> ok;
        PP#pp.mode == ?html ->
-            [HTitle,
-             HDeadLine, "\r\n", HVoteCount, "\r\n",
-             EndVotes, "\r\n", NonVotes, "\r\n",
+            [HTitle, "\r\n",
+             HDeadLine, "\r\n",
+             HThreadLinks, "\r\n",
+             HVoteCount, "\r\n",
+             EndVotes, "\r\n",
+             NonVotes, "\r\n",
              "<br>",
              HRemPlayers, "\r\n",
              ["<tr><td>\r\n", HTrackKey, "</td><tr>\r\n"],
@@ -712,6 +718,44 @@ print_past_dls(DLs, Title) ->
        "<td>", TimeStr, "</td>"
        "</tr>"]
       || {Nstr, DoNStr, {Days, {HH, MM, _}}, TimeStr} <- DLs]].
+
+
+pr_thread_links(PP) ->
+    %% Day4(p98-) p103-, p108-, p113-, p118-, p123-, p128-, last(p130)
+    StartTime = mafia_time:get_time_for_prev_phase(PP#pp.game, PP#pp.phase),
+    EndTime = mafia_time:get_time_for_phase(PP#pp.game, PP#pp.phase),
+    PageKeys =
+        lists:sort([ K || K = {T, _} <- mnesia:dirty_all_keys(page_rec),
+                          T == PP#pp.game_key]),
+    {_, {StartPage0, EndPage}} =
+        lists:foldl(
+          fun(_PK, Acc = {done, _}) -> Acc;
+             (PK = {_, P}, Acc) ->
+                  #page_rec{message_ids= [MsgId|_]} =
+                      hd(?rpage(PK)),
+                  #message{time = MTime} = hd(?rmess(MsgId)),
+                  case Acc of
+                      {startpage, _} when MTime >= StartTime ->
+                          {endpage, {P-1, P-1}};
+                      {startpage, _} -> {startpage, P};
+                      {endpage, {St, _}} when MTime >= EndTime ->
+                          {done, {St, P-1}};
+                      {endpage, {St, _}} -> {endpage, {St, P}}
+                  end
+          end,
+          {startpage, none},
+          PageKeys),
+    StartPage = if StartPage0 == 0 -> 1;
+                   true -> StartPage0
+                end,
+    UrlPart = "/e/web/msgs?part=p",
+    Links =
+        string:join(
+          [["<a href=\"",UrlPart, ?i2l(PN),"-\">p", ?i2l(PN), "-</a>"]
+           || PN <- (lists:seq(StartPage, EndPage, 5)
+                     -- [EndPage]) ++ [EndPage]],
+          " "),
+    ["<tr><td align=center>Links to the thread pages: ", Links, "</td></tr>"].
 
 %% Votes per user are time ordered (oldest first)
 %% Users sorted time ordered after they oldest vote (first vote)

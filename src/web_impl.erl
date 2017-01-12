@@ -15,7 +15,7 @@
 
 -define(OUT_LIMIT, 400000).
 
-%% http://mafia_test.peterlund.se/e/web/msgs
+%% http://mafia.peterlund.se/e/web/msgs
 msgs(Sid, _Env, In) ->
     ThId = ?getv(?game_key),
     PQ = httpd:parse_query(In),
@@ -357,11 +357,11 @@ s_unit("NIGHT") -> ?night.
 
 
 %% -----------------------------------------------------------------------------
-%% http://mafia_test.peterlund.se/e/web/game_status
-%% http://mafia_test.peterlund.se/e/web/game_status?debug
-%% http://mafia_test.peterlund.se/e/web/game_status?phase=day&num=1
-%% http://mafia_test.peterlund.se/e/web/game_status?phase=night&num=2
-%% http://mafia_test.peterlund.se/e/web/game_status?phase=end
+%% http://mafia.peterlund.se/e/web/game_status
+%% http://mafia.peterlund.se/e/web/game_status?debug
+%% http://mafia.peterlund.se/e/web/game_status?phase=day&num=1
+%% http://mafia.peterlund.se/e/web/game_status?phase=night&num=2
+%% http://mafia.peterlund.se/e/web/game_status?phase=end
 game_status(Sid, _Env, In) ->
     Html =
         case get_phase(In) of
@@ -472,8 +472,8 @@ gs_phase(_, _, _) ->
 
 %% -----------------------------------------------------------------------------
 
-%% http://mafia_test.peterlund.se/e/web/vote_tracker?day=1
-%% http://mafia_test.peterlund.se/e/web/vote_tracker?msg_id=1420335
+%% http://mafia.peterlund.se/e/web/vote_tracker?day=1
+%% http://mafia.peterlund.se/e/web/vote_tracker?msg_id=1420335
 vote_tracker(Sid, _Env, In) ->
     PQ = httpd:parse_query(In),
     A = case vote_tracker2(lists:keyfind("day", 1,  PQ),
@@ -522,10 +522,10 @@ vote_tracker2(?false,
 
 %% -----------------------------------------------------------------------------
 
-%% http://mafia_test.peterlund.se/e/web/stats?phase=day&num=1
-%% http://mafia_test.peterlund.se/e/web/stats?phase=night&num=1
-%% http://mafia_test.peterlund.se/e/web/stats?phase=end
-%% http://mafia_test.peterlund.se/e/web/stats?phase=total
+%% http://mafia.peterlund.se/e/web/stats?phase=day&num=1
+%% http://mafia.peterlund.se/e/web/stats?phase=night&num=1
+%% http://mafia.peterlund.se/e/web/stats?phase=end
+%% http://mafia.peterlund.se/e/web/stats?phase=total
 stats(Sid, _Env, In) ->
     PQ = httpd:parse_query(In),
     Html =
@@ -611,7 +611,7 @@ show_msg([#message{user_name = MsgUserB,
         end,
     Color = mafia_lib:bgcolor(MsgUserB),
     {HH, MM} = mafia_time:hh_mm_to_deadline(GameKey, Time),
-    UrlPart1 = "http://mafia_test.peterlund.se/e/web/msgs?part=p",
+    UrlPart1 = "/e/web/msgs?part=p",
     VotePageStr = ?i2l(PageNum),
     VPPrev = ?i2l(PageNum - 1),
     VPNext = ?i2l(PageNum + 1),

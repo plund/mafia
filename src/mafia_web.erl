@@ -320,7 +320,7 @@ start_web(S) ->
     os:cmd("cp ../priv/PlayerVoting.html " ++ ?DOC_ROOT),
     IP_en1 = get_en1_ip(),
     Params = [{port, ?WEBPORT},
-              {server_name, "mafia_test.peterlund.se"},
+              {server_name, "mafia.peterlund.se"},
               {server_root, ?SERVER_ROOT},
               {document_root, ?DOC_ROOT},
               {directory_index, ["index.html"]},
@@ -330,7 +330,7 @@ start_web(S) ->
 %%                       {modules, [
 %%                                  %% mod_alias,
 %%                                  %% mod_auth,
-%% %%% mod_esi - http://mafia_test.peterlund.se/esi/mafia_web/msg_search_result
+%% %%% mod_esi - http://mafia.peterlund.se/esi/mafia_web/msg_search_result
 %%                                  mod_esi,
 %%                                  %% mod_actions,
 %%                                  %% mod_cgi, %mod_include,

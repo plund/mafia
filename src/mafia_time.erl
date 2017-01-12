@@ -606,16 +606,16 @@ timer_minutes(ThId) ->
 
 -define(m2s(Min), (Min * ?MinuteSecs)).
 %%   Day nearest
-t_mins(?day, T) when T < ?m2s(-90) -> 6;
-t_mins(?day, T) when T < ?m2s(-30) -> 5;
+t_mins(?day, T) when T < ?m2s(-120) -> 6;
+t_mins(?day, T) when T < ?m2s(-30) -> 3;
 t_mins(?day, T) when T < ?m2s(-7) -> 2;
 t_mins(?day, T) when T < ?m2s(7) -> 1;
 t_mins(?day, T) when T < ?m2s(20) -> 2;
-t_mins(?day, T) when T < ?m2s(60) -> 5;
-t_mins(?day, T) when T >= ?m2s(60) -> 10;
+t_mins(?day, T) when T < ?m2s(60) -> 3;
+t_mins(?day, T) when T >= ?m2s(60) -> 6;
 %%  Night nearest
-t_mins(?night, T) when T < ?m2s(-40) -> 10;
-t_mins(?night, T) when T < ?m2s(-15) -> 5;
+t_mins(?night, T) when T < ?m2s(-40) -> 6;
+t_mins(?night, T) when T < ?m2s(-10) -> 3;
 t_mins(?night, T) when T < ?m2s(20) -> 2;
 t_mins(?night, T) when T < ?m2s(90) -> 4;
 t_mins(?night, T) when T >= ?m2s(90) -> 6;

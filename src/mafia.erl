@@ -1,12 +1,6 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%%    put up links on index and status page
-
-%% ? - align new deadlines to next full minute. - can it come off full minutes?
-%% ? - GM command expand alias list (Manual exist already).
-%%        - Game startup is too hard.
-
 %% - Call the Game Status generation from the gen_server also for html variants
 %%   when they are ready to be stored on file
 %% - web:deliver game_status in parts out to browser?

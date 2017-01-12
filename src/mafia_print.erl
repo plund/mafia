@@ -1237,12 +1237,7 @@ pr_ivs_vote_html(IVs, User, MsgId) ->
      end
      || {U, V, VF} <- IVs].
 
-bgcolor(Str) when is_list(Str) ->
-    bgcolor(?l2b(Str));
-bgcolor(Bin) when is_binary(Bin) ->
-    Hash = erlang:phash2(Bin, 16#1000000),
-    Color = Hash bor 16#C0C0C0,
-    [" bgcolor=\"#", integer_to_list(Color, 16), "\""].
+bgcolor(V) -> mafia_lib:bgcolor(V).
 
 pr_ivs_vote(IVs, User) ->
     pr_ivs_vote(IVs, User, "").

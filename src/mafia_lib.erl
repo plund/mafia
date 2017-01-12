@@ -7,6 +7,7 @@
          rgame/1,
          rmessI/1,
 
+         bgcolor/1,
          thid/1,
          gamename_to_thid/1,
          dl2phase/1,
@@ -113,6 +114,15 @@ rgame(ThId) ->
 
 rgameI(ThId) ->
     mnesia:dirty_read(mafia_game, ThId).
+
+%% -----------------------------------------------------------------------------
+
+bgcolor(Str) when is_list(Str) ->
+    bgcolor(?l2b(Str));
+bgcolor(Bin) when is_binary(Bin) ->
+    Hash = erlang:phash2(Bin, 16#1000000),
+    Color = Hash bor 16#C0C0C0,
+    [" bgcolor=\"#", integer_to_list(Color, 16), "\""].
 
 %% -----------------------------------------------------------------------------
 

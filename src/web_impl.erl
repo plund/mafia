@@ -601,21 +601,33 @@ show_msg([#message{user_name = MsgUserB,
                    message = MsgB}]) ->
     GameKey = ?getv(?game_key),
     MsgPhase = mafia_time:calculate_phase(GameKey, Time),
-    DayStr = case MsgPhase of
-                 {DNum, ?day} -> "Day-" ++ ?i2l(DNum);
-                 {DNum, ?night} -> "Night-" ++ ?i2l(DNum);
-                 ?game_ended -> "Game End "
-             end,
-    Hash = erlang:phash2(MsgUserB, 16#1000000),
-    Color = Hash bor 16#C0C0C0,
-    ColorStr = integer_to_list(Color, 16),
+    DayStr =
+        case MsgPhase of
+            {DNum, ?day} ->
+                "Day-" ++ ?i2l(DNum);
+            {DNum, ?night} ->
+                "Night-" ++ ?i2l(DNum);
+            ?game_ended -> "Game End "
+        end,
+    Color = mafia_lib:bgcolor(MsgUserB),
     {HH, MM} = mafia_time:hh_mm_to_deadline(GameKey, Time),
-    ?l2b(["<tr bgcolor=\"#", ColorStr,
-          "\"><td valign=\"top\"><b>", MsgUserB,
+    UrlPart1 = "http://mafia_test.peterlund.se/e/web/msgs?part=p",
+    VotePageStr = ?i2l(PageNum),
+    VPPrev = ?i2l(PageNum - 1),
+    VPNext = ?i2l(PageNum + 1),
+    Link1 = UrlPart1 ++ VotePageStr,
+    Link3 = UrlPart1 ++ VPPrev ++ "-" ++ VPNext,
+    ?l2b(["<tr", Color, "><td valign=\"top\"><b>", MsgUserB,
           "</b><br>",
           DayStr, " ", p(HH), ":", p(MM),
           "<br> page ", ?i2l(PageNum),
           "</td><td valign=\"top\">", MsgB,
+          "</td></tr>"
+          "<tr><td colspan=2 align=center><br>"
+          "<a href=\"", Link1 ,"\">Page ", VotePageStr, " where vote is "
+          "found</a>"
+          "<p>"
+          "<a href=\"", Link3 ,"\">Pages ", VPPrev, " to ", VPNext, "</a>"
           "</td></tr>\r\n"]).
 
 %% ----------------------------------------------------------------------------

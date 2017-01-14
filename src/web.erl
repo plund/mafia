@@ -2,8 +2,9 @@
 
 -include("mafia.hrl").
 
--export([msgs/3,
-         game_status/3,
+-export([game_status/3,
+         msgs/3,
+         msg/3,
          vote_tracker/3,
          stats/3,
 
@@ -21,6 +22,13 @@ msgs(Sid, Env, In) ->
     catch_debug(
       Sid, msgs,
       fun(do) -> web_impl:msgs(Sid, Env, In);
+         (in) -> {msgs, In}
+      end).
+
+msg(Sid, Env, In) ->
+    catch_debug(
+      Sid, msgs,
+      fun(do) -> web_impl:msg(Sid, Env, In);
          (in) -> {msgs, In}
       end).
 

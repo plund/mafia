@@ -4,6 +4,7 @@
 -export([msgs/3,
          game_status/3,
          vote_tracker/3,
+         msg/3,
          stats/3,
 
          show_msg/1
@@ -504,7 +505,7 @@ vote_tracker2(?false,
               {"msg_id", Str}) ->
     try
         MsgId = list_to_integer(Str),
-        show_msg(MsgId, row_tab)
+        show_message(MsgId, vote)
     catch _:_ ->
             {error,
              "<tr><td>"
@@ -517,7 +518,40 @@ vote_tracker2(?false,
      "<tr><td>bad_request</td></tr>"}.
 
 %% -----------------------------------------------------------------------------
+%% http://mafia.peterlund.se/e/web/msg?id=(msgid)&var=vote&player=(playername)
+msg(Sid, _Env, In) ->
+    %% msgs
+    PQ = httpd:parse_query(In),
+    MsgIdText = get_arg(PQ, "id"),
+    Variant = get_arg(PQ, "var"),
+    Player = get_arg(PQ, "player"),
+    Ms = case catch ?l2i(MsgIdText) of
+             {'EXIT', _} -> [];
+             MsgId -> ?rmess(MsgId)
+         end,
+    {HStart, Html} = msg2(Ms, Variant, Player),
+    A = del_start(Sid, HStart, 0),
+    B = web:deliver(Sid, Html),
+    C = del_end(Sid),
+    Args = make_args(PQ),
+    {A + B + C, Args}.
 
+msg2([], _Variant, _Player) ->
+    "No message found with this id";
+msg2([M], Variant, Player) ->
+    case Variant of
+        "death" ->
+            {"Death Announcement - " ++ Player,
+             show_message(M, death)};
+        "vote" ->
+            {"Vote - " ++ Player,
+             show_message(M, vote)};
+        _ ->
+            {"Message - " ++ Player,
+             show_message(M, msg)}
+    end.
+
+%% -----------------------------------------------------------------------------
 %% http://mafia.peterlund.se/e/web/stats?phase=day&num=1
 %% http://mafia.peterlund.se/e/web/stats?phase=night&num=1
 %% http://mafia.peterlund.se/e/web/stats?phase=end
@@ -580,10 +614,49 @@ conv_to_num(Str) ->
 %% -----------------------------------------------------------------------------
 
 %% insert row into row_tab
-show_msg(MsgId, row_tab) ->
+show_message(Msg, Variant) ->
     ["<tr><td><table cellpadding=6 cellspacing=3>",
-     show_msg(MsgId),
-     "</table></td></tr>"].
+     show_message2(Msg, Variant),
+     "</table></td></tr>"
+    ].
+
+show_message2(MsgId, Var) when is_integer(MsgId) ->
+    show_message2(?rmess(MsgId), Var);
+show_message2([M], Var) ->
+    show_message2(M, Var);
+show_message2([], _Var) ->
+    "No message found with this id";
+show_message2(M, vote) ->
+    show_message3(M, " where vote is found");
+show_message2(M, death) ->
+    show_message3(M, " where announcement is found");
+show_message2(M, msg) ->
+    show_message3(M, "").
+
+show_message3(M, Str) ->
+    ["<tr><td><table cellpadding=6 cellspacing=3>",
+     show_msg(M),
+     page_links(M, Str),
+     "</table></td></tr>"
+    ].
+
+page_links(MsgId, Str) when is_integer(MsgId) ->
+    page_links(?rmess(MsgId), Str);
+page_links([], _Str) -> "<tr><td>No message found with this id</td></tr>";
+page_links([M], Str) -> page_links(M, Str);
+page_links(M, Str) ->
+    PageNum = M#message.page_num,
+    UrlPart1 = "/e/web/msgs?part=p",
+    PageStr = ?i2l(PageNum),
+    VPPrev = ?i2l(PageNum - 1),
+    VPNext = ?i2l(PageNum + 1),
+    Link1 = UrlPart1 ++ PageStr,
+    Link3 = UrlPart1 ++ VPPrev ++ "-" ++ VPNext,
+    ["<tr><td colspan=2 align=center><br>"
+     "<a href=\"", Link1 ,"\">Page ", PageStr, Str, "</a>"
+     "<p>"
+     "<a href=\"", Link3 ,"\">Pages ", VPPrev, " to ", VPNext, "</a>"
+     "</td></tr>\r\n"].
 
 %% ?html mode only, use mafia_print:pp for ?text
 %% return tr
@@ -591,10 +664,11 @@ show_msg(MsgId) when is_integer(MsgId) ->
     show_msg(?rmess(MsgId));
 
 show_msg([]) -> "<tr><td>No message found with this id</td></tr>";
-show_msg([#message{user_name = MsgUserB,
-                   page_num = PageNum,
-                   time = Time,
-                   message = MsgB}]) ->
+show_msg([M]) -> show_msg(M);
+show_msg(#message{user_name = MsgUserB,
+                  page_num = PageNum,
+                  time = Time,
+                  message = MsgB}) ->
     GameKey = ?getv(?game_key),
     MsgPhase = mafia_time:calculate_phase(GameKey, Time),
     DayStr =
@@ -607,24 +681,13 @@ show_msg([#message{user_name = MsgUserB,
         end,
     Color = mafia_lib:bgcolor(MsgUserB),
     {HH, MM} = mafia_time:hh_mm_to_deadline(GameKey, Time),
-    UrlPart1 = "/e/web/msgs?part=p",
-    VotePageStr = ?i2l(PageNum),
-    VPPrev = ?i2l(PageNum - 1),
-    VPNext = ?i2l(PageNum + 1),
-    Link1 = UrlPart1 ++ VotePageStr,
-    Link3 = UrlPart1 ++ VPPrev ++ "-" ++ VPNext,
     ?l2b(["<tr", Color, "><td valign=\"top\"><b>", MsgUserB,
           "</b><br>",
           DayStr, " ", p(HH), ":", p(MM),
           "<br> page ", ?i2l(PageNum),
           "</td><td valign=\"top\">", MsgB,
           "</td></tr>"
-          "<tr><td colspan=2 align=center><br>"
-          "<a href=\"", Link1 ,"\">Page ", VotePageStr, " where vote is "
-          "found</a>"
-          "<p>"
-          "<a href=\"", Link3 ,"\">Pages ", VPPrev, " to ", VPNext, "</a>"
-          "</td></tr>\r\n"]).
+         ]).
 
 %% ----------------------------------------------------------------------------
 %% INTERNAL FUNCTIONS

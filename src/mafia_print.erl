@@ -543,8 +543,12 @@ print_votesI(PPin) ->
                  "<tr><th colspan=2 align=left><br>Dead Players</th></tr>",
                  if IsZeroDeaths -> "<tr><th>(none)</th></tr>";
                     not IsZeroDeaths ->
-                         [["<tr><td><table align=left><tr><td", bgcolor(DeadPl), ">",
-                           ?b2l(DeadPl), "</td><td>", PrFun(IsEnd, Ph),
+                         [["<tr><td><table align=left><tr><td",
+                           bgcolor(DeadPl), ">", ?b2l(DeadPl), "</td><td>",
+                           "<a href=\"/e/web/msg?id=",
+                           ?i2l(MsgId), "&player=", ?b2l(DeadPl),
+                           "&var=death\">",
+                           PrFun(IsEnd, Ph), "</a>",
                            if Com == ?undefined ->
                                    " - msg: " ++ ?i2l(MsgId);
                               is_binary(Com) ->
@@ -1165,7 +1169,11 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                       end,
                   TimeStr = print_time_5d(PP#pp.game, V#vote.time),
                   %% "&nbsp;"
-                  ReplSpace = fun(Str) -> [ if C ==$\s -> "&nbsp;"; true -> C end || C <- Str] end,
+                  ReplSpace =
+                      fun(Str) ->
+                              [ if C ==$\s -> "&nbsp;"; true -> C end
+                                || C <- Str]
+                      end,
                   if PP#pp.mode == ?text ->
                           io:format(PP#pp.dev,
                                     "~s~s~s\n",
@@ -1282,7 +1290,7 @@ pr_ivs_user(IVs, A) ->
 pr_ivs_vote_html(IVs, User, MsgId) ->
     [if U == User ->
              ["<td", bgcolor(VF), ">",
-              "<b><a href=\"/e/web/vote_tracker?msg_id=", ?i2l(MsgId), "\">",
+              "<b><a href=\"/e/web/msg?id=", ?i2l(MsgId), "&player=", User, "&var=vote\">",
               V, "</a></b>"
               "</td>"];
         true ->

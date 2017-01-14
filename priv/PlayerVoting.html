@@ -7,12 +7,12 @@
   <body bgcolor="#cfffaf">
     <center>
       <h2>Mafia Player Voting</h2>
-      <table cellspan="10" width="800" border="1">
-        <tr align=left>
+      <table width=800>
+        <tr bgcolor="#afefaf" align=left>
           <th><font size=-1>Player Vote</font></th>
-          <th><font size=-1>Effect on the Mafia tracker bot</font></th>
+          <th><font size=-1>Meaning</font></th>
         </tr>
-        <tr>
+        <tr bgcolor="#afefaf">
           <td valign="top"><font size="-1">
               ##VOTE&nbsp;(player_name)
           </font></td>
@@ -20,7 +20,7 @@
               During the day, this is how to vote to lynch a player
           </font></td>
         </tr>
-        <tr>
+        <tr bgcolor="#afefaf">
           <td valign="top"><font size="-1">
               ##VOTE&nbsp;NO-LYNCH
           </font></td>
@@ -29,7 +29,7 @@
               It is accepted to end a day this way.
           </font></td>
         </tr>
-        <tr>
+        <tr bgcolor="#afefaf">
           <td valign="top"><font size="-1">
               ##UNVOTE<br>
               ##UNVOTE&nbsp;(player_name)
@@ -42,7 +42,7 @@
               It is NOT accepted to end a day with an unvote.
           </font></td>
         </tr>
-        <tr>
+        <tr bgcolor="#afefaf">
           <td valign="top"><font size="-1">
               ##END
           </font></td>
@@ -50,7 +50,7 @@
               Vote for ending this phase early.
           </font></td>
         </tr>
-        <tr>
+        <tr bgcolor="#afefaf">
           <td valign="top"><font size="-1">
               ##UNEND
           </font></td>
@@ -58,13 +58,13 @@
               Remove your vote for ending this phase early.
           </font></td>
         </tr>
-        <tr>
+        <tr bgcolor="#afefaf">
           <td colspan="2">
             <p>
-              <b>Notes:</b>
+              <font size=-1><b>Notes:</b></font>
             <p>
               Upper or lower case does not matter. The bots converts all text
-              to upper case before it starts looking for GM commands.
+              to upper case before it starts looking for player votes.
           </td>
         </tr>
       </table>

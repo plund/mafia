@@ -1,4 +1,4 @@
-<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<!DOCTYPE html>
 <html>
   <head>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
@@ -42,11 +42,11 @@
               <br>
               <b>Notes:</b>
               <p>
-                The <b>MAX output</b> of any search is <b>400k byte</b>!<br>
-                You need to refine your search if it get shortened by this limit.
+                The <b>MAX output</b> of any search is <b>400k byte</b>!
+                You need to modify your search conditions if you reach this limit.
               <p>
                 Upper or lower case does not matter in any type of search
-                condition. Case do not matter for the word "end" either.
+                condition.
               <p>
                 Quotes must be used to search for something containing a space.
                 Normally spaces divide up words so then you may need to use
@@ -59,27 +59,40 @@
                 one or more words that must be found in the message or
                 one single day number.
               <p>
-                In the User condition a space between two user is "or".
-                Messages for both users are listed.
+                In the <b>User</b> conditions, a space between two user means
+                "or". Messages for both users are listed.
+                No word boundary requirements apply.
               <p>
-                In word conditions, a space between two words is "and", meaning
-                that both words need to exist in the message for it to match.
-                The "|" character between two words is or, meaning that only
-                one of the two words must be found in the message.
-                Words normally need to have word bondaries, so that a search
-                for "nd" does not match the word "and". Add the "*" char at the
+                In the <b>Word</b> conditions, a space between two words means
+                "and". Both words need to exist in the message for it to match.
+                Word boundary requirements DO apply.
+              <p>
+                The "|" character between two words means "or". Only
+                one of the two words must be found in the message to match.
+              <p>
+                Word searches are normally done with <b>word boundaries</b>.
+                Searching for "nd" matches the word "nd" but not the word "and".
+                <br>
+                Add the "*" character at the
                 beginning or end to remove the word boundary requirement.
-                Searching for "*nd*" matches "and" but also "mandelbrot".
-                Searching for "Jamie*|pete*" will result in all message where
-                a word starts with either "Jamie" or "pete"
+                Searching for "*nd*" matches "nd" but also "and" and "mandelbrot".
+                <br>
+                Doing a word search for "Jamie*|pete*" will result in all
+                messages where any word starts with either "Jamie" or "pete"
               <p>
                 Words searched for will be
-                <b><font size=\"+1\">highlightened</font></b> in the resulting
-                output.
+                <b><font size=\"+1\">highlightened</font></b> where they are
+                found  in the resulting output.
               <p>
-                Inserting anything starting with "end" in the day number field
-                will display messages posted after the game has ended. It is
-                also possible to search day number to end, e.g. "5-end".
+                In the <b>Page/Phase</b> condition a single number is a
+                page number. A page can also be given using "p33" or "page 33"
+                Here you can also enter "d3" or "D3" or "day 3" which all will
+                output messages for day 3. Same for "n1", "N 1" and "night 1".
+              <p>
+                You can give a sequence like "D3-N3", "page 1 - page 13" or
+                even mixed "p30-d1". You may also start or end with dash.
+                "-6" will result in pages 1-6, while "N4 -" returns messages
+                for night 4 and everying coming after even End of Game messages.
             </td>
           </tr>
         </table>

@@ -1290,7 +1290,8 @@ pr_ivs_user(IVs, A) ->
 pr_ivs_vote_html(IVs, User, MsgId) ->
     [if U == User ->
              ["<td", bgcolor(VF), ">",
-              "<b><a href=\"/e/web/msg?id=", ?i2l(MsgId), "&player=", User, "&var=vote\">",
+              "<b><a href=\"/e/web/msg?id=", ?i2l(MsgId),
+              "&player=", User, "&var=vote\">",
               V, "</a></b>"
               "</td>"];
         true ->

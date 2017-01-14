@@ -3,14 +3,14 @@
 -include("mafia.hrl").
 %% - Call the Game Status generation from the gen_server also for html variants
 %%   when they are ready to be stored on file
-%% - web:deliver game_status in parts out to browser?
-%% - split mafia_print. stats and tracker into separate modules?
-%% - implement the GM_commands. How to test them?
-%%   - define now and when to use a smarter vote reader!!
-%% - Display msgs since last login with a browser (cookie)
-%% ToDo:
 %% - Use new DL calc and remove old calculation NEW: "get_some_extra_dls"
 %% ***** - define deadline() :: {phase(), secs1970()} and change at all places.
+
+%% done? - implement the GM_commands. How to test them?
+%% needed? - web:deliver game_status in parts out to browser. Largest is 90 K
+%% - split mafia_print. stats and tracker into separate modules?
+%%   - define now and when to use a smarter vote reader!!
+%% - Display msgs since last login with a browser (cookie)
 %% - fix a better player name recognition in votes and deaths?
 %%     - check if abbrev code can loop forever
 %% - rebar

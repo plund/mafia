@@ -300,19 +300,6 @@ is_word(MsgU, Pos, LenMsg, LenSea, {IsWcAtBeg, IsWcAtEnd}) ->
         lists:member(lists:nth(NextPosAfterSearch, MsgU), ?BoundaryChars),
     (IsBoundA or IsWcAtBeg) and (IsBoundB or IsWcAtEnd).
 
-del_start(Sid, Title, 0) ->
-    Border = "",
-    del_start(Sid, Title, Border);
-del_start(Sid, Title, BordInt) when is_integer(BordInt) ->
-    Border = " border=\"" ++ ?i2l(BordInt) ++ "\"",
-    del_start(Sid, Title, Border);
-del_start(Sid, Title, Border) ->
-    Start = ?HTML_TAB_START(Title, Border),
-    web:deliver(Sid, Start).
-
-del_end(Sid) ->
-    web:deliver(Sid, ?HTML_TAB_END).
-
 find_part(Text) ->
     %% p3-n8, p1-2, n7-d8, p33-, -55
     %% default type is p=page
@@ -363,14 +350,23 @@ s_unit("NIGHT") -> ?night.
 %% http://mafia.peterlund.se/e/web/game_status?phase=night&num=2
 %% http://mafia.peterlund.se/e/web/game_status?phase=end
 game_status(Sid, _Env, In) ->
-    Html =
+    {A, Html} =
         case get_phase(In) of
-            {S, Phase} when S == ok; S == current ->
-                game_status_out(S, Phase);
+            {current, Phase} ->
+                Title = ["Game Status ",mafia_print:print_phase(Phase)],
+                A0 = del_start(Sid, Title, 0),
+                Html0 = game_status_out(current, Phase),
+                {A0, Html0};
+            {ok, Phase} ->
+                Title = ["History ",mafia_print:print_phase(Phase)],
+                A0 = del_start(Sid, Title, 0),
+                Html0 = game_status_out(ok, Phase),
+                {A0, Html0};
             {error, ErrorHtml} ->
-                ErrorHtml
+                A0 = del_start(Sid, "Game Status", 0),
+                Html0 = ErrorHtml,
+                {A0, Html0}
         end,
-    A = del_start(Sid, "Game Status", 0),
     B = web:deliver(Sid, Html),
     C = del_end(Sid),
     PQ = httpd:parse_query(In),
@@ -388,7 +384,7 @@ game_status_out(ok, Phase) ->
         PhaseTime when PhaseTime =< Time ->
             game_status_out2(Phase, []);
         _ ->
-            "<tr><td>Phase has not happened yet.</td></tr>"
+            "<tr><td>Phase has not concluded yet.</td></tr>"
     end.
 
 game_status_out2(Phase, UseTime) ->
@@ -631,6 +627,21 @@ show_msg([#message{user_name = MsgUserB,
           "</td></tr>\r\n"]).
 
 %% ----------------------------------------------------------------------------
+%% INTERNAL FUNCTIONS
+%% ----------------------------------------------------------------------------
+
+del_start(Sid, Title, 0) ->
+    Border = "",
+    del_start(Sid, Title, Border);
+del_start(Sid, Title, BordInt) when is_integer(BordInt) ->
+    Border = " border=\"" ++ ?i2l(BordInt) ++ "\"",
+    del_start(Sid, Title, Border);
+del_start(Sid, Title, Border) ->
+    Start = ?HTML_TAB_START(Title, Border),
+    web:deliver(Sid, Start).
+
+del_end(Sid) ->
+    web:deliver(Sid, ?HTML_TAB_END).
 
 get_arg(PQ, ArgStr) ->
     case lists:keyfind(ArgStr, 1, PQ) of
@@ -648,6 +659,8 @@ make_args(PQ) ->
 p(I) when I > 9 -> ?i2l(I);
 p(I) -> string:right(?i2l(I), 2, $0).
 
+%% ----------------------------------------------------------------------------
+%% EUNIT TESTS
 %% ----------------------------------------------------------------------------
 
 -include_lib("eunit/include/eunit.hrl").

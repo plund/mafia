@@ -276,8 +276,9 @@ print_votesI(PPin) ->
                 ModMsgV = ?getv(?mod_msg),
                 ModMsg =
                     if is_list(ModMsgV), ModMsgV /= "" ->
-                            ["<tr><td align=center><i>", ModMsgV,
-                             "</i></td></tr>\r\n"];
+                            ["<tr><td align=center width=600>"
+                             "<i>", ModMsgV, "</i>"
+                             "</td></tr>\r\n"];
                        true -> ""
                     end,
                 {Href, Link} =
@@ -727,35 +728,43 @@ pr_thread_links(PP) ->
     PageKeys =
         lists:sort([ K || K = {T, _} <- mnesia:dirty_all_keys(page_rec),
                           T == PP#pp.game_key]),
-    {_, {StartPage0, EndPage}} =
-        lists:foldl(
-          fun(_PK, Acc = {done, _}) -> Acc;
-             (PK = {_, P}, Acc) ->
-                  #page_rec{message_ids= [MsgId|_]} =
-                      hd(?rpage(PK)),
-                  #message{time = MTime} = hd(?rmess(MsgId)),
-                  case Acc of
-                      {startpage, _} when MTime >= StartTime ->
-                          {endpage, {P-1, P-1}};
-                      {startpage, _} -> {startpage, P};
-                      {endpage, {St, _}} when MTime >= EndTime ->
-                          {done, {St, P-1}};
-                      {endpage, {St, _}} -> {endpage, {St, P}}
-                  end
-          end,
-          {startpage, none},
-          PageKeys),
-    StartPage = if StartPage0 == 0 -> 1;
-                   true -> StartPage0
-                end,
-    UrlPart = "/e/web/msgs?part=p",
-    PageNs = fun(PN) -> [?i2l(PN),"-", ?i2l(PN + 4)] end,
-    Links0 = [["<a href=\"",UrlPart, PageNs(PN),"\">p", PageNs(PN), "</a>"]
-              || PN <- lists:seq(StartPage, EndPage, 5) -- [EndPage]],
-    LastPs = [?i2l(EndPage), "-", ?i2l(EndPage + 10)],
-    LastLink = ["<a href=\"", UrlPart, LastPs, "\">p", LastPs, "</a>"],
-    Links = string:join( Links0 ++ [LastLink], " "),
-    ["<tr><td align=center>Links to the thread pages: ", Links, "</td></tr>"].
+    case lists:foldl(
+           fun(_PK, Acc = {done, _}) -> Acc;
+              (PK = {_, P}, Acc) ->
+                   #page_rec{message_ids= [MsgId|_]} =
+                       hd(?rpage(PK)),
+                   #message{time = MTime} = hd(?rmess(MsgId)),
+                   case Acc of
+                       {startpage, _} when MTime >= StartTime ->
+                           {endpage, {P-1, P-1}};
+                       {startpage, _} -> {startpage, P};
+                       {endpage, {St, _}} when MTime >= EndTime ->
+                           {done, {St, P-1}};
+                       {endpage, {St, _}} -> {endpage, {St, P}}
+                   end
+           end,
+           {startpage, none},
+           PageKeys) of
+        {_, {StartPage0, EndPage}} when is_integer(StartPage0),
+                                        is_integer(EndPage) ->
+            StartPage = if StartPage0 == 0 -> 1;
+                           true -> StartPage0
+                        end,
+            UrlPart = "/e/web/msgs?part=p",
+            PageNs = fun(PN) ->
+                             EndPN = min(PN + 4, EndPage),
+                             [?i2l(PN),"-", ?i2l(EndPN)]
+                     end,
+            Links0 =
+                [["<a href=\"",UrlPart, PageNs(PN),"\">p", PageNs(PN), "</a>"]
+                 || PN <- lists:seq(StartPage, EndPage, 5) -- [EndPage]],
+            LastPs = [?i2l(EndPage), "-", ?i2l(EndPage + 9)],
+            LastLink = ["<a href=\"", UrlPart, LastPs, "\">p", LastPs, "</a>"],
+            Links = string:join( Links0 ++ [LastLink], " "),
+            ["<tr><td align=center>Messages for this phase: ", Links,
+             "</td></tr>"];
+        _ -> []
+    end.
 
 %% Votes per user are time ordered (oldest first)
 %% Users sorted time ordered after they oldest vote (first vote)

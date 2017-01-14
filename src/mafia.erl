@@ -8,14 +8,15 @@
 %% - implement the GM_commands. How to test them?
 %%   - define now and when to use a smarter vote reader!!
 %% - Display msgs since last login with a browser (cookie)
-%% - be DAY/NIGHT sensitive when reading "Day/night ... has ended early"
 %% ToDo:
 %% - Use new DL calc and remove old calculation NEW: "get_some_extra_dls"
 %% ***** - define deadline() :: {phase(), secs1970()} and change at all places.
-%% - Fix proper server on lundata - start at MacOS reboot
 %% - fix a better player name recognition in votes and deaths?
-%% - check if abbrev code can loop forever
-%% ?- downl and pps should look similar, Died/Vote messages and deadline markers
+%%     - check if abbrev code can loop forever
+%% - rebar
+%% - Fix proper server on public server - start at MacOS reboot
+%%     - erlang supervised app
+%%     - mac to automatically start up server after power is back
 
 %% M25 GOD QT https://www.quicktopic.com/52/H/gBqFhw3Bidb
 %% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7

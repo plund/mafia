@@ -1054,7 +1054,8 @@ do_print_stats(PP, PrStats) ->
           {#prstat{msg_ids = [],
                    num_chars = 0,
                    num_words = 0,
-                   num_postings = 0
+                   num_postings = 0,
+                   words_per_post = 0.0
                   },
            HtmlHead},
           ?lrev(StatsSorted)),

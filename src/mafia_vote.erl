@@ -399,7 +399,7 @@ find_player_replacement(MsgText) ->
         #mafia_game{}, #message{}, New::string(), Old::string()) ->
                             {ok | term(), #mafia_game{}}.
 replace_player(G, M, NewPlayer, OldPlayer) ->
-    replace1(G, M, NewPlayer, ruser(OldPlayer)).
+    replace1(G, M, NewPlayer, ?ruser(OldPlayer)).
 
 replace1(G, _M, _NewPlayer, []) -> {old_no_exists, G};
 replace1(G, M, NewPlayer, [Old]) ->
@@ -408,7 +408,7 @@ replace1(G, M, NewPlayer, [Old]) ->
 
 replace2(G, _M, _NewPlayer, _Old, false) -> {not_remain, G};
 replace2(G, M, NewPlayer, Old, true) ->
-    replace3(G, M, NewPlayer, Old, ruser(NewPlayer)).
+    replace3(G, M, NewPlayer, Old, ?ruser(NewPlayer)).
 
 replace3(G, M, NewPlayer, Old, []) ->
     NewNameUB = ?l2ub(NewPlayer),
@@ -459,11 +459,6 @@ repl_user(OldUB, NewUB, Users) ->
            (U) -> U
         end,
     [R(U) || U <- Users].
-
-ruser(User) when is_list(User) -> ruserI(?l2ub(User));
-ruser(User) when is_binary(User) -> ruserI(?b2ub(User)).
-
-ruserI(UserUB) -> mnesia:dirty_read(user, UserUB).
 
 %% -----------------------------------------------------------------------------
 
@@ -607,8 +602,7 @@ print_verify_user(User) ->
                    {?dbuser_wrong_case, #user{}} | % wrong case
                    {?dbuser_none, #user{}}.        % did not find
 check_user(User) ->
-    UserU = ?b2ub(User),
-    case mnesia:dirty_read(user, UserU) of
+    case ?ruser(User) of
         [#user{verification_status = ?verified}] ->
             ?dbuser_ok;
         [#user{name = User} = U] -> %% found correct but unverified user
@@ -692,7 +686,7 @@ is_user_in_list(UserB, UsersB) ->
 add_nolynch_and_aliases(Players) ->
     AddAlias =
         fun(P, Acc) ->
-                case mnesia:dirty_read(user, ?b2ub(P)) of
+                case ?ruser(P) of
                     [#user{aliases = AliasesB}] when AliasesB /= [] ->
                         Acc ++ [{?b2l(P), ?b2l(A)} || A <- AliasesB];
                     _ -> Acc

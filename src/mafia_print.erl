@@ -1059,7 +1059,7 @@ print_stat_row(PP, S, PrFn) when PP#pp.mode == ?html ->
 
 %% Get user name as stored normal case string
 transl(UserUB) ->
-    UInfo = hd(mnesia:dirty_read(user, UserUB)),
+    UInfo = hd(?ruserUB(UserUB)),
     ?b2l(UInfo#user.name).
 
 %% [{Vote, Num, [{Time, User, Raw}]}]

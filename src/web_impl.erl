@@ -558,6 +558,7 @@ msg2([M], Variant, Player) ->
 %% http://mafia.peterlund.se/e/web/stats?phase=total
 stats(Sid, _Env, In) ->
     PQ = httpd:parse_query(In),
+    %% sort: post/wordsperpost/words/chars
     Html =
         case stats2(lists:keyfind("phase", 1,  PQ),
                     lists:keyfind("num", 1,  PQ)) of

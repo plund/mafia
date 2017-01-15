@@ -1,6 +1,14 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% - set/unset EoD flag? when being late?
+%% Teacon wrote: @HR - Your words-per-post sheet is great. Are you still
+%% updating it, and can we be linked to a copy? (http://puu.sh/tjeFy/cee620254c.png)
+%% @peterlund, is it possible to include a global statistics sheet in the
+%% tracker that includes an average words-per-post over the course of the game?
+
+%% - Using <a name="msgid123456"> and <a href="#msgid123456">Message</a>
+%% - page range end correctly on historical pages
 %% - Call the Game Status generation from the gen_server also for html variants
 %%   when they are ready to be stored on file
 %% - Use new DL calc and remove old calculation NEW: "get_some_extra_dls"
@@ -163,7 +171,7 @@ help() ->
 %% =============================================================================
 %% EXPORTED FUNCTIONS
 %% =============================================================================
-start() -> mafia_web:start().
+start() -> setup_mnesia(), mafia_web:start().
 stop() -> mafia_web:stop().
 stop_polling() -> mafia_web:stop_polling().
 start_polling() -> mafia_web:start_polling().
@@ -432,32 +440,34 @@ replace_player(MsgId, OldPlayer, NewPlayer) ->
                         Comment :: string())
                        -> ok | {error, not_found}.
 kill_player(MsgId, Player, Comment) ->
-    case ?rmess(MsgId) of
-        [] -> no_message_found;
-        [#message{thread_id = ThId,
-                  time = Time} = M] ->
+    case find_mess_game(MsgId) of
+        {ok, G, M} ->
+            #message{thread_id = ThId,
+                     time = Time} = M,
             Cmd = #cmd{time = Time,
                        msg_id = MsgId,
                        mfa = {mafia, kill_player,
                               [MsgId, Player, Comment]}},
-            case kill_playerI(?rgame(ThId), M, Player, Comment) of
-                {ok, DeathPhase} ->
+            PlayerB = ?l2b(Player),
+            case mafia_vote:kill_player(G, M, PlayerB, Comment) of
+                {{ok, DeathPhase}, _G2} ->
                     ?man(Time, Cmd),
                     mafia_file:manual_cmd_to_file(ThId, Cmd),
                     mafia_web:regenerate_history(M#message.time, DeathPhase),
                     {player_killed, DeathPhase};
-                Other -> Other
-            end
+                {not_remaining_player, _G2} ->
+                    case ?ruser(Player) of
+                        [] -> {player_no_exist, Player};
+                        [#user{name = NameB}] ->
+                            if NameB /= PlayerB ->
+                                    {player_other_case, ?b2l(NameB)};
+                               true ->
+                                    {not_remaining_player, ?b2l(PlayerB)}
+                            end
+                    end
+            end;
+        {?error, _} = E -> E
     end.
-
-kill_playerI([], _M, _Player, _Comment) -> no_game;
-kill_playerI([G], M, Player, Comment) ->
-    %% Time = M#message.time,
-    PlayerB = ?l2b(Player),
-    %% CommentB = ?l2b(Comment),
-    %% Deaths = G#mafia_game.player_deaths,
-    {Resp, _} = mafia_vote:kill_player(G, M, PlayerB, Comment),
-    Resp.
 
 %% deprecated - kept only for command_files
 set_death_comment(MsgId, Player, Comment) ->
@@ -499,23 +509,22 @@ verify_new_user_list(24) ->
 
 verify_new_user_list2(Users) ->
     [begin
-         UserB = ?l2b(U),
-         UserUB = ?l2ub(U),
-         case mnesia:dirty_read(user, UserUB) of
+         UserB = ?l2b(User),
+         case ?ruser(User) of
              [] ->
-                 io:format("User ~p does not exist\n",[U]);
+                 io:format("User ~p does not exist\n",[User]);
              [#user{name = UserB,
                     verification_status = Ver}] ->
                  io:format("User ~p exists with correct case "
-                           "and is ~p\n", [U, Ver]);
+                           "and is ~p\n", [User, Ver]);
              [#user{name = UserB2,
                     verification_status = Ver}] ->
                  io:format("User ~p exists but has incorrect case. "
                            "Correct case is ~p and is ~p\n",
-                           [U, ?b2l(UserB2), Ver])
+                           [User, ?b2l(UserB2), Ver])
          end
      end
-     || U <- Users],
+     || User <- Users],
     done.
 
 %% Seems to be unused
@@ -561,31 +570,38 @@ last_msg_in_thread(ThId) when is_integer(ThId) ->
     end.
 
 show_all_users() ->
-    Users = all_users(),
-    io:format("All Users: ~p\n", [Users]).
+    io:format("All Users\n"),
+    show_users(all_keys(user), all).
 
 show_all_users(Search) ->
-    Users = all_users(Search),
-    io:format("All Users: ~999p\n", [Users]).
+    UserKeys = match_user_keys(Search),
+    show_users(UserKeys, all).
 
-all_users() ->
-    [?b2l(UserUB) || UserUB <- mnesia:dirty_all_keys(user)].
+all_keys(Tab) -> lists:sort(mnesia:dirty_all_keys(Tab)).
 
-all_users(Search) ->
-    [?b2l(UserUB) || UserUB <- mnesia:dirty_all_keys(user),
-                   0 /= string:str(?b2l(UserUB), ?l2u(Search))].
-
+match_user_keys(Search) ->
+    [UserUB || UserUB <- all_keys(user),
+               0 /= string:str(?b2l(UserUB), ?l2u(Search))].
 
 show_all_aliases() ->
     show_aliases(all).
 
 -spec show_aliases(UserSearch :: string()) -> ok | {error, Reason :: term()}.
 show_aliases(all) ->
+    Keys = all_keys(user),
+    show_users(Keys, alias);
+show_aliases(Search) ->
+    io:format("Search: ~s\n", [Search]),
+    UserKeys = match_user_keys(Search),
+    [show_aliasesI(UKey) || UKey <- UserKeys],
+    ok.
+
+show_users(UserKeys, M) when M == alias; M == all->
     io:format("~-15s ~s\n", ["User", "Aliases"]),
     io:format("~-15s ~s\n", ["----", "-------"]),
     [begin
-         U = hd(mnesia:dirty_read(user, UserUB)),
-         if U#user.aliases /= [] ->
+         U = hd(?ruserUB(UserUB)),
+         if M == all; U#user.aliases /= [] ->
                  io:format(
                    "~-15s ~s\n",
                    [?b2l(U#user.name),
@@ -594,18 +610,11 @@ show_aliases(all) ->
             true -> ok
          end
      end
-     || UserUB <- mnesia:dirty_all_keys(user)],
-    ok;
-show_aliases(Search) ->
-    io:format("Search: ~s\n", [Search]),
-    Users = all_users(Search),
-    [show_aliasesI(User) || User <- Users],
+     || UserUB <- UserKeys],
     ok.
 
-
 show_aliasesI(User) ->
-    UserUB = ?l2ub(User),
-    case mnesia:dirty_read(user, UserUB) of
+    case ?ruserUB(User) of
         [] -> {error, user_not_found};
         [#user{} = U] ->
             io:format("Found: ~s\nAliases: ~p\n",
@@ -617,10 +626,9 @@ show_aliasesI(User) ->
                -> ok | {error, Reason :: term()}.
 add_alias(User, Alias) ->
     UserB = ?l2b(User),
-    UserUB = ?l2ub(User),
     AliasB = ?l2b(Alias),
     AliasUB = ?l2ub(Alias),
-    case mnesia:dirty_read(user, UserUB) of
+    case ?ruser(User) of
         [] -> {error, user_not_found};
         [#user{} = U] when U#user.name /= UserB ->
             {error, user_case_not_matching};
@@ -639,9 +647,8 @@ add_alias(User, Alias) ->
                   -> ok | {error, Reason :: term()}.
 remove_alias(User, Alias) ->
     UserB = ?l2b(User),
-    UserUB = ?l2ub(User),
     AliasB = ?l2b(Alias),
-    case mnesia:dirty_read(user, UserUB) of
+    case ?ruser(User) of
         [] -> {error, user_not_found};
         [#user{} = U] when U#user.name /= UserB ->
             {error, user_case_not_matching};

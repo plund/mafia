@@ -5,6 +5,8 @@
          rpage/2,
          rday/2,
          rgame/1,
+         ruser/1,
+         ruserUB/1,
          rmessI/1,
 
          bgcolor/1,
@@ -114,6 +116,13 @@ rgame(ThId) ->
 
 rgameI(ThId) ->
     mnesia:dirty_read(mafia_game, ThId).
+
+%% -----------------------------------------------------------------------------
+
+ruser(User) when is_list(User) -> ruserUB(?l2ub(User));
+ruser(User) when is_binary(User) -> ruserUB(?b2ub(User)).
+
+ruserUB(UserUB) -> mnesia:dirty_read(user, UserUB).
 
 %% -----------------------------------------------------------------------------
 

@@ -93,7 +93,7 @@
 -define(HourSecs, 3600).
 -define(DaySecs, (24*3600)).
 
--define(MAX_GM_DL_MINS, 15).
+-define(MAX_GM_DL_MINS, 20).
 
 -define(M24ThId, 1404320).
 -define(M25ThId, 1420289).
@@ -212,6 +212,8 @@
 -define(rmess(MsgId), mafia_lib:rmess(MsgId)).
 -define(rpage(ThId, Page), mafia_lib:rpage(ThId, Page)).
 -define(rpage(Key), mafia_lib:rpage(Key)).
+-define(ruser(MsgId), mafia_lib:ruser(MsgId)).
+-define(ruserUB(MsgId), mafia_lib:ruserUB(MsgId)).
 
 -define(rgame(ThId), mafia_lib:rgame(ThId)).
 -define(rday(GK, Phase), mafia_lib:rday(GK, Phase)).

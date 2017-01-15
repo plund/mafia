@@ -27,15 +27,23 @@ getv(Key, Default) ->
         [#kv_store{value = Value}] -> Value
     end.
 
--spec setup_mnesia() -> ok | schema_existed_already | {error, Reason::term()}.
+-spec setup_mnesia() -> ok |
+                        already_started |
+                        schema_existed_already |
+                        {error, Reason::term()}.
 setup_mnesia() ->
-    case mnesia:create_schema([node()]) of
-        {error,{_,{already_exists,_}}} ->
-            start_mnesia(already_exists),
-            schema_existed_already;
-        Other ->
-            start_mnesia(do_create),
-            Other
+    case mnesia:system_info() of
+        no ->
+            case mnesia:create_schema([node()]) of
+                {error,{_,{already_exists,_}}} ->
+                    start_mnesia(already_exists),
+                    schema_existed_already;
+                Other ->
+                    start_mnesia(do_create),
+                    Other
+            end;
+        yes ->
+            already_started
     end.
 
 remove_mnesia() ->
@@ -43,7 +51,8 @@ remove_mnesia() ->
     mnesia:delete_schema([node()]).
 
 -spec start_mnesia(Op :: already_exists | do_create )
-                  -> mnesia_start_ok | {error, Reason::term()}.
+                  -> mnesia_start_ok |
+                     {error, Reason::term()}.
 start_mnesia(Op) ->
     case mnesia:start() of
         ok ->
@@ -53,6 +62,7 @@ start_mnesia(Op) ->
                true ->
                     ok
             end,
+            timer:sleep(500),
             mnesia_start_ok;
         Other ->
             Other

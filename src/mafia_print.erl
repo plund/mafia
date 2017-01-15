@@ -1022,12 +1022,12 @@ do_print_stats(PP, PrStats) ->
                              ["<a href=\"", WPostLn, "\">W/Post</a>"]
                             };
                         ?words ->
-                            {["<a href=\"", PostLn, "\">Words</a>"],
+                            {["<a href=\"", PostLn, "\">Posts</a>"],
                              "Words",
                              ["<a href=\"", WPostLn, "\">W/Post</a>"]
                             };
                         ?words_per_post ->
-                            {["<a href=\"", PostLn, "\">Words</a>"],
+                            {["<a href=\"", PostLn, "\">Posts</a>"],
                              ["<a href=\"", WordLn, "\">Words</a>"],
                              "W/Post"
                             }

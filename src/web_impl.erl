@@ -32,7 +32,8 @@ msgs(Sid, _Env, In) ->
     DoCont = IsUserCond orelse IsWordCond orelse IsDayCond,
     Fun =
         fun(acc, init) -> {0, init, phase, page};
-           (#message{user_name = MsgUserB,
+           (#message{msg_id = MsgId,
+                     user_name = MsgUserB,
                      page_num = Page,
                      time = Time,
                      message = MsgB},
@@ -132,12 +133,14 @@ msgs(Sid, _Env, In) ->
                         ColorStr = integer_to_list(Color, 16),
                         {HH, MM} = mafia_time:hh_mm_to_deadline(ThId, Time),
                         OutB = ?l2b(["<tr bgcolor=\"#", ColorStr,
-                                    "\"><td valign=\"top\"><b>", MsgUserB,
-                                    "</b><br>",
-                                    DayStr, " ", p(HH), ":", p(MM),
-                                    "<br> page ", ?i2l(Page),
-                                    "</td><td valign=\"top\">", MsgBoldMarked,
-                                    "</td></tr>\r\n"]),
+                                     "\"><td valign=\"top\">"
+                                     "<a name=\"msg_id=", ?i2l(MsgId), "\">"
+                                     "<b>", MsgUserB,
+                                     "</b></a><br>",
+                                     DayStr, " ", p(HH), ":", p(MM),
+                                     "<br> page ", ?i2l(Page),
+                                     "</td><td valign=\"top\">", MsgBoldMarked,
+                                     "</td></tr>\r\n"]),
                         SizeOut = web:deliver(Sid, OutB),
                         {Acc + SizeDiv + SizeOut,
                          ASt,
@@ -653,12 +656,14 @@ page_links([], _Str) -> "<tr><td>No message found with this id</td></tr>";
 page_links([M], Str) -> page_links(M, Str);
 page_links(M, Str) ->
     PageNum = M#message.page_num,
+    MsgId = M#message.msg_id,
     UrlPart1 = "/e/web/msgs?part=p",
     PageStr = ?i2l(PageNum),
     VPPrev = ?i2l(PageNum - 1),
     VPNext = ?i2l(PageNum + 1),
-    Link1 = UrlPart1 ++ PageStr,
-    Link3 = UrlPart1 ++ VPPrev ++ "-" ++ VPNext,
+    LinkEnd = "#msg_id=" ++ ?i2l(MsgId),
+    Link1 = UrlPart1 ++ PageStr ++ LinkEnd,
+    Link3 = UrlPart1 ++ VPPrev ++ "-" ++ VPNext ++ LinkEnd,
     ["<tr><td colspan=2 align=center><br>"
      "<a href=\"", Link1 ,"\">Page ", PageStr, Str, "</a>"
      "<p>"

@@ -1,7 +1,6 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% - Using <a name="msgid123456"> and <a href="#msgid123456">Message</a>
 %% - page range end correctly on historical pages
 %% - Call the Game Status generation from the gen_server also for html variants
 %%   when they are ready to be stored on file

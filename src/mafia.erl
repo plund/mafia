@@ -1,7 +1,6 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% - page range end correctly on historical pages
 %% - Call the Game Status generation from the gen_server also for html variants
 %%   when they are ready to be stored on file
 %% - Use new DL calc and remove old calculation NEW: "get_some_extra_dls"

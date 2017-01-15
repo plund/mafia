@@ -16,6 +16,15 @@
 
 -define(OUT_LIMIT, 400000).
 
+%% record used when iterating over all messages
+-record(miter,
+        {bytes = 0,
+         limit = init,
+         phase = phase,
+         page = page,
+         last = false
+        }).
+
 %% http://mafia.peterlund.se/e/web/msgs
 msgs(Sid, _Env, In) ->
     ThId = ?getv(?game_key),
@@ -31,13 +40,13 @@ msgs(Sid, _Env, In) ->
     IsDayCond = DayCond /= ?undefined,
     DoCont = IsUserCond orelse IsWordCond orelse IsDayCond,
     Fun =
-        fun(acc, init) -> {0, init, phase, page};
+        fun(acc, init) -> #miter{};
            (#message{msg_id = MsgId,
                      user_name = MsgUserB,
                      page_num = Page,
                      time = Time,
                      message = MsgB},
-            {Acc, ASt, APh, APg}) when Acc < ?OUT_LIMIT  ->
+            MI) when MI#miter.bytes < ?OUT_LIMIT  ->
                 MsgPhase = mafia_time:calculate_phase(ThId, Time),
                 Msg = ?b2l(MsgB),
                 B2U = fun(B) -> string:to_upper(binary_to_list(B)) end,
@@ -76,34 +85,38 @@ msgs(Sid, _Env, In) ->
                      fun() when not IsDayCond -> true;
                         %% need DayNum, DoN, Page, find_part
                         () ->
-                             {Ua, Na, Ub, Nb} = DayCond,
-                             IsAok =
-                                 case {Ua, Na} of
-                                     {_, ?undefined} -> true;
-                                     {page, _} -> Page >= Na;
-                                     _ ->
-                                         SPhaseA = {Na, Ua},
-                                         PhLE(SPhaseA, MsgPhase)
-                                 end,
-                             IsBok =
-                                 case {Ub, Nb} of
-                                     {_, ?undefined} -> true;
-                                     {page, _} -> Page =< Nb;
-                                     _ ->
-                                         SPhaseB = {Nb, Ub},
-                                         PhLE(MsgPhase, SPhaseB)
-                                 end,
-                             IsAok and IsBok
+                             case DayCond of
+                                 ?game_ended ->
+                                     MsgPhase == ?game_ended;
+                                 {Ua, Na, Ub, Nb} ->
+                                     IsAok =
+                                         case {Ua, Na} of
+                                             {_, ?undefined} -> true;
+                                             {page, _} -> Page >= Na;
+                                             _ ->
+                                                 SPhaseA = {Na, Ua},
+                                                 PhLE(SPhaseA, MsgPhase)
+                                         end,
+                                     IsBok =
+                                         case {Ub, Nb} of
+                                             {_, ?undefined} -> true;
+                                             {page, _} -> Page =< Nb;
+                                             _ ->
+                                                 SPhaseB = {Nb, Ub},
+                                                 PhLE(MsgPhase, SPhaseB)
+                                         end,
+                                     IsAok and IsBok
+                             end
                      end],
                 AllTestsOk = lists:all(fun(F) -> F() end, TestFuns),
                 if AllTestsOk ->
                         %% if not IsUserCond, not IsWordCond ->
-                        DS1 = if MsgPhase /= APh ->
+                        DS1 = if MsgPhase /= MI#miter.phase ->
                                       mafia_print:print_phase(
                                         MsgPhase);
                                  true -> ""
                               end,
-                        DS2 = if Page /= APg ->
+                        DS2 = if Page /= MI#miter.page ->
                                       "Page "++?i2l(Page);
                                  true -> ""
                               end,
@@ -112,16 +125,7 @@ msgs(Sid, _Env, In) ->
                                     true ->
                                          DS1 ++ DS2
                                  end,
-                        SizeDiv =
-                            if DivStr /= "" ->
-                                    web:deliver(
-                                      Sid,
-                                      ["<tr bgcolor=\"#aaaaff\">"
-                                       "<th colspan=2><font size=+1>",
-                                       DivStr,
-                                       "</font></th></tr>"]);
-                               true -> 0
-                            end,
+                        SizeDiv = deliver_div(Sid, DivStr),
                         DayStr = case MsgPhase of
                                      {DNum, ?day} -> "Day-" ++ ?i2l(DNum);
                                      {DNum, ?night} -> "Night-" ++ ?i2l(DNum);
@@ -142,25 +146,24 @@ msgs(Sid, _Env, In) ->
                                      "</td><td valign=\"top\">", MsgBoldMarked,
                                      "</td></tr>\r\n"]),
                         SizeOut = web:deliver(Sid, OutB),
-                        {Acc + SizeDiv + SizeOut,
-                         ASt,
-                         MsgPhase,
-                         Page};
+                        MI#miter{bytes = MI#miter.bytes + SizeDiv + SizeOut,
+                                 phase = MsgPhase,
+                                 page = Page,
+                                 last = true};
                    true ->
-                        {Acc, ASt, APh, APg}
+                        MI#miter{last = false}
                 end;
 
-           (_, {Acc, init, APh, APg}) when Acc >= ?OUT_LIMIT ->
-                SizeOut =
-                    web:deliver(
-                      Sid,
-                      ["</tr><td bgcolor=\"#ff8888\" colspan=2 align=center>"
-                       "You have reached the MAX OUTPUT LIMIT on 400 KB! "
-                       "Please refine your search..."
-                       "</td></tr>"]),
-                {Acc + SizeOut, limit, APh, APg};
-
-           (_, Acc)  -> Acc
+           (_, MI) when MI#miter.limit == init,
+                        MI#miter.bytes >= ?OUT_LIMIT ->
+                DivStr = "You have reached the MAX OUTPUT LIMIT on 400 KB! "
+                    "Please refine your search...",
+                SizeDiv = deliver_div(Sid, DivStr, "#ff8888"),
+                MI#miter{bytes = MI#miter.bytes + SizeDiv,
+                         limit = limit,
+                         last = false};
+           (_, MI)  ->
+                MI#miter{last = false}
         end,
     A = del_start(Sid, "Mafia Search Result", 0),
     In3 = [string:tokens(I, "=") || I <- string:tokens(In, "&")],
@@ -173,9 +176,14 @@ msgs(Sid, _Env, In) ->
                         "<br><br></td></tr>"],
                 TabEnd = "</table></td></tr>",
                 B1 = web:deliver(Sid, [TabStart, Row1]),
-                {B2, _, _, _} = mafia_data:iterate_all_msgs(ThId, Fun),
+                #miter{bytes = B2, last = DidLast} =
+                    mafia_data:iterate_all_msgs(ThId, Fun),
+                SizeDiv = if DidLast ->
+                                  deliver_div(Sid, "Last Message Reached");
+                             true -> 0
+                          end,
                 B3 = web:deliver(Sid, TabEnd),
-                B1 + B2 + B3;
+                B1 + B2 + SizeDiv + B3;
            true ->
                 MsgB = ?l2b(["<tr><td valign=\"top\">",
                             "Error: Minimum one condition needs to be "
@@ -187,6 +195,17 @@ msgs(Sid, _Env, In) ->
     C = del_end(Sid),
     Args = [list_to_binary(K) || {K, V} <- PQ, V/=""] -- [<<"button">>],
     {A + B + C, Args}.
+
+deliver_div(Sid, DivStr) ->
+    deliver_div(Sid, DivStr, "#aaaaff").
+
+deliver_div(_Sid, "", _Color) -> 0;
+deliver_div(Sid, DivStr, Color) ->
+    web:deliver(Sid,
+                ["<tr bgcolor=\"", Color, "\">"
+                 "<th colspan=2><font size=+1>",
+                 DivStr,
+                 "</font></th></tr>"]).
 
 find_word_searches(WordText) ->
     [?l2u(Str) || Str <- fws(WordText,
@@ -305,9 +324,12 @@ is_word(MsgU, Pos, LenMsg, LenSea, {IsWcAtBeg, IsWcAtEnd}) ->
     (IsBoundA or IsWcAtBeg) and (IsBoundB or IsWcAtEnd).
 
 find_part(Text) ->
+    find_part2(?l2u(Text)).
+
+find_part2("END"++_) -> ?game_ended;
+find_part2(TextU) ->
     %% p3-n8, p1-2, n7-d8, p33-, -55
     %% default type is p=page
-    TextU = ?l2u(Text),
     Reg6 = "^\\s*((D|N|P|DAY|NIGHT|PAGE)? *([0-9]+))? *"
         "(- *((D|N|P|DAY|NIGHT|PAGE)? *([0-9]+))?)?\\s*$",
     case re:run(TextU, Reg6, [{capture, [1,2,3,4,5,6,7]}]) of

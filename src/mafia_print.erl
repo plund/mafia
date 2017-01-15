@@ -304,9 +304,10 @@ print_votesI(PPin) ->
         end,
 
     %% Part - Display time Left to Deadline or display game end message
+    DoDispTime2DL = PhaseType /= ?game_ended andalso is_integer(PP#pp.use_time),
     HDeadLine =
         if PP#pp.mode == ?text ->
-                if PhaseType /= ?game_ended, is_integer(PP#pp.use_time) ->
+                if DoDispTime2DL ->
                         print_time_left_to_dl(PP);
                    PhaseType == ?game_ended ->
                         {EndTime, EndMsgId} = G#mafia_game.game_end,
@@ -331,9 +332,7 @@ print_votesI(PPin) ->
                    true -> ok
                 end;
            PP#pp.mode == ?html ->
-                if PhaseType /= ?game_ended
-                   andalso
-                   is_integer(PP#pp.use_time) ->
+                if DoDispTime2DL ->
                         print_time_left_to_dl(PP);
                    PhaseType == ?game_ended ->
                         {EndTime, EndMsgId} = G#mafia_game.game_end,
@@ -355,7 +354,7 @@ print_votesI(PPin) ->
         end,
 
     %% Part - Thread Links
-    HThreadLinks = pr_thread_links(PP),
+    HThreadLinks = pr_thread_links(PP, DoDispTime2DL),
 
     %% votes, from remaining players only
     HVoteCount =
@@ -727,7 +726,7 @@ print_past_dls(DLs, Title) ->
       || {Nstr, DoNStr, {Days, {HH, MM, _}}, TimeStr} <- DLs]].
 
 
-pr_thread_links(PP) ->
+pr_thread_links(PP, DoDispTime2DL) ->
     %% Day4(p98-) p103-, p108-, p113-, p118-, p123-, p128-, last(p130)
     StartTime = mafia_time:get_time_for_prev_phase(PP#pp.game, PP#pp.phase),
     EndTime = mafia_time:get_time_for_phase(PP#pp.game, PP#pp.phase),
@@ -753,19 +752,25 @@ pr_thread_links(PP) ->
            PageKeys) of
         {_, {StartPage0, EndPage}} when is_integer(StartPage0),
                                         is_integer(EndPage) ->
-            StartPage = if StartPage0 == 0 -> 1;
-                           true -> StartPage0
-                        end,
+            StartPage = max(StartPage0, 1),
             UrlPart = "/e/web/msgs?part=p",
             PageNs = fun(PN) ->
                              EndPN = min(PN + 4, EndPage),
                              [?i2l(PN),"-", ?i2l(EndPN)]
                      end,
+            Pages = fun(Sta, End) -> [?i2l(Sta),"-", ?i2l(End)] end,
             Links0 =
-                [["<a href=\"",UrlPart, PageNs(PN),"\">p", PageNs(PN), "</a>"]
+                [["<a href=\"", UrlPart, PageNs(PN),"\">p", PageNs(PN), "</a>"]
                  || PN <- lists:seq(StartPage, EndPage, 5) -- [EndPage]],
             LastPs = [?i2l(EndPage), "-", ?i2l(EndPage + 9)],
-            LastLink = ["<a href=\"", UrlPart, LastPs, "\">p", LastPs, "</a>"],
+            LastLink =
+                if DoDispTime2DL ->
+                        ["<a href=\"", UrlPart, LastPs, "\">Last&More</a>"];
+                   not DoDispTime2DL ->
+                        [" or <a href=\"", UrlPart, Pages(StartPage, EndPage),
+                         %% "/e/web/msgs?", phase_args(game, PP#pp.phase),
+                         "\">complete ", print_phase(PP#pp.phase), "</a>"]
+                end,
             Links = string:join( Links0 ++ [LastLink], " "),
             ["<tr><td align=center>Messages for this phase: ", Links,
              "</td></tr>"];
@@ -1005,16 +1010,7 @@ do_print_stats(PP, PrStats) ->
                            "Posts", " Words", "  Chars", "Word/P", "Player"]),
                 [];
            PP#pp.mode == ?html ->
-                PhLnArgs = fun(?total_stats) -> "phase=total";
-                              (?game_ended) -> "phase=end";
-                              ({DNum, DoN}) ->
-                                   Ph = "phase=" ++ if DoN == ?day -> "day";
-                                                       DoN == ?night -> "night"
-                                                    end,
-                                   Num = "&num=" ++ ?i2l(DNum),
-                                   Ph ++ Num
-                           end,
-                ArgBeg = "stats?" ++ PhLnArgs(PP#pp.phase) ++ "&sort=",
+                ArgBeg = "stats?" ++ phase_args(stats, PP#pp.phase) ++ "&sort=",
                 PostLn = ArgBeg ++ "normal",
                 WordLn = ArgBeg ++ "words",
                 WPostLn = ArgBeg ++ "words_per_post",
@@ -1093,6 +1089,22 @@ do_print_stats(PP, PrStats) ->
                  "</table>"],
             [HtmlStats, HtmlNonPosters]
     end.
+
+phase_args(game, ?game_ended) -> "part=end";
+phase_args(game, {DNum, DoN}) ->
+    "part=" ++
+        if DoN == ?day -> "d";
+           DoN == ?night -> "n"
+        end ++
+        ?i2l(DNum);
+phase_args(stats, ?total_stats) -> "phase=total";
+phase_args(stats, ?game_ended) -> "phase=end";
+phase_args(stats, {DNum, DoN}) ->
+    Ph = "phase=" ++ if DoN == ?day -> "day";
+                        DoN == ?night -> "night"
+                     end,
+    Num = "&num=" ++ ?i2l(DNum),
+    Ph ++ Num.
 
 print_stat_div(PP) when PP#pp.mode == ?text ->
     Line = "-----------",

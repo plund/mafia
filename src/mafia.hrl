@@ -9,6 +9,11 @@
 -define(add_id, add_id).
 -define(unchanged, unchanged).
 
+-define(sort, sort).
+-define(normal, normal).
+-define(words, words).
+-define(words_per_post, words_per_post).
+
 -define(dbuser_ok, dbuser_ok).
 -define(dbuser_unver, dbuser_unver).
 -define(dbuser_wrong_case, dbuser_wrong_case).
@@ -346,6 +351,16 @@
          num_chars :: integer(),
          num_words :: integer(),
          num_postings :: integer()
+        }).
+
+-record(prstat,
+        {key :: {player(), ThId::integer()}
+              | {player(), ThId::integer(), phase()},
+         msg_ids :: [msg_id()],
+         num_chars :: integer(),
+         num_words :: integer(),
+         num_postings :: integer(),
+         words_per_post :: float()
         }).
 
 -record(cnt,

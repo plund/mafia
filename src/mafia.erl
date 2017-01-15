@@ -1,12 +1,6 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% - set/unset EoD flag? when being late?
-%% Teacon wrote: @HR - Your words-per-post sheet is great. Are you still
-%% updating it, and can we be linked to a copy? (http://puu.sh/tjeFy/cee620254c.png)
-%% @peterlund, is it possible to include a global statistics sheet in the
-%% tracker that includes an average words-per-post over the course of the game?
-
 %% - Using <a name="msgid123456"> and <a href="#msgid123456">Message</a>
 %% - page range end correctly on historical pages
 %% - Call the Game Status generation from the gen_server also for html variants

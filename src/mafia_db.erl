@@ -32,7 +32,7 @@ getv(Key, Default) ->
                         schema_existed_already |
                         {error, Reason::term()}.
 setup_mnesia() ->
-    case mnesia:system_info() of
+    case mnesia:system_info(is_running) of
         no ->
             case mnesia:create_schema([node()]) of
                 {error,{_,{already_exists,_}}} ->

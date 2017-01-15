@@ -410,7 +410,38 @@ sum_stat(#stat{key = KA,
           num_chars = NChA + NChB,
           num_words = NWoA + NWoB,
           num_postings = NPoA + NPoB
-         }.
+         };
+sum_stat(#prstat{key = KA,
+                 msg_ids = MsgIdsA,
+                 num_chars = NChA,
+                 num_words = NWoA,
+                 num_postings = NPoA
+                },
+         #prstat{key = KB,
+                 msg_ids = MsgIdsB,
+                 num_chars = NChB,
+                 num_words = NWoB,
+                 num_postings = NPoB
+                }) ->
+    Key = if KA == ?undefined -> KB;
+             true -> KA
+          end,
+    MsgIds =
+        case {is_list(MsgIdsA), is_list(MsgIdsB)} of
+            {true, true} -> MsgIdsA ++ MsgIdsB;
+            {false, true} -> [MsgIdsA | MsgIdsB];
+            {true, false} -> [MsgIdsB | MsgIdsA];
+            {false, false} -> [MsgIdsA, MsgIdsB]
+        end,
+    NewNumPosts = NPoA + NPoB,
+    NewNumWords = NWoA + NWoB,
+    #prstat{key = Key,
+            msg_ids = MsgIds,
+            num_chars = NChA + NChB,
+            num_words = NewNumWords,
+            num_postings = NewNumPosts,
+            words_per_post = NewNumWords / NewNumPosts
+           }.
 
 grep(Str) -> grep(Str, summary).
 

@@ -558,7 +558,13 @@ msg2([M], Variant, Player) ->
 %% http://mafia.peterlund.se/e/web/stats?phase=total
 stats(Sid, _Env, In) ->
     PQ = httpd:parse_query(In),
-    %% sort: post/wordsperpost/words/chars
+    Sort = case get_arg(PQ, "sort") of
+               "words_per_post" ->
+                   [{?sort, ?words_per_post}];
+               "words" ->
+                   [{?sort, ?words}];
+               _ -> []
+           end,
     Html =
         case stats2(lists:keyfind("phase", 1,  PQ),
                     lists:keyfind("num", 1,  PQ)) of
@@ -567,7 +573,7 @@ stats(Sid, _Env, In) ->
                  mafia_print:print_stats([{?game_key, ?getv(game_key)},
                                           {?phase, Phase},
                                           {?mode, ?html}
-                                         ]),
+                                         ] ++ Sort),
                  "</td></tr>"];
             {error, ErrorHtml} -> ErrorHtml
         end,

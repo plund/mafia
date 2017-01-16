@@ -1,3 +1,53 @@
+fprof.analysis.refresh_votes.1
+[{ totals,                                                         20111419,       116751.376,       114978.863}].  %%%
+{ {re,run,3},                                                          140,         26506.203,        25703.494},     %
+ { {re,run,2},                                                          280,        21868.781,        21354.081},     %
+ { {string,to_upper,1},                                              246998,        29726.748,          613.210},     %
+ { {string,tokens_multiple_2,4},                                     923053,         7286.782,         4182.066},     %
+ { {mnesia,dirty_read,2},                                            149695,         6629.996,          393.124},     %
+
+
+fprof.analysis.refresh_votes.4 (protect re:run, minimize to_upper)
+[{ totals,                                                         20659718,        74737.268,        74146.599}].  %%%
+ { {string,to_upper,1},                                              247455,        28615.098,          618.160},     %
+ { {mnesia,dirty_read,2},                                            150182,         6669.455,          394.430},     %
+ { {string,str,3},                                                  4433450,        10627.787,        10494.754},     %
+ { {string,tokens_multiple_1,3},                                     231641,         7368.847,         1062.237},     %
+ { {mafia_print,html2txt,1},                                        1138809,         4290.377,         4251.852},     %
+ { {mafia_data,update_stats_db,4},                                     8996,         2539.947,           67.979},     %
+
+rp(lists:reverse(lists:sort([{L,Fun}||{_, {Fun,_,_,L}, _} <- element(2,file:consult("fprof.analysis.refresh_votes.4"))]))).
+
+[{21259.032,{string,'-to_upper/1-lc$^0/1-0-',1}},
+ {10494.754,{string,str,3}},
+ {6552.443,{string,to_upper_char,1}},
+ {4251.852,{mafia_print,html2txt,1}},
+ {4191.581,{string,tokens_multiple_2,4}},
+ {2425.278,{re,run,2}},
+ {2086.11,{lists,member,2}},
+ {1062.237,{string,tokens_multiple_1,3}},
+
+
+fprof.analysis.refresh_votes.5 (own mafia_lib:to_upper/1)
+%                                                                       CNT               ACC               OWN
+[{ totals,                                                         20496896,        71316.001,        70556.363}].  %%%
+
+{ {mafia_lib,to_upper,1},                                          3829426,        26620.427,        20173.860},     %
+
+3.9 miljoner ggr! (kan det minskas?)
+  {{mafia_vote,'-is_user_in_list/2-lc$^0/1-0-',1},                   109810,         7558.968,         2926.536},
+  {{mafia_lib,ruser,1},                                              103342,         7237.054,         2825.238},
+
+[{20173.86,{mafia_lib,to_upper,1}},
+ {10128.196,{string,str,3}},
+ {6231.638,{mafia_lib,to_upper_char,1}},
+ {4084.356,{string,tokens_multiple_2,4}},
+ {4046.005,{mafia_print,html2txt,1}},
+ {2401.051,{re,run,2}},
+ {2021.33,{lists,member,2}},
+ {1033.679,{string,tokens_multiple_1,3}},
+
+
 
 Procedure
 start game M26

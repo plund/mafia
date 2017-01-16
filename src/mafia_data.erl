@@ -274,10 +274,11 @@ check_vote_msgid_fun(ThId, LMT) ->
                {ok, CmdsOnFile} -> [C || C = #cmd{} <- CmdsOnFile];
                _ -> []
            end,
+    REs = mafia_vote:get_regexs(),
     DoCheck =
         fun(Msg) ->
                 MsgId = Msg#message.msg_id,
-                Resp = mafia_vote:check_for_vote(Msg),
+                Resp = mafia_vote:check_cmds_votes(REs, Msg),
                 [erlang:apply(M, F, A) || #cmd{msg_id = MId,
                                                mfa = {M, F, A}} <- Cmds,
                                           MId == MsgId],

@@ -1,7 +1,8 @@
 -module(mafia_vote).
 
--export([check_for_vote/1,
-         check_for_vote/2,
+-export([get_regexs/0,
+         %% check_cmds_votes/1,
+         check_cmds_votes/2,
          verify_msg_user/1,
          check_user/1,
          print_verify_user/1,
@@ -12,31 +13,43 @@
 
 -include("mafia.hrl").
 
+-record(regex,
+        {msg_text_upper,
+         play_repl,
+         game_end,
+         game_unend
+        }).
+
+%% -----------------------------------------------------------------------------
+%% Get compiled regexs
+%% -----------------------------------------------------------------------------
+get_regexs() ->
+    #regex{play_repl = regex_player_replacement(),
+           game_end = regex_game_end(),
+           game_unend = regex_game_unend()
+          }.
+
 %% -----------------------------------------------------------------------------
 %% Returns ignore when #message or #mafia_game cannot be found
 %% -----------------------------------------------------------------------------
--spec check_for_vote(MsgId :: integer() | #message{})
-                    -> MsgTime :: seconds1970() | ignore.
-check_for_vote(MsgId) -> check_for_vote(unused_state, MsgId).
-
-check_for_vote(S, MsgId) when is_integer(MsgId) ->
-    case ?rmess(MsgId) of
-        [] -> ignore;
-        [Msg] -> check_for_vote(S, Msg)
-    end;
-check_for_vote(S, M = #message{}) ->
+-spec check_cmds_votes(#regex{}, #message{})
+                      -> MsgTime :: seconds1970() | ignore.
+check_cmds_votes(S, M = #message{}) ->
     mafia_data:update_stat(M),
-    check_for_vote(S, M, ?rgame(M#message.thread_id)).
+    MsgU = ?l2u(mafia_print:html2txt(?b2l(M#message.message))),
+    check_cmds_votes(S#regex{msg_text_upper = MsgU},
+                     M,
+                     ?rgame(M#message.thread_id)).
 
-check_for_vote(_S, _M, []) -> ignore;
-check_for_vote(S, M, [G = #mafia_game{}]) ->
-    check_for_vote(S, M, G);
-check_for_vote(S, M, G = #mafia_game{}) ->
+check_cmds_votes(_S, _M, []) -> ignore;
+check_cmds_votes(S, M, [G = #mafia_game{}]) ->
+    check_cmds_votes(S, M, G);
+check_cmds_votes(S, M, G = #mafia_game{}) ->
     NotEnded = case G#mafia_game.game_end of
                    ?undefined -> true;
                    {EndTime, _MsgId} ->
                        M#message.time =< EndTime
-              end,
+               end,
     if NotEnded ->
             case player_type(M, G) of
                 ?gm -> check_for_gm_cmds(S, M, G);
@@ -47,8 +60,7 @@ check_for_vote(S, M, G = #mafia_game{}) ->
        true ->
             case player_type(M, G) of
                 ?gm ->
-                    MsgText = mafia_print:html2txt(?b2l(M#message.message)),
-                    check_for_game_unend(MsgText, M, G);
+                    check_for_game_unend(S, M, G);
                 _ -> ignore
             end
     end,
@@ -61,13 +73,12 @@ log_unallowed_msg(Type, M) ->
     ?dbg(MTime, {Type, sent_message, MsgId, User}).
 
 %% Removes player from Game if dead
-check_for_gm_cmds(_S, M, G) ->
-    MsgText = mafia_print:html2txt(?b2l(M#message.message)),
-    G2 = check_for_deaths(MsgText, M, G),
-    G3 = check_for_early_end(MsgText, M#message.time, G2),
-    G4 = check_for_deadline_move(MsgText, M, G3),
-    G5 = check_for_player_replacement(MsgText, M, G4),
-    G6 = check_for_game_end(MsgText, M, G5),
+check_for_gm_cmds(S, M, G) ->
+    G2 = check_for_deaths(S, M, G),
+    G3 = check_for_early_end(S, M#message.time, G2),
+    G4 = check_for_deadline_move(S, M, G3),
+    G5 = check_for_player_replacement(S, M, G4),
+    G6 = check_for_game_end(S, M, G5),
 
     %% if time is 0 - 15 min after a deadline generate a history page
     Time = M#message.time,
@@ -80,6 +91,8 @@ check_for_gm_cmds(_S, M, G) ->
     end,
     G6.
 
+check_for_deaths(#regex{msg_text_upper = Msg}, M, G) ->
+    check_for_deaths(Msg, M, G);
 check_for_deaths(Msg, M, G) ->
     %% find "has died" on line
     SearchU1 = "DIED",
@@ -261,7 +274,7 @@ is_first_non_letter([H|_]) ->
 
 %% -----------------------------------------------------------------------------
 
-check_for_early_end(MsgText, Time, G) ->
+check_for_early_end(#regex{msg_text_upper = MsgText}, Time, G) ->
     case find_early_end(MsgText) of
         {?error, _} -> G;
         {ok, DoN} ->
@@ -301,7 +314,7 @@ find_early_end(MsgText) ->
 
 %% -----------------------------------------------------------------------------
 
-check_for_deadline_move(MsgText, M, G) ->
+check_for_deadline_move(#regex{msg_text_upper = MsgText}, M, G) ->
     G3 = case find_deadline_move(MsgText) of
              {found, DeltaSecs} ->
                  {_, G2} = mafia_time:move_next_deadline(G, M, DeltaSecs),
@@ -317,8 +330,7 @@ check_for_deadline_move(MsgText, M, G) ->
                         -> {found, Secs :: integer()} |
                            not_found |
                            {?error, term()}.
-find_deadline_move(MsgText) ->
-    MsgTextU = ?l2u(MsgText),
+find_deadline_move(MsgTextU) ->
     Reg = "DEADLINE(.*)MOVED(.*)(LATER|EARLIER)",
     case re:run(MsgTextU, Reg) of
         nomatch -> not_found;
@@ -368,26 +380,33 @@ find_expr(Text, Reg) ->
 -spec check_for_player_replacement(
         MsgText::string(), #message{}, #mafia_game{}
        ) -> #mafia_game{}.
-check_for_player_replacement(MsgText, M, G) ->
-    case find_player_replacement(MsgText) of
-        no_replace ->
-            %%?dbg(M#message.time, replace_no_match),
+check_for_player_replacement(S, M, G) ->
+    case string:str(S#regex.msg_text_upper, "REPLAC") of
+        0 -> %% no-one has been replaced
             G;
-        {replace, OldPlayer, NewPlayer} ->
-            ?dbg(M#message.time, replace_match),
-            case replace_player(G, M, NewPlayer, OldPlayer) of
-                {ok, G2} -> G2;
-                {Err, G2} ->
-                    ?dbg(M#message.time, {replace, Err}),
-                    G2
+        _ ->
+            case find_player_replacement(S) of
+                no_replace ->
+                    G;
+                {replace, OldPlayer, NewPlayer} ->
+                    ?dbg(M#message.time, replace_match),
+                    case replace_player(G, M, NewPlayer, OldPlayer) of
+                        {ok, G2} -> G2;
+                        {Err, G2} ->
+                            ?dbg(M#message.time, {replace, Err}),
+                            G2
+                    end
             end
     end.
 
-find_player_replacement(MsgText) ->
-    MsgTextU = ?l2u(MsgText),
+regex_player_replacement() ->
     Reg = "^((.|\\s)*\\s)?([^\\s].*[^\\s]) +(HAS +REPLACED|IS +REPLACING)"
         " +([^\\s].*[^\\s])(\\s(.|\\s)*)?$",
-    case re:run(MsgTextU, Reg, [{capture, [3, 5]}]) of
+    %% fprof did not see any performance improvment with comiled regexs.
+    element(2, re:compile(Reg)).
+
+find_player_replacement(#regex{msg_text_upper = MsgTextU, play_repl = RE}) ->
+    case re:run(MsgTextU, RE, [{capture, [3, 5]}]) of
         nomatch ->
             no_replace;
         {match, Ms} ->
@@ -462,24 +481,30 @@ repl_user(OldUB, NewUB, Users) ->
 
 %% -----------------------------------------------------------------------------
 
-check_for_game_end(MsgText, M, G) ->
-    case find_game_end(MsgText) of
-        nomatch ->
-            G;
-        {match, _Ms} ->
-            {_Reply, G2} = mafia_time:end_game(M, G),
-            G2
+check_for_game_end(S, M, G) ->
+    case string:str(S#regex.msg_text_upper, "GAME") of
+        0 -> G;
+        _ ->
+            case find_game_end(S) of
+                nomatch ->
+                    G;
+                {match, _Ms} ->
+                    {_Reply, G2} = mafia_time:end_game(M, G),
+                    G2
+            end
     end.
 
-find_game_end(Msg) ->
+regex_game_end() ->
     Reg = "^((.|\\s)*\\s)?GAME +((HAS +)?ENDED|IS +OVER)(\\s(.|\\s)*)?$",
-    MsgTextU = ?l2u(Msg),
-    re:run(MsgTextU, Reg).
+    element(2, re:compile(Reg)).
+
+find_game_end(#regex{msg_text_upper = MsgTextU, game_end = RE}) ->
+    re:run(MsgTextU, RE).
 
 %% -----------------------------------------------------------------------------
 
-check_for_game_unend(MsgText, M, G) ->
-    case find_game_unend(MsgText) of
+check_for_game_unend(S, M, G) ->
+    case find_game_unend(S) of
         nomatch ->
             G;
         {match, _Ms} ->
@@ -487,17 +512,18 @@ check_for_game_unend(MsgText, M, G) ->
             G2
     end.
 
-find_game_unend(Msg) ->
+regex_game_unend() ->
     Reg = "^((.|\\s)*\\s)?(GAME +(HAS +)?UNENDED|UNEND +GAME)(\\s(.|\\s)*)?$",
-    MsgTextU = ?l2u(Msg),
-    re:run(MsgTextU, Reg).
+    element(2, re:compile(Reg)).
+
+find_game_unend(#regex{msg_text_upper = MsgTextU, game_unend = RE}) ->
+    re:run(MsgTextU, RE).
 
 %% -----------------------------------------------------------------------------
 
-check_for_votes(_S, M, G) ->
+check_for_votes(#regex{msg_text_upper = MsgUC}, M, G) ->
     verify_msg_user(M),
     Msg = ?b2l(M#message.message),
-    MsgUC = string:to_upper(Msg),
     Players = G#mafia_game.players_rem,
     Players2 = add_nolynch_and_aliases(Players),
     VoteStr = "##VOTE",
@@ -648,8 +674,8 @@ auto_correct_case(CcUser, G = #mafia_game{}) ->
 
 correct_case_fun2() ->
     fun (CorrectCaseL, ExistingL) ->
-            CcUC = string:to_upper(CorrectCaseL),
-            ExUC = string:to_upper(ExistingL),
+            CcUC = ?l2u(CorrectCaseL),
+            ExUC = ?l2u(ExistingL),
             if CcUC == ExUC ->
                     CorrectCaseL;
                true -> ExistingL
@@ -677,7 +703,7 @@ player_type(M, G) ->
 
 is_user_in_list(UserB, UsersB) ->
     User = ?b2l(UserB),
-    UserU = string:to_upper(User),
+    UserU = ?l2u(User),
     UsersU = [?b2ul(U) || U <- UsersB],
     lists:member(UserU, UsersU).
 
@@ -702,7 +728,7 @@ rank_options(Players, RestUC) ->
     RestUCW = waste_spaces(RestUC),
     F = fun(P) ->
                 PorA = select_alias(P),
-                PlayerUCW = string:to_upper(waste_spaces(PorA)),
+                PlayerUCW = ?l2u(waste_spaces(PorA)),
                 r_count(PlayerUCW, RestUCW, 0)
         end,
     ?lrev(lists:sort([{F(P), ?l2b(select_name(P))} || P <- Players])).
@@ -781,7 +807,7 @@ reg_vote(M, G, Vote, RawVote, IsOkVote) ->
                           Remain :: [player()]) -> boolean().
 is_remaining_player(User, Rem) ->
     UserL = ?b2l(User),
-    UserU = string:to_upper(UserL),
+    UserU = ?l2u(UserL),
     RemainsU = [?b2ul(R) || R <- Rem],
     lists:member(UserU, RemainsU).
 
@@ -824,101 +850,123 @@ vote2(M, G, Vote, RawVote, IsOkVote) ->
 
 -include_lib("eunit/include/eunit.hrl").
 
+get_pl_re(Text) ->
+    #regex{msg_text_upper = ?l2u(mafia_print:html2txt(Text)),
+           play_repl = regex_player_replacement()}.
+
 find_player_replacement_test_() ->
     [
      ?_assertMatch(
         {replace, "BBB", "AAA"},
-        find_player_replacement("Aaa is replacing Bbb")),
+        find_player_replacement(get_pl_re("Aaa is replacing Bbb"))),
      ?_assertMatch(
         {replace, "BBB", "AAA"},
         find_player_replacement(
-          "\nsadf\raf\nAaa is replacing Bbb\nfsda\nfdsa")),
+          get_pl_re(
+            "\nsadf\raf\nAaa is replacing Bbb\nfsda\nfdsa"))),
      ?_assertMatch(
         {replace, "BBB", "AAA"},
-        find_player_replacement("Aaa    has replaced   Bbb\r\n   \n  jj")),
+        find_player_replacement(
+          get_pl_re(
+            "Aaa    has replaced   Bbb\r\n   \n  jj"))),
      ?_assertMatch(
         {replace, "BBB", "AAA"},
-        find_player_replacement("Aaa    has  replaced   Bbb"))
+        find_player_replacement(
+          get_pl_re(
+            "Aaa    has  replaced   Bbb")))
     ].
+
+tu(Str) -> ?l2u(mafia_print:html2txt(Str)).
 
 find_deadline_move_test_() ->
     [
-     ?_assertMatch(not_found, find_deadline_move("deadline move 24 H earlier")),
+     ?_assertMatch(not_found, find_deadline_move(tu("deadline move 24 H earlier"))),
      ?_assertMatch(
         {found, -86400},
-        find_deadline_move("deadline moved 24 H earlier")),
+        find_deadline_move(tu("deadline moved 24 H earlier"))),
      ?_assertMatch(
         {found, -86400},
-        find_deadline_move("deadline moved 24H earlier")),
+        find_deadline_move(tu("deadline moved 24H earlier"))),
      ?_assertMatch(
         {found, 86400},
-        find_deadline_move("s \n deadline moved 24H  later\n \nsf")),
+        find_deadline_move(tu("s \n deadline moved 24H  later\n \nsf"))),
      ?_assertMatch(
         {found, -86400},
-        find_deadline_move(" \n deadline moved 24H earlier  sadf\n  \nsf")),
+        find_deadline_move(tu(" \n deadline moved 24H earlier  sadf\n  \nsf"))),
      ?_assertMatch(
         {found, 86400},
         find_deadline_move(
-          " \n deadlineasfsadf moved 24H later  sadf\n  \nsf")),
+          tu(" \n deadlineasfsadf moved 24H later  sadf\n  \nsf"))),
      ?_assertMatch(
         {found, -86400},
         find_deadline_move(
-          "  \n deadline asfsadf moved 24H earlier  sadf\n  \nsf")),
+          tu("  \n deadline asfsadf moved 24H earlier  sadf\n  \nsf"))),
      ?_assertMatch(
         not_found,
         find_deadline_move(
-          "  \n deaddline day 1 moved 24H earlier  sadf\n  \nsf")),
+          tu("  \n deaddline day 1 moved 24H earlier  sadf\n  \nsf"))),
      ?_assertMatch(
         {found, -86400},
-        find_deadline_move("  \n deadline d2 moved 24H earlier  sadf\n  \nsf")),
+        find_deadline_move(
+          tu("  \n deadline d2 moved 24H earlier  sadf\n  \nsf"))),
      ?_assertMatch(
         {found, -86700},
         find_deadline_move(
-          "  \n deadline n3 moved 24H 5m earlier  sadf\n  \nsf")),
+          tu("  \n deadline n3 moved 24H 5m earlier  sadf\n  \nsf"))),
      ?_assertMatch(
         {error, bad_time},
         find_deadline_move(
-          "  \n deadline  moved 24H 5m3s earlier  sadf\n  \nsf")),
+          tu("  \n deadline  moved 24H 5m3s earlier  sadf\n  \nsf"))),
      ?_assertMatch(
         {found, -86700},
         find_deadline_move(
-          "  \n deadline night 3 moved 24H 5m earlier  sadf\n  \nsf"))
+          tu("  \n deadline night 3 moved 24H 5m earlier  sadf\n  \nsf")))
     ].
+
+get_game_end(Text) ->
+    #regex{msg_text_upper = ?l2u(mafia_print:html2txt(Text)),
+           game_end = regex_game_end()}.
 
 %% GAME ((HAS )?ENDED|IS OVER)
 find_game_end_test_() ->
     [
      ?_assertMatch(
         {match, _},
-        find_game_end("game has ended")),
+        find_game_end(get_game_end("game has ended"))),
      ?_assertMatch(
         {match, _},
-        find_game_end("game ended")),
+        find_game_end(get_game_end("game ended"))),
      ?_assertMatch(
         {match, _},
-        find_game_end("game is over")),
+        find_game_end(get_game_end("game is over"))),
      ?_assertMatch(
         {match, _},
         find_game_end(
-          " a \nasfs s \n a d f\n the game  has  ended night 5 \r \n \n"))
+          get_game_end(
+            " a \nasfs s \n a d f\n the game  has  ended night 5 \r \n \n")))
     ].
 
-%% (GAME (HAS )?UNENDED|UNEND GAME)
+get_game_unend(Text) ->
+    #regex{msg_text_upper = ?l2u(mafia_print:html2txt(Text)),
+           game_unend = regex_game_unend()}.
+
 find_game_unend_test_() ->
     [
      ?_assertMatch(
         {match, _},
-        find_game_unend("game has unended")),
+        find_game_unend(get_game_unend("game has unended"))),
      ?_assertMatch(
         {match, _},
-        find_game_unend("game unended")),
+        find_game_unend(get_game_unend("game unended"))),
      ?_assertMatch(
         {match, _},
-        find_game_unend("unend game")),
+        find_game_unend(get_game_unend("unend game"))),
      ?_assertMatch(
         {match, _},
-        find_game_unend(" \rg\n g \n  game  has  unended  \n g  \r g ")),
+        find_game_unend(
+          get_game_unend(" \rg\n g \n  game  has  unended  \n g  \r g "))),
      ?_assertMatch(
         {match, _},
-        find_game_unend(" \rg\n g \n the game  has  unended now \n g  \r g "))
+        find_game_unend(
+          get_game_unend(" \rg\n g \n the game  has  unended now \n g  \r g ")))
     ].

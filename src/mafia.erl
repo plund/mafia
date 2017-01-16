@@ -1,6 +1,14 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% bug 1: mafia:refresh_vote() gives 2 non-voters day 1, but "hard" does not.
+%% ok bug 2: bot mafia:refresh_vote/0,1 has become very slow.  -  sort of fixed
+%%   - could real case keys be used in user table
+%%      reduce below (check README)
+%%   {{mafia_vote,'-is_user_in_list/2-lc$^0/1-0-',1},
+%%   {{mafia_lib,ruser,1}
+
+%%   - in votes and in deaths any case can be used
 %% - Call the Game Status generation from the gen_server also for html variants
 %%   when they are ready to be stored on file
 %% - Use new DL calc and remove old calculation NEW: "get_some_extra_dls"
@@ -191,8 +199,23 @@ remove_mnesia() -> mafia_db:remove_mnesia().
 set(K, V) -> mafia_db:set(K, V).
 getv(K) -> mafia_db:getv(K).
 
-refresh_votes() -> mafia_data:refresh_votes().
-refresh_votes(P) -> mafia_data:refresh_votes(P).
+refresh_votes() ->
+    %% fprof:trace(start),
+    mafia_data:refresh_votes(),
+    %% fprof:trace(stop),
+    ok.
+
+%% 1. run refresh_votes()
+%% 2. fprof:profile().
+%% 3. fprof:analyse([{dest, "fprof.analysis.refresh_votes.5"}, {cols, 120}]).
+%% 4. rp(lists:reverse(lists:sort([{L,Fun}||{_, {Fun,_,_,L}, _} <- element(2,file:consult("fprof.analysis.refresh_votes.5"))]))).
+%% 5. rm fprof.trace
+
+refresh_votes(P) ->
+    %% fprof:trace(start),
+    mafia_data:refresh_votes(P),
+    %% fprof:trace(stop),
+    ok.
 
 grep(Str) -> mafia_data:grep(Str).
 grep(Str, Mode) -> mafia_data:grep(Str, Mode).

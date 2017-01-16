@@ -91,7 +91,7 @@ insert_initial_data() ->
 
 write_default_user_table() ->
     [ mnesia:dirty_write(
-        #user{name_upper = ?l2b(string:to_upper(U)),
+        #user{name_upper = ?l2ub(U),
               name = ?l2b(U),
               aliases = mafia_upgrade:get_aliases(?l2b(U)),
               verification_status = ?unverified})

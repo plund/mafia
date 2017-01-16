@@ -136,15 +136,33 @@ msgs(Sid, _Env, In) ->
                         Color = Hash bor 16#C0C0C0,
                         ColorStr = integer_to_list(Color, 16),
                         {HH, MM} = mafia_time:hh_mm_to_deadline(ThId, Time),
-                        OutB = ?l2b(["<tr bgcolor=\"#", ColorStr,
-                                     "\"><td valign=\"top\">"
-                                     "<a name=\"msg_id=", ?i2l(MsgId), "\">"
-                                     "<b>", MsgUserB,
-                                     "</b></a><br>",
-                                     DayStr, " ", p(HH), ":", p(MM),
-                                     "<br> page ", ?i2l(Page),
-                                     "</td><td valign=\"top\">", MsgBoldMarked,
-                                     "</td></tr>\r\n"]),
+
+                        %% Add context link when doing User/Word search
+                        MsgRef = ["msg_id=", ?i2l(MsgId)],
+                        HPage =
+                            if IsUserCond or IsWordCond ->
+                                    {Pages, _, _} = page_context(Page, 1),
+                                    ["<a href=\"msgs?part=p",
+                                     %% ?i2l(Page),
+                                     Pages,
+                                     "#", MsgRef,
+                                     "\">page ", ?i2l(Page),
+                                     "</a>"];
+                               true ->
+                                    ["page ", ?i2l(Page)]
+                            end,
+                        OutB =
+                            ?l2b(
+                               ["<tr bgcolor=\"#", ColorStr,
+                                "\"><td valign=\"top\">"
+                                "<a name=\"", MsgRef, "\">"
+                                "<b>", MsgUserB,
+                                "</b></a><br>", DayStr, " ",
+                                p(HH), ":", p(MM), "<br>",
+                                HPage,
+                                "</td><td valign=\"top\">",
+                                MsgBoldMarked,
+                                "</td></tr>\r\n"]),
                         SizeOut = web:deliver(Sid, OutB),
                         MI#miter{bytes = MI#miter.bytes + SizeDiv + SizeOut,
                                  phase = MsgPhase,
@@ -681,16 +699,20 @@ page_links(M, Str) ->
     MsgId = M#message.msg_id,
     UrlPart1 = "/e/web/msgs?part=p",
     PageStr = ?i2l(PageNum),
-    VPPrev = ?i2l(PageNum - 1),
-    VPNext = ?i2l(PageNum + 1),
+    {PageCont, VPPrev, VPNext} = page_context(PageNum, 1),
     LinkEnd = "#msg_id=" ++ ?i2l(MsgId),
     Link1 = UrlPart1 ++ PageStr ++ LinkEnd,
-    Link3 = UrlPart1 ++ VPPrev ++ "-" ++ VPNext ++ LinkEnd,
+    Link3 = UrlPart1 ++ PageCont ++ LinkEnd,
     ["<tr><td colspan=2 align=center><br>"
      "<a href=\"", Link1 ,"\">Page ", PageStr, Str, "</a>"
      "<p>"
      "<a href=\"", Link3 ,"\">Pages ", VPPrev, " to ", VPNext, "</a>"
      "</td></tr>\r\n"].
+
+page_context(PageNum, Context) ->
+    VPPrev = ?i2l(max(PageNum - Context, 1)),
+    VPNext = ?i2l(PageNum + Context),
+    {VPPrev ++ "-" ++ VPNext, VPPrev, VPNext}.
 
 %% ?html mode only, use mafia_print:pp for ?text
 %% return tr

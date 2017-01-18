@@ -3,6 +3,9 @@
 -export([rmess/1,
          rpage/1,
          rpage/2,
+         pages_for_thread/1,
+         page_keys_for_thread/1,
+
          rday/2,
          rgame/1,
          ruser/1,
@@ -13,6 +16,8 @@
          thid/1,
          gamename_to_thid/1,
          dl2phase/1,
+         dl2time/1,
+         set_dl_time/2,
          phase_time2dl/2,
 
          re_matches/2,
@@ -60,6 +65,20 @@ rpage(Key) ->
 rpage(ThId, Page) -> rpage({ThId, Page}).
 
 rpageI(Key) -> mnesia:dirty_read(page_rec, Key).
+
+pages_for_thread(ThId) ->
+    [P || {_, P} <- page_keys_for_thread(ThId)].
+
+page_keys_for_thread(ThId) ->
+    Tab = page_rec,
+    PageKeys0 = [K || K= {GK, _Page} <- mnesia:dirty_all_keys(Tab),
+                      GK == ThId],
+    Exists = fun(PRK) ->
+                     PRec = hd(mnesia:dirty_read(Tab, PRK)),
+                     [] /= rmess(hd(PRec#page_rec.message_ids))
+             end,
+    PageKeys = [K || K <- PageKeys0, Exists(K)],
+    lists:sort(PageKeys).
 
 %% -----------------------------------------------------------------------------
 
@@ -159,11 +178,13 @@ gamename_to_thid(GN) when is_atom(GN) ->
 
 %% -----------------------------------------------------------------------------
 
-dl2phase({?game_ended, _Time}) -> ?game_ended;
-dl2phase({Num, Don, _Time}) -> {Num, Don}.
+dl2phase(DL) when ?IS_DL(DL) -> element(1, DL).
+dl2time(DL) when ?IS_DL(DL) -> element(2, DL).
+
+set_dl_time(DL, Time) -> setelement(2, DL, Time).
 
 phase_time2dl(?game_ended, Time) -> {?game_ended, Time};
-phase_time2dl({Num, Don}, Time) -> {Num, Don, Time}.
+phase_time2dl({Num, Don}, Time) -> {{Num, Don}, Time}.
 
 %% read re:run matches
 re_matches(_Str, []) -> [];
@@ -232,23 +253,22 @@ all_msgids(ThId) ->
     all_msgids(ThId, AllPages).
 
 all_msgids(_ThId, []) -> [];
-all_msgids(ThId, PageNums = [PageN|_]) ->
-    all_msgids(ThId, PageNums, rpageI({ThId, PageN})).
+all_msgids(ThId, [PageN|PagesT]) ->
+    all_msgids(ThId, PagesT, PageN, ?rpage({ThId, PageN})).
 
-all_msgids(ThId, PageNums, []) ->
-    all_msgids(ThId, PageNums);
-all_msgids(ThId, PageNums, [PR]) ->
-    PR#page_rec.message_ids,
-    all_msgids2(ThId, PageNums, PR#page_rec.message_ids).
+all_msgids(ThId, PagesT, _PageN, []) ->
+    all_msgids(ThId, PagesT);
+all_msgids(ThId, PagesT, PageN, [PR]) ->
+    all_msgids2(ThId, PagesT, PageN, PR#page_rec.message_ids).
 
-all_msgids2(ThId, PageNums, []) ->
-    all_msgids(ThId, tl(PageNums));
-all_msgids2(ThId, PageNums, [MId|MIds]) ->
-    all_msgids2(ThId, PageNums, [MId|MIds], ?rmess(MId)).
+all_msgids2(ThId, PagesT, _PageN, []) ->
+    all_msgids(ThId, PagesT);
+all_msgids2(ThId, PagesT, PageN, [MId|MIds]) ->
+    all_msgids2(ThId, PagesT, PageN, [MId|MIds], ?rmess(MId)).
 
-all_msgids2(_ThId, _PageNums, _MIds, []) -> [];
-all_msgids2(ThId, PageNums = [P|_], [MId|MIds], _) ->
-    [{P, MId} | all_msgids2(ThId, PageNums, MIds)].
+all_msgids2(_ThId, _PagesT, _PageN, _MIds, []) -> [];
+all_msgids2(ThId, PagesT, PageN, [MId|MIds], _) ->
+    [{PageN, MId} | all_msgids2(ThId, PagesT, PageN, MIds)].
 
 %% -----------------------------------------------------------------------------
 %% Counter updates

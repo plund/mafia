@@ -255,6 +255,10 @@ print_votesI(PPin) ->
     Day = PP#pp.day,
     RealRemPlayers = PP#pp.players_rem,
 
+    %% IsEnd -> EndTime in Game TZ for DL (last 4 dls)
+    %% IsCurrentPhase -> Time to DL (next 4 DL)
+    %% not IsCurrentPhase -> DLTime in Game TZ (No DLs)
+
     %% Part - Page heading - Print Game Name
     GName = ?b2l(G#mafia_game.name),
     HTitle =
@@ -646,7 +650,7 @@ split_into_groups(NumPerRow, Objects) ->
     Rows2 ++ [LastRow].
 
 print_time_left_to_dl(PP) ->
-    {{Days, {HH, MM, _}}, {Num, DoN, _}} =
+    {{Days, {HH, MM, _}}, {{Num, DoN}, _}} =
         mafia_time:get_next_deadline(PP#pp.game_key, PP#pp.use_time),
     DayStr = if Days == 0 -> "";
                 true -> ?i2l(Days) ++ " day, "
@@ -670,7 +674,7 @@ print_num_dls(PP, Num) ->
     G = PP#pp.game,
     DLs = mafia_time:next_deadlines(G, Time, Num),
     {PastDLs, ComingDLs} =
-        lists:partition(fun(DL) -> element(3, DL) < Time end, DLs),
+        lists:partition(fun(DL) -> ?dl2time(DL) < Time end, DLs),
     Past2 = prep_dl_info(G, Time, PastDLs),
     Coming2 = prep_dl_info(G, Time, ComingDLs),
     if PP#pp.mode == ?text ->
@@ -709,7 +713,7 @@ prep_dl_info(G, Time, DLs) ->
     [{?i2l(N), pr_don(DoN),
       mafia_time:secs2day_hour_min_sec(Time - DLT),
       print_game_time(G, DLT, ?extensive)}
-     || {N, DoN, DLT} <- DLs].
+     || {{N, DoN}, DLT} <- DLs].
 
 print_past_dls(DLs, _Title) when length(DLs) =< 0 -> [];
 print_past_dls(DLs, Title) ->
@@ -730,9 +734,9 @@ pr_thread_links(PP, DoDispTime2DL) ->
     %% Day4(p98-) p103-, p108-, p113-, p118-, p123-, p128-, last(p130)
     StartTime = mafia_time:get_time_for_prev_phase(PP#pp.game, PP#pp.phase),
     EndTime = mafia_time:get_time_for_phase(PP#pp.game, PP#pp.phase),
-    PageKeys =
-        lists:sort([ K || K = {T, _} <- mnesia:dirty_all_keys(page_rec),
-                          T == PP#pp.game_key]),
+    PageKeys = mafia_lib:page_keys_for_thread(PP#pp.game_key),
+        %% lists:sort([ K || K = {T, _} <- mafia_lib:dirty_all_keys(page_rec),
+        %%                   T == PP#pp.game_key]),
     case lists:foldl(
            fun(_PK, Acc = {done, _}) -> Acc;
               (PK = {_, P}, Acc) ->
@@ -1432,9 +1436,7 @@ print_pages_for_thread(ThId) ->
 
 %% -----------------------------------------------------------------------------
 
--define(TMsg(M), M#message.time).
--define(TDl(D), element(3, D)).
--define(MINUTE, 60).
+-define(MsgTime(M), M#message.time).
 
 print_page(_ThId, [], _PrintFun) -> ok;
 print_page(ThId, MsgIds, PrintFun) ->
@@ -1445,11 +1447,11 @@ print_page(ThId, MsgIds, PrintFun) ->
         [] ->
             [PrintFun(M) || M <- MsgsPage];
         [#mafia_game{deadlines = DLs} = G] ->
-            TimeB = ?TMsg((hd(MsgsPage))),
-            TimeA = ?TMsg((lists:last(MsgsPage))),
+            TimeB = ?MsgTime((hd(MsgsPage))),
+            TimeA = ?MsgTime((lists:last(MsgsPage))),
 
             %% Are more deadlines needed
-            TimeLDl = ?TDl(hd(DLs)),
+            TimeLDl = ?dl2time(hd(DLs)),
             DLs2 =
                 if TimeLDl < TimeA ->
                         ?lrev(
@@ -1459,8 +1461,8 @@ print_page(ThId, MsgIds, PrintFun) ->
                    end,
 
             DLsIn = [D || D <- DLs2,
-                          TimeB - 3*?MINUTE < ?TDl(D),
-                          ?TDl(D) < TimeA + 3*?MINUTE],
+                          TimeB - 3 * ?MinuteSecs < ?dl2time(D),
+                          ?dl2time(D) < TimeA + 3 * ?MinuteSecs],
             MixedSort = lists:sort(fun cmp_time/2, MsgsPage ++ DLsIn),
             case hd(MixedSort) of
                 Msg = #message{} ->

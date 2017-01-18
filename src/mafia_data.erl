@@ -677,11 +677,9 @@ check_this_page(S) ->
                  end,
     PageToRead = case IsLastPage of
                      true ->
-                         %% ?set(?page_to_read, PageLastRead),
                          PageLastRead;
                      false ->
                          ?set(?page_to_read, PageLastRead + 1),
-                         %% ?set(?page_complete, PageLastRead),
                          PageLastRead + 1
                  end,
     S#s{is_last_page = IsLastPage,
@@ -715,7 +713,6 @@ analyse_body(S, {UserStr, MsgIdStr, TimeStr, Msg}) ->
 
 analyse_body(S, _User, _MsgId, Time, _Msg)
   when Time > S#s.utc_time ->
-    %% ?dbg({analyse_body, utc_time}),
     PageLastRead = S#s.page_last_read,
     ?set(?page_to_read, PageLastRead),
     S#s{is_last_page = true,

@@ -793,10 +793,10 @@ find_part_test_() ->
     [
      ?_assertMatch({page, 23, page, 88}, find_part("p23-p88")),
      ?_assertMatch({page, 23, page, 88}, find_part("23-88")),
-     ?_assertMatch({night, 23, day__, 88}, find_part("n23-d88")),
+     ?_assertMatch({night, 23, day, 88}, find_part("n23-d88")),
      ?_assertMatch({page, undefined, page, 88}, find_part("-p88")),
      ?_assertMatch({page, 23, page, undefined}, find_part("p23-")),
 
-     ?_assertMatch({page, 23, day__, 1}, find_part("page 23 - day 1")),
-     ?_assertMatch({page, 23, day__, 1}, find_part(" page23-day1 "))
+     ?_assertMatch({page, 23, day, 1}, find_part("page 23 - day 1")),
+     ?_assertMatch({page, 23, day, 1}, find_part(" page23-day1 "))
     ].

@@ -20,7 +20,7 @@
 -define(dbuser_none, dbuser_none).
 
 -define(kv_store, kv_store).
--define(day  , day__).
+-define(day, day).
 -define(night, night).
 -define(phase, phase).
 -define(game_ended, game_ended).
@@ -79,6 +79,15 @@
 -define(timezone_user, timezone_user).
 %% positive offset means that simulated time is in the past.
 
+-define(IS_PHASE(Ph), (?game_ended == Ph orelse
+                       2 == tuple_size(Ph)
+                       andalso is_integer(element(1, Ph))
+                       andalso is_atom(element(2, Ph)))
+       ).
+-define(IS_DL(DL), (2 == tuple_size(DL)
+                    andalso ?IS_PHASE(element(1, DL))
+                    andalso is_integer(element(2, DL)))
+       ).
 
 -define(SERVER, ?MODULE).
 -define(WEBPORT, 50666).
@@ -186,7 +195,7 @@
 -type message() :: binary().
 -type day_night() :: ?day | ?night.
 -type phase() :: ?game_ended | {integer(), day_night()}.
--type deadline() :: {integer(), day_night(), seconds1970()}.
+-type deadline() :: {phase(), seconds1970()}.
 
 %% simple macros
 -define(a2l(A), atom_to_list(A)).
@@ -210,6 +219,8 @@
 -define(inc_cnt(CntName, Inc), mafia_lib:inc_cnt(CntName, Inc)).
 -define(inc_cnt(CntName, Args, Inc), mafia_lib:inc_cnt(CntName, Args, Inc)).
 -define(dl2phase(DL), mafia_lib:dl2phase(DL)).
+-define(dl2time(DL), mafia_lib:dl2time(DL)).
+-define(set_dl_time(DL, Time), mafia_lib:set_dl_time(DL, Time)).
 -define(phase_time2dl(Phase, Time), mafia_lib:phase_time2dl(Phase, Time)).
 -define(thid(Id), mafia_lib:thid(Id)).
 -define(set(K, V), mafia_db:set(K, V)).

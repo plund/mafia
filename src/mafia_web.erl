@@ -124,16 +124,18 @@ set_interval_minutes(N) when is_integer(N)  ->
     gen_server:call(?SERVER, {set_timer_interval, N}).
 
 %% rewrite one history txt file
-regenerate_history(Time, Phase) ->
+regenerate_history(Time, DL) when ?IS_DL(DL) ->
+    Phase = ?dl2phase(DL),
+    ?dbg(Time, {"REGENERATE_HISTORY", Phase}),
+    regenerate_historyI(Phase);
+regenerate_history(Time, Phase) when ?IS_PHASE(Phase) ->
     ?dbg(Time, {"REGENERATE_HISTORY", Phase}),
     regenerate_historyI(Phase).
 
-regenerate_history(Phase) ->
+regenerate_history(Phase) when ?IS_PHASE(Phase) ->
     ?dbg({"REGENERATE_HISTORY", Phase}),
     regenerate_historyI(Phase).
 
-regenerate_historyI({DNum, DoN, _}) ->
-    regenerate_historyI({DNum, DoN});
 regenerate_historyI(Phase) ->
     gen_server:cast(?SERVER, {regenerate_history, Phase}).
 

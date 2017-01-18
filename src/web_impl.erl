@@ -414,7 +414,7 @@ game_status(Sid, _Env, In) ->
     B = web:deliver(Sid, Html),
     C = del_end(Sid),
     PQ = httpd:parse_query(In),
-    Args = make_args(PQ),
+    Args = make_args(PQ, ["phase", "num"]),
     {A + B + C, Args}.
 
 game_status_out(current, Phase) ->
@@ -527,7 +527,7 @@ vote_tracker(Sid, _Env, In) ->
     end,
     B = web:deliver(Sid, Out),
     C = del_end(Sid),
-    Args = make_args(PQ),
+    Args = make_args(PQ, ["day"]),
     {A + B + C, Args}.
 
 vote_tracker2({"day", Str},
@@ -576,7 +576,7 @@ msg(Sid, _Env, In) ->
     A = del_start(Sid, HStart, 0),
     B = web:deliver(Sid, Html),
     C = del_end(Sid),
-    Args = make_args(PQ),
+    Args = make_args(PQ, ["var"]),
     {A + B + C, Args}.
 
 msg2([], _Variant, _Player) ->
@@ -623,7 +623,7 @@ stats(Sid, _Env, In) ->
     A = del_start(Sid, "Posting Stats", 0),
     B = web:deliver(Sid, Html),
     C = del_end(Sid),
-    Args = make_args(PQ),
+    Args = make_args(PQ, ["sort", "phase", "num"]),
     {A + B + C, Args}.
 
 stats2({"phase", "total"},
@@ -768,9 +768,14 @@ get_arg(PQ, ArgStr) ->
         {_, V} -> V
     end.
 
-make_args(PQ) ->
+make_args(PQ, Keys) ->
     lists:foldl(fun({_K, ""}, Acc) -> Acc;
-                   ({K, V}, Acc) -> Acc ++ [?l2b(K), ?l2b(V)]
+                   ({K, V}, Acc) ->
+                        case lists:member(K, Keys) of
+                            true ->
+                                Acc ++ [?l2b(K), ?l2b(V)];
+                            false  -> Acc
+                        end
                 end,
                 [],
                 PQ).

@@ -27,9 +27,9 @@ msgs(Sid, Env, In) ->
 
 msg(Sid, Env, In) ->
     catch_debug(
-      Sid, msgs,
+      Sid, msg,
       fun(do) -> web_impl:msg(Sid, Env, In);
-         (in) -> {msgs, In}
+         (in) -> {msg, In}
       end).
 
 vote_tracker(Sid, Env, In) ->
@@ -50,7 +50,6 @@ catch_debug(Sid, Tag, F) ->
         TimeA = erlang:monotonic_time(millisecond),
         Req = F(in),
         ReqType = element(1, Req),
-        ?inc_cnt(ReqType),
         case catch F(do) of
             {'EXIT', Term} ->
                 ?dbg({catch_debug, {Tag, Term}}),
@@ -59,8 +58,9 @@ catch_debug(Sid, Tag, F) ->
                          "<tr><td>", "An error occured!", "</td></tr>",
                          ?HTML_TAB_END]);
             {NumBytes, Args} ->
+                ?inc_cnt(ReqType, reqs, 1),
                 ?inc_cnt(ReqType, ?bytes, NumBytes),
-                if Args /= ?none ->
+                if Args /= ?none, Args /= [] ->
                         ?inc_cnt(ReqType, {reqs, Args}, 1),
                         ?inc_cnt(ReqType, {?bytes, Args}, NumBytes);
                    true -> ok

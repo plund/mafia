@@ -8,8 +8,9 @@
          cmd_filename/1, %% FN of manual commands issued, relative run dir
 
          game_phase_full_fn/2, %% full FN to out text file
-         game_link_and_text/2  %% link to out text file, relative to DOCROOT
+         game_link_and_text/2, %% link to out text file, relative to DOCROOT
          %%                       (for web page)
+         cnt_filename/0
         ]).
 
 -include("mafia.hrl").
@@ -71,6 +72,18 @@ cmd_filename(ThId) ->
     GamePrefix = game_file_prefix(ThId),
     BaseName = GamePrefix ++ ?i2l(ThId) ++ "_manual_cmds.txt",
     filename:join([DirName, BaseName]).
+
+cnt_filename() ->
+    DirName = filename:join(?SERVER_ROOT, "counters"),
+    verify_exist(DirName),
+    Suffix = filename_timestamp_suffix(),
+    FN = "counters_" ++ Suffix ++ ".txt",
+    filename:join(DirName, FN).
+
+filename_timestamp_suffix() ->
+    %% down to secs, utc
+    %% "170118Z090801"
+    mafia_print:print_time([{t_mode, file_suffix}]).
 
 %% -----------------------------------------------------------------------------
 

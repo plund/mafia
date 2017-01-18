@@ -42,6 +42,7 @@
 -define(html, html).
 -define(text, text).
 -define(t_mode, t_mode).
+-define(file_suffix, file_suffix).
 -define(short, short).
 -define(long, long).
 -define(extensive, extensive).

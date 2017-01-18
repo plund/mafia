@@ -96,6 +96,10 @@
 -export([verify_users/1,
          grep/1, grep/2,
          l/0,
+
+         print_all_cnts/0,
+         print_all_cnts/1,
+         save_cnts_to_file/0,
          add_sim_gm_message/4,
          rm_sim_gm_message/2
         ]).
@@ -678,12 +682,21 @@ remove_alias(User, Alias) ->
             end
     end.
 
+print_all_cnts() -> mafia_lib:print_all_cnts().
+
+print_all_cnts(N) -> mafia_lib:print_all_cnts(N).
+
+save_cnts_to_file() -> mafia_lib:save_cnts_to_file().
+
 %% Use one message as template to create a new
 %% put it first on any page
 %% refresh({upto, })
 add_sim_gm_message(Page, SimMsgId, TplMsgId, Text) ->
     ThId = ?getv(?game_key),
-    case {?rgame(ThId), ?rpage(ThId, Page), ?rmess(TplMsgId), ?rmess(SimMsgId)} of
+    case {?rgame(ThId),
+          ?rpage(ThId, Page),
+          ?rmess(TplMsgId),
+          ?rmess(SimMsgId)} of
         {[], _, _, _} -> no_game;
         {_, [], _, _} -> no_page;
         {_, _, [], _} -> no_template_message;
@@ -699,6 +712,7 @@ add_sim_gm_message(Page, SimMsgId, TplMsgId, Text) ->
             mnesia:dirty_write(P2),
             ok
     end.
+
 
 rm_sim_gm_message(Page, SimMsgId) ->
     ThId = ?getv(?game_key),

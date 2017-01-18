@@ -1604,15 +1604,18 @@ print_timeI(Opts) when is_list(Opts) ->
 
 %% half this fun should go to mafia_time
 print_timeI(PP = #pp{}) when PP#pp.use_time == ?undefined ->
-    MsgTime = (PP#pp.message)#message.time,
-    print_timeI(PP#pp{use_time = MsgTime});
+    Time = case PP#pp.message of
+               ?undefined -> mafia_time:utc_secs1970();
+               M -> M#message.time
+           end,
+    print_timeI(PP#pp{use_time = Time});
 print_timeI(PP = #pp{}) ->
     #pp{use_time = Time,
         time_zone = TzH,
         dst = Dst,
         t_mode = Mode} = PP,
     try
-        {{Y, M, D}, {HH,MM,SS}} =
+        {{Y, M, D}, {HH, MM, SS}} =
             mafia_time:secs1970_to_local_datetime(Time, TzH, Dst),
         DstStr = case {Dst, Mode} of
                      {?false, ?extensive} -> ", Normal Time";
@@ -1625,10 +1628,18 @@ print_timeI(PP = #pp{}) ->
                    _ -> "T"
                end,
         Out = case Mode of
+                  ?file_suffix ->
+                      %% 170102Z235959
+                      io_lib:format(
+                        "~s~s~s~s~s~s~s",
+                        [string:right(p(Y), 2), p(M), p(D),
+                         Char, p(HH), p(MM), p(SS)]);
+
                   ?short ->
                       io_lib:format("~s-~s~s~s:~s",
                                     [p(M), p(D), Char, p(HH), p(MM)]);
                   ?long ->
+                      %% 2017-01-18Z01:02:01 (0)
                       io_lib:format("~s-~s-~s~s~s:~s:~s (~s~s)",
                                     [p(Y), p(M), p(D), Char, p(HH), p(MM), p(SS),
                                      ?i2l(TzH), DstStr]);

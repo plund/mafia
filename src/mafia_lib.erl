@@ -25,7 +25,8 @@
          inc_cnt/2,
          inc_cnt/3,
          print_all_cnts/0,
-         print_all_cnts/1
+         print_all_cnts/1,
+         save_cnts_to_file/0
         ]).
 
 -include("mafia.hrl").
@@ -274,16 +275,26 @@ inc_cnt(CntNameB, Args, Inc) ->
 
 print_all_cnts() ->
     Guard = [],
-    print_all_cntsI(Guard).
+    print_all_cntsI(standard_io, Guard).
 
 print_all_cnts(NumLastDays) ->
     DayNum = mafia_time:utc_day1970() - NumLastDays,
     Guard = [{'or', {'>=', '$2', DayNum}, {'==', '$2', ?global}}],
-    print_all_cntsI(Guard).
+    print_all_cntsI(standard_io, Guard).
+
+save_cnts_to_file() ->
+    FN = mafia_file:cnt_filename(),
+    {ok, Fd} = file:open(FN, [write]),
+    Guard = [],
+    print_all_cntsI(Fd, Guard),
+    file:close(Fd),
+    mnesia:clear_table(cnt),
+    io:format("Saved all counters to ~s and "
+              "cleared the counter table.\n", [FN]).
 
 -define(l(V), to_list(V)).
 
-print_all_cntsI(Guard) ->
+print_all_cntsI(Fd, Guard) ->
     MatchHead2 = #cnt{key = {'$1', '$2'}, _='_'},
     MatchHead3 = #cnt{key = {'$1', '$2', '$3'}, _='_'},
     Result = '$_',
@@ -334,7 +345,7 @@ print_all_cntsI(Guard) ->
     PrintCnt =
         fun(#cnt{key = K, value = V}) ->
                 Row = [string:right(?i2l(V), 10), " ", PrintKey(K), "\n"],
-                io:format("~s", [Row])
+                io:format(Fd, "~s", [Row])
         end,
     [PrintCnt(C) || C <- AllCnts],
     ok.

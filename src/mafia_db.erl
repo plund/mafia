@@ -32,6 +32,7 @@ getv(Key, Default) ->
                         schema_existed_already |
                         {error, Reason::term()}.
 setup_mnesia() ->
+    mnesia:add_table_index(user, #user.name),
     case mnesia:system_info(is_running) of
         no ->
             case mnesia:create_schema([node()]) of

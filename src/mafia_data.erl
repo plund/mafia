@@ -4,7 +4,7 @@
 -export([refresh_messages/0,
          refresh_messages/1,
          refresh_messages/2,
-         refresh_votes/0,
+         %% refresh_votes/0,
          refresh_votes/1,
          refresh_stat/0
         ]).
@@ -185,11 +185,11 @@ refresh_messages(ThId, DoVotes) ->
        true -> ok
     end.
 
--spec refresh_votes() -> ok.
-refresh_votes() ->
-    ThId = ?getv(?game_key),
-    clear_mafia_day_and_stat(ThId),
-    refresh_votes(ThId, ?rgame(ThId), all, soft).
+%% -spec refresh_votes() -> ok.
+%% refresh_votes() ->
+%%     ThId = ?getv(?game_key),
+%%     clear_mafia_day_and_stat(ThId),
+%%     refresh_votes(ThId, ?rgame(ThId), all, soft).
 
 refresh_votes(?game_key = K) -> refresh_votes(?getv(K));
 refresh_votes(?thread_id = K) -> refresh_votes(?getv(K));
@@ -354,10 +354,10 @@ update_stat(MsgId, M, [G = #mafia_game{}]) ->
              message = MsgBin   %% :: message()
             } = M,
     %% UserB is in correct case in messages!
-    UserUB = ?b2ub(UserB),
+    %% UserUB = ?b2ub(UserB),
     Phase = mafia_time:calculate_phase(G, Time),
-    Key1 = {UserUB, ThId},
-    Key2 = {UserUB, ThId, Phase},
+    Key1 = {UserB, ThId},
+    Key2 = {UserB, ThId, Phase},
     Msg = ?b2l(MsgBin),
     Count = #stat{msg_ids = [MsgId],
                   num_chars = size(MsgBin),

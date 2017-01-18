@@ -139,10 +139,15 @@ rgameI(ThId) ->
 
 %% -----------------------------------------------------------------------------
 
-ruser(User) when is_list(User) -> ruserUB(?l2ub(User));
-ruser(User) when is_binary(User) -> ruserUB(?b2ub(User)).
+ruser(User) when is_list(User) -> ruserI(?l2b(User));
+ruser(UserB) when is_binary(UserB) -> ruserI(UserB).
 
-ruserUB(UserUB) -> mnesia:dirty_read(user, UserUB).
+ruserI(UserB) -> mnesia:dirty_index_read(user, UserB, #user.name).
+
+ruserUB(User) when is_list(User) -> ruserUBI(?l2ub(User));
+ruserUB(UserB) when is_binary(UserB) -> ruserUBI(?b2ub(UserB)).
+
+ruserUBI(UserUB) -> mnesia:dirty_read(user, UserUB).
 
 %% -----------------------------------------------------------------------------
 

@@ -994,13 +994,16 @@ do_print_stats(PP, PrStats) ->
                 end
         end,
     StatsSorted = lists:sort(SortFun, PrStats),
-    PrFn = fun(tr, S) -> transl(element(1, S#prstat.key));
+    PrFn = fun(tr, S) -> element(1, S#prstat.key);
+              %% transl(element(1, S#prstat.key));
               (cell, _) -> "td";
-              (bgcolor, S) -> bgcolor(transl(element(1, S#prstat.key)));
+              (bgcolor, S) -> bgcolor(element(1, S#prstat.key)
+                                      %% transl(element(1, S#prstat.key))
+                                     );
               (_, _) -> []
            end,
     PlayersRem = PP#pp.players_rem,
-    NonPosters = [?b2l(PRem) || PRem <- PlayersRem]
+    NonPosters = [PRem || PRem <- PlayersRem]
         -- [PrFn(tr, S) || S <- PrStats],
     Phase = PP#pp.phase,
     HtmlHead =
@@ -1143,9 +1146,9 @@ print_stat_row(PP, S, PrFn) when PP#pp.mode == ?html ->
      CEnd, "</tr>\r\n"].
 
 %% Get user name as stored normal case string
-transl(UserUB) ->
-    UInfo = hd(?ruserUB(UserUB)),
-    ?b2l(UInfo#user.name).
+%% transl(UserUB) ->
+%%     UInfo = hd(?ruserUB(UserUB)),
+%%     ?b2l(UInfo#user.name).
 
 %% [{Vote, Num, [{Time, User, Raw}]}]
 add_vote(V, User, Acc) ->

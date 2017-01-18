@@ -49,6 +49,24 @@ fprof.analysis.refresh_votes.5 (own mafia_lib:to_upper/1)
 
 
 
+%                                                                       CNT               ACC               OWN
+[{ totals,                                                         20154902,        73130.182,        72388.555}].  %%%
+
+146> rp(lists:reverse(lists:sort([{L,Fun}||{_, {Fun,_,_,L}, _} <- element(2,file:consult("fprof.analysis.refresh_votes.6"))]))).
+[{12064.539,{string,str,3}},
+ {9900.61,{string,'-to_upper/1-lc$^0/1-0-',1}},
+ {4912.139,{mafia_print,html2txt,1}},
+ {4813.226,{string,tokens_multiple_2,4}},
+ {3124.795,{string,to_upper_char,1}},
+ {2738.079,{re,run,2}},
+ {2620.889,{lists,member,2}},
+ {2128.336,{lists,foldl,3}},
+ {1861.744,{mnesia_index,dirty_read2,3}},
+ {1340.455,{ets,lookup_element,3}},
+ {1274.97,{re,run,3}},
+
+
+
 Procedure
 start game M26
 ---------

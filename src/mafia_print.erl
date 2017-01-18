@@ -1081,7 +1081,7 @@ do_print_stats(PP, PrStats) ->
         end,
     NPRows = split_into_groups(?NumColsInGrp, NonPosters),
     if PP#pp.mode == ?text ->
-            NPStr = object_rows_text(NPRows, fun(U) -> U end),
+            NPStr = object_rows_text(NPRows, fun(U) -> ?b2l(U) end),
             io:format(PP#pp.dev,
                       "\n~s\n~s\n~s\n",
                       [NonPostTitle, ul($-, NonPostTitle),

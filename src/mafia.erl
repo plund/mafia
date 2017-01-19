@@ -1,19 +1,13 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% bug 1: mafia:refresh_vote() gives 2 non-voters day 1, but "hard" does not.
-%% - Call the Game Status generation from the gen_server also for html variants
-%%   when they are ready to be stored on file
+%% - implement the rough idea on how and when to present deadlines (top of print_votes())
 %% - Use new DL calc and remove old calculation NEW: "get_some_extra_dls"
 %% - split mafia_print. stats and tracker into separate modules?
 %%   - define how and when to use a smarter vote reader!!
 %% - Display msgs since last login with a browser (cookie)
 %% - fix a better player name recognition in votes and deaths?
 %%     - check if abbrev code can loop forever
-%% - rebar
-%% - Fix proper server on public server - start at MacOS reboot
-%%     - erlang supervised app
-%%     - mac to automatically start up server after power is back
 
 %% M25 GOD QT https://www.quicktopic.com/52/H/gBqFhw3Bidb
 %% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7

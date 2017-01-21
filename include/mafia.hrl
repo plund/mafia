@@ -94,11 +94,6 @@
 -define(MINUTE_MS, 60000).
 
 -define(SERVER_NAME, "MAFIA TRACKER").
-%% ServerRoot is relative to running path.
--define(SERVER_ROOT, "/Users/peter/httpd/mafia.peterlund.se").
-%% DocumentRoot is relative to running path
--define(DOC_ROOT, "/Users/peter/httpd/mafia.peterlund.se/html").
--define(LOG_ROOT, "/Users/peter/httpd/mafia.peterlund.se/logs").
 
 -define(GSECS_1970, 62167219200).
 -define(GDAYS_1970, 719528).
@@ -109,9 +104,6 @@
 -define(DaySecs, (24*3600)).
 
 -define(MAX_GM_DL_MINS, 20).
-
--define(M24ThId, 1404320).
--define(M25ThId, 1420289).
 
 -define(BotUrl, "http://mafia.peterlund.se/").
 
@@ -140,37 +132,16 @@
          "Glen_Alexander", "Jamiet99uk", "Maniac", "dargorygel", "zorclex"]).
 -define(M26_GMs, ["Jamiet99uk", "Chaqa"]).
 -define(M26_players,
-        ["arj11", "Balki Bartokomous", % "BalkiBartokomous",
+        ["arj11", "Balki Bartokomous",
          "bo_sox48", "brainbomb",
          "DeathLlama8", "DemonOverlord", "Ezio", "Floodgates", "DemonRHK",
          "ghug", "Glen_Alexander", "Hellenic Riot", "Kakarroto", "Maniac",
-         "MoscowFleet", "ND", "peterlund", "RagingIke297", % "Ragingike297",
+         "MoscowFleet", "ND", "peterlund", "RagingIke297",
          "rdrivera2005",
          "teacon7", "Tom Bombadil", "VashtaNeurotic", "Vecna",
          "dargorygel", "WardenDresden",
          "xorxes"]).
--define(M26_players_oldjan3,
-        ["arj11", "Balki Bartokomous", % "BalkiBartokomous",
-         "bo_sox48", "brainbomb", "captainmeme", %"CaptainMeme",
-         "DeathLlama8", "DemonOverlord", "Ezio", "Floodgates", "Fluminator",
-         "ghug", "Glen_Alexander", "Hellenic Riot", "Kakarroto", "Maniac",
-         "MoscowFleet", "ND", "peterlund", "RagingIke297", % "Ragingike297",
-         "rdrivera2005",
-         "teacon7", "Tom Bombadil", "VashtaNeurotic", "Vecna","", "WardenDresden",
-         "xorxes"]).
--define(M26_players_old,
-        ["Ezio", "peterlund", "brainbomb", "bo_sox48", "DemonOverlord", "ND",
-         "Tom Bombadil",
-         %%"Tom Bomabadil",
-         "Floodgates", "xorxes", "MoscowFleet",
-         "Balki Bartokomous",
-         %%"Balkibartonomous",
-         "VashtaNeurotic", "Fluminator", "Ragingike297",
-         "Maniac", "Kakarroto", "DeathLlama8", "rdrivera2005", "arj11", "ghug",
-         "teacon7", "Hellenic Riot", "Glen_Alexander", "CaptainMeme",
-         "Reedeer1", "Vecna"]).
-
--define(M26_Subs, ["WardenDresden", "Dargorygel", "Zorclex", "DemonRHK"]).
+-define(M26_Subs, ["WardenDresden", "dargorygel", "zorclex", "DemonRHK"]).
 
 -type year()   :: non_neg_integer().
 -type month()  :: 1..12.

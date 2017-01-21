@@ -10,7 +10,9 @@
          game_phase_full_fn/2, %% full FN to out text file
          game_link_and_text/2, %% link to out text file, relative to DOCROOT
          %%                       (for web page)
-         cnt_filename/0
+         cnt_filename/0,
+
+         get_path/1
         ]).
 
 -include("mafia.hrl").
@@ -57,7 +59,7 @@ th_filenames(ThId, PageNum) ->
 
 th_filename(Thread, Page) ->
     DirName = "thread_pages",
-    verify_exist(DirName),
+    %% verify_exist(DirName),
     GamePrefix = game_file_prefix(Thread),
     DirName2 = GamePrefix ++ ?i2l(Thread),
     verify_exist(filename:join(DirName, DirName2)),
@@ -68,14 +70,14 @@ th_filename(Thread, Page) ->
 
 cmd_filename(ThId) ->
     DirName =  "command_files",
-    verify_exist(DirName),
+    %% verify_exist(DirName),
     GamePrefix = game_file_prefix(ThId),
     BaseName = GamePrefix ++ ?i2l(ThId) ++ "_manual_cmds.txt",
     filename:join([DirName, BaseName]).
 
 cnt_filename() ->
-    DirName = filename:join(?SERVER_ROOT, "counters"),
-    verify_exist(DirName),
+    DirName = "counters",
+    %% verify_exist(DirName),
     Suffix = filename_timestamp_suffix(),
     FN = "counters_" ++ Suffix ++ ".txt",
     filename:join(DirName, FN).
@@ -107,9 +109,16 @@ game_phase_full_fn(G, Phase) ->
     PhaseFN = if Phase == ?game_ended -> ?CURRENT_GAME_FN;
                  true -> phase_fn(FilePrefix, Phase)
               end,
-    DirName = filename:join(?DOC_ROOT, GameDir),
+    DirName = filename:join(get_path(h_doc_root), GameDir),
     verify_exist(DirName),
     filename:join(DirName, PhaseFN).
+
+get_path(P) when P == h_srv_root;
+                 P == h_doc_root;
+                 P == h_log_root;
+                 P == repo_dir ->
+    {ok, [[Path]]} = init:get_argument(P),
+    Path.
 
 phase_fn(FilePrefix, Phase) ->
     {DNum, DoN} = Phase,

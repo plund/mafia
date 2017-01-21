@@ -7,3 +7,6 @@
 *beam
 *~
 src/game_info.txt
+/_build
+/doc
+/rebar.lock

@@ -32,15 +32,16 @@ getv(Key, Default) ->
                         schema_existed_already |
                         {error, Reason::term()}.
 setup_mnesia() ->
-    mnesia:add_table_index(user, #user.name),
     case mnesia:system_info(is_running) of
         no ->
             case mnesia:create_schema([node()]) of
                 {error,{_,{already_exists,_}}} ->
                     start_mnesia(already_exists),
+                    mnesia:add_table_index(user, #user.name),
                     schema_existed_already;
                 Other ->
                     start_mnesia(do_create),
+                    mnesia:add_table_index(user, #user.name),
                     Other
             end;
         yes ->
@@ -73,22 +74,35 @@ start_mnesia(Op) ->
 to_bin(LoL = [[_|_]|_]) ->
     [list_to_binary(L) || L <- LoL].
 
+-define(M26ThId, 1432756).
+-define(M25ThId, 1420289).
+-define(M24ThId, 1404320).
+
 insert_initial_data() ->
     io:format("Adding values to kv_store\n", []),
-    ?set(?thread_id, ?M25ThId),
-    ?set(?game_key, ?M25ThId),
     ?set(?page_to_read, 1),
     ?set(?timezone_user, 1),
     ?set(?dst_user, false),
-    ?set(?timezone_game, -5),
-    ?set(?dst_game, false),
     ?set(?console_tz, user),
     ?set(?mod_msg, ?undefined),
-    add_thread(m24, ?M24ThId),
-    add_thread(m25, ?M25ThId),
-    write_game(m25),
-    write_game(m24),
-    write_default_user_table().
+    write_default_user_table(),
+    add_threads().
+
+add_threads() ->
+    ThInfos = [{CurGame, CurGameId}|_] =
+        lists:reverse(
+          lists:sort(
+            element(2,
+                    file:consult("game_info.txt")))),
+    _ = [begin
+             add_thread(Game, Id),
+             write_game(Game)
+         end || {Game, Id} <- ThInfos],
+    ?set(?thread_id, CurGameId),
+    ?set(?game_key, CurGameId),
+    G = get_game_rec(CurGame),
+    ?set(?timezone_game, G#mafia_game.time_zone),
+    ?set(?dst_game, G#mafia_game.is_init_dst).
 
 write_default_user_table() ->
     [ mnesia:dirty_write(
@@ -116,6 +130,8 @@ write_game({GName, ThId}) ->
     case ?rgame(ThId) of
         [] ->
             G = get_game_rec(GName),
+            io:format("Initializing Mafia Game\n  ~p: ~s\n",
+                      [GName, ?b2l(G#mafia_game.name)]),
             G2 = G#mafia_game{key = ThId},
             Game = mafia_time:initial_deadlines(G2),
             mnesia:dirty_write(Game);
@@ -125,7 +141,6 @@ write_game({GName, ThId}) ->
 get_game_rec(m26) ->
     %% Game Thread 1432756
     %% M26 signup threadid = 1429158
-    io:format("Initializing Mafia Game M26\n", []),
     _ = #mafia_game{
       game_num = 26,
       name = <<"MAFIA XXVI: W. Jessop Asylum for the Chronically Insane">>,
@@ -144,7 +159,6 @@ get_game_rec(m26) ->
       page_to_read = 1
      };
 get_game_rec(m25) ->
-    io:format("Initializing Mafia Game M25\n", []),
     _ = #mafia_game{
       key = ?M25ThId,
       game_num = 25,
@@ -162,7 +176,6 @@ get_game_rec(m25) ->
       page_to_read = 1
      };
 get_game_rec(m24) ->
-    io:format("Adding Mafia Game M24\n", []),
     _ = #mafia_game{
       key = ?M24ThId,
       game_num = 24,
@@ -191,6 +204,7 @@ set(K=?timezone_game, V) when is_integer(V), -12 =< V, V =< 12 -> set_kv(K, V);
 set(K=?time_offset, V) when is_integer(V) -> set_kv(K, V);
 set(K=?dst_user, V) when is_boolean(V) -> set_kv(K, V);
 set(K=?dst_game, V) when is_boolean(V) -> set_kv(K, V);
+set(K=?mod_msg, ?undefined) -> remk(K);
 set(K=?mod_msg, V) when is_list(V) -> set_kv(K, V);
 set(K=?console_tz, V)
   when V == user; V == game; V == utc;

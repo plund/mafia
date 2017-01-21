@@ -1,0 +1,17 @@
+{application, mafia,
+ [{description, "Mafia Game Tracker"},
+  {vsn, "0.9.0"},
+  {registered, []},
+  {mod, {mafia_app, []}},
+  {applications,
+   [kernel,
+    stdlib
+%%    mnesia, inets
+   ]},
+  {env,[]},
+  {modules, [mafia_time]},
+
+  {maintainers, ["Peter Lund"]},
+  {licenses, []},
+  {links, ["http://mafia.peterlund.se"]}
+ ]}.

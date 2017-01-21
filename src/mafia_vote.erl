@@ -673,12 +673,12 @@ auto_correct_case(CcUser, [G]) ->
                    players_rem = PsRemB,
                    player_deaths = NewDeaths}).
 
-%% return a fun that corrects the case
-ccf(CorrectCaseB) ->
-    CcUC = ?b2ul(CorrectCaseB),
+%% return a fun, that returns a binary with correct case
+ccf(CorrectCase) when is_list(CorrectCase) ->
+    CcUC = ?l2u(CorrectCase),
     fun(ExistingB) ->
             ExUC = ?b2ul(ExistingB),
-            if CcUC == ExUC -> CorrectCaseB;
+            if CcUC == ExUC -> ?l2b(CorrectCase);
                true -> ExistingB
             end
     end.

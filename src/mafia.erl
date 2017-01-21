@@ -1,6 +1,9 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% - Bug getting pagenumbers for phases
+%% - change name erlang node from noname to mafia
+%% - revamp index page with 3 columns History, Stats, Vote Tracker
 %% - implement the rough idea on how and when to present deadlines (top of print_votes())
 %% - Use new DL calc and remove old calculation NEW: "get_some_extra_dls"
 %% - split mafia_print. stats and tracker into separate modules?
@@ -16,6 +19,8 @@
 -export([
          help/0,
 
+         start_/0,
+         stop_/0,
          start/0,
          stop/0,
          stop_polling/0,
@@ -158,8 +163,11 @@ help() ->
 %% =============================================================================
 %% EXPORTED FUNCTIONS
 %% =============================================================================
-start() -> setup_mnesia(), mafia_web:start().
-stop() -> mafia_web:stop().
+start() -> application:start(mafia).
+stop() -> application:stop(mafia).
+start_() -> setup_mnesia(), mafia_web:start().
+stop_() -> mafia_web:stop().
+
 stop_polling() -> mafia_web:stop_polling().
 start_polling() -> mafia_web:start_polling().
 state() -> mafia_web:get_state().
@@ -496,10 +504,6 @@ l() ->
 
 %% Pre-check user list given by GM in initial game PM
 verify_new_user_list(26) ->
-    io:format("New--Old \"~s\"\n"
-              "Old--New \"~s\"\n",
-              [string:join(?M26_players -- ?M26_players_old, "\", \""),
-               string:join(?M26_players_old -- ?M26_players, "\", \"")]),
     Users = ?M26_GMs ++ ?M26_players,
     verify_new_user_list2(Users);
 verify_new_user_list(25) ->

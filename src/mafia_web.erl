@@ -1,5 +1,5 @@
 %%%-------------------------------------------------------------------
-%%% @author Peter Lund <peter@liber>
+%%% @author Peter Lund
 %%% @copyright (C) 2016, Peter Lund
 %%% @doc Updates the DB every 10 mins, 5 min last hour and 1 min last
 %%% 7 min to day deadline.
@@ -60,7 +60,8 @@
 %% @end
 %%--------------------------------------------------------------------
 start_link() ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+    mafia:setup_mnesia(),
+    gen_server:start_link({local, ?SERVER}, ?MODULE, [polling], []).
 
 start() ->
     mafia:setup_mnesia(),
@@ -161,11 +162,15 @@ init([Arg]) ->
     mafia:setup_mnesia(),
     GameKey = ?getv(?game_key),
     State = start_web(#state{game_key = GameKey}),
-    {_Reply, S2} = set_timer_interval(State, 10),
-    if Arg == polling -> self() ! do_polling;
-       Arg == no_polling -> ok
-    end,
-    {ok, S2}.
+    if Arg == polling ->
+            ?dbg(start_polling),
+            self() ! do_polling,
+            {_Reply, S2} = set_timer_interval(State, 10),
+            {ok, S2};
+       Arg == no_polling ->
+            ?dbg(start_no_polling),
+            {ok, State}
+    end.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -312,19 +317,24 @@ get_en1_ip() ->
 
 start_web(S) ->
     inets:start(),
-    maybe_create_dir(?SERVER_ROOT),
-    maybe_create_dir(?DOC_ROOT),
-    maybe_create_dir(?LOG_ROOT),
-    os:cmd("cp ../priv/search_form.html " ++ ?DOC_ROOT),
-    os:cmd("cp ../priv/index.html " ++ ?DOC_ROOT),
-    os:cmd("cp ../priv/current_vote.txt " ++ ?DOC_ROOT),
-    os:cmd("cp ../priv/GM_commands.html " ++ ?DOC_ROOT),
-    os:cmd("cp ../priv/PlayerVoting.html " ++ ?DOC_ROOT),
+    DocRoot = mafia_file:get_path(h_doc_root),
+    SrvRoot = mafia_file:get_path(h_srv_root),
+    RepoDir = mafia_file:get_path(repo_dir),
+    SearchForm = RepoDir ++ "/priv/search_form.html ",
+    Index = RepoDir ++ "/priv/index.html ",
+    CurrVote = RepoDir ++ "/priv/current_vote.txt ",
+    GmCmds = RepoDir ++ "/priv/GM_commands.html ",
+    PlVote = RepoDir ++ "/priv/PlayerVoting.html ",
+    os:cmd("cp " ++ SearchForm ++ DocRoot),
+    os:cmd("cp " ++ Index ++ DocRoot),
+    os:cmd("cp " ++ CurrVote ++ DocRoot),
+    os:cmd("cp " ++ GmCmds ++ DocRoot),
+    os:cmd("cp " ++ PlVote ++ DocRoot),
     IP_en1 = get_en1_ip(),
     Params = [{port, ?WEBPORT},
               {server_name, "mafia.peterlund.se"},
-              {server_root, ?SERVER_ROOT},
-              {document_root, ?DOC_ROOT},
+              {server_root, SrvRoot},
+              {document_root, DocRoot},
               {directory_index, ["index.html"]},
               {bind_address, IP_en1},
 %%% specifying modules removes the default list in where

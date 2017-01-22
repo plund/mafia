@@ -2,6 +2,9 @@
 
 APP_NAME=mafia
 
+# A secure way to figure out where this script is located
+SCRIPT_DIR=$(cd $(dirname $0) && pwd)
+
 RUNNING_ALREADY=$(ps aux | grep beam | grep -v grep | wc -l)
 
 if [ $RUNNING_ALREADY = 1 ] ; then
@@ -51,7 +54,7 @@ fi
 echo "Ok we start up"
 
 # Compile in repo and copy code to run location
-REPO_DIR=$(dirname $(dirname $0))
+REPO_DIR=$(dirname $SCRIPT_DIR)
 cd $REPO_DIR
 REBAR=rebar3
 $REBAR compile

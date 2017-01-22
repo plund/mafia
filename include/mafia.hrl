@@ -314,7 +314,7 @@
          players_orig  :: [player()], %% set_kv(mafia_players, ?M24_players),
          players_rem   :: [player()],
          game_num      :: integer(),
-         player_deaths :: [#death{}],
+         player_deaths :: [#death{} | #replacement{}],
          page_to_read, %% set_kv(page_to_read, 1),
          game_end :: ?undefined | {seconds1970(), msg_id()},
          last_msg_time

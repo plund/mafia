@@ -506,66 +506,120 @@ print_votesI(PPin) ->
     [HStats, HNonPosters] = print_statsI(PPstat),
 
     %% Part - Dead players
-    DeathsToReport =
-        ?lrev(
-          [D || D = #death{phase = Ph,
-                           is_deleted = false} <- G#mafia_game.player_deaths,
+    DoReport =
+        fun(DPhase) ->
                 if PP#pp.phase == ?game_ended -> true;
-                   PP#pp.use_time == ?undefined -> Ph == PP#pp.phase;
-                   true -> Ph =< PP#pp.phase
-                end]),
-    IsZeroDeaths = [] == DeathsToReport,
-    PrFun = fun(IsEnd, Ph) ->
-                    pr_eodon(IsEnd, Ph)
-            end,
+                   PP#pp.use_time == ?undefined -> DPhase == PP#pp.phase;
+                   true -> DPhase =< PP#pp.phase
+                end
+        end,
+    DeathsToReport =
+        lists:foldr(
+          fun(D = #death{phase = Ph,
+                         is_deleted = false}, Acc) ->
+                  case DoReport(Ph) of
+                      true -> [D | Acc];
+                      false -> Acc
+                  end;
+             (R = #replacement{phase = Ph}, Acc) ->
+                  case DoReport(Ph) of
+                      true -> [R | Acc];
+                      false -> Acc
+                  end
+          end,
+          [],
+          G#mafia_game.player_deaths),
+    IsZeroDeaths = [] == [D || D = #death{} <- DeathsToReport],
+    IsZeroReplacements = [] == [R || R = #replacement{} <- DeathsToReport],
+    PrFun =
+        fun(IsEnd, Ph) ->
+                " died " ++ pr_eodon(IsEnd, Ph)
+        end,
+    PrRepFun =
+        fun(Ph) ->
+                " was replaced " ++ pr_eodon(false, Ph) ++ " by "
+        end,
     if PP#pp.mode == ?text ->
-            {Fmt, Div} =
-                {"\n"
-                 "Dead Players\n"
-                 "------------\n"
-                 "~s\n",
-                 "\n"},
-            io:format(PP#pp.dev,
-                      Fmt,
-                      [string:join(
-                         [?b2l(DeadPl) ++ PrFun(IsEnd, Ph) ++
-                              if Com == ?undefined ->
-                                      " - msg: " ++ ?i2l(MsgId);
-                                 is_binary(Com) ->
-                                      " - " ++ ?b2l(Com)
-                              end
-                          || #death{player = DeadPl,
-                                    is_end = IsEnd,
-                                    phase = Ph,
-                                    msg_id = MsgId,
-                                    comment = Com}
-                                 <- DeathsToReport],
-                         Div)]),
+            if not IsZeroDeaths ->
+                    {Fmt, Div} =
+                        {"\n"
+                         "Dead Players\n"
+                         "------------\n"
+                         "~s\n",
+                         "\n"},
+                    io:format(PP#pp.dev,
+                              Fmt,
+                              [string:join(
+                                 [?b2l(DeadPl) ++ PrFun(IsEnd, Ph) ++
+                                      if Com == ?undefined ->
+                                              " - msg: " ++ ?i2l(MsgId);
+                                         is_binary(Com) ->
+                                              " - " ++ ?b2l(Com)
+                                      end
+                                  || #death{player = DeadPl,
+                                            is_end = IsEnd,
+                                            phase = Ph,
+                                            msg_id = MsgId,
+                                            comment = Com}
+                                         <- DeathsToReport],
+                                 Div)]);
+               true -> ok
+            end,
+            if not IsZeroReplacements ->
+                    Reps = [io_lib:format("~s~s~s\n",
+                                          [?b2l(RepP), PrRepFun(Ph), ?b2l(NewP)])
+                            || #replacement{new_player = NewP,
+                                            replaced_player = RepP,
+                                            phase = Ph}
+                                   <- DeathsToReport],
+                    io:format(PP#pp.dev,
+                              "\nReplacements"
+                              "\n------------\n~s\n",
+                              [Reps]);
+               true -> ok
+            end,
             HtmlDeaths = ?dummy;
        PP#pp.mode == ?html ->
             HtmlDeaths =
                 ["<table align=center>",
-                 "<tr><th colspan=2 align=left><br>Dead Players</th></tr>",
-                 if IsZeroDeaths -> "<tr><th>(none)</th></tr>";
-                    not IsZeroDeaths ->
-                         [["<tr><td><table align=left><tr><td",
-                           bgcolor(DeadPl), ">", ?b2l(DeadPl), "</td><td>",
-                           "<a href=\"/e/web/msg?id=",
-                           ?i2l(MsgId), "&player=", ?b2l(DeadPl),
-                           "&var=death\">",
-                           PrFun(IsEnd, Ph), "</a>",
-                           if Com == ?undefined ->
-                                   " - msg: " ++ ?i2l(MsgId);
-                              is_binary(Com) ->
-                                   " - " ++ ?b2l(Com)
-                           end,
-                           "</td></tr></table></td></tr>"]
-                          || #death{player = DeadPl,
-                                    is_end = IsEnd,
-                                    phase = Ph,
-                                    msg_id = MsgId,
-                                    comment = Com}
-                                 <- DeathsToReport]
+                 "<tr><th colspan=2 align=left><br>Dead or replaced players"
+                 "</th></tr>",
+                 if IsZeroDeaths, IsZeroReplacements ->
+                         "<tr><th>(none)</th></tr>";
+                    true ->
+                         [case DoR of
+                              #death{player = DeadPl,
+                                     is_end = IsEnd,
+                                     phase = Ph,
+                                     msg_id = MsgId,
+                                     comment = Com} ->
+                                  ["<tr><td><table align=left><tr><td",
+                                   bgcolor(DeadPl), ">", ?b2l(DeadPl), "</td>"
+                                   "<td><a href=\"/e/web/msg?id=",
+                                   ?i2l(MsgId), "&player=", ?b2l(DeadPl),
+                                   "&var=death\">",
+                                   PrFun(IsEnd, Ph), "</a>",
+                                   if Com == ?undefined ->
+                                           " - msg: " ++ ?i2l(MsgId);
+                                      is_binary(Com) ->
+                                           " - " ++ ?b2l(Com)
+                                   end,
+                                   "</td></tr></table></td></tr>"];
+                              #replacement{new_player = NewPl,
+                                           replaced_player = RepPl,
+                                           phase = Ph,
+                                           msg_id = MsgId} ->
+                                  ["<tr><td><table align=left><tr><td",
+                                   bgcolor(RepPl), ">", ?b2l(RepPl), "</td>"
+                                   "<td>",
+                                   "<a href=\"/e/web/msg?id=",
+                                   ?i2l(MsgId), "&player=", ?b2l(RepPl),
+                                   "&var=replacement\">",
+                                   PrRepFun(Ph), "</a></td>"
+                                   "<td", bgcolor(NewPl), ">", ?b2l(NewPl),
+                                   "</td></tr></table></td></tr>"]
+                          end
+                          || DoR <- DeathsToReport]
                  end,
                  "</table>"]
     end,
@@ -887,8 +941,8 @@ user_vote(UserVotes) ->
     end.
 
 
-pr_eodon(true, Phase) -> " died " ++ pr_eodon(Phase);
-pr_eodon(false, {Num, DoN}) -> " died " ++ pr_don(DoN) ++ " " ++ ?i2l(Num).
+pr_eodon(true, Phase) -> pr_eodon(Phase);
+pr_eodon(false, {Num, DoN}) -> pr_don(DoN) ++ " " ++ ?i2l(Num).
 
 pr_eodon({Num, ?day}) -> "EoD"++ ?i2l(Num);
 pr_eodon({Num, ?night}) -> "EoN"++ ?i2l(Num);

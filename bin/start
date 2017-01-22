@@ -26,6 +26,7 @@ mkdir -p $CNT_DIR
 mkdir -p $CMD_DIR
 mkdir -p $THREAD_DIR
 mkdir -p $PATCHES
+\rm $PATCHES/*beam
 
 NODE_NAME=$APP_NAME
 PIPE_DIR=$RUN_DIR/pipes

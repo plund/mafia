@@ -1,6 +1,7 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% - Present replacements in current status list
 %% - implement the rough idea on how and when to present deadlines (top of print_votes())
 %% - Use new DL calc and remove old calculation NEW: "get_some_extra_dls"
 %% - split mafia_print. stats and tracker into separate modules?
@@ -484,7 +485,7 @@ set_death_comment(MsgId, Player, Comment) ->
 
 %% load all beams in local dir
 l() ->
-    {ok, Files} = file:list_dir("."),
+    {ok, Files} = file:list_dir("patches"),
     Beams = [?l2a(?lrev(ModRev))
              || "maeb." ++ ModRev
                     <- [?lrev(F) || F <- Files]],

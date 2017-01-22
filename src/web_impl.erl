@@ -586,6 +586,9 @@ msg2([M], Variant, Player) ->
         "death" ->
             {"Death Announcement - " ++ Player,
              show_message(M, death)};
+        "replacement" ->
+            {"Replacement - " ++ Player,
+             show_message(M, replacement)};
         "vote" ->
             {"Vote - " ++ Player,
              show_message(M, vote)};
@@ -677,9 +680,11 @@ show_message2([M], Var) ->
 show_message2([], _Var) ->
     "No message found with this id";
 show_message2(M, vote) ->
-    show_message3(M, " where vote is found");
+    show_message3(M, " where the vote is found");
 show_message2(M, death) ->
-    show_message3(M, " where announcement is found");
+    show_message3(M, " where the announcement is found");
+show_message2(M, replacement) ->
+    show_message3(M, " where the replacement message is found");
 show_message2(M, msg) ->
     show_message3(M, "").
 

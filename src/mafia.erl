@@ -1,9 +1,8 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% - Bug getting pagenumbers for phases
+%% - fix "##VOTE END"
 %% - change name erlang node from noname to mafia
-%% - revamp index page with 3 columns History, Stats, Vote Tracker
 %% - implement the rough idea on how and when to present deadlines (top of print_votes())
 %% - Use new DL calc and remove old calculation NEW: "get_some_extra_dls"
 %% - split mafia_print. stats and tracker into separate modules?

@@ -735,8 +735,6 @@ pr_thread_links(PP, DoDispTime2DL) ->
     StartTime = mafia_time:get_time_for_prev_phase(PP#pp.game, PP#pp.phase),
     EndTime = mafia_time:get_time_for_phase(PP#pp.game, PP#pp.phase),
     PageKeys = mafia_lib:page_keys_for_thread(PP#pp.game_key),
-        %% lists:sort([ K || K = {T, _} <- mafia_lib:dirty_all_keys(page_rec),
-        %%                   T == PP#pp.game_key]),
     case lists:foldl(
            fun(_PK, Acc = {done, _}) -> Acc;
               (PK = {_, P}, Acc) ->
@@ -746,7 +744,7 @@ pr_thread_links(PP, DoDispTime2DL) ->
                    case Acc of
                        {startpage, _} when MTime >= StartTime ->
                            {endpage, {P-1, P-1}};
-                       {startpage, _} -> {startpage, P};
+                       {startpage, _} -> {startpage, {P, P}};
                        {endpage, {St, _}} when MTime >= EndTime ->
                            {done, {St, P-1}};
                        {endpage, {St, _}} -> {endpage, {St, P}}
@@ -778,7 +776,8 @@ pr_thread_links(PP, DoDispTime2DL) ->
             Links = string:join( Links0 ++ [LastLink], " "),
             ["<tr><td align=center>Messages for this phase: ", Links,
              "</td></tr>"];
-        _ -> []
+        Other ->
+            []
     end.
 
 %% Votes per user are time ordered (oldest first)

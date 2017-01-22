@@ -290,24 +290,57 @@ check_for_early_end(#regex{msg_text_upper = MsgText}, Time, G) ->
             end
     end.
 
+%% -----------------------------------------------------------------------------
+%% @doc ENDED EARLY GM commands must be on an own line to avoid GM misorders
+%% Nothing After "ENDED EARLY" or before "DAY"/"NIGHT"
+%% @end
+%% -----------------------------------------------------------------------------
 -spec find_early_end(string()) -> {ok, ?day | ?night} | {?error, atom()}.
 find_early_end(MsgText) ->
     SearchU1 = "ENDED EARLY",
     case find_parts(MsgText, SearchU1) of
         {0, _, _} -> {?error, no_early_end};
-        {_, HStr1, _TStr1} ->
-            SearchU2 = "DAY",
-            SearchU3 = "NIGHT",
-            case {find_parts(HStr1, SearchU2),
-                  find_parts(HStr1, SearchU3)} of
-                {{0, _, _}, {0, _, _}} ->
-                    {?error, no_phase_type};  %% no "DAY" or "NIGHT"
-                {Pos1, _Pos2} ->
-                    if element(1, Pos1) /= 0 ->
-                            {ok, ?day};
-                       true ->
-                            {ok, ?night}
-                    end
+        {_, HStr1, TStr1} ->
+            %%_TStr1 no letters/numbers before end
+            NoTxtBeforeNL =
+                fun(Str) ->
+                        Res =
+                            lists:foldl(fun(C, no_nl_yet) when C > $\s -> false;
+                                           (C, no_nl_yet) when C == $\n -> true;
+                                           (_, St) -> St
+                                        end,
+                                        no_nl_yet,
+                                        Str),
+                        if Res == false -> false;
+                           true -> true
+                        end
+                end,
+            case NoTxtBeforeNL(TStr1) of
+                true ->
+                    SearchU2 = "DAY",
+                    SearchU3 = "NIGHT",
+                    case {find_parts(HStr1, SearchU2),
+                          find_parts(HStr1, SearchU3)} of
+                        {{0, _, _}, {0, _, _}} ->
+                            {?error, no_phase_type};  %% no "DAY" or "NIGHT"
+                        {Pos1, Pos2} ->
+                            if element(1, Pos1) /= 0 ->
+                                    HStr2 = element(2, Pos1),
+                                    case NoTxtBeforeNL(?lrev(HStr2)) of
+                                        true -> {ok, ?day};
+                                        false -> {?error, no_early_end}
+                                    end;
+                               true ->
+                                    HStr2 = element(2, Pos2),
+                                    case NoTxtBeforeNL(?lrev(HStr2)) of
+                                        true ->
+                                            {ok, ?night};
+                                        false -> {?error, no_early_end}
+                                    end
+                            end
+                    end;
+                false ->
+                    {?error, no_early_end}
             end
     end.
 

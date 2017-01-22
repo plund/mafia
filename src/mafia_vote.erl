@@ -521,17 +521,34 @@ find_game_unend(#regex{msg_text_upper = MsgTextU, game_unend = RE}) ->
 %% -----------------------------------------------------------------------------
 
 check_for_votes(#regex{msg_text_upper = MsgUC}, M, G) ->
+    check_VOTE(MsgUC, M, G),
+    EndStr = "##END",
+    UnendStr = "##UNEND",
+    case {string:str(MsgUC, EndStr),
+          string:str(MsgUC, UnendStr)} of
+        {0, 0} ->
+            ok;
+        {_, 0} -> %% add end
+            reg_end_vote(add, M);
+        {0, _} -> %% remove end
+            reg_end_vote(remove, M);
+        _ -> ok
+    end.
+
+check_VOTE(MsgUC, M, G) ->
     Msg = ?b2l(M#message.message),
     Players = G#mafia_game.players_rem,
     Players2 = add_nolynch_and_aliases(Players),
     VoteStr = "##VOTE",
     UnvoteStr = "##UNVOTE",
     case {mafia_data:rm_to_after_pos(MsgUC, VoteStr),
-          string:str(MsgUC, UnvoteStr)} of
-        {{0, ""}, 0} -> ignore;
-        {{0, ""}, _} ->
+          mafia_data:rm_to_after_pos(MsgUC, UnvoteStr)} of
+        {{0, ""}, {0, ""}} ->
+            ignore;
+        {{0, ""}, {_, RestUC}} ->
             Vote = ?l2b(?Unvote),
-            reg_vote(M, G, Vote, Vote, true);
+            reg_vote(M, G, Vote, Vote, true),
+            check_VOTE(RestUC, M, G);
         {{Pos, RestUC}, _} ->
             RawVote =
                 ?l2b(string:strip(
@@ -551,43 +568,8 @@ check_for_votes(#regex{msg_text_upper = MsgUC}, M, G) ->
                 _ ->
                     Vote = ?l2b("-"),
                     reg_vote(M, G, Vote, RawVote, false)
-            end
-    end,
-    EndStr = "##END",
-    UnendStr = "##UNEND",
-    case {string:str(MsgUC, EndStr),
-          string:str(MsgUC, UnendStr)} of
-        {0, 0} ->
-            ok;
-        {_, 0} -> %% add end
-            reg_end_vote(add, M);
-        {0, _} -> %% remove end
-            reg_end_vote(remove, M);
-        _ -> ok
-    end.
-
-reg_end_vote(Op, M) ->
-    case mafia_time:calculate_phase(M#message.thread_id, M#message.time) of
-        {DayNum, ?day} ->
-            case ?rday(M#message.thread_id, DayNum) of
-                [Day] ->
-                    User = M#message.user_name,
-                    OldEndVotes = Day#mafia_day.end_votes,
-                    NewEndVotes =
-                        case Op of
-                            add ->
-                                case lists:member(User, OldEndVotes) of
-                                    false -> OldEndVotes ++ [User];
-                                    true ->  OldEndVotes
-                                end;
-                            remove ->
-                                OldEndVotes -- [M#message.user_name]
-                        end,
-                    mnesia:dirty_write(Day#mafia_day{end_votes = NewEndVotes});
-                _ -> ok
-            end;
-        _ ->
-            ok
+            end,
+            check_VOTE(RestUC, M, G)
     end.
 
 %% -----------------------------------------------------------------------------
@@ -788,31 +770,13 @@ r_count([], [], N) ->
 %% -----------------------------------------------------------------------------
 
 reg_vote(M, G, Vote, RawVote, IsOkVote) ->
-    case is_remaining_player(
-           M#message.user_name,
-           G#mafia_game.players_rem) of
-        true ->
-            case ?b2l(Vote) of
-                ?END -> reg_end_vote(add, M);
-                ?UNEND -> reg_end_vote(remove, M);
-                _ ->
-                    vote2(M, G, Vote, RawVote, IsOkVote)
-            end;
-        false ->
-            io:format("~s Warning ~s tried to vote in game\n",
-                      [mafia_print:print_time(M#message.time, short),
-                       ?b2l(M#message.user_name)]),
-            ignore
+    ?dbg(M#message.time, {M#message.user_name, Vote}),
+    case ?b2ul(Vote) of
+        ?END -> reg_end_vote(add, M);
+        ?UNEND -> reg_end_vote(remove, M);
+        _ ->
+            vote2(M, G, Vote, RawVote, IsOkVote)
     end.
-
-
--spec is_remaining_player(User :: player(),
-                          Remain :: [player()]) -> boolean().
-is_remaining_player(User, Rem) ->
-    UserL = ?b2l(User),
-    UserU = ?l2u(UserL),
-    RemainsU = [?b2ul(R) || R <- Rem],
-    lists:member(UserU, RemainsU).
 
 vote2(M, G, Vote, RawVote, IsOkVote) ->
     %% find mafia_day
@@ -847,6 +811,30 @@ vote2(M, G, Vote, RawVote, IsOkVote) ->
             mnesia:dirty_write(Day#mafia_day{votes = Votes2});
         _ ->
             ignore
+    end.
+
+reg_end_vote(Op, M) ->
+    case mafia_time:calculate_phase(M#message.thread_id, M#message.time) of
+        {DayNum, ?day} ->
+            case ?rday(M#message.thread_id, DayNum) of
+                [Day] ->
+                    User = M#message.user_name,
+                    OldEndVotes = Day#mafia_day.end_votes,
+                    NewEndVotes =
+                        case Op of
+                            add ->
+                                case lists:member(User, OldEndVotes) of
+                                    false -> OldEndVotes ++ [User];
+                                    true ->  OldEndVotes
+                                end;
+                            remove ->
+                                OldEndVotes -- [M#message.user_name]
+                        end,
+                    mnesia:dirty_write(Day#mafia_day{end_votes = NewEndVotes});
+                _ -> ok
+            end;
+        _ ->
+            ok
     end.
 
 %% -------------------------------------------------

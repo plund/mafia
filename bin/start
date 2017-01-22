@@ -17,10 +17,13 @@ LOG_DIR=$RUN_DIR/logs
 CNT_DIR=$RUN_DIR/counters
 CMD_DIR=$RUN_DIR/command_files
 THREAD_DIR=$RUN_DIR/thread_pages
+PATCHES=$RUN_DIR/patches
 mkdir -p $LOG_DIR
 mkdir -p $CNT_DIR
 mkdir -p $CMD_DIR
 mkdir -p $THREAD_DIR
+mkdir -p $PATCHES
+
 NODE_NAME=$APP_NAME
 PIPE_DIR=$RUN_DIR/pipes
 mkdir -p $PIPE_DIR
@@ -58,7 +61,8 @@ if [ $? != 0 ] ; then
     which $REBAR
     if [ $? != 0 ] ; then
         echo -n "You need to download $REBAR from http://www.rebar3.org/ and "
-        echo "make it available in your \$PATH before running this start script."
+        echo -n "make it available in your \$PATH before running this start "
+        echo "script."
     else
         echo "==========>> Please, fix the compilation errors!!"
     fi
@@ -78,9 +82,9 @@ cd $RUN_DIR
 export RUN_ERL_LOG_MAXSIZE=1000000
 export RUN_ERL_LOG_GENERATIONS=20
 
-run_erl -daemon $PIPE $LOG_DIR "exec erl -pa $ERLPATH -h_srv_root $SERVER_ROOT \
--h_doc_root $DOC_ROOT -h_log_root $LOG_ROOT -repo_dir $REPO_DIR \
--sname $NODE_NAME -s mafia"
+run_erl -daemon $PIPE $LOG_DIR "exec erl -pa $ERLPATH $PATCHES \
+-h_srv_root $SERVER_ROOT -h_doc_root $DOC_ROOT -h_log_root $LOG_ROOT \
+-repo_dir $REPO_DIR -sname $NODE_NAME -s mafia"
 
 echo "Connect to system with:"
 echo "to_erl $PIPE"

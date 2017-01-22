@@ -776,7 +776,7 @@ pr_thread_links(PP, DoDispTime2DL) ->
             Links = string:join( Links0 ++ [LastLink], " "),
             ["<tr><td align=center>Messages for this phase: ", Links,
              "</td></tr>"];
-        Other ->
+        _Other ->
             []
     end.
 

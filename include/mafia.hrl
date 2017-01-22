@@ -112,8 +112,8 @@
 -define(UrlEnd, "#threadPager").
 
 -define(Unvote, "Unvote").
--define(END, "End").
--define(UNEND, "Unend").
+-define(END, "END").
+-define(UNEND, "UNEND").
 -define(NoLynch, "No-Lynch").
 -define(Extra, [?END, ?UNEND, ?NoLynch]).
 -define(M24_GMs, ["DemonRHK", "MoscowFleet"]).

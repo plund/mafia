@@ -376,16 +376,6 @@ stop_web(State) ->
             State
     end.
 
-%% must create dirs first.
-%% mkdir -p /Users/peter/httpd/mafia.peterlund.se/html
-maybe_create_dir(Dir) ->
-    case file:read_file_info(Dir) of
-        {error,enoent} ->
-            os:cmd("mkdir -p " ++ Dir),
-            io:format("Created ~s\n", [Dir]);
-        _ -> ok
-    end.
-
 -spec maybe_change_timer(#state{}) -> {Reply::term(), #state{}}.
 maybe_change_timer(S = #state{timer = TRef,
                               timer_minutes = TMins,

@@ -1,7 +1,6 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% - Present replacements in current status list
 %% - implement the rough idea on how and when to present deadlines (top of print_votes())
 %% - Use new DL calc and remove old calculation NEW: "get_some_extra_dls"
 %% - split mafia_print. stats and tracker into separate modules?
@@ -380,7 +379,7 @@ end_game(MsgId) ->
                        msg_id = MsgId,
                        mfa = {mafia, end_game, [MsgId]}},
             ?man(Time, Cmd),
-            Reply = mafia_file:manual_cmd_to_file(ThId, Cmd),
+            mafia_file:manual_cmd_to_file(ThId, Cmd),
             {Reply, _G2} = mafia_time:end_game(M, G),
             Reply;
         {?error, _} = E -> E

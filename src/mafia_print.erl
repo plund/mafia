@@ -784,7 +784,7 @@ print_past_dls(DLs, Title) ->
       || {Nstr, DoNStr, {Days, {HH, MM, _}}, TimeStr} <- DLs]].
 
 
-pr_thread_links(PP, DoDispTime2DL) when PP#pp.phase == ?game_ended ->
+pr_thread_links(PP, _DoDispTime2DL) when PP#pp.phase == ?game_ended ->
     Link = "<a href=\"/e/web/msgs?part=end\">Game End</a>",
     ["<tr><td align=center>Messages for this phase: ", Link,
      "</td></tr>"];
@@ -1550,10 +1550,10 @@ read_msgs(MsgIds) -> [hd(?rmess(MsgId)) || MsgId <- MsgIds].
 
 cmp_time(A, B) -> time(A) =< time(B).
 
-time({_,_,Time}) -> Time;
+time({{_,_}, Time}) -> Time;
 time(#message{time = Time}) -> Time.
 
-print_dl_div_line(DL = {_Num, _DorN, _}, Txt) ->
+print_dl_div_line(DL = {{_Num, _DorN}, _}, Txt) ->
     print_dl_div_line(?dl2phase(DL), Txt);
 print_dl_div_line(Phase, Txt) ->
     print_dl_div_lineI(print_phase(Phase), Txt).

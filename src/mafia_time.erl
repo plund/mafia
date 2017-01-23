@@ -367,7 +367,7 @@ end_game(M, G) when G#mafia_game.game_end == ?undefined ->
 
     %% remove all DLs after EndTime
     DLs2 = lists:foldr(
-             fun(DL = {_, _, DlTime}, Acc)
+             fun(DL = {{_, _}, DlTime}, Acc)
                    when DlTime < EndTime -> [DL | Acc];
                 (_, Acc) -> Acc
              end,

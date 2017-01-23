@@ -59,7 +59,8 @@ check_cmds_votes(S, M, G = #mafia_game{}) ->
        true ->
             case player_type(M, G) of
                 ?gm ->
-                    check_for_game_unend(S, M, G);
+                    G2 = check_for_deaths(S, M, G),
+                    check_for_game_unend(S, M, G2);
                 _ -> ignore
             end
     end,
@@ -515,7 +516,8 @@ repl_user(OldUB, NewUB, Users) ->
 
 check_for_game_end(S, M, G) ->
     case string:str(S#regex.msg_text_upper, "GAME") of
-        0 -> G;
+        0 ->
+            G;
         _ ->
             case find_game_end(S) of
                 nomatch ->
@@ -527,7 +529,8 @@ check_for_game_end(S, M, G) ->
     end.
 
 regex_game_end() ->
-    Reg = "^((.|\\s)*\\s)?GAME +((HAS +)?ENDED|IS +OVER)(\\s(.|\\s)*)?$",
+    Reg = "(^|\\W)GAME +((HAS +)?ENDED|IS +OVER)(\\W|$)",
+    %% Reg = "^((.|\\s)*\\s)?GAME +((HAS +)?ENDED|IS +OVER)(\\s(.|\\s)*)?$",
     element(2, re:compile(Reg)).
 
 find_game_end(#regex{msg_text_upper = MsgTextU, game_end = RE}) ->

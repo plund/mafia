@@ -784,6 +784,10 @@ print_past_dls(DLs, Title) ->
       || {Nstr, DoNStr, {Days, {HH, MM, _}}, TimeStr} <- DLs]].
 
 
+pr_thread_links(PP, DoDispTime2DL) when PP#pp.phase == ?game_ended ->
+    Link = "<a href=\"/e/web/msgs?part=end\">Game End</a>",
+    ["<tr><td align=center>Messages for this phase: ", Link,
+     "</td></tr>"];
 pr_thread_links(PP, DoDispTime2DL) ->
     %% Day4(p98-) p103-, p108-, p113-, p118-, p123-, p128-, last(p130)
     StartTime = mafia_time:get_time_for_prev_phase(PP#pp.game, PP#pp.phase),

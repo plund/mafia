@@ -307,7 +307,7 @@ print_votesI(PPin) ->
                  "</td></tr>\r\n"]
         end,
 
-    %% Part - Display time Left to Deadline or display game end message
+    %% Part - Display time Left to Deadline or display End of Game message
     DoDispTime2DL = PhaseType /= ?game_ended andalso is_integer(PP#pp.use_time),
     HDeadLine =
         if PP#pp.mode == ?text ->
@@ -350,7 +350,7 @@ print_votesI(PPin) ->
                          " and the time was ",
                          print_time(EndTime, TzH, Dst, ?extensive),
                          "</td></tr>",
-                         "<tr><td><table cellpadding=6 cellspacing=3>",
+                         "<tr><td align=center><table cellpadding=6 cellspacing=3>",
                          GmMessage, "</table></td></tr>"];
                    true ->
                         []
@@ -402,15 +402,25 @@ print_votesI(PPin) ->
                     -- [User || {User, _} <- InvalidVotes],
                 NonVoted = RealRemPlayers -- ValidVoters,
                 NoVoteTitle = if NonVoted == [] -> "Non-votes: -";
-                                 true -> "Non-votes: "
+                                 true -> "Non-votes"
                               end,
                 NVRows = split_into_groups(?NumColsInGrp, NonVoted),
                 if PP#pp.mode == ?text ->
-                        NVStr = object_rows_text(NVRows, fun(U) -> ?b2l(U) end),
-                        io:format(
-                          PP#pp.dev,
-                          "\n~s\n~s\n~s\n",
-                          [NoVoteTitle, ul($-, NoVoteTitle), NVStr]);
+                        if NonVoted == [] ->
+                                io:format(PP#pp.dev,
+                                          "\n~s\n",
+                                          [NoVoteTitle]);
+                           true ->
+                                NVStr =
+                                    object_rows_text(
+                                      NVRows,
+                                      fun(U) -> ?b2l(U) end),
+                                io:format(PP#pp.dev,
+                                          "\n~s\n~s\n~s",
+                                          [NoVoteTitle,
+                                           ul($-, NoVoteTitle),
+                                           NVStr])
+                        end;
                    PP#pp.mode == ?html ->
                         ["<tr><td><table align=center><tr><th colspan=",
                          ?i2l(?NumColsInGrp), ">",
@@ -625,7 +635,11 @@ print_votesI(PPin) ->
     end,
 
     %% Part - Deadlines
-    HDeadlines = print_num_dls(PP, 4),
+    HDeadlines =
+        if DoDispTime2DL ->
+                print_num_dls(PP, 4);
+           true -> []
+        end,
 
     %% Part - Footer
     HFooter =
@@ -1132,18 +1146,22 @@ do_print_stats(PP, PrStats) ->
     HtmlStats = ["<br><table align=center ", ?TURQUOISE, ">",
                  Html2, "</table>"],
     NonPostTitle =
-        case NonPosters of
-            [] -> "Non-posters: -";
-            _ -> "Non-posters: "
+        if NonPosters == [] -> "Non-posters: -";
+           true -> "Non-posters"
         end,
     NPRows = split_into_groups(?NumColsInGrp, NonPosters),
     if PP#pp.mode == ?text ->
             NPStr = object_rows_text(NPRows, fun(U) -> ?b2l(U) end),
-            io:format(PP#pp.dev,
-                      "\n~s\n~s\n~s\n",
-                      [NonPostTitle, ul($-, NonPostTitle),
-                       NPStr %%string:join(NonPosters, ", ")
-                      ]),
+            if NonPosters == [] ->
+                    io:format(PP#pp.dev,
+                              "\n~s\n",
+                              [NonPostTitle]);
+               true ->
+                    io:format(PP#pp.dev,
+                              "\n~s\n~s\n~s",
+                              [NonPostTitle, ul($-, NonPostTitle),
+                               NPStr])
+            end,
             [[], []];
        PP#pp.mode == ?html ->
             HtmlNonPosters =

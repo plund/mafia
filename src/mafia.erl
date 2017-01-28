@@ -14,15 +14,8 @@
 
 %% interface
 -export([
-         help/0,
-
-         start_/0,
-         stop_/0,
          start/0,
          stop/0,
-         stop_polling/0,
-         start_polling/0,
-         state/0,
 
          game_start/2,
          end_phase/1,
@@ -38,9 +31,6 @@
          kill_player/3,
          set_death_comment/3, %% deprecated
 
-         pp/0, pp/1, pp/2,
-         pps/0, pps/1, pps/2,
-         pm/1,
          print_votes/0,
          print_votes/1,
          print_votes/2,
@@ -63,23 +53,16 @@
          remove_alias/2,
 
          setup_mnesia/0,
-         remove_mnesia/0,
-         set/2,
-         getv/1
+         remove_mnesia/0
         ]).
 
 %% libary
 -export([pages_for_thread/1,
-         last_msg_in_thread/1,
-         rmess/1,
-         rpage/2,
-         rday/2,
-         rgame/1
+         last_msg_in_thread/1
         ]).
 
 %% utilities
 -export([verify_users/1,
-         grep/1, grep/2,
          l/0,
 
          print_all_cnts/0,
@@ -92,90 +75,12 @@
 -export([cmp_vote_raw/0
         ]).
 
--define(HELP,
-"MAFIA HELP
-==========
-General
--------
-In the thread_pages directory you find raw downloaded source thread pages,"
-" which can be reread in case
-the message table is cleared.
-In the command_files directory you find manual commands issued that are rerun"
-" when running refresh_votes.
-
-Erlang shell commands
----------------------
-mafia:l()              - load all beams found in src dir. Run "
-"./make in a unix shell first.
-mafia:start()          - start the gen_server and the http server
-mafia:stop()           - stop the gen_server and the http server
-mafia:stop_polling()   - Stop regular polling of source
-mafia:start_polling()  - Start regular polling of source
-mafia:state()          - Get gen_server state.
-
-mafia:game_start(GName, ThId) - Creates game and defines ThId for game
-mafia:switch_to_game(GN) - GN = m25 | thread_id()
-mafia:refresh_votes()  - Clear mafia_day and mafia_game and reread all"
-" messages.
-mafia:refresh_votes({upto, PageNum}) - clear data and reread messages upto and
-         including the page given.
-mafia:refresh_votes(hard) - reinitialize also the mafia_game record.
-
-mafia:pps()          - Display last message page in current game
-mafia:pps(Page)      - Display message page in current game
-mafia:pps(Game,Page) - Display message page in game
-mafia:pm(MsgId)      - Display one complete message
-mafia:print_votes()  - Current status
-
-mafia_time:show_time_offset()   - Display offset
-mafia_time:set_time_offset(Off) - Change the time offset
-         do a refresh_votes() after changing offset
-         Offset = Secs | {msg_id, MsgId} | {days_hours, Days, Hours})
-
-mafia:show_all_users()          - List primary keys in User DB
-mafia:show_all_users(Search)    - List primary keys matching Search
-mafia:show_all_aliases()        - Display all defined
-mafia:show_aliases(Search)      - User search string.
-mafia:add_alias(User, Alias)    - Add one alias
-mafia:remove_alias(User, Alias) - Remove one alias
-
-Manual Commands
----------------
-mafia:end_phase(MsgId)   - Ends current phase.
-mafia:unend_phase(MsgId) - Remove early end of this last phase
-mafia:move_next_deadline(MsgId, Dir, Time) - Moves next deadline
-         earlier or later. A deadline can not be moved into the past.
-         Dir = later | earlier
-         Time = H | {H, M}
-mafia:end_game(MsgId)   - Ends the game with the given msg_id
-mafia:unend_game(MsgId) - Unend game
-mafia:kill_player(MsgId, Player, Comment) - Kill a player
-mafia:replace_player(MsgId, OldPlayer, NewPlayer) - NEEDS IMPL! New is
-         replacing old in game. Exact names! Both must exist in user DB.
-").
-
-help() ->
-    io:format("~s", [?HELP]).
-
 %% =============================================================================
 %% EXPORTED FUNCTIONS
 %% =============================================================================
 start() -> application:start(mafia).
 stop() -> application:stop(mafia).
-start_() -> setup_mnesia(), mafia_web:start().
-stop_() -> mafia_web:stop().
 
-stop_polling() -> mafia_web:stop_polling().
-start_polling() -> mafia_web:start_polling().
-state() -> mafia_web:get_state().
-
-pm(MsgId) -> mafia_print:pm(MsgId).
-pp() -> mafia_print:pp().
-pp(Page) -> mafia_print:pp(Page).
-pp(ThId, Page) -> mafia_print:pp(ThId, Page).
-pps() -> mafia_print:pps().
-pps(Page) -> mafia_print:pps(Page).
-pps(ThId, Page) -> mafia_print:pps(ThId, Page).
 print_votes() -> mafia_print:print_votes().
 print_votes(DayNum) -> mafia_print:print_votes(DayNum).
 print_votes(DayNum, DoN) -> mafia_print:print_votes(DayNum, DoN).
@@ -188,8 +93,6 @@ rm_thread(ThNameOrId) -> mafia_db:rm_thread(ThNameOrId).
 
 setup_mnesia() -> mafia_db:setup_mnesia().
 remove_mnesia() -> mafia_db:remove_mnesia().
-set(K, V) -> mafia_db:set(K, V).
-getv(K) -> mafia_db:getv(K).
 
 refresh_votes() ->
     %% fprof:trace(start),
@@ -208,18 +111,6 @@ refresh_votes(P) ->
     mafia_data:refresh_votes(P),
     %% fprof:trace(stop),
     ok.
-
-grep(Str) -> mafia_data:grep(Str).
-grep(Str, Mode) -> mafia_data:grep(Str, Mode).
-
-rmess(MsgId) -> ?rmess(MsgId).
-rpage(ThId, Page) -> ?rpage(ThId, Page).
-
-rday(ThId, DayNum) -> ?rday(ThId, DayNum).
-
-rgame(?game_key = K) -> ?rgame(?getv(K));
-rgame(?thread_id = K) -> ?rgame(?getv(K));
-rgame(Id) -> ?rgame(?thid(Id)).
 
 verify_users(m26) ->
     [mafia_vote:print_verify_user(U)
@@ -718,7 +609,7 @@ rm_sim_gm_message(Page, SimMsgId) ->
 cmp_vote_raw() ->
     ThId = ?getv(?thread_id),
     DayNum = 1,
-    case rday(ThId, DayNum) of
+    case ?rday(ThId, DayNum) of
         [] ->
             ignore;
         [#mafia_day{votes = GVotes}] ->

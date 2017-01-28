@@ -25,7 +25,6 @@
          stop_httpd/1,
 
          get_state/0,
-         regenerate_history/1,  % used to print txt files when refresh_votes
          regenerate_history/2,
          update_current/0
         ]).
@@ -125,19 +124,16 @@ set_interval_minutes(N) when is_integer(N)  ->
     gen_server:call(?SERVER, {set_timer_interval, N}).
 
 %% rewrite one history txt file
-regenerate_history(Time, DL) when ?IS_DL(DL) ->
-    Phase = ?dl2phase(DL),
-    ?dbg(Time, {"REGENERATE_HISTORY", Phase}),
+regenerate_history(Time, DL = #dl{}) ->
+    %% Phase = ?dl2phase(DL),
+    Phase = DL#dl.phase,
+    ?dbg(Time, {"regen hist", Phase}),
     regenerate_historyI(Phase);
-regenerate_history(Time, Phase) when ?IS_PHASE(Phase) ->
-    ?dbg(Time, {"REGENERATE_HISTORY", Phase}),
+regenerate_history(Time, Phase = #phase{}) ->
+    ?dbg(Time, {"regen hist time/phase", Phase}),
     regenerate_historyI(Phase).
 
-regenerate_history(Phase) when ?IS_PHASE(Phase) ->
-    ?dbg({"REGENERATE_HISTORY", Phase}),
-    regenerate_historyI(Phase).
-
-regenerate_historyI(Phase) ->
+regenerate_historyI(Phase = #phase{}) ->
     gen_server:cast(?SERVER, {regenerate_history, Phase}).
 
 update_current() ->
@@ -225,15 +221,16 @@ handle_call(_Request, _From, State) ->
 %%--------------------------------------------------------------------
 
 %% rewrite one history txt file
-handle_cast(Ev = {regenerate_history, {DNum, DoN}}, State) ->
+handle_cast(Ev = {regenerate_history, Phase = #phase{}}, State) ->
     timer:sleep(300),
     case ?rgame(State#state.game_key) of
         [] -> ok;
         [G] ->
-            FileName = mafia_file:game_phase_full_fn(G, {DNum, DoN}),
+            ?dbg({"DO REGENERATE_HISTORY", Phase}),
+            FileName = mafia_file:game_phase_full_fn(G, Phase),
             {ok, Fd} = file:open(FileName, [write]),
             mafia_print:print_votes([{?game_key, State#state.game_key},
-                                     {?phase, {DNum, DoN}},
+                                     {?phase, Phase},
                                      {?dev, Fd}]),
             file:close(Fd),
             flush({'$gen_cast', Ev})
@@ -300,7 +297,7 @@ update_current(GameKey, Minutes) ->
 
 update_currentI(GameKey, UpdateOpts) ->
     FileName = mafia_file:game_phase_full_fn(
-                 GameKey, ?game_ended),
+                 GameKey, ?current),
     {ok, Fd} = file:open(FileName, [write]),
     Phase = mafia_time:calculate_phase(GameKey),
     mafia_print:print_votes([{?game_key, GameKey},

@@ -51,10 +51,6 @@ msgs(Sid, _Env, In) ->
                 Msg = ?b2l(MsgB),
                 B2U = fun(B) -> string:to_upper(binary_to_list(B)) end,
                 MsgUserU = B2U(MsgUserB),
-                PhLE = fun(?game_ended, {_, _}) -> false;
-                          (_, ?game_ended) -> true;
-                          (A, B) -> A =< B
-                       end,
                 TestFuns =
                     [
                      %% 1. Test if any of Users in form matches MsgUser
@@ -87,23 +83,25 @@ msgs(Sid, _Env, In) ->
                         () ->
                              case DayCond of
                                  ?game_ended ->
-                                     MsgPhase == ?game_ended;
+                                     MsgPhase#phase.don == ?game_ended;
                                  {Ua, Na, Ub, Nb} ->
                                      IsAok =
                                          case {Ua, Na} of
                                              {_, ?undefined} -> true;
                                              {page, _} -> Page >= Na;
                                              _ ->
-                                                 SPhaseA = {Na, Ua},
-                                                 PhLE(SPhaseA, MsgPhase)
+                                                 SPhaseA = #phase{num = Na,
+                                                                  don = Ua},
+                                                 SPhaseA =< MsgPhase
                                          end,
                                      IsBok =
                                          case {Ub, Nb} of
                                              {_, ?undefined} -> true;
                                              {page, _} -> Page =< Nb;
                                              _ ->
-                                                 SPhaseB = {Nb, Ub},
-                                                 PhLE(MsgPhase, SPhaseB)
+                                                 SPhaseB = #phase{num = Nb,
+                                                                  don = Ub},
+                                                 MsgPhase =< SPhaseB
                                          end,
                                      IsAok and IsBok
                              end
@@ -126,11 +124,15 @@ msgs(Sid, _Env, In) ->
                                          DS1 ++ DS2
                                  end,
                         SizeDiv = deliver_div(Sid, DivStr),
-                        DayStr = case MsgPhase of
-                                     {DNum, ?day} -> "Day-" ++ ?i2l(DNum);
-                                     {DNum, ?night} -> "Night-" ++ ?i2l(DNum);
-                                     ?game_ended -> "Game End "
-                                 end,
+                        DayStr =
+                            case MsgPhase of
+                                #phase{num = DNum, don = ?day} ->
+                                    "Day-" ++ ?i2l(DNum);
+                                #phase{num = DNum, don = ?night} ->
+                                    "Night-" ++ ?i2l(DNum);
+                                #phase{don = ?game_ended} ->
+                                    "Game End "
+                            end,
                         MsgBoldMarked = bold_mark_words(Msg, WordsU),
                         Hash = erlang:phash2(MsgUserB, 16#1000000),
                         Color = Hash bor 16#C0C0C0,
@@ -397,12 +399,12 @@ game_status(Sid, _Env, In) ->
     {A, Html} =
         case get_phase(In) of
             {current, Phase} ->
-                Title = ["Game Status ",mafia_print:print_phase(Phase)],
+                Title = ["Game Status ", mafia_print:print_phase(Phase)],
                 A0 = del_start(Sid, Title, 0),
                 Html0 = game_status_out(current, Phase),
                 {A0, Html0};
             {ok, Phase} ->
-                Title = ["History ",mafia_print:print_phase(Phase)],
+                Title = ["History ", mafia_print:print_phase(Phase)],
                 A0 = del_start(Sid, Title, 0),
                 Html0 = game_status_out(ok, Phase),
                 {A0, Html0};
@@ -489,19 +491,19 @@ gs_phase(_, _, {"debug", ""}) ->
     end;
 gs_phase({"phase", "end"},
             _, _) ->
-    {ok, ?game_ended};
+    {ok, #phase{don = ?game_ended}};
 gs_phase({"phase", "day"},
             {"num", Str},
             _) ->
     case conv_to_num(Str) of
-        {ok, Num} -> {ok, {Num, ?day}};
+        {ok, Num} -> {ok, #phase{num = Num, don = ?day}};
         {error, _HtmlErr} = E -> E
     end;
 gs_phase({"phase", "night"},
             {"num", Str},
             _) ->
     case conv_to_num(Str) of
-        {ok, Num} -> {ok, {Num, ?night}};
+        {ok, Num} -> {ok, #phase{num = Num, don = ?night}};
         {error, _HtmlErr} = E -> E
     end;
 gs_phase(_, _, _) ->
@@ -634,17 +636,17 @@ stats2({"phase", "total"},
     {ok, ?total_stats};
 stats2({"phase", "end"},
        _) ->
-    {ok, ?game_ended};
+    {ok, #phase{don = ?game_ended}};
 stats2({"phase", "day"},
        {"num", Str}) ->
     case conv_to_num(Str) of
-        {ok, Num} -> {ok, {Num, ?day}};
+        {ok, Num} -> {ok, #phase{num = Num, don = ?day}};
         {error, _HtmlErr} = E -> E
     end;
 stats2({"phase", "night"},
        {"num", Str}) ->
     case conv_to_num(Str) of
-        {ok, Num} -> {ok, {Num, ?night}};
+        {ok, Num} -> {ok, #phase{num = Num, don = ?night}};
         {error, _HtmlErr} = E -> E
     end;
 stats2(_, _) ->
@@ -734,11 +736,11 @@ show_msg(#message{user_name = MsgUserB,
     MsgPhase = mafia_time:calculate_phase(GameKey, Time),
     DayStr =
         case MsgPhase of
-            {DNum, ?day} ->
+            #phase{num = DNum, don = ?day} ->
                 "Day-" ++ ?i2l(DNum);
-            {DNum, ?night} ->
+            #phase{num = DNum, don = ?night} ->
                 "Night-" ++ ?i2l(DNum);
-            ?game_ended -> "Game End "
+            #phase{don = ?game_ended} -> "Game End "
         end,
     Color = mafia_lib:bgcolor(MsgUserB),
     {HH, MM} = mafia_time:hh_mm_to_deadline(GameKey, Time),

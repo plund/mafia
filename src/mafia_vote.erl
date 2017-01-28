@@ -242,7 +242,7 @@ replace(MatchF, List, NewR) ->
     [case MatchF(E) of true -> NewR; false -> E end || E <- List].
 
 -spec is_end_of_phase(M :: #message{}, G :: #mafia_game{})
-                     -> {IsEnd :: boolean(), phase()}.
+                     -> {IsEnd :: boolean(), #phase{}}.
 is_end_of_phase(M, G) ->
     TimeMsg = M#message.time,
     PhaseMsg = mafia_time:calculate_phase(G, TimeMsg),
@@ -255,8 +255,8 @@ is_end_of_phase(M, G) ->
 %% will have too many remaining players
 update_day_rec(_M, G, Death) ->
     case Death#death.phase of
-        {DayNum, ?day} ->
-            [D] = ?rday(G, DayNum),
+        Phase = #phase{don = ?day} ->
+            [D] = ?rday(G, Phase),
             NewDeaths = add_death(Death, D),
             NewRems = D#mafia_day.players_rem -- [Death#death.player],
             mnesia:dirty_write(
@@ -279,10 +279,10 @@ check_for_early_end(#regex{msg_text_upper = MsgText}, Time, G) ->
         {?error, _} -> G;
         {ok, DoN} ->
             case mafia_time:calculate_phase(G, Time) of
-                ?game_ended ->
+                #phase{don = ?game_ended} ->
                     ?dbg(Time, "GM early end command for game that has ended"),
                     G;
-                {_, DoN} = Phase ->
+                #phase{don = DoN} = Phase ->
                     mafia_time:end_phase(G, Phase, Time);
                 _ ->
                     ?dbg(Time,
@@ -473,8 +473,8 @@ replace3(G, M, NewPlayer, Old, []) ->
 replace3(G, M, _NewPlayer, Old, [New]) ->
     %% replace ALSO in #mafia_day.players_rem
     case mafia_time:calculate_phase(G#mafia_game.key, M#message.time) of
-        {DayNum, _DoN} = Phase ->
-            case ?rday(G#mafia_game.key, DayNum) of
+        #phase{} = Phase ->
+            case ?rday(G#mafia_game.key, Phase) of
                 [D] ->
                     NewP = New#user.name,
                     OldP = Old#user.name,
@@ -817,7 +817,7 @@ reg_vote(M, G, Vote, RawVote, IsOkVote) ->
 vote2(M, G, Vote, RawVote, IsOkVote) ->
     %% find mafia_day
     case mafia_time:calculate_phase(G, M#message.time) of
-        {DayNum, ?day} ->
+        Phase = #phase{don =?day} ->
             io:format(
               "~s Register Vote: ~s votes ~p ~s\n",
               [mafia_print:print_time(M#message.time, short),
@@ -831,7 +831,7 @@ vote2(M, G, Vote, RawVote, IsOkVote) ->
                             raw = RawVote,
                             valid = IsOkVote
                            },
-            Day = hd(?rday(M#message.thread_id, DayNum)),
+            Day = hd(?rday(M#message.thread_id, Phase)),
             Votes = Day#mafia_day.votes,
             Votes2 = case lists:keyfind(User, 1, Votes) of
                          false ->
@@ -851,8 +851,8 @@ vote2(M, G, Vote, RawVote, IsOkVote) ->
 
 reg_end_vote(Op, M) ->
     case mafia_time:calculate_phase(M#message.thread_id, M#message.time) of
-        {DayNum, ?day} ->
-            case ?rday(M#message.thread_id, DayNum) of
+        Phase = #phase{don = ?day} ->
+            case ?rday(M#message.thread_id, Phase) of
                 [Day] ->
                     User = M#message.user_name,
                     OldEndVotes = Day#mafia_day.end_votes,

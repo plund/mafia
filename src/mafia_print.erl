@@ -42,7 +42,7 @@
              players_rem :: [player()],  %% for vote-coutn, non-votes, non-posts
              players_vote :: [player()],  %% for vote tracker
              game_key :: thread_id(),
-             phase  :: phase(),
+             phase  :: #phase{} | ?total_stats,
              day_num :: integer(),
              message :: #message{},
              msg_id :: msg_id(),
@@ -60,7 +60,8 @@
             }).
 
 po(P, [{?game_key, K} | T]) -> po(P#pp{game_key = K}, T);
-po(P, [{?phase, Ph} | T]) -> po(P#pp{phase = Ph}, T);
+po(P, [{?phase, Ph = #phase{}} | T]) -> po(P#pp{phase = Ph}, T);
+po(P, [{?phase, Ph = ?total_stats} | T]) -> po(P#pp{phase = Ph}, T);
 po(P, [{?dev, Fd} | T]) -> po(P#pp{dev = Fd}, T);
 po(P, [{?mode, M} | T]) -> po(P#pp{mode = M}, T);
 po(P, [{?t_mode, M} | T]) -> po(P#pp{t_mode = M}, T);
@@ -234,7 +235,7 @@ print_votes() ->
 %% /2 human
 print_votes(DayNum, DoN) ->
     DoN2 = don_arg(DoN),
-    print_votes([{?phase, {DayNum, DoN2}}]).
+    print_votes([{?phase, #phase{num = DayNum, don = DoN2}}]).
 
 %% /1 generic
 print_votes(Opts) ->
@@ -249,8 +250,8 @@ print_votesI(PPin) ->
     PP = setup_pp(PPin),
     #pp{game = G, day = Day} = PP,
     PhaseType = case PP#pp.phase of
-                    ?game_ended -> ?game_ended;
-                    _ -> element(2, PP#pp.phase)
+                    #phase{don = ?game_ended} -> ?game_ended;
+                    #phase{don = DoN} -> DoN
                 end,
     Day = PP#pp.day,
     RealRemPlayers = PP#pp.players_rem,
@@ -276,7 +277,7 @@ print_votesI(PPin) ->
                                       " and "),
                           ?BotUrl]);
            PP#pp.mode == ?html ->
-                LinkPhase = if is_integer(PP#pp.use_time) -> ?game_ended;
+                LinkPhase = if is_integer(PP#pp.use_time) -> ?current;
                                true -> PP#pp.phase
                             end,
                 ModMsgV = ?getv(?mod_msg),
@@ -317,7 +318,7 @@ print_votesI(PPin) ->
                         {EndTime, EndMsgId} = G#mafia_game.game_end,
                         {TzH, Dst} = mafia_time:get_tz_dst(G, EndTime),
                         LastPhase =
-                            print_phase(?dl2phase(hd(G#mafia_game.deadlines))),
+                            print_phase((hd(G#mafia_game.deadlines))#dl.phase),
                         io:format(
                           PP#pp.dev,
                           "\n"
@@ -342,7 +343,7 @@ print_votesI(PPin) ->
                         {EndTime, EndMsgId} = G#mafia_game.game_end,
                         {TzH, Dst} = mafia_time:get_tz_dst(G, EndTime),
                         LastPhase =
-                            print_phase(?dl2phase(hd(G#mafia_game.deadlines))),
+                            print_phase((hd(G#mafia_game.deadlines))#dl.phase),
                         GmMessage = web_impl:show_msg(EndMsgId),
                         ["<tr><td align=center>",
                          "The GAME HAS ENDED in phase ",
@@ -436,7 +437,7 @@ print_votesI(PPin) ->
         [D#death.player
          || D = #death{phase = Ph, is_deleted = false}
                 <- G#mafia_game.player_deaths,
-            if PP#pp.phase == ?game_ended -> true;
+            if (PP#pp.phase)#phase.don == ?game_ended -> true;
                true -> Ph =< PP#pp.phase
             end],
     %% split up remaining players into groups of ?NumColsInGrp (10)
@@ -509,7 +510,7 @@ print_votesI(PPin) ->
         end,
 
     %% Part - Posting stats
-    PPstat = if PP#pp.phase == ?game_ended ->
+    PPstat = if (PP#pp.phase)#phase.don == ?game_ended ->
                      PP#pp{phase = ?total_stats};
                 true -> PP
              end,
@@ -518,7 +519,7 @@ print_votesI(PPin) ->
     %% Part - Dead players
     DoReport =
         fun(DPhase) ->
-                if PP#pp.phase == ?game_ended -> true;
+                if (PP#pp.phase)#phase.don == ?game_ended -> true;
                    PP#pp.use_time == ?undefined -> DPhase == PP#pp.phase;
                    true -> DPhase =< PP#pp.phase
                 end
@@ -742,7 +743,7 @@ print_num_dls(PP, Num) ->
     G = PP#pp.game,
     DLs = mafia_time:next_deadlines(G, Time, Num),
     {PastDLs, ComingDLs} =
-        lists:partition(fun(DL) -> ?dl2time(DL) < Time end, DLs),
+        lists:partition(fun(DL) -> DL#dl.time < Time end, DLs),
     Past2 = prep_dl_info(G, Time, PastDLs),
     Coming2 = prep_dl_info(G, Time, ComingDLs),
     if PP#pp.mode == ?text ->
@@ -798,7 +799,8 @@ print_past_dls(DLs, Title) ->
       || {Nstr, DoNStr, {Days, {HH, MM, _}}, TimeStr} <- DLs]].
 
 
-pr_thread_links(PP, _DoDispTime2DL) when PP#pp.phase == ?game_ended ->
+pr_thread_links(PP, _DoDispTime2DL)
+  when (PP#pp.phase)#phase.don == ?game_ended ->
     Link = "<a href=\"/e/web/msgs?part=end\">Game End</a>",
     ["<tr><td align=center>Messages for this phase: ", Link,
      "</td></tr>"];
@@ -842,7 +844,6 @@ pr_thread_links(PP, DoDispTime2DL) ->
                         ["<a href=\"", UrlPart, LastPs, "\">Last&More</a>"];
                    not DoDispTime2DL ->
                         [" or <a href=\"", UrlPart, Pages(StartPage, EndPage),
-                         %% "/e/web/msgs?", phase_args(game, PP#pp.phase),
                          "\">complete ", print_phase(PP#pp.phase), "</a>"]
                 end,
             Links = string:join( Links0 ++ [LastLink], " "),
@@ -959,30 +960,32 @@ user_vote(UserVotes) ->
     end.
 
 
-pr_eodon(true, Phase) -> pr_eodon(Phase);
-pr_eodon(false, {Num, DoN}) -> pr_don(DoN) ++ " " ++ ?i2l(Num).
+pr_eodon(true, Phase = #phase{}) ->
+    pr_eodon(Phase);
+pr_eodon(false, #phase{num = Num, don = DoN}) ->
+    pr_don(DoN) ++ " " ++ ?i2l(Num).
 
-pr_eodon({Num, ?day}) -> "EoD"++ ?i2l(Num);
-pr_eodon({Num, ?night}) -> "EoN"++ ?i2l(Num);
-pr_eodon(?game_ended) -> "at end of game".
+pr_eodon(#phase{num = Num, don = ?day}) -> "EoD"++ ?i2l(Num);
+pr_eodon(#phase{num = Num, don = ?night}) -> "EoN"++ ?i2l(Num);
+pr_eodon(#phase{don = ?game_ended}) -> "at end of game".
 
-pr_phase_long({Num, DoN}) -> pr_don(DoN) ++ " " ++ ?i2l(Num);
-pr_phase_long(?game_ended) -> "Game End";
+pr_phase_long(#phase{don = ?game_ended}) -> "Game End";
+pr_phase_long(#phase{num = Num, don = DoN}) -> pr_don(DoN) ++ " " ++ ?i2l(Num);
 pr_phase_long(?total_stats) -> "Game Global Statistics".
 
 %% Manual API
 print_stats() -> print_stats_opts([]).
 
-print_stats(e) -> print_stats_opts([{?phase, ?game_ended}]);
+print_stats(e) -> print_stats_opts([{?phase, #phase{don = ?game_ended}}]);
 print_stats(Opts) when is_list(Opts) -> print_stats_opts(Opts).
 
 print_stats(Num, DoN) ->
     DoN2 = don_arg(DoN),
-    print_stats_opts([{?phase, {Num, DoN2}}]).
+    print_stats_opts([{?phase, #phase{num = Num, don = DoN2}}]).
 
 print_stats_opts(Opts) ->
     DefOpts = [{?game_key, ?getv(?game_key)},
-               {?phase, {1, ?day}},
+               {?phase, #phase{num = 1, don = ?day}},
                {?dev, standard_io},
                {?sort, ?normal}],
     PP = po(#pp{}, DefOpts),
@@ -1007,7 +1010,7 @@ print_stats_match(PP) when PP#pp.phase == ?total_stats ->
     Result = '$_',
     MatchExpr = [{MatchHead, Guard, [Result]}],
     print_statsI(PP#pp{match_expr = MatchExpr});
-print_stats_match(PP) when PP#pp.phase == ?game_ended ->
+print_stats_match(PP) when (PP#pp.phase)#phase.don == ?game_ended ->
     %% END stats
     MatchHead = #stat{key = {'$1', '$2', '$3'}, _='_'},
     Guard = [{'==', '$2', PP#pp.game_key},
@@ -1017,7 +1020,7 @@ print_stats_match(PP) when PP#pp.phase == ?game_ended ->
     print_statsI(PP#pp{match_expr = MatchExpr});
 print_stats_match(PP) ->
     %% PHASE stats
-    {Day, DoN} = PP#pp.phase,
+    #phase{num = Day, don = DoN} = PP#pp.phase,
     MatchHead = #stat{key = {'$1', '$2', {'$3', '$4'}}, _='_'},
     Guard = [{'==', '$2', PP#pp.game_key},
              {'==', '$3', Day}, {'==', '$4', DoN}],
@@ -1088,7 +1091,7 @@ do_print_stats(PP, PrStats) ->
                            "Posts", " Words", "  Chars", "Word/P", "Player"]),
                 [];
            PP#pp.mode == ?html ->
-                ArgBeg = "stats?" ++ phase_args(stats, PP#pp.phase) ++ "&sort=",
+                ArgBeg = "stats?" ++ phase_args(PP#pp.phase) ++ "&sort=",
                 PostLn = ArgBeg ++ "normal",
                 WordLn = ArgBeg ++ "words",
                 WPostLn = ArgBeg ++ "words_per_post",
@@ -1173,16 +1176,9 @@ do_print_stats(PP, PrStats) ->
             [HtmlStats, HtmlNonPosters]
     end.
 
-phase_args(game, ?game_ended) -> "part=end";
-phase_args(game, {DNum, DoN}) ->
-    "part=" ++
-        if DoN == ?day -> "d";
-           DoN == ?night -> "n"
-        end ++
-        ?i2l(DNum);
-phase_args(stats, ?total_stats) -> "phase=total";
-phase_args(stats, ?game_ended) -> "phase=end";
-phase_args(stats, {DNum, DoN}) ->
+phase_args(?total_stats) -> "phase=total";
+phase_args(#phase{don = ?game_ended}) -> "phase=end";
+phase_args(#phase{don = DoN, num = DNum}) ->
     Ph = "phase=" ++ if DoN == ?day -> "day";
                         DoN == ?night -> "night"
                      end,
@@ -1244,7 +1240,7 @@ add_vote(Vote, Raw, Time, User, Acc) ->
 %% human
 web_vote_tracker(DayNum) ->
     GameKey = ?getv(?game_key),
-    Phase = {DayNum, ?day},
+    Phase = #phase{num = DayNum, don = ?day},
     PP = #pp{game_key = GameKey,
              day_num = DayNum,
              phase = Phase,
@@ -1260,7 +1256,7 @@ web_vote_tracker(PP, [Game], [Day]) ->
     print_tracker(PP3).
 
 print_tracker(PP) when PP#pp.day_num == ?undefined ->
-    print_tracker(PP#pp{day_num = element(1, PP#pp.phase)});
+    print_tracker(PP#pp{day_num = (PP#pp.phase)#phase.num});
 print_tracker(PP) ->
     %% player_deaths contains players dying in the middle of the day.
     AllPlayersB = PP#pp.players_vote,
@@ -1529,7 +1525,7 @@ print_page(ThId, MsgIds, PrintFun) ->
             TimeA = ?MsgTime((lists:last(MsgsPage))),
 
             %% Are more deadlines needed
-            TimeLDl = ?dl2time(hd(DLs)),
+            TimeLDl = (hd(DLs))#dl.time,
             DLs2 =
                 if TimeLDl < TimeA ->
                         ?lrev(
@@ -1539,8 +1535,8 @@ print_page(ThId, MsgIds, PrintFun) ->
                    end,
 
             DLsIn = [D || D <- DLs2,
-                          TimeB - 3 * ?MinuteSecs < ?dl2time(D),
-                          ?dl2time(D) < TimeA + 3 * ?MinuteSecs],
+                          TimeB - 3 * ?MinuteSecs < D#dl.time,
+                          D#dl.time < TimeA + 3 * ?MinuteSecs],
             MixedSort = lists:sort(fun cmp_time/2, MsgsPage ++ DLsIn),
             case hd(MixedSort) of
                 Msg = #message{} ->
@@ -1568,12 +1564,12 @@ read_msgs(MsgIds) -> [hd(?rmess(MsgId)) || MsgId <- MsgIds].
 
 cmp_time(A, B) -> time(A) =< time(B).
 
-time({{_,_}, Time}) -> Time;
+time(#dl{time = Time}) -> Time;
 time(#message{time = Time}) -> Time.
 
-print_dl_div_line(DL = {{_Num, _DorN}, _}, Txt) ->
-    print_dl_div_line(?dl2phase(DL), Txt);
-print_dl_div_line(Phase, Txt) ->
+print_dl_div_line(DL = #dl{}, Txt) ->
+    print_dl_div_line(DL#dl.phase, Txt);
+print_dl_div_line(Phase = #phase{}, Txt) ->
     print_dl_div_lineI(print_phase(Phase), Txt).
 
 print_dl_div_lineI(PhText, Txt) ->
@@ -1581,9 +1577,9 @@ print_dl_div_lineI(PhText, Txt) ->
               "--------------------------------\n",
               [Txt, PhText]).
 
-print_phase(?game_ended) ->
+print_phase(#phase{don = ?game_ended}) ->
     "Game has Ended";
-print_phase({Num, DoN}) ->
+print_phase(#phase{num = Num, don = DoN}) ->
     pr_don(DoN) ++ " " ++ ?i2l(Num).
 
 pr_don(?day) -> "Day";

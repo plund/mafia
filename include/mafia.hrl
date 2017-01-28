@@ -24,6 +24,7 @@
 -define(night, night).
 -define(phase, phase).
 -define(game_ended, game_ended).
+-define(current, current).
 -define(total_stats, total_stats).
 -define(global, global).
 -define(bytes, bytes).
@@ -78,16 +79,6 @@
 -define(timezone_game, timezone_game).
 -define(timezone_user, timezone_user).
 %% positive offset means that simulated time is in the past.
-
--define(IS_PHASE(Ph), (?game_ended == Ph orelse
-                       2 == tuple_size(Ph)
-                       andalso is_integer(element(1, Ph))
-                       andalso is_atom(element(2, Ph)))
-       ).
--define(IS_DL(DL), (2 == tuple_size(DL)
-                    andalso ?IS_PHASE(element(1, DL))
-                    andalso is_integer(element(2, DL)))
-       ).
 
 -define(SERVER, ?MODULE).
 -define(WEBPORT, 50666).
@@ -165,8 +156,6 @@
 -type seconds1970() :: integer().
 -type message() :: binary().
 -type day_night() :: ?day | ?night.
--type phase() :: ?game_ended | {integer(), day_night()}.
--type deadline() :: {phase(), seconds1970()}.
 
 %% simple macros
 -define(a2l(A), atom_to_list(A)).
@@ -189,10 +178,6 @@
 -define(inc_cnt(CntName), mafia_lib:inc_cnt(CntName)).
 -define(inc_cnt(CntName, Inc), mafia_lib:inc_cnt(CntName, Inc)).
 -define(inc_cnt(CntName, Args, Inc), mafia_lib:inc_cnt(CntName, Args, Inc)).
--define(dl2phase(DL), mafia_lib:dl2phase(DL)).
--define(dl2time(DL), mafia_lib:dl2time(DL)).
--define(set_dl_time(DL, Time), mafia_lib:set_dl_time(DL, Time)).
--define(phase_time2dl(Phase, Time), mafia_lib:phase_time2dl(Phase, Time)).
 -define(thid(Id), mafia_lib:thid(Id)).
 -define(set(K, V), mafia_db:set(K, V)).
 -define(getv(K), mafia_db:getv(K)).
@@ -263,6 +248,16 @@
          %% is_deleted = false :: boolean()  %% Delete marking
         }).
 
+-record(phase,
+        {num :: integer(),
+         don :: day_night() | ?game_ended
+        }).
+
+-record(dl,
+        {phase :: #phase{},
+         time :: seconds1970()
+        }).
+
 -record(vote,
         {time :: seconds1970(),
          id :: msg_id(),
@@ -275,7 +270,7 @@
 -record(death,
         {player :: player(),
          is_end :: boolean(),
-         phase :: phase(),
+         phase :: #phase{},
          comment :: binary(),
          msg_id :: msg_id(),
          time :: seconds1970(),
@@ -285,7 +280,7 @@
 -record(replacement,
         {new_player :: player(),
          replaced_player :: player(),
-         phase :: phase(),
+         phase :: #phase{},
          msg_id :: msg_id(),
          time :: seconds1970()
         }).
@@ -303,19 +298,19 @@
 -record(mafia_game,
         {key :: thread_id(),
          name :: binary(),
-         day_hours,    %% DayHours,   % 48
-         night_hours,  %% NightHours, % 24
-         time_zone,    %% (EST=-5, UK = 0, CET=1)
-         day1_dl_time, %% D1DeadLine, % Day 1 deadline in local time
-         is_init_dst,  %% IsInitDst,  % true = DST, false = normal time
-         dst_changes,  %% DstChanges  % [{date_time(), IsDst::boolean()}]
-         deadlines = [] :: [deadline()],
-         gms,          %% set_kv(mafia_GMs, ["DemonRHK", "MoscowFleet"]),
-         players_orig  :: [player()], %% set_kv(mafia_players, ?M24_players),
+         day_hours :: integer(),     %% Typically 48
+         night_hours :: integer(),   %% Typically 24
+         time_zone :: integer(),     %% (EST=-5, UK = 0, CET=1)
+         day1_dl_time :: datetime(), %% Game TZ local time
+         is_init_dst :: boolean(),   %% true = DST, false = normal time
+         dst_changes :: [{datetime(), ToDst::boolean()}],
+         deadlines = [] :: [#dl{}],
+         gms :: [user()],
+         players_orig  :: [player()],
          players_rem   :: [player()],
          game_num      :: integer(),
          player_deaths :: [#death{} | #replacement{}],
-         page_to_read, %% set_kv(page_to_read, 1),
+         page_to_read :: integer(), %% set_kv(page_to_read, 1),
          game_end :: ?undefined | {seconds1970(), msg_id()},
          last_msg_time
         }).
@@ -329,7 +324,9 @@
 
 -record(stat,
         {key :: {player(), ThId::integer()}
-              | {player(), ThId::integer(), phase()},
+              | {player(),
+                 ThId::integer(),
+                 ?game_ended | {integer(), day_night()}},
          msg_ids :: [msg_id()],
          num_chars :: integer(),
          num_words :: integer(),
@@ -338,7 +335,9 @@
 
 -record(prstat,
         {key :: {player(), ThId::integer()}
-              | {player(), ThId::integer(), phase()},
+              | {player(),
+                 ThId::integer(),
+                 ?game_ended | {integer(), day_night()}},
          msg_ids :: [msg_id()],
          num_chars :: integer(),
          num_words :: integer(),

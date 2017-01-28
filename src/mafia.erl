@@ -284,8 +284,8 @@ end_phase(MsgId) ->
             Time = M#message.time,
             ThId = M#message.thread_id,
             case mafia_time:calculate_phase(G, Time) of
-                ?game_ended -> {?error, ?game_ended};
-                Phase ->
+                #phase{don = ?game_ended} -> {?error, ?game_ended};
+                Phase = #phase{} ->
                     Cmd = #cmd{time = Time,
                                msg_id = MsgId,
                                mfa = {mafia, end_phase, [MsgId]}},

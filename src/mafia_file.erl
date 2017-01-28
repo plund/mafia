@@ -91,22 +91,23 @@ filename_timestamp_suffix() ->
 
 
 %% For ref to text version
-game_link_and_text(G, ?game_ended) ->
+game_link_and_text(G, ?current) ->
     %% move "current" to game dir
     {GameDir, _FilePrefix} = game_prefixes(G),
     Href = filename:join(["/", GameDir, ?CURRENT_GAME_FN]),
     Link = ?CURRENT_GAME_FN,
     {Href, Link};
-game_link_and_text(G, Phase) ->
+game_link_and_text(G, Phase = #phase{}) ->
     {GameDir, FilePrefix} = game_prefixes(G),
     PhaseFN = phase_fn(FilePrefix, Phase),
     Href = filename:join(["/", GameDir, PhaseFN]),
     Link = PhaseFN,
     {Href, Link}.
 
+-spec game_phase_full_fn(#mafia_game{}, #phase{} | ?current) -> string().
 game_phase_full_fn(G, Phase) ->
     {GameDir, FilePrefix} = game_prefixes(G),
-    PhaseFN = if Phase == ?game_ended -> ?CURRENT_GAME_FN;
+    PhaseFN = if Phase == ?current -> ?CURRENT_GAME_FN;
                  true -> phase_fn(FilePrefix, Phase)
               end,
     DirName = filename:join(get_path(h_doc_root), GameDir),
@@ -120,12 +121,11 @@ get_path(P) when P == h_srv_root;
     {ok, [[Path]]} = init:get_argument(P),
     Path.
 
-phase_fn(FilePrefix, Phase) ->
-    {DNum, DoN} = Phase,
-    PhStr = case DoN of
+phase_fn(FilePrefix, Phase = #phase{}) ->
+    PhStr = case Phase#phase.don of
                 ?day -> "d";
                 ?night -> "n"
-            end ++ ?i2l(DNum),
+            end ++ ?i2l(Phase#phase.num),
     %% calculate "m25_d1.txt"
     FilePrefix ++ PhStr ++ ".txt".
 

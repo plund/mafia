@@ -355,7 +355,10 @@ update_stat(MsgId, M, [G = #mafia_game{}]) ->
             } = M,
     %% UserB is in correct case in messages!
     %% UserUB = ?b2ub(UserB),
-    Phase = mafia_time:calculate_phase(G, Time),
+    Phase = case mafia_time:calculate_phase(G, Time) of
+                #phase{don = ?game_ended} -> ?game_ended;
+                #phase{num = Num, don = DoN} -> {Num, DoN}
+            end,
     Key1 = {UserB, ThId},
     Key2 = {UserB, ThId, Phase},
     Msg = ?b2l(MsgBin),

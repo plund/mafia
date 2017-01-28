@@ -15,10 +15,6 @@
          bgcolor/1,
          thid/1,
          gamename_to_thid/1,
-         dl2phase/1,
-         dl2time/1,
-         set_dl_time/2,
-         phase_time2dl/2,
 
          re_matches/2,
          merge_intervals/1,
@@ -82,7 +78,7 @@ page_keys_for_thread(ThId) ->
 
 %% -----------------------------------------------------------------------------
 
-rday(ThId, {DayNum, _}) ->
+rday(ThId, #phase{num = DayNum}) ->
     rday(ThId, DayNum);
 rday(ThId, DayNum) when is_integer(ThId) ->
     rday(?rgame(ThId), DayNum);
@@ -182,14 +178,6 @@ gamename_to_thid(GN) when is_atom(GN) ->
     end.
 
 %% -----------------------------------------------------------------------------
-
-dl2phase(DL) when ?IS_DL(DL) -> element(1, DL).
-dl2time(DL) when ?IS_DL(DL) -> element(2, DL).
-
-set_dl_time(DL, Time) -> setelement(2, DL, Time).
-
-phase_time2dl(?game_ended, Time) -> {?game_ended, Time};
-phase_time2dl({Num, Don}, Time) -> {{Num, Don}, Time}.
 
 %% read re:run matches
 re_matches(_Str, []) -> [];

@@ -73,7 +73,7 @@ fix_deaths_in_games() ->
         fun(ThId) ->
                 G = hd(?rgame(ThId)),
                 Deaths = [AddFalseAtEnd(D) || D <- G#mafia_game.player_deaths],
-                mnesia:dirty_write(G#mafia_game{player_deaths = Deaths})
+                ?dwrite_game(G#mafia_game{player_deaths = Deaths})
         end,
     [ AddAttr(ThId) || ThId <- mnesia:dirty_all_keys(mafia_game)].
 

@@ -719,7 +719,8 @@ split_into_groups(NumPerRow, Objects) ->
     Rows2 ++ [LastRow].
 
 print_time_left_to_dl(PP) ->
-    {{Days, {HH, MM, _}}, {{Num, DoN}, _}} =
+    {{Days, {HH, MM, _}},
+     #dl{phase = #phase{num = Num, don = DoN}}} =
         mafia_time:get_next_deadline(PP#pp.game_key, PP#pp.use_time),
     DayStr = if Days == 0 -> "";
                 true -> ?i2l(Days) ++ " day, "
@@ -808,7 +809,7 @@ pr_thread_links(PP, DoDispTime2DL) ->
     %% Day4(p98-) p103-, p108-, p113-, p118-, p123-, p128-, last(p130)
     StartTime = mafia_time:get_time_for_prev_phase(PP#pp.game, PP#pp.phase),
     EndTime = mafia_time:get_time_for_phase(PP#pp.game, PP#pp.phase),
-    PageKeys = mafia_lib:page_keys_for_thread(PP#pp.game_key),
+    PageKeys = mafia_lib:all_page_keys(PP#pp.game_key),
     case lists:foldl(
            fun(_PK, Acc = {done, _}) -> Acc;
               (PK = {_, P}, Acc) ->

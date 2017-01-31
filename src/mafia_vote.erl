@@ -80,12 +80,12 @@ check_for_gm_cmds(S, M, G) ->
     G5 = check_for_player_replacement(S, M, G4),
     G6 = check_for_game_end(S, M, G5),
 
-    %% if time is 0 - 15 min after a deadline generate a history page
-    Time = M#message.time,
-    {RelTimeSecs, DL} = mafia_time:nearest_deadline(G6, Time),
-    if RelTimeSecs >= 0,
+    %% if time is 0 - 20 min after a deadline generate a history page
+    {RelTimeSecs, _DL} = mafia_time:nearest_deadline(G6, M#message.time),
+    if G2 /= G, %% someone died (this gives no regen at refresh :/ )
+       RelTimeSecs >= 0,
        RelTimeSecs =< ?MAX_GM_DL_MINS * ?MinuteSecs ->
-            mafia_web:regenerate_history(Time, DL);
+            mafia_web:do_regen_hist(M#message.time, G#mafia_game.key);
        true ->
             ok
     end,
@@ -153,7 +153,7 @@ kill_player(G, M, DeadB, DeathComment, true) ->
     update_day_rec(M, G, Death),
     G2 = G#mafia_game{players_rem = NewRems,
                       player_deaths = NewDeaths},
-    mnesia:dirty_write(G2),
+    ?dwrite_game(G2),
     {{ok, DeathPhase}, G2}.
 
 %% Returns exact User binary.
@@ -246,10 +246,10 @@ replace(MatchF, List, NewR) ->
 is_end_of_phase(M, G) ->
     TimeMsg = M#message.time,
     PhaseMsg = mafia_time:calculate_phase(G, TimeMsg),
-    Time10m = TimeMsg - ?MAX_GM_DL_MINS * ?MinuteSecs,
-    Phase10m = mafia_time:calculate_phase(G, Time10m),
-    IsEnd = PhaseMsg /= Phase10m,
-    {IsEnd, Phase10m}.
+    Time20m = TimeMsg - ?MAX_GM_DL_MINS * ?MinuteSecs,
+    Phase20m = mafia_time:calculate_phase(G, Time20m),
+    IsEnd = PhaseMsg /= Phase20m,
+    {IsEnd, Phase20m}.
 
 %% In case someone votes before GM annouce dead, the day record
 %% will have too many remaining players
@@ -259,9 +259,9 @@ update_day_rec(_M, G, Death) ->
             [D] = ?rday(G, Phase),
             NewDeaths = add_death(Death, D),
             NewRems = D#mafia_day.players_rem -- [Death#death.player],
-            mnesia:dirty_write(
-              D#mafia_day{players_rem = NewRems,
-                          player_deaths = NewDeaths});
+            ?dwrite_day(
+               D#mafia_day{players_rem = NewRems,
+                           player_deaths = NewDeaths});
         _ -> ok
     end.
 
@@ -468,7 +468,7 @@ replace3(G, M, NewPlayer, Old, []) ->
                 name = ?l2b(NewPlayer),
                 aliases = [],
                 verification_status = ?unverified},
-    mnesia:dirty_write(New),
+    ?dwrite_user(New),
     replace3(G, M, NewPlayer, Old, [New]);
 replace3(G, M, _NewPlayer, Old, [New]) ->
     %% replace ALSO in #mafia_day.players_rem
@@ -488,8 +488,8 @@ replace3(G, M, _NewPlayer, Old, [New]) ->
                       time = M#message.time
                      },
                     DeathsD2 = [Replacement | D#mafia_day.player_deaths],
-                    mnesia:dirty_write(D#mafia_day{players_rem = Rems2,
-                                                   player_deaths = DeathsD2}),
+                    ?dwrite_day(D#mafia_day{players_rem = Rems2,
+                                            player_deaths = DeathsD2}),
                     DeathsG2 = [Replacement | G#mafia_game.player_deaths],
                     G2 = G#mafia_game{player_deaths = DeathsG2},
                     replace4(G2, OldP, NewP);
@@ -503,7 +503,7 @@ replace4(G, OldUB, NewUB) ->
     NewOrig = repl_user(OldUB, NewUB, G#mafia_game.players_orig),
     NewRem = repl_user(OldUB, NewUB, G#mafia_game.players_rem),
     G2 = G#mafia_game{players_orig = NewOrig, players_rem = NewRem},
-    mnesia:dirty_write(G2),
+    ?dwrite_game(G2),
     {ok, G2}.
 
 repl_user(OldUB, NewUB, Users) ->
@@ -620,13 +620,12 @@ verify_msg_user(M = #message{user_name = User}) ->
             io:format(
               "~s Warning: created new user ~p\n",
               [mafia_print:print_time(M#message.time, short), User]),
-            mnesia:dirty_write(
-              UserRec#user{verification_status = ?verified});
+            ?dwrite_user(UserRec#user{verification_status = ?verified});
         {?dbuser_wrong_case, UserRec} ->
-            mnesia:dirty_write(UserRec),
+            ?dwrite_user(UserRec),
             auto_correct_case(?b2l(User), M#message.thread_id);
         {?dbuser_unver, UserRec} ->
-            mnesia:dirty_write(UserRec#user{verification_status = ?verified})
+            ?dwrite_user(UserRec#user{verification_status = ?verified})
     end.
 
 -spec print_verify_user(string()) -> ok.
@@ -686,10 +685,10 @@ auto_correct_case(CcUser, [G]) ->
                   end,
                   [],
                   G#mafia_game.player_deaths),
-    mnesia:dirty_write(
-      G#mafia_game{players_orig = PsOrigB,
-                   players_rem = PsRemB,
-                   player_deaths = NewDeaths}).
+    ?dwrite_game(
+       G#mafia_game{players_orig = PsOrigB,
+                    players_rem = PsRemB,
+                    player_deaths = NewDeaths}).
 
 %% return a fun, that returns a binary with correct case
 ccf(CorrectCase) when is_list(CorrectCase) ->
@@ -806,7 +805,6 @@ r_count([], [], N) ->
 %% -----------------------------------------------------------------------------
 
 reg_vote(M, G, Vote, RawVote, IsOkVote) ->
-    ?dbg(M#message.time, {M#message.user_name, Vote}),
     case ?b2ul(Vote) of
         ?END -> reg_end_vote(add, M);
         ?UNEND -> reg_end_vote(remove, M);
@@ -844,7 +842,7 @@ vote2(M, G, Vote, RawVote, IsOkVote) ->
                                                 NewVote),
                              lists:keystore(User, 1, Votes, {User, UVotes2})
                      end,
-            mnesia:dirty_write(Day#mafia_day{votes = Votes2});
+            ?dwrite_day(Day#mafia_day{votes = Votes2});
         _ ->
             ignore
     end.
@@ -866,7 +864,7 @@ reg_end_vote(Op, M) ->
                             remove ->
                                 OldEndVotes -- [M#message.user_name]
                         end,
-                    mnesia:dirty_write(Day#mafia_day{end_votes = NewEndVotes});
+                    ?dwrite_day(Day#mafia_day{end_votes = NewEndVotes});
                 _ -> ok
             end;
         _ ->

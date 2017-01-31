@@ -1,10 +1,13 @@
 -module(mafia_lib).
 
--export([rmess/1,
+-export([dwrite/2,
+
+         rmess/1,
          rpage/1,
          rpage/2,
          pages_for_thread/1,
-         page_keys_for_thread/1,
+         all_page_keys/0,
+         all_page_keys/1,
 
          rday/2,
          rgame/1,
@@ -32,6 +35,10 @@
 
 -include("mafia.hrl").
 
+dwrite(page, Obj) ->
+    dwrite_page(Obj);
+dwrite(_Tag, Obj) ->
+    mnesia:dirty_write(Obj).
 
 rmess(MsgId) ->
     OffsetNow = mafia_time:utc_secs1970(),
@@ -54,7 +61,11 @@ rpage(Key) ->
                               [] /= ?rmess(MId) ],
             if MsgIds2 == [] -> [];
                true ->
-                    [P#page_rec{message_ids = MsgIds2}]
+                    Complete = P#page_rec.complete andalso
+                        MsgIds2 == P#page_rec.message_ids andalso
+                        length(MsgIds2) > 25,
+                    [P#page_rec{message_ids = MsgIds2,
+                                complete = Complete}]
             end
     end.
 
@@ -62,19 +73,34 @@ rpage(ThId, Page) -> rpage({ThId, Page}).
 
 rpageI(Key) -> mnesia:dirty_read(page_rec, Key).
 
-pages_for_thread(ThId) ->
-    [P || {_, P} <- page_keys_for_thread(ThId)].
+%% update page_rec only if more info is added
+dwrite_page(P) ->
+    case rpageI(P#page_rec.key) of
+        [] ->
+            mnesia:dirty_write(P);
+        [Db] ->
+            Db2 = if length(P#page_rec.message_ids)
+                     > length(Db#page_rec.message_ids) ->
+                          Db#page_rec{message_ids = P#page_rec.message_ids};
+                     true -> Db
+                  end,
+            Db3 = if P#page_rec.complete, not Db2#page_rec.complete ->
+                          Db2#page_rec{complete = true};
+                     true -> Db2
+                  end,
+            mnesia:dirty_write(Db3)
+    end.
 
-page_keys_for_thread(ThId) ->
-    Tab = page_rec,
-    PageKeys0 = [K || K= {GK, _Page} <- mnesia:dirty_all_keys(Tab),
-                      GK == ThId],
-    Exists = fun(PRK) ->
-                     PRec = hd(mnesia:dirty_read(Tab, PRK)),
-                     [] /= rmess(hd(PRec#page_rec.message_ids))
-             end,
-    PageKeys = [K || K <- PageKeys0, Exists(K)],
-    lists:sort(PageKeys).
+pages_for_thread(ThId) ->
+    [P || {_, P} <- all_page_keys(ThId)].
+
+all_page_keys(Id) ->
+    ThId = ?thid(Id),
+    [K || K = {T,_} <- all_page_keys(), T == ThId].
+
+all_page_keys() ->
+    lists:sort([ K || K <- mnesia:dirty_all_keys(page_rec), [] /= rpage(K)]).
+
 
 %% -----------------------------------------------------------------------------
 

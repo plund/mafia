@@ -32,7 +32,7 @@
 
 -include("mafia.hrl").
 
--type last_iter_msg_ref() :: none |
+-type last_iter_msg_ref() :: ?none |
                              {ThId :: integer(),
                               Page :: integer(),
                               MsgId :: integer(),
@@ -52,7 +52,8 @@
          check_vote_fun :: function(),
          dl_time :: ?undefined | millisecs(),
          do_refresh_msgs = false :: boolean(),
-         last_msg_time
+         last_msg_time,
+         last_msg_id
         }).
 
 %% Download any thread
@@ -110,52 +111,40 @@ downl_web([]) -> ok;
 downl_web([G]) -> downl_web(G);
 downl_web(G = #mafia_game{}) ->
     GameKey = G#mafia_game.key,
-    InitPage = G#mafia_game.page_to_read,
-    {Page, LMT2} = check_db(GameKey, InitPage, G#mafia_game.last_msg_time),
-    case download(#s{thread_id = GameKey,
-                     page_to_read = Page,
-                     last_msg_time = LMT2
-                    }) of
-        {ok, S2} ->
-            update_page_to_read(GameKey, S2#s.page_to_read, S2#s.last_msg_time);
-        {{error, _R}, S2} ->
-            update_page_to_read(GameKey, S2#s.page_to_read, S2#s.last_msg_time)
+    LMT = G#mafia_game.last_msg_time,
+    S = #s{utc_time = mafia_time:utc_secs1970(),
+           check_vote_fun = check_vote_msgid_fun(GameKey, LMT),
+           thread_id = GameKey,
+           page_to_read = G#mafia_game.page_to_read,
+           last_msg_time = LMT
+          },
+    ?dbg({down_web, S#s.page_to_read, LMT}),
+    {Page, LMT2} = check_db(G),
+    case download(S#s{check_vote_fun = check_vote_msgid_fun(GameKey, LMT2),
+                      page_to_read = Page,
+                      last_msg_time = LMT2
+                     }) of
+        {_, S3} ->
+            update_page_to_read(GameKey, S3#s.page_to_read, S3#s.last_msg_time)
     end,
     ok.
 
-%% Read DB for messages first
--spec check_db(Key::thread_id(),
-               InitPage::integer(),
-               LastMsgTime :: seconds1970()) ->
-                      {PageNum :: integer(),
-                       LastMsgTime :: seconds1970()}.
-check_db(Key, P, LMT) ->
-    MsgIdF = check_vote_msgid_fun(Key, LMT),
-    RPageF = fun(P2) -> ?rpage(Key, P2) end,
-    check_db(MsgIdF, RPageF, P, P, RPageF(P), LMT).
-
-check_db(_MsgIdF, _RPageF, Start, Start, [], LMT) -> {Start, LMT};
-check_db(_MsgIdF, _RPageF, P, _Start, [], LMT) -> {P - 1, LMT};
-check_db(MsgIdF, RPageF, P, Start, [PageRec], LMT) ->
-    LastMsgTime =
-        lists:foldl(fun(MsgId, Acc) ->
-                            R = MsgIdF(MsgId),
-                            if is_integer(R) -> R;
-                               true -> Acc
-                            end
-                    end,
-                    LMT,
-                    PageRec#page_rec.message_ids),
-    NextP = P + 1,
-    check_db(MsgIdF, RPageF, NextP, Start, RPageF(NextP), LastMsgTime).
+check_db(G) ->
+    InitPage = G#mafia_game.page_to_read,
+    {MsgIdFun, Acc} = checkvote_fun(G, true),
+    Filter = fun(Page) -> Page >= InitPage end,
+    {_, PageNum, _, MsgTime} =
+        iter_msgids(G#mafia_game.key, MsgIdFun, Acc, Filter),
+    {PageNum, MsgTime}.
 
 update_page_to_read(GameKey, PageToRead, LastMsgTime)
   when is_integer(GameKey), is_integer(PageToRead) ->
+    %%?dbg({update_page_to_read, GameKey, PageToRead, LastMsgTime}),
     G = hd(?rgame(GameKey)),
     if PageToRead /= G#mafia_game.page_to_read;
        LastMsgTime /= G#mafia_game.last_msg_time ->
-            mnesia:dirty_write(G#mafia_game{page_to_read = PageToRead,
-                                            last_msg_time = LastMsgTime});
+            ?dwrite_game(G#mafia_game{page_to_read = PageToRead,
+                                      last_msg_time = LastMsgTime});
        true -> ok
     end.
 
@@ -166,9 +155,13 @@ refresh_messages(?thread_id = K) -> refresh_messages(?getv(K));
 refresh_messages(ThId) -> refresh_messages(ThId, true).
 
 -spec refresh_messages(ThId :: integer(), DoVotes :: boolean()) -> ok.
-refresh_messages(ThId, DoVotes) ->
+refresh_messages(Id, DoVotes) ->
+    ThId = ?thid(Id),
     ?set(?page_to_read, 1),
     mafia_db:reset_game(ThId), %% to reset last_msg_time...
+    _ = [mnesia:dirty_delete(mafia_day, K)
+         || K = {Th,_} <- mnesia:dirty_all_keys(mafia_day),
+            Th == ThId],
     %% Remove messages for msg_ids found in page_rec of thread
     MsgIdFun = fun(MsgId) -> mnesia:dirty_delete(message, MsgId) end,
     iterate_all_msg_ids(ThId, MsgIdFun, all),
@@ -243,7 +236,7 @@ refresh_votes_soft(ThId, G, PageFilter) ->
                 end
                 || D <- G#mafia_game.player_deaths]
           },
-    mnesia:dirty_write(G2),
+    ?dwrite_game(G2),
     refresh_votes(ThId, G2, PageFilter).
 
 refresh_votes(_ThId, [], _F) ->
@@ -251,8 +244,8 @@ refresh_votes(_ThId, [], _F) ->
 refresh_votes(ThId, [G], PageFilter) ->
     refresh_votes(ThId, G, PageFilter);
 refresh_votes(ThId, G = #mafia_game{}, PageFilter) ->
-    MsgIdFun = check_vote_msgid_fun(ThId, G#mafia_game.last_msg_time),
-    case iterate_all_msg_ids(ThId, MsgIdFun, PageFilter) of
+    {MsgIdFun, Acc} = checkvote_fun(G, false),
+    case iter_msgids(ThId, MsgIdFun, Acc, PageFilter) of
         none ->
             ?dbg({last_iter_msg_ref, none}),
             ok;
@@ -267,6 +260,89 @@ refresh_votes(ThId, G = #mafia_game{}, PageFilter) ->
     end,
     mafia_web:update_current(),
     ok.
+
+-record(acc, {thid,
+              last_page,
+              last_msg_id,
+              last_msg_time,
+              dls}).
+
+%% MsgId and #message{} are ok
+checkvote_fun(G, DoPrint) ->
+    %% iterate_all_msg_ids
+    Cmds = case file:consult(mafia_file:cmd_filename(G#mafia_game.key)) of
+               {ok, CmdsOnFile} -> [C || C = #cmd{} <- CmdsOnFile];
+               _ -> []
+           end,
+    REs = mafia_vote:get_regexs(),
+    DoCheck =
+        fun(Msg) ->
+                Id = Msg#message.msg_id,
+                Resp = mafia_vote:check_cmds_votes(REs, Msg),
+                [erlang:apply(M, F, A) || #cmd{msg_id = MId,
+                                               mfa = {M, F, A}} <- Cmds,
+                                          MId == Id],
+                Resp
+        end,
+    GameKey = G#mafia_game.key,
+    LMT = G#mafia_game.last_msg_time,
+    DLs = if LMT == ?undefined -> ?lrev(G#mafia_game.deadlines);
+             true ->
+                  lists:dropwhile(fun(#dl{time = DT}) -> DT =< LMT end,
+                                  ?lrev(G#mafia_game.deadlines))
+          end,
+    {fun(report, A) ->
+             {A#acc.thid, A#acc.last_page, A#acc.last_msg_id,
+              A#acc.last_msg_time};
+        (Id, Acc) when Acc#acc.last_msg_time == ?undefined ->
+             [Msg] = ?rmess(Id),
+             NextT = Msg#message.time,
+             Acc#acc{last_page = Msg#message.page_num,
+                     last_msg_id = Id,
+                     last_msg_time = NextT};
+        (Id, Acc) ->
+             [Msg] = ?rmess(Id),
+             NextT = Msg#message.time,
+             if NextT > Acc#acc.last_msg_time ->
+                     DoCheck(Msg),
+                     if DoPrint ->
+                             mafia_print:print_message_summary(Msg);
+                        true -> ok
+                     end,
+                     NextDLs =
+                         if [] == Acc#acc.dls -> [];
+                            true ->
+                                 PrevT = Acc#acc.last_msg_time,
+                                 DL = hd(Acc#acc.dls),
+                                 DeadT = DL#dl.time,
+                                 if PrevT < DeadT, DeadT =< NextT ->
+                                         %% dl passed generate
+                                         gen_hist_and_get_dls(NextT, Acc);
+                                    NextT < DeadT -> Acc#acc.dls
+                                 end
+                         end,
+                     Acc#acc{last_page = Msg#message.page_num,
+                             last_msg_id = Id,
+                             last_msg_time = NextT,
+                             dls = NextDLs};
+                true ->
+                     Acc
+             end
+     end,
+     #acc{thid = GameKey,
+          last_page = G#mafia_game.page_to_read,
+          last_msg_id = 1,
+          last_msg_time = LMT,
+          dls = DLs
+         }
+    }.
+
+gen_hist_and_get_dls(NextT, Acc) ->
+    mafia_web:do_regen_hist(NextT, Acc#acc.thid),
+    [G] = ?rgame(Acc#acc.thid),
+    lists:dropwhile(fun(#dl{time = DT}) -> DT =< NextT end,
+                    ?lrev(G#mafia_game.deadlines)).
+
 
 %% MsgId and #message{} are ok
 check_vote_msgid_fun(ThId, LMT) ->
@@ -285,11 +361,11 @@ check_vote_msgid_fun(ThId, LMT) ->
                 Resp
         end,
     fun(Msg = #message{}) when LMT == ?undefined;
-                               LMT < Msg#message.time ->
+                               LMT =< Msg#message.time ->
                     DoCheck(Msg);
        (MsgId) when is_integer(MsgId) ->
             case ?rmess(MsgId) of
-                [Msg] when LMT == ?undefined; LMT < Msg#message.time ->
+                [Msg] when LMT == ?undefined; LMT =< Msg#message.time ->
                     DoCheck(Msg);
                 _ -> ignore
             end;
@@ -376,15 +452,15 @@ update_stats_db(K, MsgId, Count) ->
     update_stats_db(K, MsgId, Count, mnesia:dirty_read(stat, K)).
 
 update_stats_db(K, MsgId, Count, []) ->
-    mnesia:dirty_write(
-      Count#stat{key = K,
-                 msg_ids = [MsgId]});
+    ?dwrite_stat(
+       Count#stat{key = K,
+                  msg_ids = [MsgId]});
 update_stats_db(_K, MsgId, Count, [Stat = #stat{}]) ->
     %% check if msg_id already is in db
     %% if not add stats
     case lists:member(MsgId, Stat#stat.msg_ids) of
         true -> same;
-        false -> mnesia:dirty_write(sum_stat(Count, Stat))
+        false -> ?dwrite_stat(sum_stat(Count, Stat))
     end.
 
 sum_stat(#stat{key = KA,
@@ -508,7 +584,6 @@ iterate_all_msgs(ThId, MsgFun, {arity,2}) ->
 iterate_all_msg_ids(ThId, Fun) ->
     iterate_all_msg_ids(ThId, Fun, all).
 
-
 %% If the MsgIdFun returns an integer, the last returned integer
 %% will also be returned from this fun as the MsgTime
 -spec iterate_all_msg_ids(ThId :: integer(),
@@ -516,30 +591,50 @@ iterate_all_msg_ids(ThId, Fun) ->
                           PageFilter:: all | function())
                          -> last_iter_msg_ref().
 iterate_all_msg_ids(ThId, MsgIdFun, Filter) ->
+    iter_msgids(ThId, MsgIdFun, no_acc, Filter).
+
+iter_msgids(ThId, MsgIdFun, Acc, PageFilter) ->
     All = mafia:pages_for_thread(ThId),
-    Pages = if Filter == all -> All;
-               is_function(Filter) ->
-                    lists:filter(Filter, All)
+    Pages = if PageFilter == all -> All;
+               is_function(PageFilter) ->
+                    lists:filter(PageFilter, All)
             end,
     %% get last page num
-    iterate_all_msg_idsI(ThId, MsgIdFun, Pages).
+    iterate_all_msg_idsI(ThId, MsgIdFun, Pages, Acc,
+                         erlang:fun_info(MsgIdFun, arity)).
 
 %% Return reference to last iterated message
+-type arity2resp() :: term().
 -spec iterate_all_msg_idsI(ThId :: integer(),
                            MsgIdFun :: function(),
-                           PageNums :: [integer()])
-                          -> last_iter_msg_ref().
-iterate_all_msg_idsI(ThId, MsgIdFun, PageNums) ->
-    PageMsgIds = mafia_lib:all_msgids(ThId, PageNums),
-    {LastPage, LastMsgId} = lists:last(PageMsgIds),
-    LastMsgTime =
-        lists:foldl(fun({_, MId}, Acc) ->
-                            R = MsgIdFun(MId),
-                            if is_integer(R) -> R; true -> Acc end
-                    end,
-                    none,
-                    PageMsgIds),
-    {ThId, LastPage, LastMsgId, LastMsgTime}.
+                           PageNums :: [integer()],
+                           Acc :: term(),
+                           {arity, integer()}
+                          )
+                          -> last_iter_msg_ref() | arity2resp().
+iterate_all_msg_idsI(ThId, MsgIdFun, PageNums, Acc, {arity, Ar}) ->
+    case mafia_lib:all_msgids(ThId, PageNums) of
+        [] -> ?none;
+        PageMsgIds ->
+            {LastPage, LastMsgId} = lists:last(PageMsgIds),
+            if Ar == 1 ->
+                    LastMsgTime =
+                        lists:foldl(
+                          fun({_, MId}, Acc2) ->
+                                  R = MsgIdFun(MId),
+                                  if is_integer(R) -> R;
+                                     true -> Acc2 end
+                          end,
+                          none,
+                          PageMsgIds),
+                    {ThId, LastPage, LastMsgId, LastMsgTime};
+               Ar == 2 ->
+                    AccOut =
+                        lists:foldl(MsgIdFun, Acc,
+                                    [Id || {_, Id} <- PageMsgIds]),
+                    MsgIdFun(report, AccOut)
+            end
+    end.
 
 %% -----------------------------------------------------------------------------
 
@@ -733,7 +828,8 @@ analyse_body(S, User, MsgId, Time, Msg) ->
                     true -> ok
                  end,
                  mafia_print:print_message_summary(MsgR),
-                 S#s{last_msg_time = Time}
+                 S#s{last_msg_id = MsgId,
+                     last_msg_time = Time}
          end,
     analyse_body(S2).
 
@@ -792,19 +888,19 @@ update_page_rec(S, MsgIdInt) ->
                 {Act, P#page_rec{message_ids = MsgIds2,
                                  complete = Comp2}}
         end,
-    mnesia:dirty_write(PageRec),
+    ?dwrite_page(PageRec),
     Action.
 
 write_message_rec(S, MsgIdInt, User, Time, Msg) ->
-    mnesia:dirty_write(
-      M = #message{msg_id = MsgIdInt,
-                   thread_id = S#s.thread_id,
-                   page_num = S#s.page_last_read,
-                   user_name = User,
-                   time = Time,
-                   message = ?l2b(Msg)
-                  }
-     ),
+    ?dwrite_msg(
+       M = #message{msg_id = MsgIdInt,
+                    thread_id = S#s.thread_id,
+                    page_num = S#s.page_last_read,
+                    user_name = User,
+                    time = Time,
+                    message = ?l2b(Msg)
+                   }
+      ),
     M.
 
 strip(Str) ->

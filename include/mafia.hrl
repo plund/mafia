@@ -63,7 +63,10 @@
 -define(other, other).
 -define(console, console).
 
-%% -define(, ).
+-define(start_polling, start_polling).
+-define(stop_polling, stop_polling).
+-define(stopped, stopped).
+-define(deadline, deadline).
 
 %% KV keys
 -define(console_tz, console_tz).
@@ -181,6 +184,15 @@
 -define(thid(Id), mafia_lib:thid(Id)).
 -define(set(K, V), mafia_db:set(K, V)).
 -define(getv(K), mafia_db:getv(K)).
+
+%% -define(dwrite(Obj), mafia_lib:dwrite(gen, Obj)).
+-define(dwrite_kv(Obj), mafia_lib:dwrite(kv, Obj)).
+-define(dwrite_msg(Obj), mafia_lib:dwrite(msg, Obj)).
+-define(dwrite_page(Obj), mafia_lib:dwrite(page, Obj)).
+-define(dwrite_stat(Obj), mafia_lib:dwrite(stat, Obj)).
+-define(dwrite_user(Obj), mafia_lib:dwrite(user, Obj)).
+-define(dwrite_day(Obj), mafia_lib:dwrite(day, Obj)).
+-define(dwrite_game(Obj), mafia_lib:dwrite(game, Obj)).
 
 -define(rmess(MsgId), mafia_lib:rmess(MsgId)).
 -define(rpage(ThId, Page), mafia_lib:rpage(ThId, Page)).

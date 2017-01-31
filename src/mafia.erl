@@ -1,6 +1,12 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% - Add timestamp for each entry in message_ids to use when time_offset /= 0
+%% - add last_msg_id to #mafia_game to be used when polling
+%% - check stored files (when refresh_messages) that all messages come in
+%%   msg_id and in time order.
+%% - merge all variants of mafia_time:get_next_deadline
+
 %% - implement the rough idea on how and when to present deadlines (top of print_votes())
 %% - Use new DL calc and remove old calculation NEW: "get_some_extra_dls"
 %% - split mafia_print. stats and tracker into separate modules?
@@ -63,6 +69,7 @@
 
 %% utilities
 -export([verify_users/1,
+         check_pages/1,
          l/0,
 
          print_all_cnts/0,
@@ -116,6 +123,11 @@ verify_users(m26) ->
     [mafia_vote:print_verify_user(U)
      || U <- ?M26_GMs ++ ?M26_players ++ ?M26_Subs],
     ok.
+
+check_pages(Id) ->
+    ThId = ?thid(Id),
+    [{P, length((hd(?rpage(T,P)))#page_rec.message_ids)}
+     || {T,P} <- mafia_lib:all_page_keys(ThId)].
 
 %% -----------------------------------------------------------------------------
 %% @doc Switch to other game and reread all info
@@ -324,11 +336,6 @@ replace_player(MsgId, OldPlayer, NewPlayer) ->
         {?error, _} = E -> E
     end.
 
- %% M26 = 1432756.
- %% D1 = hd(mafia:rday(M26, 1)).
- %% Rem2 = [case U of <<"ND">> -> <<"zorclex">>; _ -> U end || U <- D1#mafia_day.players_rem].
- %% mnesia:dirty_write(D1#mafia_day{players_rem = Rem2}).
-
 %% -----------------------------------------------------------------------------
 %% @doc Read the GM message and add good comment about who the dead player was.
 %% @end
@@ -351,7 +358,8 @@ kill_player(MsgId, Player, Comment) ->
                 {{ok, DeathPhase}, _G2} ->
                     ?man(Time, Cmd),
                     mafia_file:manual_cmd_to_file(ThId, Cmd),
-                    mafia_web:regenerate_history(M#message.time, DeathPhase),
+                    mafia_web:do_regen_hist(M#message.time,
+                                            G#mafia_game.key),
                     {player_killed, DeathPhase};
                 {not_remaining_player, _G2} ->
                     case ?ruser(Player) of
@@ -527,7 +535,7 @@ add_alias(User, Alias) ->
                 true ->
                     {error, alias_exist_already};
                 false ->
-                    mnesia:dirty_write(U#user{aliases = [AliasB|AliasesB]}),
+                    ?dwrite_user(U#user{aliases = [AliasB|AliasesB]}),
                     ok
             end
     end.
@@ -545,7 +553,7 @@ remove_alias(User, Alias) ->
             case lists:member(AliasB, AliasesB) of
                 true ->
                     NewAliasesB = AliasesB -- [AliasB],
-                    mnesia:dirty_write(U#user{aliases = NewAliasesB}),
+                    ?dwrite_user(U#user{aliases = NewAliasesB}),
                     ok;
                 false ->
                     {error, alias_does_not_exist}
@@ -578,8 +586,8 @@ add_sim_gm_message(Page, SimMsgId, TplMsgId, Text) ->
                                page_num = Page,
                                message = ?l2b(Text)},
             P2 = P#page_rec{message_ids = [SimMsgId | P#page_rec.message_ids]},
-            mnesia:dirty_write(SimMsg),
-            mnesia:dirty_write(P2),
+            ?dwrite_msg(SimMsg),
+            ?dwrite_page(P2),
             ok
     end.
 
@@ -592,7 +600,7 @@ rm_sim_gm_message(Page, SimMsgId) ->
                 [SimMsgId|T]  ->
                     P2 = P#page_rec{message_ids = T},
                     mnesia:dirty_delete(messsage, SimMsgId),
-                    mnesia:dirty_write(P2),
+                    ?dwrite_page(P2),
                     sim_msg_deleted;
                 _ ->
                     {page_has_not_msg_id, Page, SimMsgId}

@@ -108,6 +108,7 @@ game_link_and_text(G, Phase = #phase{}) ->
 game_phase_full_fn(G, Phase) ->
     {GameDir, FilePrefix} = game_prefixes(G),
     PhaseFN = if Phase == ?current -> ?CURRENT_GAME_FN;
+                 Phase == ?game_ended -> ?CURRENT_GAME_FN;
                  true -> phase_fn(FilePrefix, Phase)
               end,
     DirName = filename:join(get_path(h_doc_root), GameDir),

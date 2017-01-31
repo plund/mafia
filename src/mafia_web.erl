@@ -25,16 +25,13 @@
          stop_httpd/1,
 
          get_state/0,
-         regenerate_history/2,
+
+         do_regen_hist/2,
          update_current/0
         ]).
 
-%% deprecated
--export([set_interval_minutes/1]).
-
 %% test
 -export([get_en1_ip/0
-         %%is_word/2, allpos/2, find_word_searches/1
         ]).
 
 %% gen_server callbacks
@@ -46,6 +43,8 @@
 -record(state,
         {timer :: reference(),
          timer_minutes :: integer(),
+         dl_timer :: reference(),
+         dl_time :: seconds1970(),
          web_pid :: pid(),
          game_key :: thread_id()
         }).
@@ -81,8 +80,8 @@ stop() -> gen_server:call(?SERVER, 'stop').
 
 poll() -> ?SERVER ! do_polling.
 
-start_polling() -> gen_server:call(?SERVER, 'start_polling').
-stop_polling() -> gen_server:call(?SERVER, 'stop_polling').
+start_polling() -> gen_server:call(?SERVER, ?start_polling).
+stop_polling() -> gen_server:call(?SERVER, ?stop_polling).
 
 stop_httpd() ->
     IpStr = get_en1_ip(),
@@ -116,28 +115,30 @@ get_state()  ->
     gen_server:call(?SERVER, get_state).
 
 %%--------------------------------------------------------------------
-%% @doc Change the poll timer
-%%      Old do not work since we go on schedule now.
+%% @doc Update current text page
 %% @end
 %%--------------------------------------------------------------------
-set_interval_minutes(N) when is_integer(N)  ->
-    gen_server:call(?SERVER, {set_timer_interval, N}).
-
-%% rewrite one history txt file
-regenerate_history(Time, DL = #dl{}) ->
-    %% Phase = ?dl2phase(DL),
-    Phase = DL#dl.phase,
-    ?dbg(Time, {"regen hist", Phase}),
-    regenerate_historyI(Phase);
-regenerate_history(Time, Phase = #phase{}) ->
-    ?dbg(Time, {"regen hist time/phase", Phase}),
-    regenerate_historyI(Phase).
-
-regenerate_historyI(Phase = #phase{}) ->
-    gen_server:cast(?SERVER, {regenerate_history, Phase}).
-
 update_current() ->
-        gen_server:cast(?SERVER, update_current).
+    gen_server:cast(?SERVER, update_current).
+
+%%--------------------------------------------------------------------
+%% @doc Regenerate history text page
+%% @end
+%%--------------------------------------------------------------------
+do_regen_hist(Time, GKey)
+  when is_integer(Time), is_integer(GKey) ->
+    [G] = ?rgame(GKey),
+    DL = mafia_time:get_prev_deadline(G, Time),
+    do_regen_hist(Time, {G, DL#dl.phase});
+do_regen_hist(Time, {G, Phase = #phase{}}) ->
+    ?dbg(Time, {"DO REGENERATE_HISTORY 3", Phase, Time}),
+    FileName = mafia_file:game_phase_full_fn(G, Phase),
+    {ok, Fd} = file:open(FileName, [write]),
+    mafia_print:print_votes([{?game_key, G#mafia_game.key},
+                             {?phase, Phase},
+                             {?dev, Fd}]),
+    file:close(Fd),
+    ok.
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -158,14 +159,19 @@ init([Arg]) ->
     mafia:setup_mnesia(),
     GameKey = ?getv(?game_key),
     State = start_web(#state{game_key = GameKey}),
+    S2 = set_dl_timer(State),
+    TimerMins = case ?getv(?timer_minutes) of
+                    ?undefined -> 10;
+                    V -> V
+                end,
     if Arg == polling ->
             ?dbg(start_polling),
             self() ! do_polling,
-            {_Reply, S2} = set_timer_interval(State, 10),
-            {ok, S2};
+            {_Reply, S3} = set_timer_interval(S2, TimerMins),
+            {ok, S3};
        Arg == no_polling ->
             ?dbg(start_no_polling),
-            {ok, State}
+            {ok, S2}
     end.
 
 %%--------------------------------------------------------------------
@@ -194,13 +200,14 @@ handle_call('stop', _From, State) ->
     timer:cancel(State#state.timer),
     S2 = stop_web(State),
     {stop, stopped, stop_reply, S2#state{timer = ?undefined}};
-handle_call('start_polling', _From, State) ->
-    {Reply, S2} = maybe_change_timer(State),
+handle_call(?start_polling, _From, State) ->
+    {Reply, S2} = maybe_change_timer(State#state{timer_minutes = ?undefined}),
     self() ! do_polling,
     {reply, Reply, S2};
-handle_call('stop_polling', _From, State) ->
+handle_call(?stop_polling, _From, State) ->
     timer:cancel(State#state.timer),
-    {reply, {ok, polling_stopped}, State#state{timer = ?undefined}};
+    {reply, {ok, polling_stopped}, State#state{timer = ?undefined,
+                                               timer_minutes = ?stopped}};
 
 handle_call(start_web, _From, State) ->
     S = start_web(State),
@@ -219,27 +226,11 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-
-%% rewrite one history txt file
-handle_cast(Ev = {regenerate_history, Phase = #phase{}}, State) ->
-    timer:sleep(300),
-    case ?rgame(State#state.game_key) of
-        [] -> ok;
-        [G] ->
-            ?dbg({"DO REGENERATE_HISTORY", Phase}),
-            FileName = mafia_file:game_phase_full_fn(G, Phase),
-            {ok, Fd} = file:open(FileName, [write]),
-            mafia_print:print_votes([{?game_key, State#state.game_key},
-                                     {?phase, Phase},
-                                     {?dev, Fd}]),
-            file:close(Fd),
-            flush({'$gen_cast', Ev})
-    end,
-    {noreply, State};
 handle_cast(update_current, State) ->
     update_current(State#state.game_key, State#state.timer_minutes),
     {noreply, State};
-handle_cast(_Msg, State) ->
+handle_cast(Msg, State) ->
+    ?dbg({unhandled_other, Msg}),
     {noreply, State}.
 
 %%--------------------------------------------------------------------
@@ -252,6 +243,13 @@ handle_cast(_Msg, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_info({?deadline, DL}, State) ->
+    %% THIS work well when not refreshing!! Should start after...
+    %% While refreshing we need to look at message timestamps in
+    %% order to see when we have reached/passed the next deadline
+    do_regen_hist(DL#dl.time, State#state.game_key),
+    S2 = set_dl_timer(State, DL#dl.time),
+    {noreply, S2};
 handle_info(do_polling, State) ->
     TimeStr = mafia_print:print_time(?console),
     io:format("~s poll for new messages\n", [TimeStr]),
@@ -377,28 +375,64 @@ stop_web(State) ->
 maybe_change_timer(S = #state{timer = TRef,
                               timer_minutes = TMins,
                               game_key = ThId}) ->
-    case mafia_time:timer_minutes(ThId) of
-        Mins when is_integer(Mins), Mins /= TMins ->
+    Mins = mafia_time:timer_minutes(ThId),
+    if TMins == ?stopped -> {no_change, S};
+       Mins == none -> {cancelled, cancel_timer_interval(S)};
+       TRef == ?undefined; Mins /= TMins ->
             set_timer_interval(S, Mins);
-        Mins when TRef == ?undefined ->
-            set_timer_interval(S, Mins);
-        _ -> {no_change, S}
+       true -> {no_change, S}
     end.
+
+set_dl_timer(S) -> set_dl_timer(S, mafia_time:utc_secs1970()).
+
+set_dl_timer(S, Time) ->
+    set_dl_timer(S, Time, ?rgame(S#state.game_key)).
+
+set_dl_timer(S, _Time, []) -> S;
+set_dl_timer(S, Time, [G]) ->
+    set_dl_timer(S, Time, G);
+set_dl_timer(S, Time, G) ->
+    S2 = cancel_dl_timer(S),
+    case mafia_time:get_nxt_deadline(G, Time) of
+        #dl{phase = #phase{don = ?game_ended}} -> S2;
+        DL = #dl{} ->
+            SecsRem = DL#dl.time - Time,
+            {ok, TRef} =
+                timer:send_after(SecsRem * 1000, {?deadline, DL}),
+            S2#state{dl_timer = TRef,
+                     dl_time = DL#dl.time}
+    end.
+
+cancel_dl_timer(S) ->
+    if is_reference(S#state.dl_timer) ->
+            timer:cancel(S#state.dl_timer);
+       true -> ok
+    end,
+    flush({?deadline, any}),
+    S#state{dl_timer = undefined}.
 
 -spec set_timer_interval(#state{}, integer()) -> {Reply :: term(), #state{}}.
 set_timer_interval(S, N) when is_integer(N), N >= 1 ->
-    if S#state.timer /= ?undefined ->
-            timer:cancel(S#state.timer),
-            flush(do_polling);
-       true -> ok
-    end,
+    S2 = cancel_timer_interval(S),
     {ok, TRef} = timer:send_interval(N * ?MINUTE_MS, do_polling),
     Reply = {interval_changed,
-             {old, S#state.timer_minutes},
+             {old, S2#state.timer_minutes},
              {new, N}},
-    {Reply, S#state{timer = TRef,
-                    timer_minutes = N}}.
+    {Reply, S2#state{timer = TRef,
+                     timer_minutes = N}}.
 
+cancel_timer_interval(S) ->
+    if S#state.timer /= ?undefined ->
+            timer:cancel(S#state.timer);
+       true -> ok
+    end,
+    flush(do_polling),
+    S#state{timer = undefined}.
+
+flush({Msg, X}) ->
+    receive {Msg, _} -> flush({Msg, X})
+    after 0 -> ok
+    end;
 flush(Msg) ->
     receive Msg -> flush(Msg)
     after 0 -> ok

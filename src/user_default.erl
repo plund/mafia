@@ -30,8 +30,8 @@
 grep(Str) -> mafia_data:grep(Str).
 grep(Str, Mode) -> mafia_data:grep(Str, Mode).
 rmess(MsgId) -> ?rmess(MsgId).
-rpage(ThId, Page) -> ?rpage(ThId, Page).
-rday(ThId, DayNum) -> ?rday(ThId, DayNum).
+rpage(ThId, Page) -> ?rpage(?thid(ThId), Page).
+rday(ThId, DayNum) -> ?rday(?thid(ThId), DayNum).
 rgame(?game_key = K) -> ?rgame(?getv(K));
 rgame(?thread_id = K) -> ?rgame(?getv(K));
 rgame(Id) -> ?rgame(?thid(Id)).
@@ -106,6 +106,7 @@ help() ->
 ---------------------
 mafia:game_start(GName, ThId) - Creates game and defines ThId for game
 mafia:switch_to_game(GN) - GN = m25 | thread_id()
+mafia_data:refresh_messages() - Reread all messages from disk, use 'game_key'
 mafia:refresh_votes()  - Clear mafia_day and mafia_game and reread all"
 " messages.
 mafia:refresh_votes({upto, PageNum}) - clear data and reread messages upto and

@@ -105,11 +105,11 @@ add_threads() ->
     ?set(?dst_game, G#mafia_game.is_init_dst).
 
 write_default_user_table() ->
-    [ mnesia:dirty_write(
-        #user{name_upper = ?l2ub(U),
-              name = ?l2b(U),
-              aliases = mafia_upgrade:get_aliases(?l2b(U)),
-              verification_status = ?unverified})
+    [ ?dwrite_user(
+         #user{name_upper = ?l2ub(U),
+               name = ?l2b(U),
+               aliases = mafia_upgrade:get_aliases(?l2b(U)),
+               verification_status = ?unverified})
       || U <- lists:usort(?M24_players ++ ?M24_GMs ++
                               ?M25_players ++ ?M25_GMs ++
                               ?M26_players ++ ?M26_GMs)],
@@ -134,7 +134,7 @@ write_game({GName, ThId}) ->
                       [GName, ?b2l(G#mafia_game.name)]),
             G2 = G#mafia_game{key = ThId},
             Game = mafia_time:initial_deadlines(G2),
-            mnesia:dirty_write(Game);
+            ?dwrite_game(Game);
         [_] -> e_exists
     end.
 
@@ -214,7 +214,7 @@ set(K=?console_tz, V)
 remk(Key) -> mnesia:dirty_delete(kv_store, Key).
 
 set_kv(Key, Value) ->
-    mnesia:dirty_write(#kv_store{key = Key, value = Value}).
+    ?dwrite_kv(#kv_store{key = Key, value = Value}).
 
 -spec add_thread(atom(), integer()) -> {Result :: atom(), Details :: term()}.
 add_thread(ThName, ThId) ->

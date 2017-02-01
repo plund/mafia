@@ -57,6 +57,8 @@
         }).
 
 %% Download any thread
+%% Uses: ?thread_id
+%%       ?page_to_read
 -spec downl() -> ok.
 downl() ->
     downl2(#s{}).
@@ -71,8 +73,6 @@ downl2(S) when S#s.thread_id == ?undefined ->
 downl2(S) when S#s.page_to_read == ?undefined ->
     downl2(S#s{page_to_read = ?getv(?page_to_read)});
 downl2(S) ->
-    mafia:setup_mnesia(),
-    inets:start(),
     download(S),
     ok.
 

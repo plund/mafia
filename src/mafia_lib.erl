@@ -15,6 +15,7 @@
          ruserUB/1,
          rmessI/1,
 
+         alpha_sort/1,
          bgcolor/1,
          thid/1,
          gamename_to_thid/1,
@@ -170,6 +171,12 @@ ruserUB(User) when is_list(User) -> ruserUBI(?l2ub(User));
 ruserUB(UserB) when is_binary(UserB) -> ruserUBI(?b2ub(UserB)).
 
 ruserUBI(UserUB) -> mnesia:dirty_read(user, UserUB).
+
+%% -----------------------------------------------------------------------------
+
+alpha_sort(Strings) ->
+    LE = fun(A, B) -> ?l2u(A) =< ?l2u(B) end,
+    lists:sort(LE, Strings).
 
 %% -----------------------------------------------------------------------------
 

@@ -1,6 +1,7 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% - remove non-hard refresh_votes, remove is_deleted
 %% - Add timestamp for each entry in message_ids to use when time_offset /= 0
 %% - add last_msg_id to #mafia_game to be used when polling
 %% - check stored files (when refresh_messages) that all messages come in
@@ -399,6 +400,9 @@ l() ->
      || M <- Beams2].
 
 %% Pre-check user list given by GM in initial game PM
+verify_new_user_list(27) ->
+    Users = ?M27_GMs ++ ?M27_players,
+    verify_new_user_list2(Users);
 verify_new_user_list(26) ->
     Users = ?M26_GMs ++ ?M26_players,
     verify_new_user_list2(Users);

@@ -136,6 +136,13 @@
          "dargorygel", "WardenDresden",
          "xorxes"]).
 -define(M26_Subs, ["WardenDresden", "dargorygel", "zorclex", "DemonRHK"]).
+-define(M27_GMs, ["DemonOverlord",  "dargorygel"]).
+-define(M27_players,
+        ["brainbomb", "Ezio", "VashtaNeurotic", "peterlund", "Hellenic Riot",
+         "Maniac", "Chaqa", "xorxes", "goldfinger0303", "Floodgates",
+         "bo_sox48", "Jamiet99uk", "guak", "rdrivera2005",
+         "zorclex", "captainmeme", "Tom Bombadil", "Ikaneko",
+         "civwarbuff", "Balduran", "snowy801"]).
 
 -type year()   :: non_neg_integer().
 -type month()  :: 1..12.

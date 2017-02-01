@@ -71,8 +71,10 @@ start_mnesia(Op) ->
     end.
 
 %% List of lists
-to_bin(LoL = [[_|_]|_]) ->
-    [list_to_binary(L) || L <- LoL].
+to_bin(LoL = [[_|_]|_]) -> [?l2b(L) || L <- LoL].
+
+to_bin_sort(LoL = [[_|_]|_]) ->
+    [?l2b(L) || L <- mafia_lib:alpha_sort(LoL)].
 
 -define(M26ThId, 1432756).
 -define(M25ThId, 1420289).
@@ -138,6 +140,25 @@ write_game({GName, ThId}) ->
         [_] -> e_exists
     end.
 
+get_game_rec(m27) ->
+    %% Game Thread ?
+    %% M26 signup threadid = 1442470
+    _ = #mafia_game{
+      game_num = 27,
+      name = <<"MAFIA XXVII">>,
+      day_hours = 48,
+      night_hours = 24,
+      time_zone = -5,
+      day1_dl_time = {{2017,2,8},{18,0,0}},
+      is_init_dst = false,
+      dst_changes = [{{{2017,3,12},{2,0,0}}, true}, %% USA 2017
+                     {{{2017,11,05},{2,0,0}}, false}],
+      gms = to_bin(?M27_GMs),
+      players_orig = to_bin_sort(?M27_players),
+      players_rem = to_bin_sort(?M27_players),
+      player_deaths = [],
+      page_to_read = 1
+     };
 get_game_rec(m26) ->
     %% Game Thread 1432756
     %% M26 signup threadid = 1429158
@@ -149,8 +170,7 @@ get_game_rec(m26) ->
       time_zone = 0,
       day1_dl_time = {{2017,1,5},{23,0,0}},
       is_init_dst = false,
-      %% EU 2017
-      dst_changes = [{{{2017,3,26},{2,0,0}}, true},
+      dst_changes = [{{{2017,3,26},{2,0,0}}, true}, %% EU 2017
                      {{{2017,10,29},{2,0,0}}, false}],
       gms = to_bin(?M26_GMs),
       players_orig = to_bin(?M26_players),

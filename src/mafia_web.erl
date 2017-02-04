@@ -61,7 +61,7 @@ start_link() ->
     mafia:setup_mnesia(),
     gen_server:start_link({local, ?SERVER}, ?MODULE, [polling], []).
 
-start() ->
+start() ->  %% to be removed?
     mafia:setup_mnesia(),
     gen_server:start({local, ?SERVER}, ?MODULE, [polling], []).
 

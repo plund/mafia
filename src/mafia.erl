@@ -1,14 +1,13 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% - remove non-hard refresh_votes, remove is_deleted
 %% - Add timestamp for each entry in message_ids to use when time_offset /= 0
 %% - add last_msg_id to #mafia_game to be used when polling
 %% - check stored files (when refresh_messages) that all messages come in
 %%   msg_id and in time order.
 %% - merge all variants of mafia_time:get_next_deadline
 
-%% - implement the rough idea on how and when to present deadlines (top of print_votes())
+%% - impl the idea on how and when to present deadlines (top of print_votes())
 %% - Use new DL calc and remove old calculation NEW: "get_some_extra_dls"
 %% - split mafia_print. stats and tracker into separate modules?
 %%   - define how and when to use a smarter vote reader!!
@@ -48,9 +47,7 @@
          add_thread/2,
          rm_thread/1,
          show_settings/0,
-         set_thread_id/1,
          refresh_votes/0,
-         refresh_votes/1,
 
          show_all_users/0,
          show_all_users/1,
@@ -71,6 +68,8 @@
 %% utilities
 -export([verify_users/1,
          check_pages/1,
+         check_game_data/1,
+
          l/0,
 
          print_all_cnts/0,
@@ -104,21 +103,16 @@ remove_mnesia() -> mafia_db:remove_mnesia().
 
 refresh_votes() ->
     %% fprof:trace(start),
-    mafia_data:refresh_votes(hard),
+    mafia_data:refresh_votes(),
     %% fprof:trace(stop),
     ok.
 
 %% 1. run refresh_votes()
 %% 2. fprof:profile().
 %% 3. fprof:analyse([{dest, "fprof.analysis.refresh_votes.5"}, {cols, 120}]).
-%% 4. rp(lists:reverse(lists:sort([{L,Fun}||{_, {Fun,_,_,L}, _} <- element(2,file:consult("fprof.analysis.refresh_votes.5"))]))).
+%% 4. rp(lists:reverse(lists:sort([{L,Fun}||{_, {Fun,_,_,L}, _}
+%%        <- element(2,file:consult("fprof.analysis.refresh_votes.5"))]))).
 %% 5. rm fprof.trace
-
-refresh_votes(P) ->
-    %% fprof:trace(start),
-    mafia_data:refresh_votes(P),
-    %% fprof:trace(stop),
-    ok.
 
 verify_users(m26) ->
     [mafia_vote:print_verify_user(U)
@@ -130,6 +124,26 @@ check_pages(Id) ->
     [{P, length((hd(?rpage(T,P)))#page_rec.message_ids)}
      || {T,P} <- mafia_lib:all_page_keys(ThId)].
 
+check_game_data(Id) ->
+    ThId = ?thid(Id),
+    case ?rgame(ThId) of
+        [] ->
+            io:format("No game record exist\n");
+        [_] ->
+            io:format("Game record exist\n")
+    end,
+    DayKeys = [K || K = {Th, _} <- mnesia:dirty_all_keys(mafia_day),
+                    Th == ThId],
+    io:format("Num Day records ~p\n", [DayKeys]),
+    PageKeys = [K || K = {Th, _} <- mnesia:dirty_all_keys(page_rec),
+                     Th == ThId],
+    io:format("Num Page records ~p\n", [length(PageKeys)]),
+    MsgIds = [MsgId || {_, MsgId} <- mafia_lib:all_msgids(ThId),
+                       [] /= ?rmess(MsgId)
+             ],
+    io:format("There are ~p messages in mnesia for this game\n",
+              [length(MsgIds)]).
+
 %% -----------------------------------------------------------------------------
 %% @doc Switch to other game and reread all info
 %% @end
@@ -138,29 +152,33 @@ check_pages(Id) ->
 switch_to_game(Id) ->
     switch_to_gameI(?thid(Id), normal).
 
+-spec switch_to_game(GameId :: atom() | thread_id(),
+                     Method :: normal | refresh
+                               ) -> term().
 switch_to_game(Id, Method) ->
     switch_to_gameI(?thid(Id), Method).
 
 %% -----------------------------------------------------------------------------
 
 switch_to_gameI({?error, _} = E, _) -> E;
+
+%% if all data for game already is in DB
 switch_to_gameI(ThId, normal) ->
-    ?set(game_key, ThId),
-    ?set(thread_id, ThId),
-    ?set(page_to_read, 1),
-    mafia:stop(),
+    ?set(game_key, ThId), %% Must have it set for gen_server and web_impl
+    ?set(thread_id, ThId),  %% not needed?
+    ?set(page_to_read, 1),  %% not needed?
+    mafia:stop(),  %% Set gen_server #state.game_key
     mafia:start();
-switch_to_gameI(ThId, hard) -> %% Should always work
-    mafia_db:reset_game(ThId),
+
+%% if not data for game in DB
+switch_to_gameI(ThId, refresh) -> %% Should always work
+    mafia_db:reset_game(ThId), %% recreate game record
     ?set(game_key, ThId),
     ?set(thread_id, ThId),
     ?set(page_to_read, 1),
-    %% These two to set the #state.game_key
-    mafia:stop(),
-    timer:sleep(2000),
+    mafia:stop(),  %% Set gen_server #state.game_key
     mafia:start(),
-    timer:sleep(5000),
-    mafia:refresh_votes(hard).
+    mafia_data:refresh_messages().
 
 %% -----------------------------------------------------------------------------
 %% @doc Starts up a game giving it e.g. m26, 1234567
@@ -432,19 +450,6 @@ verify_new_user_list2(Users) ->
      end
      || User <- Users],
     done.
-
-%% Seems to be unused
--spec set_thread_id(ThId :: integer())  -> ok.
-set_thread_id(ThId) when is_integer(ThId) ->
-    ?set(?thread_id, ThId),
-    PageToRead =
-        case pages_for_thread(ThId) of
-            [] -> 1;
-            Pages ->
-                lists:max(Pages)
-        end,
-    ?set(?page_to_read, PageToRead),
-    ok.
 
 show_settings() ->
     PrintSettings =

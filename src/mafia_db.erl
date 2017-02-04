@@ -102,6 +102,15 @@ add_threads() ->
          end || {Game, Id} <- ThInfos],
     ?set(?thread_id, CurGameId),
     ?set(?game_key, CurGameId),
+%%% ?game_key (DB kv_store):
+%%% - Must be set right for the single game we are serving at the moment
+%%% - gen_server mafia_web sets this ?game_key value in its init
+%%% - ?game_key is used as game reference for all web calls
+%%% - the ?game_key is also default value for many MANUAL commands:
+%%%   refresh_messages, refresh_votes, refresh_stat, print_votes,
+%%%   print_stats_opts, web_vote_tracker,
+%%% ?page_to_read (DB kv_store):
+%%%    used in manual downl/0, mafia_print:pp/pps use when not game
     G = get_game_rec(CurGame),
     ?set(?timezone_game, G#mafia_game.time_zone),
     ?set(?dst_game, G#mafia_game.is_init_dst).

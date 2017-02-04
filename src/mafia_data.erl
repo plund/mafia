@@ -3,9 +3,7 @@
 %% Manual
 -export([refresh_messages/0,
          refresh_messages/1,
-         refresh_messages/2,
-         %% refresh_votes/0,
-         refresh_votes/1,
+         refresh_votes/0,
          refresh_stat/0
         ]).
 
@@ -56,6 +54,7 @@
          last_msg_id
         }).
 
+%% MANUAL
 %% Download any thread
 %% Uses: ?thread_id
 %%       ?page_to_read
@@ -139,7 +138,6 @@ check_db(G) ->
 
 update_page_to_read(GameKey, PageToRead, LastMsgTime)
   when is_integer(GameKey), is_integer(PageToRead) ->
-    %%?dbg({update_page_to_read, GameKey, PageToRead, LastMsgTime}),
     G = hd(?rgame(GameKey)),
     if PageToRead /= G#mafia_game.page_to_read;
        LastMsgTime /= G#mafia_game.last_msg_time ->
@@ -150,94 +148,44 @@ update_page_to_read(GameKey, PageToRead, LastMsgTime)
 
 refresh_messages() -> refresh_messages(?game_key).
 
+-spec refresh_messages(ThId :: integer()) -> term().
 refresh_messages(?game_key = K) -> refresh_messages(?getv(K));
 refresh_messages(?thread_id = K) -> refresh_messages(?getv(K));
-refresh_messages(ThId) -> refresh_messages(ThId, true).
-
--spec refresh_messages(ThId :: integer(), DoVotes :: boolean()) -> ok.
-refresh_messages(Id, DoVotes) ->
+refresh_messages(Id) ->
     ThId = ?thid(Id),
-    ?set(?page_to_read, 1),
+    ?set(?page_to_read, 1), %% Is this really needed ?
+
+    %% Delete mafia_game
     mafia_db:reset_game(ThId), %% to reset last_msg_time...
+
+    %% Delete mafia_day
     _ = [mnesia:dirty_delete(mafia_day, K)
          || K = {Th,_} <- mnesia:dirty_all_keys(mafia_day),
             Th == ThId],
-    %% Remove messages for msg_ids found in page_rec of thread
+    %% Delete messages for msg_ids found in page_rec of thread
     MsgIdFun = fun(MsgId) -> mnesia:dirty_delete(message, MsgId) end,
     iterate_all_msg_ids(ThId, MsgIdFun, all),
 
-    %% Remove page_recs for thread
+    %% Delete page_recs for thread
     [mnesia:dirty_delete(page_rec, K)
      || K = {ThId2, _P} <- mnesia:dirty_all_keys(page_rec), ThId2 == ThId],
 
     %% Populate tables message and page_rec again
-    downl(#s{thread_id = ThId, page_to_read = 1}),
+    downl(#s{thread_id = ThId, page_to_read = 1}).
 
-    if DoVotes ->
-            refresh_votes(ThId);
-       true -> ok
-    end.
+    %% if DoVotes ->
+    %%         refresh_votes();
+    %%    true -> ok
+    %% end.
 
 %% -spec refresh_votes() -> ok.
-%% refresh_votes() ->
-%%     ThId = ?getv(?game_key),
-%%     clear_mafia_day_and_stat(ThId),
-%%     refresh_votes(ThId, ?rgame(ThId), all, soft).
-
-refresh_votes(?game_key = K) -> refresh_votes(?getv(K));
-refresh_votes(?thread_id = K) -> refresh_votes(?getv(K));
-refresh_votes(ThId) when is_integer(ThId) ->
-    clear_mafia_day_and_stat(ThId),
-    refresh_votes(ThId, ?rgame(ThId), all, soft);
-refresh_votes(hard) ->
+refresh_votes() ->
     ThId = ?getv(?game_key),
     clear_mafia_day_and_stat(ThId),
     ?dbg(hard_game_reset),
     %% Reinitialize the game table
     mafia_db:reset_game(ThId),
-    refresh_votes(ThId, ?rgame(ThId), all);
-refresh_votes({upto, EndPage}) when is_integer(EndPage) ->
-    ThId = ?getv(?game_key),
-    case curr_page_to_read(ThId) of
-        no_game -> ok;
-        PageNumG when is_integer(PageNumG) ->
-            PageFilter =
-                if PageNumG > EndPage ->
-                        Method = soft,
-                        clear_mafia_day_and_stat(ThId),
-                        fun(Page) -> Page =< EndPage end;
-                   true ->
-                        Method = softer,
-                        fun(Page) ->
-                                PageNumG =< Page andalso
-                                    Page =< EndPage
-                        end
-                end,
-            refresh_votes(ThId, ?rgame(ThId), PageFilter, Method)
-    end.
-
-refresh_votes(_ThId, [], _F, _Method) ->
-    ok;
-refresh_votes(ThId, [G], PageFilter, soft) ->
-    ?dbg(soft_game_reset),
-    G2 = G#mafia_game{last_msg_time = ?undefined},
-    refresh_votes_soft(ThId, G2, PageFilter);
-refresh_votes(ThId, [G], PageFilter, softer) ->
-    ?dbg(softer_game_reset),
-    refresh_votes_soft(ThId, G, PageFilter).
-
-refresh_votes_soft(ThId, G, PageFilter) ->
-    G2 = G#mafia_game{
-           players_rem = G#mafia_game.players_orig,
-           player_deaths =
-               [case D of
-                    #death{} = D -> D#death{is_deleted = true};
-                    Other -> Other
-                end
-                || D <- G#mafia_game.player_deaths]
-          },
-    ?dwrite_game(G2),
-    refresh_votes(ThId, G2, PageFilter).
+    refresh_votes(ThId, ?rgame(ThId), all).
 
 refresh_votes(_ThId, [], _F) ->
     ok;
@@ -370,12 +318,6 @@ check_vote_msgid_fun(ThId, LMT) ->
                 _ -> ignore
             end;
        (_) -> ignore
-    end.
-
-curr_page_to_read(ThId) when is_integer(ThId) ->
-    case ?rgame(ThId) of
-        [] -> no_game;
-        [G] -> G#mafia_game.page_to_read
     end.
 
 %% clear #mafia_day and #stat for this ThId
@@ -705,10 +647,8 @@ get_body_from_file(S) ->
     {_FileName, TarBallName} = th_filenames_read(S),
     case erl_tar:extract(TarBallName, [memory, compressed]) of
         {ok, [{_, BodyBin}]} ->
-            %% io:format("Found page ~p on file\n",[S#s.page_to_read]),
             {file, ?b2l(BodyBin)};
         {error, {TarBallName, enoent}} ->
-            %% io:format("Did NOT find ~p on file\n",[S#s.page_to_read]),
             no_file;
         Unexp ->
             io:format("Did NOT find ~p on file ~p\n",[S#s.page_to_read, Unexp]),

@@ -10,3 +10,4 @@ src/game_info.txt
 /_build
 /doc
 /rebar.lock
+/.DS_Store

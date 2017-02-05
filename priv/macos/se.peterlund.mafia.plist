@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+  <!--
+      I did not get this working on MacOS Sierra on my Laptop
+
+      1. Put this file into the folder /Library/LaunchDaemons/
+      2. Make sure it is owned by root and in the group wheel
+      3. Has the permissions “644”
+          Someone else said:
+          sudo chmod 600 /Library/LaunchDaemons/x.plist
+          sudo chown root /Library/LaunchDaemons/x.plist
+
+      4. move run_mafia_as_peter.sh to mafia/bin
+         Since key UserName did not work I added this script
+  -->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>se.peterlund.mafia</string>
+    <key>Program</key>
+    <string>/Users/peter/proj/mafia/priv/macos/run_mafia_as_peter.sh</string>
+    <key>ProgramArguments</key>
+    <array>
+      <string>/Users/peter/proj/mafia/priv/macos/run_mafia_as_peter.sh</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardErrorPath</key>
+    <string>/tmp/se.peterlund.mafia.stderr</string>
+    <key>StandardOutPath</key>
+    <string>/tmp/se.peterlund.mafia.stdout</string>
+</dict>
+</plist>

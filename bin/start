@@ -1,9 +1,52 @@
 #!/bin/bash
 
+echo "Started "$(date "+%Y-%m-%d, %H:%M:%S")
+echo "whoami: "$(whoami)
+echo "PATH: "$PATH
+echo "HOME: "$HOME
+echo "pwd: "$(pwd)
+echo "@: "$@
+echo "rebar3: "$(which rebar3)
+
 APP_NAME=mafia
 
 # A secure way to figure out where this script is located
 SCRIPT_DIR=$(cd $(dirname $0) && pwd)
+
+cmd=$(basename $0)
+
+echo $cmd
+
+silent=off
+fullcmd=$SCRIPT_DIR/$cmd
+
+print_usage () {
+    cat <<EOF
+$fullcmd              - Manual interactive start
+$fullcmd -s|--silent  - Start silently (automatic)
+$fullcmd -h|--help    - Prints this help text
+EOF
+}
+
+while [[ $# -gt 0 ]] ; do
+    case $1 in
+        -s|--silent)
+            silent=on
+            shift # past argument
+            ;;
+        -h|--help)
+            print_usage
+            exit 1
+            shift
+            break
+            ;;
+        *)
+            # unknown option
+            print_usage
+            exit 1
+            ;;
+    esac
+done
 
 RUNNING_ALREADY=$(ps aux | grep beam | grep -v grep | wc -l)
 
@@ -39,20 +82,21 @@ LOG_ROOT=$SERVER_ROOT/logs
 mkdir -p $DOC_ROOT
 mkdir -p $LOG_ROOT
 
-cat << EOF
+if [ $silent = off ] ; then
+    cat << EOF
 Have you checked that you have the game_info.txt, thread_pages, command_files, \
 counters in the $RUN_DIR and the correct html in $SERVER_ROOT and prepared the \
 active game setup in mafia_db?
 EOF
-echo -n "Reply \"y\" if ok and you want to startup (n) ? "
-read Answer
+    echo -n "Reply \"y\" if ok and you want to startup (n) ? "
+    read Answer
 
-if [ "$Answer" != "y" ] ; then
-    echo "Ok prepare first and redo this command when you are done."
-    exit 0
+    if [ "$Answer" != "y" ] ; then
+        echo "Ok prepare first and redo this command when you are done."
+        exit 0
+    fi
+    echo "Ok we start up"
 fi
-
-echo "Ok we start up"
 
 # Compile in repo and copy code to run location
 REPO_DIR=$(dirname $SCRIPT_DIR)

@@ -1,6 +1,10 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% Fix deadline listing at button of game_status
+%% Redirect "/e/web/forum.php?threadID=1126828"
+%% HTTP/1.1 301 Moved Permanently
+%% Location: http://webdiplomacy.net/forum.php?threadID=1126828 ++ "\r\n\r\n"
 %% - Add timestamp for each entry in message_ids to use when time_offset /= 0
 %% - add last_msg_id to #mafia_game to be used when polling
 %% - check stored files (when refresh_messages) that all messages come in

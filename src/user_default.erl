@@ -138,8 +138,11 @@ mafia:move_next_deadline(MsgId, Dir, Time) - Moves next deadline
 mafia:end_game(MsgId)   - Ends the game with the given msg_id
 mafia:unend_game(MsgId) - Unend game
 mafia:kill_player(MsgId, Player, Comment) - Kill a player
-mafia:replace_player(MsgId, OldPlayer, NewPlayer) - NEEDS IMPL! New is
-         replacing old in game. Exact names! Both must exist in user DB.").
+
+mafia:replace_player(MsgId, OldPlayer, NewPlayer)
+    New player is replacing old player in game. Exact names!
+    Old player must exist in user DB
+    New player is created if missing in DB").
 
 chelp() ->
     io:format("~s", [?CMD_HELP]).

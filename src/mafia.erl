@@ -42,7 +42,6 @@
          print_votes/2,
          print_messages/1,
 
-         verify_new_user_list/1,
          downl/0,
          add_thread/2,
          rm_thread/1,
@@ -66,7 +65,8 @@
         ]).
 
 %% utilities
--export([verify_users/1,
+-export([verify_new_user_list/1,
+         verify_users/1, %% deprecated?
          check_pages/1,
          check_game_data/1,
 
@@ -113,11 +113,6 @@ refresh_votes() ->
 %% 4. rp(lists:reverse(lists:sort([{L,Fun}||{_, {Fun,_,_,L}, _}
 %%        <- element(2,file:consult("fprof.analysis.refresh_votes.5"))]))).
 %% 5. rm fprof.trace
-
-verify_users(m26) ->
-    [mafia_vote:print_verify_user(U)
-     || U <- ?M26_GMs ++ ?M26_players ++ ?M26_Subs],
-    ok.
 
 check_pages(Id) ->
     ThId = ?thid(Id),
@@ -450,6 +445,12 @@ verify_new_user_list2(Users) ->
      end
      || User <- Users],
     done.
+
+%% Deprecated?
+verify_users(m26) ->
+    [mafia_vote:print_verify_user(U)
+     || U <- ?M26_GMs ++ ?M26_players ++ ?M26_Subs],
+    ok.
 
 show_settings() ->
     PrintSettings =

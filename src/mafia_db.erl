@@ -150,11 +150,11 @@ write_game({GName, ThId}) ->
     end.
 
 get_game_rec(m27) ->
-    %% Game Thread ?
-    %% M26 signup threadid = 1442470
+    %% M27 Game Thread 1447615
+    %% M27 signup threadid = 1442470
     _ = #mafia_game{
       game_num = 27,
-      name = <<"MAFIA XXVII">>,
+      name = <<"Mafia 27: Welcome to Westworld">>,
       day_hours = 48,
       night_hours = 24,
       time_zone = -5,

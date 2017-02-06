@@ -140,7 +140,8 @@
 -define(M27_players,
         ["brainbomb", "Ezio", "VashtaNeurotic", "peterlund", "Hellenic Riot",
          "Maniac", "Chaqa", "xorxes", "goldfinger0303", "Floodgates",
-         "bo_sox48", "Jamiet99uk", "guak", "rdrivera2005",
+         "bo_sox48", "Jamiet99uk", "MoscowFleet", %%"guak",
+         "rdrivera2005",
          "zorclex", "captainmeme", "Tom Bombadil", "Ikaneko",
          "civwarbuff", "Balduran", "snowy801"]).
 

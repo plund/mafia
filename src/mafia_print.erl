@@ -783,7 +783,7 @@ prep_dl_info(G, Time, DLs) ->
     [{?i2l(N), pr_don(DoN),
       mafia_time:secs2day_hour_min_sec(Time - DLT),
       print_game_time(G, DLT, ?extensive)}
-     || {{N, DoN}, DLT} <- DLs].
+     || #dl{phase = #phase{num = N, don = DoN}, time = DLT} <- DLs].
 
 print_past_dls(DLs, _Title) when length(DLs) =< 0 -> [];
 print_past_dls(DLs, Title) ->

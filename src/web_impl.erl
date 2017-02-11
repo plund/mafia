@@ -58,7 +58,7 @@ msgs(Sid, _Env, In) ->
                              not IsUserCond orelse
                                  lists:any(
                                    fun(UserU) ->
-                                           0 /= string:str(MsgUserU, UserU)
+                                           is_word(MsgUserU, UserU)
                                    end,
                                    UsersU)
                      end,

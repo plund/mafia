@@ -299,7 +299,7 @@ print_votesI(PPin) ->
                  "</tr></table></td></tr>"
                  "<tr><td align=center>",
                  "Previous days found at "
-                 "<a href=\"", ?BotUrl, "\">", ?BotUrl, "</a>",
+                 "<a href=\"/\">", ?BotUrl, "</a>",
                  "</td></tr>\r\n",
                  "<tr><td align=center>",
                  "Text version of this page is found at "

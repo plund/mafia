@@ -14,7 +14,7 @@
           <tr bgcolor="#afefaf">
             <td>User Names</td>
             <td><input name="user" type="text" size="30"></td>
-            <td>One or more user names or parts of user names.</td>
+            <td>User names or parts e g "brain*"</td>
           </tr>
           <tr bgcolor="#afefaf">
             <td>Words in Message</td>
@@ -59,22 +59,25 @@
                 one or more words that must be found in the message or
                 one single day number.
               <p>
-                In the <b>User</b> conditions, a space between two user means
-                "or". Messages for both users are listed.
-                No word boundary requirements apply.
+                In the <b>User</b> conditions, a space between two user names
+                means "or". User search for "brain* peter*" will show messages
+                from both brainbomb and peterlund. Searching for aliases does
+                NOT work.
               <p>
                 In the <b>Word</b> conditions, a space between two words means
                 "and". Both words need to exist in the message for it to match.
-                Word boundary requirements DO apply.
-              <p>
                 The "|" character between two words means "or". Only
                 one of the two words must be found in the message to match.
               <p>
-                Word searches are normally done with <b>word boundaries</b>.
+                <b>Word boundary</b> requirements do apply for both the
+                <b>User</b> and <b>Word</b> conditions.
+                Use "*" to remove boundary
+                requirement at end or beginning eg "brain*", "peter*"
+                <br>
                 Searching for "nd" matches the word "nd" but not the word "and".
                 <br>
-                Add the "*" character at the
-                beginning or end to remove the word boundary requirement.
+                Add the "*" character at the beginning or end to remove the
+                word boundary requirement in those positions.
                 Searching for "*nd*" matches "nd" but also "and" and "mandelbrot".
                 <br>
                 Doing a word search for "Jamie*|pete*" will result in all

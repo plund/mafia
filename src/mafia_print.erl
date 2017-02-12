@@ -1284,7 +1284,7 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
               end,
     Users = [?b2l(UserB) || UserB <- AllPlayersB],
     IterVotes = [#iv{u = User, v = "---", vlong = ""} || User <- Users],
-    FmtVoter = "Voter ~s  Voter: Vote Count / Vote\n",
+    FmtVoter = "Voter ~s  Voter: Vote Count per Vote\n",
     FmtTime  = "Time  ~s  ===============================\n",
     Head =
         if PP#pp.mode == ?text ->
@@ -1324,6 +1324,18 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                                     #iv{u = User, v = NewVote, vlong = VFull}),
                               {IVs, IVs2}
                       end,
+                  %% calc vote move
+                  OVote = case lists:keyfind(User, #iv.u, IVs) of
+                              false -> "";
+                              #iv{v = "---"} -> "";
+                              #iv{v = V2} -> V2
+                          end,
+                  NVote = case lists:keyfind(User, #iv.u, NewIVs) of
+                              false -> "";
+                              #iv{v = "---"} -> "";
+                              #iv{v = V3} -> V3
+                          end,
+                  VoteMove = {OVote, NVote},
                   %% calc standing
                   Stand =
                       ?lrev(
@@ -1358,13 +1370,14 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                                 html =
                                     [RA#ra.html|
                                      ["<tr>",
-                                      "<td", bgcolor(User),
-                                      " align=\"right\">",
-                                      nbsp(User), "</td>",
-                                      "<td>", TimeStr, "</td>",
+                                      %% "<td", bgcolor(User),
+                                      %% " align=\"right\">",
+                                      %% nbsp(User), "</td>",
+                                      %% "<td>", TimeStr, "</td>",
                                       pr_ivs_vote_html(PrIVs, User, V#vote.id),
                                       "<td>", TimeStr, "</td>",
-                                      pr_stand_html(User, Abbrs, PrStand),
+                                      pr_stand_html(User, V#vote.id, VoteMove,
+                                                    Abbrs, PrStand),
                                       "</tr>\r\n"]]
                                }
                   end
@@ -1389,13 +1402,14 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
     end.
 
 pr_head_html(IterVotes, PrAbbrF) ->
-    ["<tr>"
-     "<th align=\"right\">Voter</th>"
-     "<th>Time</th>",
+    ["<tr>",
+     %% "<th align=\"right\">Voter</th>"
+     %% "<th>Time</th>",
      pr_ivs_user_html(IterVotes, PrAbbrF),
      "<th>Time</th>"
      "<th>Voter</th>",
-     "<th colspan=4 align=\"left\">Vote Count / Vote</th>"
+     "<th>Move</th>",
+     "<th colspan=4 align=\"left\">Vote Count per Vote</th>"
      "</tr>\r\n"].
 
 %% replace_space
@@ -1489,10 +1503,24 @@ pr_stand_txt(User, Abbrs, PrStand) ->
                      || #iv{n = N, v = Vote} <- PrStand],
                     ", ").
 
-pr_stand_html(User, Abbrs, PrStand) ->
+pr_stand_html(User, MsgId, {OldVote, NewVote}, Abbrs, PrStand) ->
     UserA = mafia_name:get3l(User, Abbrs, "***"),
-    Voter = ["<td align=center", bgcolor(User),">", UserA, "</td>"],
-    Stand = [["<td", bgcolor(VLong),">", ?i2l(N), nbsp(" "), Vote, "</td>"]
+    Voter = ["<td align=center", bgcolor(User),">", UserA, "</td>",
+             "<td align=center>", OldVote, ">",
+             ["<a href=\"/e/web/msg?id=", ?i2l(MsgId),
+              "&player=", User, "&var=vote\">",
+              NewVote, "</a>"],
+             "</td>"],
+    VCnt = fun(N, Vote) -> [?i2l(N), nbsp(" "), Vote] end,
+    Stand = [["<td", bgcolor(VLong),">",
+              if Vote /= NewVote ->
+                      VCnt(N, Vote);
+                 Vote == NewVote ->
+                      ["<a href=\"/e/web/msg?id=", ?i2l(MsgId),
+                       "&player=", User, "&var=vote\">",
+                       VCnt(N, Vote), "</a>"]
+              end,
+              "</td>"]
              || #iv{n = N, v = Vote, vlong = VLong} <- PrStand],
     [Voter|Stand].
 

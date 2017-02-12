@@ -433,17 +433,16 @@ check_for_player_replacement(S, M, G) ->
     end.
 
 regex_player_replacement() ->
-    Reg = "^((.|\\s)*\\s)?([^\\s].*[^\\s]) +(HAS +REPLACED|IS +REPLACING)"
-        " +([^\\s].*[^\\s])(\\s(.|\\s)*)?$",
+    Reg = "(^|\\s)([^\\s].*[^\\s]) +(HAS +REPLACED|IS +REPLACING)"
+        " +([^\\s].*[^\\s])(\\s|$)",
     %% fprof did not see any performance improvment with comiled regexs.
     element(2, re:compile(Reg)).
 
 find_player_replacement(#regex{msg_text_upper = MsgTextU, play_repl = RE}) ->
-    case re:run(MsgTextU, RE, [{capture, [3, 5]}]) of
+    case re:run(MsgTextU, RE, [{capture, [2, 4], list}]) of
         nomatch ->
             no_replace;
-        {match, Ms} ->
-            [NewPlayer, OldPlayer] = mafia_lib:re_matches(MsgTextU, Ms),
+        {match,[NewPlayer, OldPlayer]} ->
             {replace, OldPlayer, NewPlayer}
     end.
 

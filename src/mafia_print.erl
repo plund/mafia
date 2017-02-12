@@ -1284,8 +1284,8 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
               end,
     Users = [?b2l(UserB) || UserB <- AllPlayersB],
     IterVotes = [#iv{u = User, v = "---", vlong = ""} || User <- Users],
-    FmtVoter = "Voter ~s\n",
-    FmtTime = "Time  ~s\n",
+    FmtVoter = "Voter ~s  Voter: Vote Count / Vote\n",
+    FmtTime  = "Time  ~s  ===============================\n",
     Head =
         if PP#pp.mode == ?text ->
                 io:format(PP#pp.dev,
@@ -1349,8 +1349,8 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                           io:format(PP#pp.dev,
                                     "~s~s~s\n",
                                     [TimeStr,
-                                     pr_ivs_vote(PrIVs, User),
-                                     TimeStr
+                                     pr_ivs_vote_txt(PrIVs, User),
+                                     pr_stand_txt(User, Abbrs, PrStand)
                                     ]),
                           RA#ra{ivs = NewIVs};
                      PP#pp.mode == ?html ->
@@ -1395,7 +1395,7 @@ pr_head_html(IterVotes, PrAbbrF) ->
      pr_ivs_user_html(IterVotes, PrAbbrF),
      "<th>Time</th>"
      "<th>Voter</th>",
-     "<th colspan=4 align=\"left\">Standings</th>"
+     "<th colspan=4 align=\"left\">Vote Count / Vote</th>"
      "</tr>\r\n"].
 
 %% replace_space
@@ -1482,6 +1482,13 @@ pr_ivs_vote_html(IVs, User, MsgId) ->
      end
      || #iv{u = U, v = V, vlong = VF} <- IVs].
 
+pr_stand_txt(User, Abbrs, PrStand) ->
+    UserA = mafia_name:get3l(User, Abbrs, "***"),
+    "|" ++ UserA ++ ": " ++
+        string:join([?i2l(N) ++ "-" ++ Vote
+                     || #iv{n = N, v = Vote} <- PrStand],
+                    ", ").
+
 pr_stand_html(User, Abbrs, PrStand) ->
     UserA = mafia_name:get3l(User, Abbrs, "***"),
     Voter = ["<td align=center", bgcolor(User),">", UserA, "</td>"],
@@ -1491,7 +1498,7 @@ pr_stand_html(User, Abbrs, PrStand) ->
 
 bgcolor(V) -> mafia_lib:bgcolor(V).
 
-pr_ivs_vote(IVs, User) ->
+pr_ivs_vote_txt(IVs, User) ->
     pr_ivs_vote(IVs, User, "").
 
 pr_ivs_vote([], _User, Acc) ->

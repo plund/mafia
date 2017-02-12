@@ -1270,6 +1270,9 @@ print_tracker(PP) ->
     VThtml = print_tracker_tab(PP, Abbrs, AllPlayersB),
     [RKhtml, VThtml].
 
+-record(iv,  {n, u, v, vlong}).
+-record(ra, {ivs, stand, html}).
+
 print_tracker_tab(PP, Abbrs, AllPlayersB) ->
     #mafia_day{votes = Votes0} = PP#pp.day,
     Votes = [V || V <- Votes0,
@@ -1283,7 +1286,7 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                        end
               end,
     Users = [?b2l(UserB) || UserB <- AllPlayersB],
-    IterVotes = [{User, "---", ""} || User <- Users],
+    IterVotes = [#iv{u=User, v="---", vlong=""} || User <- Users],
     FmtVoter = "Voter ~s\n",
     FmtTime = "Time  ~s\n",
     Head =
@@ -1300,33 +1303,58 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                           FmtTime,
                           [pr_ivs_user(IterVotes, fun(_) -> "===" end)]);
            PP#pp.mode == ?html ->
+                %% warn: duplicated code
                 ["<table ", ?TURQUOISE, "><tr>"
                  "<th align=\"right\">Voter</th>"
                  "<th>Time</th>",
                  pr_ivs_user_html(IterVotes, PrAbbrF),
                  "<th>Time</th>"
-                 "<th align=\"left\">Voter</th>"
+                 "<th colspan=4 align=\"left\">Standings</th>"
                  "</tr>\r\n"]
         end,
-    {_, Html} =
+
+    #ra{html=Html} =
         lists:foldl(
-          fun({User, V = #vote{}}, {IVs, Html}) ->
+          fun({User, V = #vote{}}, RA=#ra{ivs=IVs}) ->
                   {NewIVs, PrIVs} =
                       if V#vote.valid ->
                               VFull = ?b2l(V#vote.vote),
                               NewVote = PrAbbrF(VFull),
                               IVs2 =
-                                  lists:keyreplace(User, 1, IVs,
-                                                   {User, NewVote, VFull}),
+                                  lists:keyreplace(
+                                    User, #iv.u, IVs,
+                                    #iv{u=User, v=NewVote, vlong=VFull}),
                               {IVs2, IVs2};
                          not V#vote.valid ->
                               VFull = "INVALID",
                               NewVote = "INV",
                               IVs2 =
-                                  lists:keyreplace(User, 1, IVs,
-                                                   {User, NewVote, VFull}),
+                                  lists:keyreplace(
+                                    User, #iv.u, IVs,
+                                    #iv{u=User, v=NewVote, vlong=VFull}),
                               {IVs, IVs2}
                       end,
+                  %% calc standing
+                  Stand =
+                      ?lrev(
+                         lists:sort(
+                           lists:foldl(
+                             fun(Iv, A) when Iv#iv.v /= "---",
+                                             Iv#iv.v /= "Unv" ->
+                                     %% A = [#iv{}]
+                                     %% first use of #iv.n
+                                     case lists:keyfind(Iv#iv.v, #iv.v, A) of
+                                         false -> [Iv#iv{n=1} | A];
+                                         Cnt = #iv{n=N} ->
+                                             lists:keyreplace(
+                                               Iv#iv.v, #iv.v, A, Cnt#iv{n=N+1})
+                                     end;
+                                (_, A) -> A
+                             end,
+                             [],
+                             NewIVs))),
+                  PrStand = lists:sublist(Stand, 4),
+                  %% ?dbg({User, PrStand}),
                   TimeStr = print_time_5d(PP#pp.game, V#vote.time),
                   %% "&nbsp;"
                   ReplSpace =
@@ -1341,22 +1369,24 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                                      pr_ivs_vote(PrIVs, User),
                                      TimeStr
                                     ]),
-                          {NewIVs, []};
+                          RA#ra{ivs=NewIVs};
                      PP#pp.mode == ?html ->
-                          {NewIVs,
-                           [Html|
-                            ["<tr>",
-                             "<td", bgcolor(User), " align=\"right\">",
-                             ReplSpace(User), "</td>",
-                             "<td>", TimeStr, "</td>",
-                             pr_ivs_vote_html(PrIVs, User, V#vote.id),
-                             "<td>", TimeStr, "</td>",
-                             "<td", bgcolor(User), " align=\"left\">",
-                             ReplSpace(User), "</td>",
-                             "</tr>\r\n"]]}
+                          RA#ra{ivs=NewIVs,
+                                html=[RA#ra.html|
+                                      ["<tr>",
+                                       "<td", bgcolor(User),
+                                       " align=\"right\">",
+                                       ReplSpace(User), "</td>",
+                                       "<td>", TimeStr, "</td>",
+                                       pr_ivs_vote_html(PrIVs, User, V#vote.id),
+                                       "<td>", TimeStr, "</td>",
+                                       pr_stand_html(PrStand),
+                                       "</tr>\r\n"]]
+                               }
                   end
           end,
-          {IterVotes, []},
+          #ra{ivs=IterVotes, stand = [], html = []},
+          %% {IterVotes, []},
           Votes3),
     if PP#pp.mode == ?text ->
             io:format(PP#pp.dev,
@@ -1366,13 +1396,14 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                       FmtVoter,
                       [pr_ivs_user(IterVotes, PrAbbrF)]);
        PP#pp.mode == ?html ->
+            %% warn: duplicate code!!
             Tab2 = [Head, Html,
                     ["<tr>"
                      "<th align=\"right\">Voter</th>",
                      "<th>Time</th>",
                      pr_ivs_user_html(IterVotes, PrAbbrF),
                      "<th>Time</th>",
-                     "<th align=\"left\">Voter</th>",
+                     "<th colspan=4 align=\"left\">Standings</th>",
                      "</tr></table>\r\n"]],
             ["<br><table align=center>",
              "<tr><th>Vote Tracker (Day ", ?i2l(PP#pp.day_num), ")</th></tr>",
@@ -1442,10 +1473,10 @@ prk_html(PP, Abbrs) ->
      | prk_html(PP, AbbrsRem)].
 
 pr_ivs_user_html(IVs, A) ->
-    [["<th", bgcolor(U), ">", A(U), "</th>"] || {U, _V, _} <- IVs].
+    [["<th", bgcolor(U), ">", A(U), "</th>"] || #iv{u=U} <- IVs].
 
 pr_ivs_user(IVs, A) ->
-    string:join([A(U) || {U, _V, _} <- IVs], " ").
+    string:join([A(U) || #iv{u=U} <- IVs], " ").
 
 pr_ivs_vote_html(IVs, User, MsgId) ->
     [if U == User ->
@@ -1457,7 +1488,11 @@ pr_ivs_vote_html(IVs, User, MsgId) ->
         true ->
              ["<td", bgcolor(VF), ">", V, "</td>"]
      end
-     || {U, V, VF} <- IVs].
+     || #iv{u=U, v=V, vlong=VF} <- IVs].
+
+pr_stand_html(PrStand) ->
+    [["<td", bgcolor(VLong),">", ?i2l(N), "-", Vote, "</td>"]
+     || #iv{n=N, v=Vote, vlong=VLong} <- PrStand].
 
 bgcolor(V) -> mafia_lib:bgcolor(V).
 
@@ -1467,17 +1502,17 @@ pr_ivs_vote(IVs, User) ->
 pr_ivs_vote([], _User, Acc) ->
     Acc;
 %% Second last matches
-pr_ivs_vote([{U, V, _}, {_, V2, _}], User, Acc) when U == User ->
+pr_ivs_vote([#iv{u=U, v=V}, #iv{v=V2}], User, Acc) when U == User ->
     pr_ivs_vote([], User, Acc ++ "["++?l2u(V)++"]" ++ V2 ++ " ");
 %% Last matches
-pr_ivs_vote([{U, V, _}], User, Acc) when U == User ->
+pr_ivs_vote([#iv{u=U, v=V}], User, Acc) when U == User ->
     pr_ivs_vote([], User, Acc ++ "["++?l2u(V)++"]");
 %% Match
-pr_ivs_vote([{U, V, _}, {_, V2, _} | T], User, Acc) when U == User ->
+pr_ivs_vote([#iv{u=U, v=V}, #iv{v=V2} | T], User, Acc) when U == User ->
     pr_ivs_vote(T, User, Acc ++ "["++?l2u(V)++"]"++V2);
-pr_ivs_vote([{_, V, _ }], User, Acc) ->
+pr_ivs_vote([#iv{v=V}], User, Acc) ->
     pr_ivs_vote([], User, Acc ++ " "++ V ++" ");
-pr_ivs_vote([{_, V, _} | T], User, Acc) ->
+pr_ivs_vote([#iv{v=V} | T], User, Acc) ->
     pr_ivs_vote(T, User, Acc ++ " " ++ V).
 
 %% -----------------------------------------------------------------------------

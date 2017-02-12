@@ -2,15 +2,23 @@
 
 -include("mafia.hrl").
 
--export([get_abbrevs/1]).
+-export([get3l/3,
+         get_abbrevs/1]).
 
 -type abbr_calc() :: {IsUniq :: boolean(),
                       OrigName :: string(),
                       AbbrAcc :: string(),
                       NameRem :: string()}.
 
+%% get abbr for name
+get3l(V, Abbrs, Def3l) ->
+    case lists:keyfind(V, 2, Abbrs) of
+        false -> Def3l;
+        {_, _, Abbr, _} -> Abbr
+    end.
+
 %% calculate_3letter_abbrevs_for_remaining_players
--spec get_abbrevs([player()]) -> term().
+-spec get_abbrevs([player()]) -> [abbr_calc()].
 get_abbrevs(PlayerRem) ->
     Rems = ["INVALID", ?Unvote, ?NoLynch]
             ++ [?b2l(UserB) || UserB <- PlayerRem],

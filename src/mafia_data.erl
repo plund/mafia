@@ -251,7 +251,7 @@ checkvote_fun(G, DoPrint) ->
         (Id, Acc) ->
              [Msg] = ?rmess(Id),
              NextT = Msg#message.time,
-             if NextT > Acc#acc.last_msg_time ->
+             if NextT >= Acc#acc.last_msg_time ->
                      DoCheck(Msg),
                      if DoPrint ->
                              mafia_print:print_message_summary(Msg);

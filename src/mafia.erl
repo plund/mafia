@@ -12,8 +12,7 @@
 %% Location: http://example.org/other<CR><LF>
 
 %% - Add timestamp for each entry in message_ids to use when time_offset /= 0
-%% - add last_msg_id to #mafia_game to be used when polling
-%% - check stored files (when refresh_messages) that all messages come in
+%% - Verify stored files (when refresh_messages) that all messages come in
 %%   msg_id and in time order.
 %% - merge all variants of mafia_time:get_next_deadline
 

@@ -3,6 +3,7 @@
 %% pds upgrade is complex/advanced -> too much at the moment
 
 -export([
+         recreate_game_table/0,
          upgrade/0,
          upgrade/1,
          update_db_attributes/0,
@@ -16,29 +17,22 @@
 
 -include("mafia.hrl").
 
+%% The mafia_game table do not need soft upgrades!
+recreate_game_table() ->
+    T = mafia_game,
+    mnesia:delete_table(T),
+    mafia_db:create_table(T),
+    mafia:refresh_votes().
+
 %% mnesia_table arity is number of fields + 1
 upgrade() ->
-    upgrade(mafia_game),
     upgrade(user).
 
-upgrade(mafia_game) ->
-    upgrade(mafia_game,
-            mnesia:table_info(mafia_game, attributes),
-            record_info(fields, mafia_game));
 upgrade(user) ->
     upgrade(user,
             mnesia:table_info(user, attributes),
             record_info(fields, user)).
 
-upgrade(Tab = mafia_game,
-        As = [key,name,day_hours,night_hours,time_zone,day1_dl_time,
-              is_init_dst,dst_changes,deadlines,gms,players_orig,
-              players_rem,game_num,player_deaths,page_to_read,game_end],
-        Fs = [key,name,day_hours,night_hours,time_zone,day1_dl_time,
-              is_init_dst,dst_changes,deadlines,gms,players_orig,
-              players_rem,game_num,player_deaths,page_to_read,game_end,
-              last_msg_time]) ->
-    upgrade_tab_mafia_game_170101(Tab, As, Fs);
 upgrade(Tab = user,
         As = [name_upper, name, verification_status],
         Fs = [name_upper, name, aliases, verification_status]) ->
@@ -46,20 +40,6 @@ upgrade(Tab = user,
 upgrade(Tab, As, Fs) ->
     io:format("No upgrade for table '~p' from:\n~999p\nto\n~999p\n",
               [Tab, As, Fs]).
-
-%% -----------------------------------------------------------------------------
-%% Add field last_msg_time into #mafia_game, 170101
-%% -----------------------------------------------------------------------------
-
-upgrade_tab_mafia_game_170101(Tab, As, Fs) ->
-    io:format("Upgrading table '~p' from:\n~999p\nto\n~999p\n", [Tab, As, Fs]),
-    save_copy_on_file(mafia_game, "game_add_last_msg_time"),
-    Trans =
-        fun(OldGame) ->
-                NewGame = tuple_to_list(OldGame) ++ [?undefined],
-                list_to_tuple(NewGame)
-        end,
-    mnesia:transform_table(Tab, Trans, Fs).
 
 %% -----------------------------------------------------------------------------
 %% Add field is_deleted into #death{}, 161211

@@ -332,7 +332,8 @@
          player_deaths :: [#death{} | #replacement{}],
          page_to_read :: integer(), %% set_kv(page_to_read, 1),
          game_end :: ?undefined | {seconds1970(), msg_id()},
-         last_msg_time
+         last_msg_id = 1 :: msg_id(),
+         last_msg_time = 1 :: seconds1970()
         }).
 
 -record(user,

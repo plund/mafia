@@ -29,6 +29,12 @@
 msgs(Sid, _Env, In) ->
     ThId = ?getv(?game_key),
     PQ = httpd:parse_query(In),
+    Url1 = ?BotUrl,
+    Url2 = "e/web/msgs?",
+    In3 = [string:tokens(I, "=") || I <- string:tokens(In, "&")],
+    Url3 = string:join(
+            [[K, "=", V] || [K, V] <- In3, K /= "button", V /= ""], "&"),
+    SearchLink = ["<a href=\"", "/", Url2, Url3, "\">", Url3, "</a>"],
     IsUserOrWord = case lists:keyfind("UorW", 1, PQ) of
                        false -> false;
                        _ -> true
@@ -127,13 +133,15 @@ msgs(Sid, _Env, In) ->
                                  true -> ""
                               end,
                         DS2 = if Page /= MI#miter.page ->
-                                      "Page "++?i2l(Page);
+                                      ["Page ", ?i2l(Page)];
                                  true -> ""
                               end,
-                        DivStr = if DS1 /= "", DS2 /= "" ->
-                                         DS1 ++ ", " ++ DS2;
+                        DivStr = if DS1 == "", DS2 == "" ->
+                                         "";
+                                    DS1 /= "", DS2 /= "" ->
+                                         [DS1, ", ", DS2, " : ", SearchLink];
                                     true ->
-                                         DS1 ++ DS2
+                                         [DS1 ++ DS2, " : ", SearchLink]
                                  end,
                         SizeDiv = deliver_div(Sid, DivStr),
                         DayStr =
@@ -157,7 +165,6 @@ msgs(Sid, _Env, In) ->
                             if IsUserCond or IsWordCond ->
                                     {Pages, _, _} = page_context(Page, 1),
                                     ["<a href=\"msgs?part=p",
-                                     %% ?i2l(Page),
                                      Pages,
                                      "#", MsgRef,
                                      "\">page ", ?i2l(Page),
@@ -198,13 +205,10 @@ msgs(Sid, _Env, In) ->
                 MI#miter{last = false}
         end,
     A = del_start(Sid, "Mafia Search Result", 0),
-    In3 = [string:tokens(I, "=") || I <- string:tokens(In, "&")],
-    In4 = string:join(
-            [[K, "=", V] || [K, V] <- In3, K /= "button", V /= ""], "&"),
     B = if DoCont ->
                 TabStart = "<tr><td><table cellpadding=6 cellspacing=3>",
                 Row1 = ["<tr><td colspan=\"2\" align=center>"
-                        "Copy/paste URL: ", ?BotUrl, "e/web/msgs?", In4,
+                        "Copy/paste URL: ", Url1, Url2, Url3,
                         "<br><br></td></tr>"],
                 TabEnd = "</table></td></tr>",
                 B1 = web:deliver(Sid, [TabStart, Row1]),

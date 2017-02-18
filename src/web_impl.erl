@@ -265,14 +265,23 @@ add_cond(QStrs, Acc) ->
 
 bold_mark_words(Msg, WordsU) ->
     MsgU = ?l2u(Msg),
+    LenMsg = length(MsgU),
     WordsU2 = get_all_words_to_mark(WordsU),
     Intervals =
         mafia_lib:merge_intervals(
           lists:sort(
             lists:foldl(
               fun(SearchU, Acc) ->
-                      Len = length(SearchU),
-                      Acc ++ [{P, P+Len-1} || P <- allpos(MsgU, SearchU)]
+                      case check_edges_for_wildcard(SearchU) of
+                          {"", _IsWcAtBeg, _IsWcAtEnd} -> Acc;
+                          {SearchU2, IsWcAtBeg, IsWcAtEnd} ->
+                              Len = length(SearchU2),
+                              Acc ++ [{P, P + Len - 1}
+                                      || P <- allpos(MsgU, SearchU2),
+                                         is_word(MsgU, P, LenMsg, Len,
+                                                 {IsWcAtBeg, IsWcAtEnd})
+                                     ]
+                      end
               end,
               [],
               WordsU2))),
@@ -294,9 +303,7 @@ bold_mark_words(Msg, WordsU) ->
 get_all_words_to_mark(WordsU) ->
     lists:foldl(
       fun(WordU, Acc) ->
-              WordsUnoWC = [element(1, check_edges_for_wildcard(Str))
-                            || Str <- string:tokens(WordU, "|")],
-              Acc ++ [Str || Str <- WordsUnoWC, "" /= Str]
+              Acc ++ [Str || Str <- string:tokens(WordU, "|"), "" /= Str]
       end,
       [],
       WordsU).

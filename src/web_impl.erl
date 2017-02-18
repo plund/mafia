@@ -29,6 +29,10 @@
 msgs(Sid, _Env, In) ->
     ThId = ?getv(?game_key),
     PQ = httpd:parse_query(In),
+    IsUserOrWord = case lists:keyfind("UorW", 1, PQ) of
+                       false -> false;
+                       _ -> true
+                   end,
     UsersText = get_arg(PQ, "user"),
     WordsText = get_arg(PQ, "word"),
     PartsText = get_arg(PQ, "part"),
@@ -106,7 +110,15 @@ msgs(Sid, _Env, In) ->
                                      IsAok and IsBok
                              end
                      end],
-                AllTestsOk = lists:all(fun(F) -> F() end, TestFuns),
+                AllTestsOk =
+                    if not IsUserOrWord ->
+                            %% All must be true same time
+                            lists:all(fun(F) -> F() end, TestFuns);
+                       IsUserOrWord ->
+                            %% Or checkbox was checked
+                            [UserTest, WordTest, PartTest] = TestFuns,
+                            (UserTest() or WordTest()) and PartTest()
+                    end,
                 if AllTestsOk ->
                         %% if not IsUserCond, not IsWordCond ->
                         DS1 = if MsgPhase /= MI#miter.phase ->

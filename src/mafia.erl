@@ -4,13 +4,6 @@
 %% Alias definitions to file "game_info.txt"? Command to gather all info?
 %% Fix deadline listing at button of game_status
 %% - impl the idea on how and when to present deadlines (top of print_votes())
-
-%% Redirect "/e/web/forum.php?threadID=1126828"
-%% HTTP/1.1 301 Moved Permanently
-%% Location: http://webdiplomacy.net/forum.php?threadID=1126828 ++ "\r\n\r\n"
-%% HTTP/1.1 303 See Other<CR><LF>
-%% Location: http://example.org/other<CR><LF>
-
 %% - Add timestamp for each entry in message_ids to use when time_offset /= 0
 %% - Verify stored files (when refresh_messages) that all messages come in
 %%   msg_id and in time order.

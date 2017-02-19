@@ -7,7 +7,7 @@
          msg/3,
          vote_tracker/3,
          stats/3,
-
+         'forum.php'/3,
          deliver/2
         ]).
 
@@ -43,6 +43,13 @@ stats(Sid, Env, In) ->
     catch_debug(
       Sid, stats,
       fun(do) -> web_impl:stats(Sid, Env, In);
+         (in) -> {stat, In}
+      end).
+
+'forum.php'(Sid, Env, In) ->
+    catch_debug(
+      Sid, stats,
+      fun(do) -> web_impl:forum_php(Sid, Env, In);
          (in) -> {stat, In}
       end).
 

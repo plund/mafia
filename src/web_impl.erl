@@ -6,6 +6,7 @@
          vote_tracker/3,
          msg/3,
          stats/3,
+         forum_php/3,
 
          show_msg/1
         ]).
@@ -688,6 +689,22 @@ conv_to_num(Str) ->
              "Was not able to convert day value to integer"
              "</td></tr>"}
     end.
+
+%% -----------------------------------------------------------------------------
+forum_php(Sid, _Env, In) ->
+    PQ = httpd:parse_query(In),
+    ThId = get_arg(PQ, "threadID"),
+    UrlDisp = ["http://webdiplomacy.net/forum.php?", In],
+    Url = [UrlDisp, "#", ThId],
+    A = del_start(Sid, "Redirect", 0),
+    B = web:deliver(
+          Sid,
+          ["<tr><td align=center>Redirecting you to webdiplomacy.net"
+           "<p>"
+           "<a href=\"", Url, "\">", UrlDisp, "</a></td></tr>"]
+         ),
+    C = del_end(Sid),
+    {A + B + C, ?none}.
 
 %% -----------------------------------------------------------------------------
 

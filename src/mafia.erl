@@ -1,6 +1,7 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% Fix all dialyzer warnings!
 %% Alias definitions to file "game_info.txt"? Command to gather all info?
 %% Fix deadline listing at button of game_status
 %% - impl the idea on how and when to present deadlines (top of print_votes())

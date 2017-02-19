@@ -1284,8 +1284,8 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
               end,
     Users = [?b2l(UserB) || UserB <- AllPlayersB],
     IterVotes = [#iv{u = User, v = "---", vlong = ""} || User <- Users],
-    FmtVoter = "Voter ~s  Voter: Vote Count per Vote\n",
-    FmtTime  = "Time  ~s  ===============================\n",
+    FmtVoter = " ~s Time |Voter, Move|Vote Count per Vote\n",
+    FmtTime  = " ~s =====|===========|==========================\n",
     Head =
         if PP#pp.mode == ?text ->
                 io:format(PP#pp.dev,
@@ -1360,9 +1360,10 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                   if PP#pp.mode == ?text ->
                           io:format(PP#pp.dev,
                                     "~s~s~s\n",
-                                    [TimeStr,
-                                     pr_ivs_vote_txt(PrIVs, User),
-                                     pr_stand_txt(User, Abbrs, PrStand)
+                                    [pr_ivs_vote_txt(PrIVs, User),
+                                     TimeStr,
+                                     pr_stand_txt(User, VoteMove,
+                                                  Abbrs, PrStand)
                                     ]),
                           RA#ra{ivs = NewIVs};
                      PP#pp.mode == ?html ->
@@ -1370,10 +1371,6 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                                 html =
                                     [RA#ra.html|
                                      ["<tr>",
-                                      %% "<td", bgcolor(User),
-                                      %% " align=\"right\">",
-                                      %% nbsp(User), "</td>",
-                                      %% "<td>", TimeStr, "</td>",
                                       pr_ivs_vote_html(PrIVs, User, V#vote.id),
                                       "<td>", TimeStr, "</td>",
                                       pr_stand_html(User, V#vote.id, VoteMove,
@@ -1496,9 +1493,11 @@ pr_ivs_vote_html(IVs, User, MsgId) ->
      end
      || #iv{u = U, v = V, vlong = VF} <- IVs].
 
-pr_stand_txt(User, Abbrs, PrStand) ->
+pr_stand_txt(User, {OldVote, NewVote}, Abbrs, PrStand) ->
+    Old = if OldVote == "" -> "..."; true -> OldVote end,
+    New = if NewVote == "" -> "..."; true -> NewVote end,
     UserA = mafia_name:get3l(User, Abbrs, "***"),
-    "|" ++ UserA ++ ": " ++
+    "|" ++ UserA ++ " " ++ Old ++ ">" ++ New ++ "|" ++
         string:join([?i2l(N) ++ "-" ++ Vote
                      || #iv{n = N, v = Vote} <- PrStand],
                     ", ").

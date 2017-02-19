@@ -446,18 +446,21 @@ find_player_replacement(#regex{msg_text_upper = MsgTextU, play_repl = RE}) ->
             {replace, OldPlayer, NewPlayer}
     end.
 
+-type rp_result() :: ok | old_no_exists | not_remain | no_day | ?game_ended.
 -spec replace_player(
-        #mafia_game{}, #message{}, New::string(), Old::string()) ->
-                            {ok | term(), #mafia_game{}}.
+        #mafia_game{}, #message{}, New::string(), Old::string())
+                    -> {rp_result(), #mafia_game{}}.
 replace_player(G, M, NewPlayer, OldPlayer) ->
     replace1(G, M, NewPlayer, ?ruserUB(OldPlayer)).
 
-replace1(G, _M, _NewPlayer, []) -> {old_no_exists, G};
+replace1(G, _M, _NewPlayer, []) ->
+    {old_no_exists, G};
 replace1(G, M, NewPlayer, [Old]) ->
     replace2(G, M, NewPlayer, Old,
              lists:member(Old#user.name, G#mafia_game.players_rem)).
 
-replace2(G, _M, _NewPlayer, _Old, false) -> {not_remain, G};
+replace2(G, _M, _NewPlayer, _Old, false) ->
+    {not_remain, G};
 replace2(G, M, NewPlayer, Old, true) ->
     replace3(G, M, NewPlayer, Old, ?ruserUB(NewPlayer)).
 

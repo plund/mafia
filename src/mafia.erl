@@ -233,17 +233,6 @@ unend_phase(MsgId) ->
     end.
 
 
-find_mess_game(MsgId) ->
-    case ?rmess(MsgId) of
-        [] -> {?error, msg_not_found};
-        [M] ->
-            ThId = M#message.thread_id,
-            case ?rgame(ThId) of
-                [] -> {?error, game_not_found};
-                [G] -> {ok, G, M}
-            end
-    end.
-
 %% OLD DEPRECATED - should call end_phase/1 and then
 %% Example: mafia:end_phase(1427098, {{2016, 12, 13}, {18,0,0}}).
 -spec end_phase(MsgId :: msg_id(),
@@ -357,9 +346,11 @@ replace_player(MsgId, OldPlayer, NewPlayer) ->
 %% @end
 %% -----------------------------------------------------------------------------
 -spec kill_player(MsgId :: msg_id(),
-                        Player :: string(),
-                        Comment :: string())
-                       -> ok | {error, not_found}.
+                  Player :: string(),
+                  Comment :: string())
+                 -> {player_killed, #phase{}} |
+                    {?error, msg_not_found | game_not_found} |
+                    {player_other_case | not_remaining_player, string()}.
 kill_player(MsgId, Player, Comment) ->
     case find_mess_game(MsgId) of
         {ok, G, M} ->
@@ -379,7 +370,8 @@ kill_player(MsgId, Player, Comment) ->
                     {player_killed, DeathPhase};
                 {not_remaining_player, _G2} ->
                     case ?ruser(Player) of
-                        [] -> {player_no_exist, Player};
+                        [] ->
+                            {player_no_exist, Player};
                         [#user{name = NameB}] ->
                             if NameB /= PlayerB ->
                                     {player_other_case, ?b2l(NameB)};
@@ -396,6 +388,20 @@ set_death_comment(MsgId, Player, Comment) ->
     kill_player(MsgId, Player, Comment).
 
 %% -----------------------------------------------------------------------------
+
+-spec find_mess_game(MsgId :: msg_id())
+                    -> {ok, #mafia_game{}, #message{}} |
+                       {?error, msg_not_found | game_not_found}.
+find_mess_game(MsgId) ->
+    case ?rmess(MsgId) of
+        [] -> {?error, msg_not_found};
+        [M] ->
+            ThId = M#message.thread_id,
+            case ?rgame(ThId) of
+                [] -> {?error, game_not_found};
+                [G] -> {ok, G, M}
+            end
+    end.
 
 %% load all beams in local dir
 l() ->

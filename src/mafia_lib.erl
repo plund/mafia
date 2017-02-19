@@ -162,14 +162,18 @@ rgameI(ThId) ->
 
 %% -----------------------------------------------------------------------------
 
+-spec ruser(string() | binary()) -> [#user{}].
 ruser(User) when is_list(User) -> ruserI(?l2b(User));
 ruser(UserB) when is_binary(UserB) -> ruserI(UserB).
 
+-spec ruserI(binary()) -> [#user{}].
 ruserI(UserB) -> mnesia:dirty_index_read(user, UserB, #user.name).
 
+-spec ruserUB(string() | binary()) -> [#user{}].
 ruserUB(User) when is_list(User) -> ruserUBI(?l2ub(User));
 ruserUB(UserB) when is_binary(UserB) -> ruserUBI(?b2ub(UserB)).
 
+-spec ruserUBI(binary()) -> [#user{}].
 ruserUBI(UserUB) -> mnesia:dirty_read(user, UserUB).
 
 %% -----------------------------------------------------------------------------

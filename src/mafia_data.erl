@@ -460,10 +460,12 @@ sum_stat(#prstat{key = KA,
           end,
     MsgIds =
         case {is_list(MsgIdsA), is_list(MsgIdsB)} of
-            {true, true} -> MsgIdsA ++ MsgIdsB;
-            {false, true} -> [MsgIdsA | MsgIdsB];
-            {true, false} -> [MsgIdsB | MsgIdsA];
-            {false, false} -> [MsgIdsA, MsgIdsB]
+            {true, true} ->
+                MsgIdsA ++ MsgIdsB
+                %% Dialyzer says the 3 next cannot happen
+                %% {false, true} -> [MsgIdsA | MsgIdsB];
+                %% {true, false} -> [MsgIdsB | MsgIdsA];
+                %% {false, false} -> [MsgIdsA, MsgIdsB]
         end,
     NewNumPosts = NPoA + NPoB,
     NewNumWords = NWoA + NWoB,
@@ -547,7 +549,9 @@ iterate_all_msg_ids(ThId, MsgIdFun, Filter) ->
 
 iter_msgids(ThId, MsgIdFun, Acc, PageFilter) ->
     All = mafia:pages_for_thread(ThId),
-    Pages = if PageFilter == all -> All;
+    Pages = if PageFilter == all ->
+                    All;
+               %% dialyzer: said no fun was possible?
                is_function(PageFilter) ->
                     lists:filter(PageFilter, All)
             end,

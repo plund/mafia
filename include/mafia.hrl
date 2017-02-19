@@ -167,6 +167,7 @@
 -type seconds1970() :: integer().
 -type message() :: binary().
 -type day_night() :: ?day | ?night.
+-type mfargs() :: {atom(), atom(), list()}.
 
 %% simple macros
 -define(a2l(A), atom_to_list(A)).
@@ -375,5 +376,5 @@
 -record(cmd,
         { time :: seconds1970(),
           msg_id :: msg_id(),
-          mfa :: mfa()
+          mfa :: mfargs()
         }).

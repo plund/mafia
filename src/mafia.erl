@@ -1,6 +1,11 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% ##bot endgame <msgid> | unendgame
+%% ##bot endphase|unendphase <msgid>
+%% ##bot replaceplayer <msgid> <old> <new>
+%% ##bot deadline <msgid> earlier|later <time>
+%% ##bot addassistant <msgid> <player>
 %% Fix all dialyzer warnings!
 %% Alias definitions to file "game_info.txt"? Command to gather all info?
 %% Fix deadline listing at button of game_status

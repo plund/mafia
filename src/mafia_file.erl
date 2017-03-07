@@ -97,6 +97,8 @@ game_link_and_text(G, ?current) ->
     Href = filename:join(["/", GameDir, ?CURRENT_GAME_FN]),
     Link = ?CURRENT_GAME_FN,
     {Href, Link};
+game_link_and_text(G, #phase{don = ?game_ended}) ->
+    game_link_and_text(G, ?current);
 game_link_and_text(G, Phase = #phase{}) ->
     {GameDir, FilePrefix} = game_prefixes(G),
     PhaseFN = phase_fn(FilePrefix, Phase),

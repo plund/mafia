@@ -44,14 +44,26 @@ check_cmds_votes(_S, _M, []) -> ignore;
 check_cmds_votes(S, M, [G = #mafia_game{}]) ->
     check_cmds_votes(S, M, G);
 check_cmds_votes(S, M, G = #mafia_game{}) ->
-    NotEnded = case G#mafia_game.game_end of
-                   ?undefined -> true;
-                   {EndTime, _MsgId} ->
-                       M#message.time =< EndTime
-               end,
-    if NotEnded ->
+    IsEnded = case G#mafia_game.game_end of
+                  ?undefined -> false;
+                  {EndTime, _MsgId} ->
+                      M#message.time >= EndTime
+              end,
+    DoGenerate =
+        case mafia_lib:prev_msg(M) of
+            ?none -> false;
+            PrevM ->
+                PhaseM = mafia_time:calculate_phase(G, M#message.time),
+                PhasePrevM = mafia_time:calculate_phase(G, PrevM#message.time),
+                PhasePrevM /= PhaseM
+        end,
+    if DoGenerate ->
+            mafia_web:do_regen_hist(M#message.time, G#mafia_game.key);
+       true -> ok
+    end,
+    if not IsEnded ->
             case player_type(M, G) of
-                ?gm -> check_for_gm_cmds(S, M, G);
+                ?gm -> check_for_gm_cmds(S, M, G, DoGenerate);
                 ?player -> check_for_votes(S, M, G);
                 ?dead_player -> log_unallowed_msg(?dead_player, M);
                 ?other -> log_unallowed_msg(?other, M)
@@ -73,23 +85,24 @@ log_unallowed_msg(Type, M) ->
     ?dbg(MTime, {Type, sent_message, MsgId, User}).
 
 %% Removes player from Game if dead
-check_for_gm_cmds(S, M, G) ->
-    G2 = check_for_deaths(S, M, G),
-    G3 = check_for_early_end(S, M#message.time, G2),
+check_for_gm_cmds(S, M, G, DoGenerate) ->
+    G3 = check_for_early_end(S, M#message.time, G),
     G4 = check_for_deadline_move(S, M, G3),
     G5 = check_for_player_replacement(S, M, G4),
     G6 = check_for_game_end(S, M, G5),
+    G7 = check_for_deaths(S, M, G6),
 
     %% if time is 0 - 20 min after a deadline generate a history page
-    {RelTimeSecs, _DL} = mafia_time:nearest_deadline(G6, M#message.time),
-    if G2 /= G, %% someone died (this gives no regen at refresh :/ )
+    {RelTimeSecs, _DL} = mafia_time:nearest_deadline(G7, M#message.time),
+    if not DoGenerate,
+       G7 /= G6, %% someone died
        RelTimeSecs >= 0,
        RelTimeSecs =< ?MAX_GM_DL_MINS * ?MinuteSecs ->
             mafia_web:do_regen_hist(M#message.time, G#mafia_game.key);
        true ->
             ok
     end,
-    G6.
+    G7.
 
 check_for_deaths(#regex{msg_text_upper = Msg}, M, G) ->
     check_for_deaths(Msg, M, G);

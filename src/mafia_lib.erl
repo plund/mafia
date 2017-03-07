@@ -15,6 +15,9 @@
          ruserUB/1,
          rmessI/1,
 
+         %% prev_msg_id/1,
+         prev_msg/1,
+
          alpha_sort/1,
          bgcolor/1,
          thid/1,
@@ -175,6 +178,37 @@ ruserUB(UserB) when is_binary(UserB) -> ruserUBI(?b2ub(UserB)).
 
 -spec ruserUBI(binary()) -> [#user{}].
 ruserUBI(UserUB) -> mnesia:dirty_read(user, UserUB).
+
+%% -----------------------------------------------------------------------------
+
+%% -spec prev_msg_id(Id :: msg_id()) -> ?none | msg_id().
+%% prev_msg_id(Id) when is_integer(Id) ->
+%%     case rmessI(Id) of
+%%         [M] ->
+%%             case prev_msg(M) of
+%%                 PM = #message{} ->
+%%                     PM#message.msg_id;
+%%                 ?none -> ?none
+%%             end
+%%     end.
+
+-spec prev_msg(Msg :: #message{}) -> ?none | #message{}.
+prev_msg(Msg) ->
+    #message{msg_id = MsgId,
+             thread_id = ThId,
+             page_num = PageNum
+            } = Msg,
+    P = hd(rpageI({ThId, PageNum})),
+    case lists:takewhile(fun(Mid) -> Mid < MsgId end, P#page_rec.message_ids) of
+        [] ->
+            case rpageI({ThId, PageNum - 1}) of
+                [] -> ?none;
+                [P2] ->
+                    hd(rmessI(lists:last(P2#page_rec.message_ids)))
+            end;
+        MsgIds ->
+            hd(rmessI(lists:last(MsgIds)))
+    end.
 
 %% -----------------------------------------------------------------------------
 

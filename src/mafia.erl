@@ -1,13 +1,13 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% add user "peterlund" to GMs?
 %% ##bot endgame <msgid> | unendgame
 %% ##bot endphase|unendphase <msgid>
 %% ##bot replaceplayer <msgid> <old> <new>
 %% ##bot deadline <msgid> earlier|later <time>
 %% ##bot addassistant <msgid> <player>
 %% Fix all dialyzer warnings!
-%% Alias definitions to file "game_info.txt"? Command to gather all info?
 %% Fix deadline listing at button of game_status
 %% - impl the idea on how and when to present deadlines (top of print_votes())
 %% - Add timestamp for each entry in message_ids to use when time_offset /= 0
@@ -61,6 +61,8 @@
          show_aliases/1,
          add_alias/2,
          remove_alias/2,
+         export_user_data/0,
+         import_user_data/0,
 
          setup_mnesia/0,
          remove_mnesia/0
@@ -558,7 +560,7 @@ add_alias(User, Alias) ->
                 true ->
                     {error, alias_exist_already};
                 false ->
-                    ?dwrite_user(U#user{aliases = [AliasB|AliasesB]}),
+                    ?dwrite_user(U#user{aliases = [AliasB | AliasesB]}),
                     ok
             end
     end.
@@ -581,6 +583,62 @@ remove_alias(User, Alias) ->
                 false ->
                     {error, alias_does_not_exist}
             end
+    end.
+
+%% Export user table to file
+export_user_data() ->
+    %% to file
+    Keys = all_keys(user),
+    Recs = [hd(?ruserUB(UserUB)) || UserUB <- Keys],
+    file:write_file("user_data.txt",
+                    io_lib:format("~p.\n", [Recs]),
+                    [write]).
+
+%% Import user data from file
+import_user_data() ->
+    %% import from file and MERGE
+    import_user_data(file:consult("user_data.txt")).
+
+import_user_data({error, _} = Error) -> Error;
+import_user_data({ok, [Users]}) ->
+    RespF =
+        fun() ->
+                Resp =io:get_line(
+                        ?l2a("Action I = store Imported User, "
+                             "D = keep DB unchanged, X = eXit (D): ")),
+                %% io:format("Resp ~p\n", [Resp]),
+                case string:to_upper(Resp) of
+                    "I"++_ -> ?take_import;
+                    "X"++_ -> ?stop;
+                    _ -> ?continue
+                end
+        end,
+    Cmp = fun(_Uimp, stop) -> stop;
+             (Uimp, _) ->
+                  KeyImp = element(2, Uimp),
+                  Udb = case ?ruserUB(KeyImp) of
+                            [] -> no_exist;
+                            [U] -> U
+                        end,
+                  if Uimp /= Udb ->
+                          io:format("Imp ~999p\n", [Uimp]),
+                          io:format("DB  ~999p\n", [Udb]),
+                          Action = RespF(),
+                          io:format("~p\n", [Action]),
+                          if Action == ?take_import -> ?dwrite_user(Uimp);
+                             true -> ignore
+                          end,
+                          Action;
+                     true ->
+                          io:format("Imp=DB ~999p\n", [Uimp]),
+                          %% io:format("---\n", []),
+                          ?continue
+                  end
+          end,
+    case lists:foldl(Cmp, ?continue, Users) of
+        ?continue ->
+            done_all;
+        R -> R
     end.
 
 print_all_cnts() -> mafia_lib:print_all_cnts().

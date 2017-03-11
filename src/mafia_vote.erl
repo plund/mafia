@@ -33,17 +33,17 @@ get_regexs() ->
 %% -----------------------------------------------------------------------------
 -spec check_cmds_votes(#regex{}, #message{})
                       -> MsgTime :: seconds1970() | ignore.
-check_cmds_votes(S, M = #message{}) ->
+check_cmds_votes(Re, M = #message{}) ->
     mafia_data:update_stat(M),
     MsgU = ?l2u(mafia_print:html2txt(?b2l(M#message.message))),
-    check_cmds_votes(S#regex{msg_text_upper = MsgU},
+    check_cmds_votes(Re#regex{msg_text_upper = MsgU},
                      M,
                      ?rgame(M#message.thread_id)).
 
-check_cmds_votes(_S, _M, []) -> ignore;
-check_cmds_votes(S, M, [G = #mafia_game{}]) ->
-    check_cmds_votes(S, M, G);
-check_cmds_votes(S, M, G = #mafia_game{}) ->
+check_cmds_votes(_Re, _M, []) -> ignore;
+check_cmds_votes(Re, M, [G = #mafia_game{}]) ->
+    check_cmds_votes(Re, M, G);
+check_cmds_votes(Re, M, G = #mafia_game{}) ->
     IsEnded = case G#mafia_game.game_end of
                   ?undefined -> false;
                   {EndTime, _MsgId} ->
@@ -63,16 +63,16 @@ check_cmds_votes(S, M, G = #mafia_game{}) ->
     end,
     if not IsEnded ->
             case player_type(M, G) of
-                ?gm -> check_for_gm_cmds(S, M, G, DoGenerate);
-                ?player -> check_for_votes(S, M, G);
+                ?gm -> check_for_gm_cmds(Re, M, G, DoGenerate);
+                ?player -> check_for_votes(Re, M, G);
                 ?dead_player -> log_unallowed_msg(?dead_player, M);
                 ?other -> log_unallowed_msg(?other, M)
             end;
        true ->
             case player_type(M, G) of
                 ?gm ->
-                    G2 = check_for_deaths(S, M, G),
-                    check_for_game_unend(S, M, G2);
+                    G2 = check_for_deaths(Re, M, G),
+                    check_for_game_unend(Re, M, G2);
                 _ -> ignore
             end
     end,
@@ -85,12 +85,12 @@ log_unallowed_msg(Type, M) ->
     ?dbg(MTime, {Type, sent_message, MsgId, User}).
 
 %% Removes player from Game if dead
-check_for_gm_cmds(S, M, G, DoGenerate) ->
-    G3 = check_for_early_end(S, M#message.time, G),
-    G4 = check_for_deadline_move(S, M, G3),
-    G5 = check_for_player_replacement(S, M, G4),
-    G6 = check_for_game_end(S, M, G5),
-    G7 = check_for_deaths(S, M, G6),
+check_for_gm_cmds(Re, M, G, DoGenerate) ->
+    G3 = check_for_early_end(Re, M#message.time, G),
+    G4 = check_for_deadline_move(Re, M, G3),
+    G5 = check_for_player_replacement(Re, M, G4),
+    G6 = check_for_game_end(Re, M, G5),
+    G7 = check_for_deaths(Re, M, G6),
 
     %% if time is 0 - 20 min after a deadline generate a history page
     {RelTimeSecs, _DL} = mafia_time:nearest_deadline(G7, M#message.time),
@@ -125,11 +125,11 @@ check_for_deaths(Msg, M, G) ->
             {KilledUserB, Comment, _MsgAfterNL} =
                 read_death_line(G, HStr, TStr),
             DeathComment =
-                if Comment == use_full_line -> get_line_at(Pos, Msg);
+                if Comment == ?use_full_line -> get_line_at(Pos, Msg);
                    true -> Comment
                 end,
             case KilledUserB of
-                no_dead -> %% no match
+                ?noone_died -> %% no match
                     check_for_deaths(TStr, M, G);
                 _ ->
                     {_, G2} = kill_player(G, M, KilledUserB, DeathComment),
@@ -171,7 +171,9 @@ kill_player(G, M, DeadB, DeathComment, true) ->
 
 %% Returns exact User binary.
 -spec read_death_line(#mafia_game{}, string(), string())
-                     -> {user(), Comment :: string(), StrAfterNL :: string()}.
+                     -> {user() | ?noone_died,
+                         Comment :: ?use_full_line | string(),
+                         StrAfterNL :: string()}.
 read_death_line(G, HStr, TStr) ->
     %% find one remaining player before on the same line.
     RevStr = ?lrev(HStr),
@@ -194,14 +196,14 @@ read_death_line(G, HStr, TStr) ->
           RemUsersU),
     DeadUser = case Users of
                     [First | _] -> First;
-                    [] -> no_dead
+                    [] -> ?noone_died
                 end,
     {_, RemLine, AfterNextNL} = find_parts(TStr, "\n"),
     WasComment =
         case {find_parts_match(RemLine, "SHE WAS"),
               find_parts_match(RemLine, "HE WAS")} of
             {{0, _, _, _}, {0, _, _, _}} -> % Neither found use full line
-                use_full_line;
+                ?use_full_line;
             {Find1, Find2} ->
                 {_, _Before, Match, After} =
                     if element(1, Find1) /= 0 -> Find1;
@@ -269,7 +271,7 @@ is_end_of_phase(M, G) ->
 update_day_rec(_M, G, Death) ->
     case Death#death.phase of
         Phase = #phase{don = ?day} ->
-            [D] = ?rday(G, Phase),
+            D = ?rday(G, Phase),
             NewDeaths = add_death(Death, D),
             NewRems = D#mafia_day.players_rem -- [Death#death.player],
             ?dwrite_day(
@@ -421,17 +423,15 @@ find_expr(Text, Reg) ->
             {not_found, Text}
     end.
 
-%% -----------------------------------------------------------------------------
-
 -spec check_for_player_replacement(
-        MsgText::string(), #message{}, #mafia_game{}
+        #regex{}, #message{}, #mafia_game{}
        ) -> #mafia_game{}.
-check_for_player_replacement(S, M, G) ->
-    case string:str(S#regex.msg_text_upper, "REPLAC") of
+check_for_player_replacement(Re, M, G) ->
+    case string:str(Re#regex.msg_text_upper, "REPLAC") of
         0 -> %% no-one has been replaced
             G;
         _ ->
-            case find_player_replacement(S) of
+            case find_player_replacement(Re) of
                 no_replace ->
                     G;
                 {replace, OldPlayer, NewPlayer} ->
@@ -455,14 +455,16 @@ find_player_replacement(#regex{msg_text_upper = MsgTextU, play_repl = RE}) ->
     case re:run(MsgTextU, RE, [{capture, [2, 4], list}]) of
         nomatch ->
             no_replace;
-        {match,[NewPlayer, OldPlayer]} ->
+        {match, [NewPlayer, OldPlayer]} ->
             {replace, OldPlayer, NewPlayer}
     end.
 
--type rp_result() :: ok | old_no_exists | not_remain | no_day | ?game_ended.
--spec replace_player(
-        #mafia_game{}, #message{}, New::string(), Old::string())
-                    -> {rp_result(), #mafia_game{}}.
+-type replace_result() :: ok | old_no_exists | not_remain | ?game_ended.
+-spec replace_player(#mafia_game{},
+                     #message{},
+                     string(),
+                     string())
+                    -> {replace_result(), #mafia_game{}}.
 replace_player(G, M, NewPlayer, OldPlayer) ->
     replace1(G, M, NewPlayer, ?ruserUB(OldPlayer)).
 
@@ -477,6 +479,8 @@ replace2(G, _M, _NewPlayer, _Old, false) ->
 replace2(G, M, NewPlayer, Old, true) ->
     replace3(G, M, NewPlayer, Old, ?ruserUB(NewPlayer)).
 
+-spec replace3(#mafia_game{}, #message{}, term(), term(), term()) ->
+                      {ok, #mafia_game{}} | {?game_ended, #mafia_game{}}.
 replace3(G, M, NewPlayer, Old, []) ->
     NewNameUB = ?l2ub(NewPlayer),
     New = #user{name_upper = NewNameUB,
@@ -487,33 +491,31 @@ replace3(G, M, NewPlayer, Old, []) ->
     replace3(G, M, NewPlayer, Old, [New]);
 replace3(G, M, _NewPlayer, Old, [New]) ->
     %% replace ALSO in #mafia_day.players_rem
-    case mafia_time:calculate_phase(G#mafia_game.key, M#message.time) of
-        #phase{} = Phase ->
-            case ?rday(G#mafia_game.key, Phase) of
-                [D] ->
-                    NewP = New#user.name,
-                    OldP = Old#user.name,
-                    ?dbg(M#message.time, {?b2l(NewP), replaces, ?b2l(OldP)}),
-                    Rems2 = repl_user(OldP, NewP, D#mafia_day.players_rem),
-                    Replacement = #replacement{
-                      new_player = NewP,
-                      replaced_player = OldP,
-                      phase = Phase,
-                      msg_id = M#message.msg_id,
-                      time = M#message.time
-                     },
-                    DeathsD2 = [Replacement | D#mafia_day.player_deaths],
-                    ?dwrite_day(D#mafia_day{players_rem = Rems2,
-                                            player_deaths = DeathsD2}),
-                    DeathsG2 = [Replacement | G#mafia_game.player_deaths],
-                    G2 = G#mafia_game{player_deaths = DeathsG2},
-                    replace4(G2, OldP, NewP);
-                [] ->
-                    {no_day, G}
-            end;
-        ?game_ended -> {?game_ended, G}
+    Phase = mafia_time:calculate_phase(G#mafia_game.key, M#message.time),
+    if Phase#phase.don == ?game_ended ->
+            {?game_ended, G};
+       true ->
+            D = ?rday(G#mafia_game.key, Phase),
+            NewP = New#user.name,
+            OldP = Old#user.name,
+            ?dbg(M#message.time, {?b2l(NewP), replaces, ?b2l(OldP)}),
+            Rems2 = repl_user(OldP, NewP, D#mafia_day.players_rem),
+            Replacement = #replacement{
+              new_player = NewP,
+              replaced_player = OldP,
+              phase = Phase,
+              msg_id = M#message.msg_id,
+              time = M#message.time
+             },
+            DeathsD2 = [Replacement | D#mafia_day.player_deaths],
+            ?dwrite_day(D#mafia_day{players_rem = Rems2,
+                                    player_deaths = DeathsD2}),
+            DeathsG2 = [Replacement | G#mafia_game.player_deaths],
+            G2 = G#mafia_game{player_deaths = DeathsG2},
+            replace4(G2, OldP, NewP)
     end.
 
+-spec replace4(#mafia_game{}, term(), term()) -> {ok, #mafia_game{}}.
 replace4(G, OldUB, NewUB) ->
     NewOrig = repl_user(OldUB, NewUB, G#mafia_game.players_orig),
     NewRem = repl_user(OldUB, NewUB, G#mafia_game.players_rem),
@@ -609,12 +611,12 @@ check_VOTE(MsgUC, M, G) ->
                             Pos, length(VoteStr), Msg)),
                         60))),
             case rank_options(Players2, RestUC) of
-                [{NumV, TopP}] when NumV >= 2; NumV >= length(TopP) ->
+                [{NumV, TopP}] when NumV >= 2; NumV >= size(TopP) ->
                     reg_vote(M, G, TopP, RawVote, true);
                 [{NumV1, TopP}, {NumV2, _}|_]
                   when NumV1 > NumV2 andalso
                        (NumV1 >= 2 orelse
-                        NumV1 >= length(TopP)) ->
+                        NumV1 >= size(TopP)) ->
                     reg_vote(M, G, TopP, RawVote, true);
                 _ ->
                     Vote = ?l2b("-"),
@@ -844,7 +846,7 @@ vote2(M, G, Vote, RawVote, IsOkVote) ->
                             raw = RawVote,
                             valid = IsOkVote
                            },
-            Day = hd(?rday(M#message.thread_id, Phase)),
+            Day = ?rday(M#message.thread_id, Phase),
             Votes = Day#mafia_day.votes,
             Votes2 = case lists:keyfind(User, 1, Votes) of
                          false ->
@@ -866,7 +868,7 @@ reg_end_vote(Op, M) ->
     case mafia_time:calculate_phase(M#message.thread_id, M#message.time) of
         Phase = #phase{don = ?day} ->
             case ?rday(M#message.thread_id, Phase) of
-                [Day] ->
+                Day ->
                     User = M#message.user_name,
                     OldEndVotes = Day#mafia_day.end_votes,
                     NewEndVotes =
@@ -879,8 +881,8 @@ reg_end_vote(Op, M) ->
                             remove ->
                                 OldEndVotes -- [M#message.user_name]
                         end,
-                    ?dwrite_day(Day#mafia_day{end_votes = NewEndVotes});
-                _ -> ok
+                    ?dwrite_day(Day#mafia_day{end_votes = NewEndVotes})
+                %% _ -> ok
             end;
         _ ->
             ok

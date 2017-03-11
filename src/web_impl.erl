@@ -443,6 +443,7 @@ game_status(Sid, _Env, In) ->
     Args = make_args(PQ, ["phase", "num"]),
     {A + B + C, Args}.
 
+-spec game_status_out(ok | current, #phase{}) -> string().
 game_status_out(current, Phase) ->
     UseTime = [{?use_time, mafia_time:utc_secs1970()}],
     game_status_out2(Phase, UseTime);
@@ -477,6 +478,7 @@ game_status_out2(Phase, UseTime) ->
                             ++ UseTime
                             ++ PeriodOpts).
 
+-spec get_phase(list()) -> {ok | current, #phase{}} | {error, term()}.
 get_phase([]) ->
     GameKey = ?getv(?game_key),
     Phase = mafia_time:calculate_phase(GameKey),

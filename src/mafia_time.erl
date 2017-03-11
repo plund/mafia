@@ -164,14 +164,7 @@ add_deadlines(MGame) ->
     MGame#mafia_game{deadlines = expand_deadlines(MGame)}.
 
 %% @doc Return an expanded list of deadlines in reversed order
--spec expand_deadlines(ThId :: integer() | #mafia_game{})
-                    -> NewDLs :: [#dl{}].
-expand_deadlines(ThId) when is_integer(ThId) ->
-    case ?rgame(ThId) of
-        [] -> ignore;
-        [#mafia_game{} = G] ->
-            expand_deadlines(G)
-    end;
+-spec expand_deadlines(#mafia_game{}) -> NewDLs :: [#dl{}].
 expand_deadlines(G) ->
     DLsIn = G#mafia_game.deadlines,
     FirstNewPh = if DLsIn == [] -> #phase{num = 1, don = ?day};
@@ -393,7 +386,7 @@ calculate_phase(ThId) ->
 
 -spec calculate_phase(Game :: integer() | #mafia_game{},
                       Time :: seconds1970())
-                     -> #phase{}.
+                     -> false | #phase{}.
 calculate_phase(ThId, Time) when is_integer(ThId) ->
     case ?rgame(ThId) of
         [G] -> calculate_phase(G, Time);
@@ -406,6 +399,7 @@ calculate_phase(Game, Time) ->
     DL = get_nxt_deadline(Game, Time),
     DL#dl.phase.
 
+-spec get_nxt_deadline(#mafia_game{}) -> #dl{}.
 get_nxt_deadline(Game) ->
     get_nxt_deadline(Game, utc_secs1970()).
 
@@ -478,7 +472,7 @@ get_time_for_prev_phase(G, Phase) ->
         Time -> Time
     end.
 
--spec nearest_deadline(integer() | #mafia_game{})
+-spec nearest_deadline(integer() | #mafia_game{} | [#mafia_game{}])
                       -> {integer(), #dl{} | ?game_ended} | none.
 nearest_deadline(GameKey) when is_integer(GameKey) ->
     nearest_deadline(?rgame(GameKey));
@@ -492,7 +486,7 @@ nearest_deadline([G]) ->
             {Now - EoGTime, ?game_ended}
     end.
 
--spec nearest_deadline(integer() | #mafia_game{},
+-spec nearest_deadline(integer() | #mafia_game{} | [#mafia_game{}],
                        seconds1970())
                       -> {integer(), #dl{}} | none.
 nearest_deadline(ThId, Time) when is_integer(ThId) ->

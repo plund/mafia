@@ -83,7 +83,7 @@
 -type player() :: user().
 -type seconds1970() :: integer().
 -type message() :: binary().
--type day_night() :: ?day | ?night.
+-type day_night() :: ?day | ?night | ?game_ended.
 -type mfargs() :: {atom(), atom(), list()}.
 
 %% simple macros
@@ -170,113 +170,115 @@
         }).
 
 -record(page_rec,
-        {key :: {thread_id(), page_num()},
-         message_ids :: [msg_id()],
-         thread_id :: thread_id(),
-         complete :: boolean()
+        {key :: ?undefined | {thread_id(), page_num()},
+         message_ids = [] :: [msg_id()],
+         thread_id :: ?undefined | thread_id(),
+         complete = false:: boolean()
         }).
 
 -record(message,
-        {msg_id :: msg_id(),
-         thread_id :: thread_id(),
-         page_num :: page_num(),
-         user_name :: user(),
-         time :: seconds1970(),
-         message :: message()
+        {msg_id :: ?undefined | msg_id(),
+         thread_id :: ?undefined | thread_id(),
+         page_num :: ?undefined | page_num(),
+         user_name :: ?undefined | user(),
+         time :: ?undefined | seconds1970(),
+         message :: ?undefined | message()
          %% is_deleted = false :: boolean()  %% Delete marking
         }).
 
 -record(phase,
-        {num :: integer(),
-         don :: day_night() | ?game_ended
+        {num :: ?undefined | integer(),
+         don :: ?undefined | day_night()
         }).
 
 -record(dl,
-        {phase :: #phase{},
-         time :: seconds1970()
+        {phase :: ?undefined | #phase{},
+         time :: ?undefined | seconds1970()
         }).
 
 -record(vote,
-        {time :: seconds1970(),
-         id :: msg_id(),
-         page :: page_num(),
-         vote :: player(),
-         raw :: binary(),
-         valid :: boolean()
+        {time :: ?undefined | seconds1970(),
+         id :: ?undefined | msg_id(),
+         page :: ?undefined | page_num(),
+         vote :: ?undefined | player(),
+         raw :: ?undefined | binary(),
+         valid :: ?undefined | boolean()
         }).
 
 -record(death,
-        {player :: player(),
-         is_end :: boolean(),
-         phase :: #phase{},
-         comment :: binary(),
-         msg_id :: msg_id(),
-         time :: seconds1970(),
+        {player :: ?undefined | player(),
+         is_end :: ?undefined | boolean(),
+         phase :: ?undefined | #phase{},
+         comment :: ?undefined | binary(),
+         msg_id :: ?undefined | msg_id(),
+         time :: ?undefined | seconds1970(),
          is_deleted = false :: boolean()
         }).
 
 -record(replacement,
-        {new_player :: player(),
-         replaced_player :: player(),
-         phase :: #phase{},
-         msg_id :: msg_id(),
-         time :: seconds1970()
+        {new_player :: ?undefined | player(),
+         replaced_player :: ?undefined | player(),
+         phase :: ?undefined | #phase{},
+         msg_id :: ?undefined | msg_id(),
+         time :: ?undefined | seconds1970()
         }).
 
 -record(mafia_day,
-        {key :: {thread_id(), day_num()},
-         thread_id :: thread_id(),
-         day :: day_num(),
-         votes :: [{player(), [#vote{}]}],
-         end_votes :: [player()],
-         players_rem :: [player()],
-         player_deaths :: [#death{}] %% Dead players in mid day
+        {key :: ?undefined | {thread_id(), day_num()},
+         thread_id :: ?undefined | thread_id(),
+         day :: ?undefined | day_num(),
+         votes = [] :: [{player(), [#vote{}]}],
+         end_votes = [] :: [player()],
+         players_rem = [] :: [player()],
+         player_deaths = [] :: [#death{} | #replacement{}] %% Dead players in mid day
         }).
 
 -record(mafia_game,
-        {key :: thread_id(),
-         name :: binary(),
-         day_hours :: integer(),     %% Typically 48
-         night_hours :: integer(),   %% Typically 24
-         time_zone :: integer(),     %% (EST=-5, UK = 0, CET=1)
-         day1_dl_time :: datetime(), %% Game TZ local time
-         is_init_dst :: boolean(),   %% true = DST, false = normal time
-         dst_changes :: [{datetime(), ToDst::boolean()}],
+        {key :: ?undefined | thread_id(),
+         name :: ?undefined | binary(),
+         day_hours = 48 :: integer(),    %% Typically 48
+         night_hours = 24 :: integer(),  %% Typically 24
+         time_zone = 0 :: integer(),     %% (EST=-5, UK = 0, CET=1)
+         day1_dl_time :: ?undefined | datetime(), %% Game TZ local time
+         is_init_dst :: ?undefined | boolean(),   %% true = DST, false = normal time
+         dst_changes = [] :: [{datetime(), ToDst::boolean()}],
          deadlines = [] :: [#dl{}],
-         gms :: [user()],
-         players_orig  :: [player()],
-         players_rem   :: [player()],
-         game_num      :: integer(),
-         player_deaths :: [#death{} | #replacement{}],
-         page_to_read :: integer(), %% set_kv(page_to_read, 1),
+         gms = [] :: [user()],
+         players_orig = [] :: [player()],
+         players_rem = [] :: [player()],
+         game_num :: ?undefined | integer(),
+         player_deaths = [] :: [#death{} | #replacement{}],
+         page_to_read :: ?undefined | integer(), %% set_kv(page_to_read, 1),
          game_end :: ?undefined | {seconds1970(), msg_id()},
-         last_msg_id = 1 :: msg_id(),
-         last_msg_time = 1 :: seconds1970()
+         last_msg_id :: ?undefined | msg_id(),
+         last_msg_time :: ?undefined | seconds1970()
         }).
 
 -record(user,
-        {name_upper :: user(),
-         name :: user(),
-         aliases :: [alias()],
-         verification_status :: ?verified | ?unverified
+        {name_upper :: ?undefined | user(),
+         name :: ?undefined | user(),
+         aliases = [] :: [alias()],
+         verification_status :: ?undefined | ?verified | ?unverified
         }).
 
 -record(stat,
         {key :: {player(), ThId::integer()}
               | {player(),
                  ThId::integer(),
-                 ?game_ended | {integer(), day_night()}},
-         msg_ids :: [msg_id()],
-         num_chars :: integer(),
-         num_words :: integer(),
-         num_postings :: integer()
+                 ?game_ended | {integer(), day_night()}}
+              | term(),
+         msg_ids :: '_' | [msg_id()],
+         num_chars :: '_' | integer(),
+         num_words :: '_' | integer(),
+         num_postings :: '_' | integer()
         }).
 
 -record(prstat,
         {key :: {player(), ThId::integer()}
               | {player(),
                  ThId::integer(),
-                 ?game_ended | {integer(), day_night()}},
+                 ?game_ended | {integer(), day_night()}}
+              | ?undefined,
          msg_ids :: [msg_id()],
          num_chars :: integer(),
          num_words :: integer(),
@@ -285,13 +287,14 @@
         }).
 
 -record(cnt,
-        {key   :: {CounterName :: binary()} |
-                  {CounterName :: binary(), Day1970 :: integer()},
-         value :: integer()
+        {key :: {CounterName :: binary()}
+              | {CounterName :: binary(), Day1970 :: integer()}
+              | term(),
+         value :: '_' | integer()
         }).
 
 -record(cmd,
-        { time :: seconds1970(),
-          msg_id :: msg_id(),
-          mfa :: mfargs()
+        { time :: ?undefined | seconds1970(),
+          msg_id :: ?undefined |  msg_id(),
+          mfa :: ?undefined | mfargs()
         }).

@@ -7,7 +7,6 @@
 %% ##bot replaceplayer <msgid> <old> <new>
 %% ##bot deadline <msgid> earlier|later <time>
 %% ##bot addassistant <msgid> <player>
-%% Fix all dialyzer warnings!
 %% Fix deadline listing at button of game_status
 %% - impl the idea on how and when to present deadlines (top of print_votes())
 %% - Add timestamp for each entry in message_ids to use when time_offset /= 0
@@ -698,14 +697,10 @@ rm_sim_gm_message(Page, SimMsgId) ->
 cmp_vote_raw() ->
     ThId = ?getv(?thread_id),
     DayNum = 1,
-    case ?rday(ThId, DayNum) of
-        [] ->
-            ignore;
-        [#mafia_day{votes = GVotes}] ->
-            [begin
-                 VoteSum =
-                     [{?b2l(V#vote.vote), ?b2l(V#vote.raw), V#vote.valid}
-                      || V <- Votes],
-                 {?b2l(User), VoteSum}
-             end || {User, Votes} <- GVotes]
-    end.
+    #mafia_day{votes = GVotes} = ?rday(ThId, DayNum),
+    [begin
+         VoteSum =
+             [{?b2l(V#vote.vote), ?b2l(V#vote.raw), V#vote.valid}
+              || V <- Votes],
+         {?b2l(User), VoteSum}
+     end || {User, Votes} <- GVotes].

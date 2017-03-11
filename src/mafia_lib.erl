@@ -18,6 +18,7 @@
          %% prev_msg_id/1,
          prev_msg/1,
 
+         my_string_substr/3,
          alpha_sort/1,
          bgcolor/1,
          thid/1,
@@ -118,16 +119,16 @@ rday(#mafia_game{} = G, DayNum) ->
     ThId = G#mafia_game.key,
     case mnesia:dirty_read(mafia_day, Key = {ThId, DayNum}) of
         [] ->
-            [#mafia_day{key = Key,
-                        thread_id = ThId,
-                        day = DayNum,
-                        votes = [],
-                        end_votes = [],
-                        players_rem = G#mafia_game.players_rem,
-                        player_deaths = []
-                       }];
+            #mafia_day{key = Key,
+                       thread_id = ThId,
+                       day = DayNum,
+                       votes = [],
+                       end_votes = [],
+                       players_rem = G#mafia_game.players_rem,
+                       player_deaths = []
+                      };
         [Day] ->
-            [Day]
+            Day
     end.
 
 %% -----------------------------------------------------------------------------
@@ -209,6 +210,20 @@ prev_msg(Msg) ->
         MsgIds ->
             hd(rmessI(lists:last(MsgIds)))
     end.
+
+%% -----------------------------------------------------------------------------
+
+-spec my_string_substr(list(), pos_integer(), pos_integer()) -> list().
+my_string_substr(List, First, Last) ->
+    my_string_substr(List, First, Last, 1).
+
+my_string_substr([H | T], First, Last, Cur) when First =< Cur, Cur =< Last ->
+    [H | my_string_substr(T, First, Last, Cur + 1)];
+my_string_substr([_ | T], First, Last, Cur) when Cur < First ->
+    my_string_substr(T, First, Last, Cur + 1);
+my_string_substr(_, _First, Last, Cur) when Cur > Last -> [];
+my_string_substr([], _First, _Last, _Cur) -> [].
+
 
 %% -----------------------------------------------------------------------------
 

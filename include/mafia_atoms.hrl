@@ -67,6 +67,8 @@
 -define(dead_player, dead_player).
 -define(other, other).
 -define(console, console).
+-define(use_full_line, use_full_line).
+-define(noone_died, noone_died).
 
 -define(start_polling, start_polling).
 -define(stop_polling, stop_polling).

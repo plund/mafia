@@ -41,12 +41,12 @@
 -include("mafia.hrl").
 
 -record(state,
-        {timer :: reference(),
-         timer_minutes :: integer(),
-         dl_timer :: reference(),
-         dl_time :: seconds1970(),
-         web_pid :: pid(),
-         game_key :: thread_id()
+        {timer :: ?undefined | timer:tref(),
+         timer_minutes :: ?undefined | ?stopped | integer(),
+         dl_timer :: ?undefined | timer:tref(),
+         dl_time :: ?undefined | seconds1970(),
+         web_pid :: ?undefined | pid(),
+         game_key :: ?undefined | thread_id()
         }).
 
 %%%===================================================================
@@ -404,12 +404,12 @@ set_dl_timer(S, Time, G) ->
     end.
 
 cancel_dl_timer(S) ->
-    if is_reference(S#state.dl_timer) ->
+    if S#state.dl_timer /= ?undefined ->
             timer:cancel(S#state.dl_timer);
        true -> ok
     end,
     flush({?deadline, any}),
-    S#state{dl_timer = undefined}.
+    S#state{dl_timer = ?undefined}.
 
 -spec set_timer_interval(#state{}, integer()) -> {Reply :: term(), #state{}}.
 set_timer_interval(S, N) when is_integer(N), N >= 1 ->

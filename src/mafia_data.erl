@@ -37,17 +37,18 @@
                               MsgTime :: seconds1970()}.
 
 -record(s,
-        {page_to_read :: page_num(),  %% either page num to get and when got the
-         %%                      actual page num
-         is_last_page :: boolean(),
+        {page_to_read :: ?undefined | page_num(),
+         %% either page num to get and when got the
+         %% actual page num
+         is_last_page :: ?undefined | boolean(),
          body_on_file = false :: boolean(),
-         page_last_read :: page_num(),
-         page_total_last_read :: page_num(),
-         thread_id :: thread_id(),
-         url :: string(),
-         body :: string(),
-         utc_time :: seconds1970(),
-         check_vote_fun :: function(),
+         page_last_read :: ?undefined |  page_num(),
+         page_total_last_read :: ?undefined | page_num(),
+         thread_id :: ?undefined | thread_id(),
+         url :: ?undefined | string(),
+         body :: ?undefined | string(),
+         utc_time :: ?undefined | seconds1970(),
+         check_vote_fun :: ?undefined | function(),
          dl_time :: ?undefined | millisecs(),
          do_refresh_msgs = false :: boolean(),
          last_msg_time,
@@ -62,7 +63,7 @@
 downl() ->
     downl2(#s{}).
 
--spec downl(do_refresh_msgs) -> ok.
+-spec downl(#s{} | do_refresh_msgs) -> ok.
 downl(S = #s{}) -> downl2(S);
 downl(do_refresh_msgs) ->
     downl2(#s{do_refresh_msgs = true}).
@@ -104,7 +105,7 @@ download(S) ->
     end.
 
 %% Download a game thread
--spec downl_web(integer()) -> ok.
+-spec downl_web(integer() | #mafia_game{} | [#mafia_game{}]) -> ok.
 downl_web(GameKey) when is_integer(GameKey) ->
     downl_web(?rgame(GameKey));
 downl_web([]) -> ok;
@@ -157,7 +158,7 @@ update_page_to_read(GameKey, PageToRead, LastMsgId, LastMsgTime)
 
 refresh_messages() -> refresh_messages(?game_key).
 
--spec refresh_messages(ThId :: integer()) -> term().
+-spec refresh_messages(ThId :: integer() | ?game_key | ?thread_id) -> ok.
 refresh_messages(?game_key = K) -> refresh_messages(?getv(K));
 refresh_messages(?thread_id = K) -> refresh_messages(?getv(K));
 refresh_messages(Id) ->

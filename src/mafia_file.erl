@@ -85,7 +85,7 @@ cnt_filename() ->
 filename_timestamp_suffix() ->
     %% down to secs, utc
     %% "170118Z090801"
-    mafia_print:print_time([{t_mode, file_suffix}]).
+    mafia_print:print_time([{?t_mode, ?file_suffix}]).
 
 %% -----------------------------------------------------------------------------
 
@@ -106,7 +106,8 @@ game_link_and_text(G, Phase = #phase{}) ->
     Link = PhaseFN,
     {Href, Link}.
 
--spec game_phase_full_fn(#mafia_game{}, #phase{} | ?current) -> string().
+-spec game_phase_full_fn(thread_id() | #mafia_game{},
+                         #phase{} | ?current) -> string().
 game_phase_full_fn(G, Phase) ->
     {GameDir, FilePrefix} = game_prefixes(G),
     PhaseFN = if Phase == ?current -> ?CURRENT_GAME_FN;

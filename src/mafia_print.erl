@@ -37,27 +37,30 @@
 %% -----------------------------------------------------------------------------
 
 %% print params
--record(pp, {game  :: #mafia_game{},
-             day   :: #mafia_day{},
-             players_rem :: [player()],  %% for vote-coutn, non-votes, non-posts
-             players_vote :: [player()],  %% for vote tracker
-             game_key :: thread_id(),
-             phase  :: #phase{} | ?total_stats,
-             day_num :: integer(),
-             message :: #message{},
-             msg_id :: msg_id(),
-             match_expr :: ?undefined | term(),
-             dev = standard_io,
-             mode = ?text :: ?text | ?html,
-             t_mode = ?long :: ?short | ?long | ?extensive,
-             period :: integer(),   %% Poll period
-             use_time :: ?undefined | seconds1970(),
-             %% use_time = time to next DL (current game status)
-             %%time :: seconds1970(),
-             time_zone = 0 :: integer(),
-             dst = false :: boolean(),
-             sort = ?normal :: ?normal | ?words | ?words_per_post
-            }).
+-record(
+   pp,
+   {game  :: ?undefined | #mafia_game{},
+    day   :: ?undefined | #mafia_day{},
+    players_rem :: ?undefined | [player()], %% for vote-count, non-votes,
+                                                % non-posts
+    players_vote :: ?undefined | [player()], %% for vote tracker
+    game_key :: ?undefined | thread_id(),
+    phase  :: ?undefined | #phase{} | ?total_stats,
+    day_num :: ?undefined | integer(),
+    message :: ?undefined | #message{},
+    msg_id :: ?undefined | msg_id(),
+    match_expr :: term(),
+    dev = standard_io,
+    mode = ?text :: ?text | ?html,
+    t_mode = ?long :: ?short | ?long | ?extensive | ?file_suffix,
+    period :: ?undefined | integer(),   %% Poll period
+    use_time :: ?undefined | seconds1970(),
+    %% use_time = time to next DL (current game status)
+    %%time :: seconds1970(),
+    time_zone = 0 :: integer(),
+    dst = false :: boolean(),
+    sort = ?normal :: ?normal | ?words | ?words_per_post
+   }).
 
 po(P, [{?game_key, K} | T]) -> po(P#pp{game_key = K}, T);
 po(P, [{?phase, Ph = #phase{}} | T]) -> po(P#pp{phase = Ph}, T);
@@ -157,7 +160,7 @@ don_arg(DoN) ->
 setup_pp(PP) when PP#pp.game == ?undefined ->
     setup_pp(PP#pp{game = hd(?rgame(PP#pp.game_key))});
 setup_pp(PP) when PP#pp.day == ?undefined ->
-    setup_pp(PP#pp{day = hd(?rday(PP#pp.game_key, PP#pp.phase))});
+    setup_pp(PP#pp{day = ?rday(PP#pp.game_key, PP#pp.phase)});
 
 %% D2
 %% rema : votecount/nonvote/non-post  Flum + Vecna (not GA)
@@ -847,12 +850,16 @@ pr_thread_links(PP, DoDispTime2DL) ->
                         [" or <a href=\"", UrlPart, Pages(StartPage, EndPage),
                          "\">complete ", print_phase(PP#pp.phase), "</a>"]
                 end,
-            Links = string:join( Links0 ++ [LastLink], " "),
+            Links = my_string_join( Links0 ++ [LastLink], " "),
             ["<tr><td align=center>Messages for this phase: ", Links,
              "</td></tr>"];
         _Other ->
             []
     end.
+
+my_string_join([A, B | T], Sep) ->
+    [A, Sep | my_string_join([B | T], Sep)];
+my_string_join(Any, _Sep) -> Any.
 
 %% Votes per user are time ordered (oldest first)
 %% Users sorted time ordered after they oldest vote (first vote)
@@ -1249,8 +1256,7 @@ web_vote_tracker(DayNum) ->
     web_vote_tracker(PP, ?rgame(GameKey), ?rday(GameKey, Phase)).
 
 web_vote_tracker(_PP, [], _) -> ok;
-web_vote_tracker(_PP, _, []) -> ok;
-web_vote_tracker(PP, [Game], [Day]) ->
+web_vote_tracker(PP, [Game], Day) ->
     PP2 = PP#pp{game = Game,
                 day = Day},
     PP3 = setup_pp(PP2),
@@ -1458,7 +1464,7 @@ prk(_PP, _CFmt, []) -> ok;
 prk(PP, CFmt, Abbrs) ->
     NumAbbr = length(Abbrs),
     NumPrint = if NumAbbr >= 4 -> 4; true -> NumAbbr end,
-    AbbrsPrint = string:substr(Abbrs, 1, NumPrint),
+    AbbrsPrint = mafia_lib:my_string_substr(Abbrs, 1, NumPrint),
     AbbrsRem = lists:nthtail(NumPrint, Abbrs),
     Fmt = string:join([CFmt || _ <- AbbrsPrint], " ") ++ "\n",
     io:format(PP#pp.dev, Fmt, AbbrsPrint),
@@ -1468,7 +1474,7 @@ prk_html(_PP, []) -> [];
 prk_html(PP, Abbrs) ->
     NumAbbr = length(Abbrs),
     NumPrint = if NumAbbr >= ?ReadKeyCols -> ?ReadKeyCols; true -> NumAbbr end,
-    AbbrsPrint = string:substr(Abbrs, 1, NumPrint),
+    AbbrsPrint = mafia_lib:my_string_substr(Abbrs, 1, NumPrint),
     AbbrsRem = lists:nthtail(NumPrint, Abbrs),
     [["<tr>", [["<td", bgcolor(Pl), ">",A, " = ", Pl,"</td>"]
                || {_, Pl, A, _} <- AbbrsPrint],

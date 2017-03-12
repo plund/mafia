@@ -10,6 +10,7 @@
          game_phase_full_fn/2, %% full FN to out text file
          game_link_and_text/2, %% link to out text file, relative to DOCROOT
          %%                       (for web page)
+         game_link_and_text/3,
          cnt_filename/0,
 
          get_path/1
@@ -17,7 +18,7 @@
 
 -include("mafia.hrl").
 
--define(CURRENT_GAME_FN, "current_game_status.txt").
+-define(CURRENT_GAME_FN, "current_game_status").
 
 manual_cmd_to_file(ThId, Cmd) ->
     FN = cmd_filename(ThId),
@@ -90,48 +91,53 @@ filename_timestamp_suffix() ->
 %% -----------------------------------------------------------------------------
 
 
-%% For ref to text version
-game_link_and_text(G, ?current) ->
-    %% move "current" to game dir
-    {GameDir, _FilePrefix} = game_prefixes(G),
-    Href = filename:join(["/", GameDir, ?CURRENT_GAME_FN]),
-    Link = ?CURRENT_GAME_FN,
-    {Href, Link};
-game_link_and_text(G, #phase{don = ?game_ended}) ->
-    game_link_and_text(G, ?current);
-game_link_and_text(G, Phase = #phase{}) ->
-    {GameDir, FilePrefix} = game_prefixes(G),
-    PhaseFN = phase_fn(FilePrefix, Phase),
+game_link_and_text(G, Phase) ->
+    game_link_and_text(?text, G, Phase).
+
+-spec game_link_and_text(?text | ?html,
+                         thread_id() | #mafia_game{},
+                         #phase{} | ?current | ?game_ended)
+                        -> {string(), string()}.
+game_link_and_text(Mode, G, Phase) ->
+    {GameDir, PhaseFN} = dir_and_filename(Mode, G, Phase),
     Href = filename:join(["/", GameDir, PhaseFN]),
     Link = PhaseFN,
     {Href, Link}.
 
--spec game_phase_full_fn(thread_id() | #mafia_game{},
-                         #phase{} | ?current) -> string().
 game_phase_full_fn(G, Phase) ->
-    {GameDir, FilePrefix} = game_prefixes(G),
-    PhaseFN = if Phase == ?current -> ?CURRENT_GAME_FN;
-                 Phase == ?game_ended -> ?CURRENT_GAME_FN;
-                 true -> phase_fn(FilePrefix, Phase)
-              end,
+    game_phase_full_fn(?text, G, Phase).
+
+-spec game_phase_full_fn(?text | ?html,
+                         thread_id() | #mafia_game{},
+                         #phase{} | ?current | ?game_ended)
+                        -> string().
+game_phase_full_fn(Mode, G, Phase) ->
+    {GameDir, PhaseFN} = dir_and_filename(Mode, G, Phase),
     DirName = filename:join(get_path(h_doc_root), GameDir),
     verify_exist(DirName),
     filename:join(DirName, PhaseFN).
 
-get_path(P) when P == h_srv_root;
-                 P == h_doc_root;
-                 P == h_log_root;
-                 P == repo_dir ->
-    {ok, [[Path]]} = init:get_argument(P),
-    Path.
+dir_and_filename(Mode, G, Phase) ->
+    {GameDir, FilePrefix} = game_prefixes(G),
+    PhaseBaseFN = if Phase == ?current -> ?CURRENT_GAME_FN;
+                     Phase == ?game_ended -> ?CURRENT_GAME_FN;
+                     true -> phase_base_fn(FilePrefix, Phase)
+                  end,
+    PhaseFN = PhaseBaseFN ++ suffix(Mode),
+    {GameDir, PhaseFN}.
 
-phase_fn(FilePrefix, Phase = #phase{}) ->
+suffix(?text) -> ".txt";
+suffix(?html) -> ".html".
+
+get_path(P) -> mafia_lib:get_path(P).
+
+phase_base_fn(FilePrefix, Phase = #phase{}) ->
     PhStr = case Phase#phase.don of
                 ?day -> "d";
                 ?night -> "n"
             end ++ ?i2l(Phase#phase.num),
     %% calculate "m25_d1.txt"
-    FilePrefix ++ PhStr ++ ".txt".
+    FilePrefix ++ PhStr.
 
 game_prefixes(G) ->
     Pre = game_prefix(G),
@@ -157,3 +163,68 @@ verify_exist(DirName) ->
             file:make_dir(DirName);
         _ -> ok
     end.
+
+%% -----------------------------------------------------------------------------
+%% EUNIT tests
+%% -----------------------------------------------------------------------------
+
+-include_lib("eunit/include/eunit.hrl").
+
+%% erlang crashed when trying to meck init
+%% meck:expect(init, get_argument, 1, {ok, [["/my_mecked_path"]]}),
+
+file_name_test() ->
+    Mods = [file, mafia_lib],
+    meck:new([mafia_lib, mafia_db], [passthrough]),
+    meck:new(file, [passthrough, unstick]),
+    meck:expect(mafia_lib, get_path, 1, "/my_mecked_path"),
+    meck:expect(file, read_file_info, 1, {ok, file_info_data}),
+    meck:expect(mafia_db, getv, fun(time_offset) -> ?undefined end),
+    ?assertEqual(
+       "/my_mecked_path/m27/m27_d1.txt",
+       game_phase_full_fn(?text,
+                          #mafia_game{game_num = 27},
+                          #phase{num = 1, don = ?day})
+      ),
+    ?assertEqual(
+       "/my_mecked_path/m28/m28_n3.txt",
+       game_phase_full_fn(?text,
+                          #mafia_game{game_num = 28},
+                          #phase{num = 3, don = ?night})
+      ),
+    ?assertEqual(
+       "/my_mecked_path/m28/m28_n3.html",
+       game_phase_full_fn(?html,
+                          #mafia_game{game_num = 28},
+                          #phase{num = 3, don = ?night})
+      ),
+    ?assertEqual(
+       "/my_mecked_path/m28/current_game_status.html",
+       game_phase_full_fn(
+         ?html,
+         #mafia_game{game_num = 28},
+         ?current)
+      ),
+    ?assertEqual(
+       "/my_mecked_path/m26/current_game_status.txt",
+       game_phase_full_fn(
+         ?text,
+         #mafia_game{game_num = 26},
+         ?game_ended)
+      ),
+    ?assertEqual({"/m29/m29_d2.txt", "m29_d2.txt"},
+                 game_link_and_text(?text,
+                                    #mafia_game{game_num = 29},
+                                    #phase{num = 2, don = ?day})
+                ),
+    ?assertEqual({"/m29/current_game_status.txt", "current_game_status.txt"},
+                 game_link_and_text(?text,
+                                    #mafia_game{game_num = 29},
+                                    ?current)
+                ),
+    ?assertEqual({"/m28/m28_n3.html", "m28_n3.html"},
+                 game_link_and_text(?html,
+                                    #mafia_game{game_num = 28},
+                                    #phase{num = 3, don = ?night})
+                ),
+    meck:unload(Mods).

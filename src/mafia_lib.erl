@@ -18,6 +18,7 @@
          %% prev_msg_id/1,
          prev_msg/1,
 
+         get_path/1,
          my_string_substr/3,
          alpha_sort/1,
          bgcolor/1,
@@ -210,6 +211,15 @@ prev_msg(Msg) ->
         MsgIds ->
             hd(rmessI(lists:last(MsgIds)))
     end.
+
+%% -----------------------------------------------------------------------------
+
+get_path(P) when P == h_srv_root;
+                 P == h_doc_root;
+                 P == h_log_root;
+                 P == repo_dir ->
+    {ok, [[Path]]} = init:get_argument(P),
+    Path.
 
 %% -----------------------------------------------------------------------------
 

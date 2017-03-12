@@ -117,13 +117,19 @@ if [ $? != 0 ] ; then
     exit 0
 fi
 
-APP_RUN=$RUN_DIR/lib/$APP_NAME
 APP_REPO=$REPO_DIR/_build/default/lib/$APP_NAME
+APP_RUN=$RUN_DIR/lib/$APP_NAME
 mkdir -p $APP_RUN/ebin
 mkdir -p $APP_RUN/include
-\cp $APP_REPO/ebin/* $RUN_DIR/lib/$APP_NAME/ebin/
-\cp $APP_REPO/include/* $RUN_DIR/lib/$APP_NAME/include/
-ERLPATH=$APP_RUN/ebin
+\cp $APP_REPO/ebin/* $APP_RUN/ebin/
+\cp $APP_REPO/include/* $APP_RUN/include/
+
+MECK_REPO=$REPO_DIR/_build/default/lib/meck
+MECK_RUN=$RUN_DIR/lib/meck
+mkdir -p $MECK_RUN/ebin
+\cp $MECK_REPO/ebin/* $MECK_RUN/ebin/
+
+ERLPATH="$APP_RUN/ebin $MECK_RUN/ebin"
 
 cd $RUN_DIR
 

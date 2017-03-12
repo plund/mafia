@@ -13,10 +13,10 @@
 
          set/2,
          getv/1,
-         show_settings/0,
+         show/0,
 
-         stop_polling/0,
-         start_polling/0,
+         stop_poll/0,
+         start_poll/0,
          poll/0,
          state/0,
          start/0,
@@ -36,7 +36,7 @@ rgame(?game_key = K) -> ?rgame(?getv(K));
 rgame(?thread_id = K) -> ?rgame(?getv(K));
 rgame(Id) -> ?rgame(?thid(Id)).
 
-show_settings() -> mafia:show_settings().
+show() -> mafia:show_settings().
 set(K, V) -> mafia_db:set(K, V).
 getv(K) -> mafia_db:getv(K).
 
@@ -48,8 +48,8 @@ pps() -> mafia_print:pps().
 pps(Page) -> mafia_print:pps(Page).
 pps(ThId, Page) -> mafia_print:pps(ThId, Page).
 
-stop_polling() -> mafia_web:stop_polling().
-start_polling() -> mafia_web:start_polling().
+stop_poll() -> mafia_web:stop_polling().
+start_poll() -> mafia_web:start_polling().
 poll() -> mafia_web:poll().
 state() -> mafia_web:get_state().
 start() -> mafia:start().
@@ -65,6 +65,7 @@ ehelp() ->
 ----------
 FILES:
 game_info.txt  - Mapping thread names m26 to thread ids
+user_data.txt  - User table exported, may be imported
 thread_pages/  - Raw downloaded source thread pages to be reread
 command_files/ - Manual commands issued, rerun when refresh_votes
 patches/       - Store updated beam files here and do l() to load them
@@ -73,7 +74,7 @@ logs/          - Logs run_erl.log, erlang.log.N
 DBG: grep/1, grep/2, rmess/1, rpage/2, rday/2, rgame/1
 
 COMMANDS:
-show_settings()- Show server settings
+show()         - Show server settings
 set(K, V)      - Set a key value pair
 getv(K)        - Get a value for a key
 
@@ -85,8 +86,8 @@ pps()          - Display last message page in current game
 pps(Page)      - Display message page in current game
 pps(Game,Page) - Display message page in game
 
-stop_polling() - Stop regular polling of source
-start_polling()- Start regular polling of source
+stop_poll()    - Stop regular polling of source
+start_poll()   - Start regular polling of source
 poll()         - poll now.
 state()        - Get gen_server state.
 start()        - Start the gen_server and the http server
@@ -113,6 +114,8 @@ mafia_data:refresh_messages() - Reread all messages from disk, use 'game_key'
 mafia:refresh_votes()  - Clear mafia_day and mafia_game and reread all"
 " messages.
 
+mafia:export_user_data() - export to file 'user_data.txt'
+mafia:import_user_data() - import from file 'user_data.txt'
 mafia:print_votes()  - Current status
 
 mafia_time:show_time_offset()   - Display offset

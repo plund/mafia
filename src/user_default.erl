@@ -12,6 +12,7 @@
          rgame/1,
 
          set/2,
+         unset/1,
          getv/1,
          show/0,
 
@@ -38,6 +39,7 @@ rgame(Id) -> ?rgame(?thid(Id)).
 
 show() -> mafia:show_settings().
 set(K, V) -> mafia_db:set(K, V).
+unset(K) -> mafia_db:unset(K).
 getv(K) -> mafia_db:getv(K).
 
 pm(MsgId) -> mafia_print:pm(MsgId).
@@ -76,6 +78,7 @@ DBG: grep/1, grep/2, rmess/1, rpage/2, rday/2, rgame/1
 COMMANDS:
 show()         - Show server settings
 set(K, V)      - Set a key value pair
+unset(K)       - Remove a key value pair
 getv(K)        - Get a value for a key
 
 pm(MsgId)      - Display one complete message
@@ -129,6 +132,8 @@ mafia:show_all_aliases()        - Display all defined
 mafia:show_aliases(Search)      - User search string.
 mafia:add_alias(User, Alias)    - Add one alias
 mafia:remove_alias(User, Alias) - Remove one alias
+mafia:add_thread(atom(), integer()) - add thread name
+mafia:rm_thread(atom() | integer()) - remove thread name
 
 Manual Commands
 ---------------

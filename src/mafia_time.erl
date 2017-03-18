@@ -334,7 +334,7 @@ get_next_deadline(ThId) when is_integer(ThId) ->
     NowTime = utc_secs1970(),
     get_next_deadline(ThId, NowTime).
 
-get_next_deadline(ThId, Time) when is_integer(ThId) ->
+get_next_deadline(ThId, Time) when is_integer(ThId); is_atom(ThId) ->
     get_next_deadline(?rgame(ThId), Time);
 get_next_deadline([], _Time) -> false;
 get_next_deadline([#mafia_game{} = G], Time) ->
@@ -387,7 +387,7 @@ calculate_phase(ThId) ->
 -spec calculate_phase(Game :: integer() | #mafia_game{},
                       Time :: seconds1970())
                      -> false | #phase{}.
-calculate_phase(ThId, Time) when is_integer(ThId) ->
+calculate_phase(ThId, Time) when is_integer(ThId); is_atom(ThId) ->
     case ?rgame(ThId) of
         [G] -> calculate_phase(G, Time);
         [] -> false
@@ -445,7 +445,7 @@ split_dls(Game, Time) ->
       fun(#dl{time = DLTime}) -> DLTime > Time end,
       Game#mafia_game.deadlines).
 
-get_time_for_phase(G, Phase) when is_integer(G) ->
+get_time_for_phase(G, Phase) when is_integer(G); is_atom(G) ->
     get_time_for_phase(?rgame(G), Phase);
 get_time_for_phase([G], Phase) -> get_time_for_phase(G, Phase);
 get_time_for_phase(G = #mafia_game{}, #phase{don = ?game_ended}) ->

@@ -422,12 +422,14 @@ s_unit("NIGHT") -> ?night.
 game_status(Sid, _Env, In) ->
     {A, Html} =
         case get_phase(In) of
-            {current, Phase} ->
+            {current, Phase} ->  %% in = []
                 Title = ["Game Status ", mafia_print:print_phase(Phase)],
                 A0 = del_start(Sid, Title, 0),
                 Html0 = game_status_out(current, Phase),
                 {A0, Html0};
             {ok, Phase} ->
+                %%GameKey = ?getv(?game_key),
+                %% HistoryHtmlFN  = mafia_file:
                 Title = ["History ", mafia_print:print_phase(Phase)],
                 A0 = del_start(Sid, Title, 0),
                 Html0 = game_status_out(ok, Phase),
@@ -485,11 +487,10 @@ get_phase([]) ->
     {current, Phase};
 get_phase(In) ->
     PQ = httpd:parse_query(In),
-    NotAllowed = [Key || {Key, _} <- PQ] -- ["phase", "num", "debug"],
+    NotAllowed = [Key || {Key, _} <- PQ] -- ["phase", "num"],
     if NotAllowed == [] ->
             gs_phase(lists:keyfind("phase", 1, PQ),
-                     lists:keyfind("num", 1, PQ),
-                     lists:keyfind("debug", 1, PQ)
+                     lists:keyfind("num", 1, PQ)
                     );
        true ->
             {error, ["Params: ",
@@ -497,42 +498,19 @@ get_phase(In) ->
                      " not allowed."]}
     end.
 
-%% Is this not the same as setting time offset now?
-%% maybe all "debug" stuff can be removed?
-gs_phase(_, _, {"debug", ""}) ->
-    GameKey = ?getv(?game_key),
-    case ?rgame(GameKey) of
-        [] ->
-            {error, ["<tr><td>Game ",
-                     ?i2l(GameKey),
-                     " not found!</td></tr>"]};
-        [G] ->
-            Page = G#mafia_game.page_to_read,
-            PRec = hd(?rpage(GameKey, Page)),
-            MsgId = lists:last(PRec#page_rec.message_ids),
-            Msg = hd(?rmess(MsgId)),
-            Time = Msg#message.time,
-            MsgPhase = mafia_time:calculate_phase(GameKey, Time),
-            {current, MsgPhase}
-    end;
-gs_phase({"phase", "end"},
-            _, _) ->
+gs_phase({"phase", "end"}, _) ->
     {ok, #phase{don = ?game_ended}};
-gs_phase({"phase", "day"},
-            {"num", Str},
-            _) ->
+gs_phase({"phase", "day"}, {"num", Str}) ->
     case conv_to_num(Str) of
         {ok, Num} -> {ok, #phase{num = Num, don = ?day}};
         {error, _HtmlErr} = E -> E
     end;
-gs_phase({"phase", "night"},
-            {"num", Str},
-            _) ->
+gs_phase({"phase", "night"}, {"num", Str}) ->
     case conv_to_num(Str) of
         {ok, Num} -> {ok, #phase{num = Num, don = ?night}};
         {error, _HtmlErr} = E -> E
     end;
-gs_phase(_, _, _) ->
+gs_phase(_, _) ->
     {error, "<tr><td>"
      "You need to end url with .../stats?phase=day&num=1, "
      "?phase=night&num=2 or ?phase=end"

@@ -8,7 +8,7 @@
         ]).
 
 %% interface
--export([downl/0, % Human
+-export([man_downl/0, % Human
          downl/1, % Human
          downl_web/1  % from web
         ]).
@@ -57,10 +57,10 @@
 
 %% MANUAL
 %% Download any thread
-%% Uses: ?thread_id
+%% set first: ?thread_id
 %%       ?page_to_read
--spec downl() -> ok.
-downl() ->
+-spec man_downl() -> ok.
+man_downl() ->
     downl2(#s{}).
 
 -spec downl(#s{} | do_refresh_msgs) -> ok.

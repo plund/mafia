@@ -24,6 +24,7 @@
          bgcolor/1,
          thid/1,
          gamename_to_thid/1,
+         game_name/1,
 
          re_matches/2,
          merge_intervals/1,
@@ -112,7 +113,7 @@ all_page_keys() ->
 
 rday(ThId, #phase{num = DayNum}) ->
     rday(ThId, DayNum);
-rday(ThId, DayNum) when is_integer(ThId) ->
+rday(ThId, DayNum) when is_integer(ThId); is_atom(ThId) ->
     rday(?rgame(ThId), DayNum);
 rday([#mafia_game{} = G], DayNum) ->
     rday(G, DayNum);
@@ -258,7 +259,8 @@ thid(GN) when is_atom(GN) ->
     case gamename_to_thid(GN) of
         ThId when is_integer(ThId) ->
             ThId;
-        ?undefined -> {?error, ?undefined}
+        ?undefined ->
+            {?error, {?undefined, GN}}
     end.
 
 gamename_to_thid(GN) when is_atom(GN) ->
@@ -269,6 +271,30 @@ gamename_to_thid(GN) when is_atom(GN) ->
                 {_, ThId} ->
                     io:format("Translating ~p to ~p\n", [GN, ThId]),
                     ThId;
+                false -> ?undefined
+            end
+    end.
+
+%% -----------------------------------------------------------------------------
+
+game_name(GN) when is_atom(GN) ->
+    GN;
+game_name(ThId) when is_integer(ThId) ->
+    case thid_to_gamename(ThId) of
+        ?undefined ->
+            {?error, {?undefined, ThId}};
+        GN when is_atom(GN) ->
+            GN
+    end.
+
+thid_to_gamename(ThId) when is_integer(ThId) ->
+    case ?getv(?reg_threads) of
+        ?undefined -> ?undefined;
+        Regs ->
+            case lists:keyfind(ThId, 2, Regs) of
+                {GN, _} ->
+                    io:format("Translating ~p to ~p\n", [ThId, GN]),
+                    GN;
                 false -> ?undefined
             end
     end.

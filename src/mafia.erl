@@ -1,12 +1,15 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% add user "peterlund" to GMs?
+%% - generate historical html to file
+%% - split mafia_print. stats and tracker into separate modules?
+%% present msgid link on all messages
+%% ?add user "peterlund" to GMs?
 %% ##bot endgame <msgid> | unendgame
 %% ##bot endphase|unendphase <msgid>
 %% ##bot replaceplayer <msgid> <old> <new>
 %% ##bot deadline <msgid> earlier|later <time>
-%% ##bot addassistant <msgid> <player>
+%% ##bot assistant add|remove <msgid> <player>
 %% Fix deadline listing at button of game_status
 %% - impl the idea on how and when to present deadlines (top of print_votes())
 %% - Add timestamp for each entry in message_ids to use when time_offset /= 0
@@ -15,14 +18,10 @@
 %% - merge all variants of mafia_time:get_next_deadline
 
 %% - Use new DL calc and remove old calculation NEW: "get_some_extra_dls"
-%% - split mafia_print. stats and tracker into separate modules?
 %%   - define how and when to use a smarter vote reader!!
 %% - Display msgs since last login with a browser (cookie)
 %% - fix a better player name recognition in votes and deaths?
 %%     - check if abbrev code can loop forever
-
-%% M25 GOD QT https://www.quicktopic.com/52/H/gBqFhw3Bidb
-%% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
 
 %% interface
 -export([
@@ -48,7 +47,7 @@
          print_votes/2,
          print_messages/1,
 
-         downl/0,
+         man_downl/0,
          add_thread/2,
          rm_thread/1,
          show_settings/0,
@@ -73,9 +72,7 @@
         ]).
 
 %% utilities
--export([verify_new_user_list/1,
-         verify_users/1, %% deprecated?
-         check_pages/1,
+-export([check_pages/1,
          check_game_data/1,
 
          l/0,
@@ -101,9 +98,15 @@ print_votes(DayNum) -> mafia_print:print_votes(DayNum).
 print_votes(DayNum, DoN) -> mafia_print:print_votes(DayNum, DoN).
 print_messages(User) -> mafia_print:print_messages(User).
 
-downl() -> mafia_data:downl().
+man_downl() -> mafia_data:man_downl().
 
+-spec add_thread(atom(), thread_id())
+                -> {reg_add | reg_exists_already | reg_thid_changes,
+                    Details :: term()}.
 add_thread(ThName, ThId) -> mafia_db:add_thread(ThName, ThId).
+
+-spec rm_thread(atom() | thread_id())
+               ->  {reg_rm_ok | reg_rm_error, Details :: term()}.
 rm_thread(ThNameOrId) -> mafia_db:rm_thread(ThNameOrId).
 
 setup_mnesia() -> mafia_db:setup_mnesia().
@@ -191,6 +194,8 @@ switch_to_gameI(ThId, refresh) -> %% Should always work
 game_start(GName, ThId) ->
     case mafia_db:add_thread(GName, ThId) of
         {reg_add, _} ->
+            ?set(game_key, ThId),
+            ?set(thread_id, ThId),
             file:write_file("game_info.txt",
                             io_lib:format("{~p, ~p}.\n", [GName, ThId]),
                             [append]),
@@ -425,46 +430,6 @@ l() ->
          end,
          M end
      || M <- Beams2].
-
-%% Pre-check user list given by GM in initial game PM
-verify_new_user_list(27) ->
-    Users = ?M27_GMs ++ ?M27_players,
-    verify_new_user_list2(Users);
-verify_new_user_list(26) ->
-    Users = ?M26_GMs ++ ?M26_players,
-    verify_new_user_list2(Users);
-verify_new_user_list(25) ->
-    Users = ?M25_GMs ++ ?M25_players,
-    verify_new_user_list2(Users);
-verify_new_user_list(24) ->
-    Users = ?M24_GMs ++ ?M24_players,
-    verify_new_user_list2(Users).
-
-verify_new_user_list2(Users) ->
-    [begin
-         UserB = ?l2b(User),
-         case ?ruser(User) of
-             [] ->
-                 io:format("User ~p does not exist\n",[User]);
-             [#user{name = UserB,
-                    verification_status = Ver}] ->
-                 io:format("User ~p exists with correct case "
-                           "and is ~p\n", [User, Ver]);
-             [#user{name = UserB2,
-                    verification_status = Ver}] ->
-                 io:format("User ~p exists but has incorrect case. "
-                           "Correct case is ~p and is ~p\n",
-                           [User, ?b2l(UserB2), Ver])
-         end
-     end
-     || User <- Users],
-    done.
-
-%% Deprecated?
-verify_users(m26) ->
-    [mafia_vote:print_verify_user(U)
-     || U <- ?M26_GMs ++ ?M26_players ++ ?M26_Subs],
-    ok.
 
 show_settings() ->
     PrintSettings =

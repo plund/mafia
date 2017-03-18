@@ -68,7 +68,7 @@ check_cmds_votes(Re, M, G = #mafia_game{}) ->
                 ?dead_player -> log_unallowed_msg(?dead_player, M);
                 ?other -> log_unallowed_msg(?other, M)
             end;
-       true ->
+       IsEnded ->
             case player_type(M, G) of
                 ?gm ->
                     G2 = check_for_deaths(Re, M, G),

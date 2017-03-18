@@ -251,11 +251,14 @@ handle_info({?deadline, DL}, State) ->
     S2 = set_dl_timer(State, DL#dl.time),
     {noreply, S2};
 handle_info(do_polling, State) ->
-    TimeStr = mafia_print:print_time(?console),
-    io:format("~s poll for new messages\n", [TimeStr]),
-    mafia_data:downl_web(State#state.game_key),
     {_Reply, S2} = maybe_change_timer(State),
-    flush(do_polling),
+    TimeStr = mafia_print:print_time(?console),
+    if is_integer(State#state.game_key) ->
+            io:format("~s poll for new messages\n", [TimeStr]),
+            mafia_data:downl_web(State#state.game_key),
+            flush(do_polling);
+       true -> ok
+    end,
     update_current(S2#state.game_key, S2#state.timer_minutes),
     {noreply, S2};
 handle_info(_Info, State) ->
@@ -375,7 +378,10 @@ stop_web(State) ->
 maybe_change_timer(S = #state{timer = TRef,
                               timer_minutes = TMins,
                               game_key = ThId}) ->
-    Mins = mafia_time:timer_minutes(ThId),
+    Mins = if is_integer(ThId) ->
+                   mafia_time:timer_minutes(ThId);
+              true -> 10
+           end,
     if TMins == ?stopped -> {no_change, S};
        Mins == none -> {cancelled, cancel_timer_interval(S)};
        TRef == ?undefined; Mins /= TMins ->

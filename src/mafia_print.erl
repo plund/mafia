@@ -353,8 +353,9 @@ print_votesI(PPin) ->
                          LastPhase,
                          " and the time was ",
                          print_time(EndTime, TzH, Dst, ?extensive),
-                         "</td></tr>",
-                         "<tr><td align=center><table cellpadding=6 cellspacing=3>",
+                         "</td></tr>"
+                         "<tr><td align=center>"
+                         "<table cellpadding=6 cellspacing=3>",
                          GmMessage, "</table></td></tr>"];
                    true ->
                         []
@@ -657,10 +658,13 @@ print_votesI(PPin) ->
                           [PP#pp.period]);
                    true -> ok
                 end,
-                io:format(
-                  PP#pp.dev,
-                  "Mafia game thread at: ~s\n",
-                  [?UrlBeg ++ ?i2l(PP#pp.game_key)]);
+                if is_integer(PP#pp.game_key) ->
+                        io:format(
+                          PP#pp.dev,
+                          "Mafia game thread at: ~s\n",
+                          [?UrlBeg ++ ?i2l(PP#pp.game_key)]);
+                   true -> ok
+                end;
            PP#pp.mode == ?html ->
                 ["<tr><td align=center><br>",
                  if is_integer(PP#pp.period) ->
@@ -669,8 +673,11 @@ print_votesI(PPin) ->
                           "<br>"];
                     true -> []
                  end,
-                 "Mafia game thread at: ", ?UrlBeg,
-                 ?i2l(PP#pp.game_key),
+                 if is_integer(PP#pp.game_key) ->
+                         ["Mafia game thread at: ", ?UrlBeg,
+                          ?i2l(PP#pp.game_key)];
+                    true -> ""
+                 end,
                  "</td></tr>"]
         end,
     if PP#pp.mode == ?text -> ok;
@@ -700,7 +707,7 @@ object_rows_text(Rows, ToText) ->
 
 object_rows(Groups) ->
     [[ "<tr>",
-       [["<td", bgcolor(U), "><center>", U, "</center></td>"]
+       [["<td", bgcolor(U), "><center>", nbsp(U), "</center></td>"]
         || U <- Group],
        "</tr>"
      ]
@@ -1416,6 +1423,8 @@ pr_head_html(IterVotes, PrAbbrF) ->
      "</tr>\r\n"].
 
 %% replace_space
+nbsp(Bin) when is_binary(Bin) ->
+    nbsp(binary_to_list(Bin));
 nbsp(Str) ->
     [ if C ==$\s -> "&nbsp;"; true -> C end
       || C <- Str].

@@ -1,9 +1,13 @@
 -module(mafia_db).
 
 -include("mafia.hrl").
+-include("mafia_game.hrl").
 
 -export([
+         verify_new_user_list/1,
+
          set/2,
+         unset/1,
          getv/1,
          getv/2,
          add_thread/2,
@@ -18,6 +22,44 @@
          write_game/1,
          write_default_user_table/0
         ]).
+
+
+%% Pre-check user list given by GM in initial game PM
+verify_new_user_list(28) ->
+    Users = ?M28_GMs ++ ?M28_players,
+    verify_new_user_list2(Users);
+verify_new_user_list(27) ->
+    Users = ?M27_GMs ++ ?M27_players,
+    verify_new_user_list2(Users);
+verify_new_user_list(26) ->
+    Users = ?M26_GMs ++ ?M26_players,
+    verify_new_user_list2(Users);
+verify_new_user_list(25) ->
+    Users = ?M25_GMs ++ ?M25_players,
+    verify_new_user_list2(Users);
+verify_new_user_list(24) ->
+    Users = ?M24_GMs ++ ?M24_players,
+    verify_new_user_list2(Users).
+
+verify_new_user_list2(Users) ->
+    [begin
+         UserB = ?l2b(User),
+         case ?ruserUB(User) of
+             [] ->
+                 io:format("User ~p does not exist\n",[User]);
+             [#user{name = UserB,
+                    verification_status = Ver}] ->
+                 io:format("User ~p exists with correct case "
+                           "and is ~p\n", [User, Ver]);
+             [#user{name = UserB2,
+                    verification_status = Ver}] ->
+                 io:format("User ~p exists but has incorrect case. "
+                           "Correct case is ~p and is ~p\n",
+                           [User, ?b2l(UserB2), Ver])
+         end
+     end
+     || User <- Users],
+    done.
 
 getv(Key) -> getv(Key, ?undefined).
 
@@ -76,10 +118,6 @@ to_bin(LoL = [[_|_]|_]) -> [?l2b(L) || L <- LoL].
 to_bin_sort(LoL = [[_|_]|_]) ->
     [?l2b(L) || L <- mafia_lib:alpha_sort(LoL)].
 
--define(M26ThId, 1432756).
--define(M25ThId, 1420289).
--define(M24ThId, 1404320).
-
 insert_initial_data() ->
     io:format("Adding values to kv_store\n", []),
     ?set(?page_to_read, 1),
@@ -133,22 +171,69 @@ reset_game(ThId) ->
 write_game(?false) -> ?error;
 write_game(GName) when is_atom(GName) ->
     {ok, L} = file:consult("game_info.txt"),
-    write_game(lists:keyfind(GName, 1, L ++ ?getv(?reg_threads)));
+    write_game2(GName, lists:keyfind(GName, 1, L ++ ?getv(?reg_threads)));
 write_game(ThId) when is_integer(ThId) ->
     {ok, L} = file:consult("game_info.txt"),
-    write_game(lists:keyfind(ThId, 2, L ++ ?getv(?reg_threads)));
+    write_game2(ThId, lists:keyfind(ThId, 2, L ++ ?getv(?reg_threads)));
 write_game({GName, ThId}) ->
-    case ?rgame(ThId) of
+    do_write_game(GName, ThId).
+
+write_game2(GName, false) when is_atom(GName) ->
+    do_write_game(GName, GName);
+write_game2(ThId, false) when is_integer(ThId) ->
+    {error, no_game_name};
+write_game2(GName, {GName, ThId}) ->
+    do_write_game(GName, ThId).
+
+-spec do_write_game(atom(), Key :: thread_id() | atom())
+                   -> ok | {error, term()}.
+do_write_game(GName, ThId) when is_integer(ThId) ->
+    case {?rgame(GName), ?rgame(ThId)} of
+        {[], []} ->
+            G = get_game_rec(GName),
+            do_write_game_2(G, GName, ThId);
+        {[G], []} ->
+            mnesia:dirty_delete(mafia_game, GName),
+            do_write_game_2(G, GName, ThId);
+        {_, [_]} ->
+            {error, e_exists}
+    end;
+do_write_game(GName, Key) when is_atom(Key) ->
+    case ?rgame(Key) of
         [] ->
             G = get_game_rec(GName),
-            io:format("Initializing Mafia Game\n  ~p: ~s\n",
-                      [GName, ?b2l(G#mafia_game.name)]),
-            G2 = G#mafia_game{key = ThId},
-            Game = mafia_time:initial_deadlines(G2),
-            ?dwrite_game(Game);
-        [_] -> e_exists
+            do_write_game_2(G, GName, Key);
+        [_] ->
+            {error, e_exists}
     end.
 
+do_write_game_2(G, GName, Key) ->
+    %% G = get_game_rec(GName),
+    io:format("Initializing Mafia Game\n  ~p: ~s\n",
+              [GName, ?b2l(G#mafia_game.name)]),
+    G2 = G#mafia_game{key = Key},
+    Game = mafia_time:initial_deadlines(G2),
+    ?dwrite_game(Game).
+
+get_game_rec(m28) ->
+    %% M28 Game Thread
+    %% M28 signup threadid = 1460042
+    _ = #mafia_game{
+      game_num = 28,
+      name = <<"Mafia 28: Item Madness">>,
+      day_hours = 48,
+      night_hours = 24,
+      time_zone = -5,
+      day1_dl_time = {{2017,3,28},{18,0,0}},
+      is_init_dst = true,
+      dst_changes = [{{{2017,3,12},{2,0,0}}, true}, %% USA 2017
+                     {{{2017,11,05},{2,0,0}}, false}],
+      gms = to_bin(?M28_GMs),
+      players_orig = to_bin_sort(?M28_players),
+      players_rem = to_bin_sort(?M28_players),
+      player_deaths = [],
+      page_to_read = 1
+     };
 get_game_rec(m27) ->
     %% M27 Game Thread 1447615
     %% M27 signup threadid = 1442470
@@ -188,6 +273,8 @@ get_game_rec(m26) ->
       page_to_read = 1
      };
 get_game_rec(m25) ->
+    %% M25 GOD QT https://www.quicktopic.com/52/H/gBqFhw3Bidb
+    %% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
     _ = #mafia_game{
       key = ?M25ThId,
       game_num = 25,
@@ -224,9 +311,10 @@ get_game_rec(m24) ->
      }.
 
 set(K=?thread_id, V) when is_integer(V), V > 0 -> set_kv(K, V);
+set(K=?thread_id, V) when is_atom(V) -> set_kv(K, ?thid(V));
 set(K=?game_key, V) when is_integer(V), V > 0 -> set_kv(K, V);
+set(K=?game_key, V) when is_atom(V) -> set_kv(K, ?thid(V));
 set(K=?page_to_read, V) when is_integer(V), V > 0 -> set_kv(K, V);
-set(K=?timer_minutes, ?undefined) -> remk(K);
 set(K=?timer_minutes, V) when is_integer(V)-> set_kv(K, V);
 set(K=?timezone_user, V) when is_integer(V), -12 =< V, V =< 12 -> set_kv(K, V);
 set(K=?timezone_game, V) when is_integer(V), -12 =< V, V =< 12 -> set_kv(K, V);
@@ -240,12 +328,20 @@ set(K=?console_tz, V)
        V == zulu; V == gmt ->
     set_kv(K,V).
 
+unset(K=?timer_minutes) -> remk(K).
+
 remk(Key) -> mnesia:dirty_delete(kv_store, Key).
 
+set_kv(?game_key, {?error, {?undefined, GName}}) ->
+    set_kv(?game_key, GName);
+set_kv(?game_key, ThId) when is_integer(ThId) ->
+    set_kv(?game_key, ThId);
 set_kv(Key, Value) ->
     ?dwrite_kv(#kv_store{key = Key, value = Value}).
 
--spec add_thread(atom(), integer()) -> {Result :: atom(), Details :: term()}.
+-spec add_thread(atom(), thread_id())
+                -> {reg_add | reg_exists_already | reg_thid_changes,
+                    Details :: term()}.
 add_thread(ThName, ThId) ->
     Regs = case ?getv(?reg_threads) of ?undefined -> []; L -> L end,
     New = {ThName, ThId},
@@ -261,7 +357,8 @@ add_thread(ThName, ThId) ->
             {reg_thid_changes, {ThName, {OldThId, ThId}}}
     end.
 
--spec rm_thread(atom() | integer()) ->  {Result :: atom(), Details :: term()}.
+-spec rm_thread(atom() | thread_id())
+               ->  {reg_rm_ok | reg_rm_error, Details :: term()}.
 rm_thread(ThName) when is_atom(ThName) ->
     Regs = case getv(?reg_threads) of ?undefined -> []; L -> L end,
     case lists:keyfind(ThName, 1, Regs) of

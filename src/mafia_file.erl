@@ -149,7 +149,7 @@ game_file_prefix(G) ->
         Pre -> Pre ++ "_"
     end.
 
-game_prefix(ThId) when is_integer(ThId) ->
+game_prefix(ThId) when is_integer(ThId); is_atom(ThId) ->
     game_prefix(?rgame(ThId));
 game_prefix([]) -> "";
 game_prefix([G]) ->

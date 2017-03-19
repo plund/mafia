@@ -9,6 +9,8 @@
          "DemonOverlord", "Balduran", "Hellenic Riot", "bo_sox48",
          "VashtaNeurotic", "Kakarroto", "Floodgates", "Ikaneko",
          "dargorygel", "curupira", "Balki Bartokomous", "DemonRHK"]).
+%% M28 Game Thread
+%% M28 signup threadid = 1460042
 %% Substitute:
 %% 1. Tom Bombadil
 

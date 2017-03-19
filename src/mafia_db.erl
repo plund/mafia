@@ -216,8 +216,6 @@ do_write_game_2(G, GName, Key) ->
     ?dwrite_game(Game).
 
 get_game_rec(m28) ->
-    %% M28 Game Thread
-    %% M28 signup threadid = 1460042
     _ = #mafia_game{
       game_num = 28,
       name = <<"Mafia 28: Item Madness">>,

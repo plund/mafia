@@ -16,6 +16,11 @@
 %% - Verify stored files (when refresh_messages) that all messages come in
 %%   msg_id and in time order.
 %% - merge all variants of mafia_time:get_next_deadline
+%% - change primary key in mafia_game table:
+%%   1 change name key -> thread_id :: ?undefined | thread_id()
+%%   2 add a new primary key in first position game_name :: game_name()
+%%   3 -type game_name() :: atom().
+%%   4 do mnesia:transform_table
 
 %% - Use new DL calc and remove old calculation NEW: "get_some_extra_dls"
 %%   - define how and when to use a smarter vote reader!!
@@ -178,7 +183,7 @@ switch_to_gameI(ThId, normal) ->
 
 %% if not data for game in DB
 switch_to_gameI(ThId, refresh) -> %% Should always work
-    mafia_db:reset_game(ThId), %% recreate game record
+    mafia_db:reset_game(ThId), %% recreates the  game record
     ?set(game_key, ThId),
     ?set(thread_id, ThId),
     ?set(page_to_read, 1),
@@ -191,7 +196,7 @@ switch_to_gameI(ThId, refresh) -> %% Should always work
 %% @end
 %% -----------------------------------------------------------------------------
 -spec game_start(GName :: atom(), ThId :: thread_id()) -> ok | term().
-game_start(GName, ThId) ->
+game_start(GName, ThId) when is_atom(GName), is_integer(ThId) ->
     case mafia_db:add_thread(GName, ThId) of
         {reg_add, _} ->
             ?set(game_key, ThId),

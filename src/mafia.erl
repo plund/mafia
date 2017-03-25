@@ -42,6 +42,7 @@
          unend_game/1,
          switch_to_game/1,
          switch_to_game/2,
+         create_and_switch_to_pregame/1,
 
          replace_player/3,
          kill_player/3,
@@ -154,6 +155,18 @@ check_game_data(Id) ->
              ],
     io:format("There are ~p messages in mnesia for this game\n",
               [length(MsgIds)]).
+
+
+%% -----------------------------------------------------------------------------
+%% @doc Create and Switch to game that has not started yet
+%% @end
+%% -----------------------------------------------------------------------------
+create_and_switch_to_pregame(GN) when is_atom(GN) ->
+    mafia_db:write_game(GN),
+    ?set(game_key, GN),
+    mafia:stop(),  %% Set gen_server #state.game_key
+    mafia:start(),
+    mafia_web:poll(). %% creates text file
 
 %% -----------------------------------------------------------------------------
 %% @doc Switch to other game and reread all info

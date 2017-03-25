@@ -26,7 +26,7 @@
 
          get_state/0,
 
-         do_regen_hist/2,
+         regen_history/2,
          update_current/0
         ]).
 
@@ -125,12 +125,12 @@ update_current() ->
 %% @doc Regenerate history text page
 %% @end
 %%--------------------------------------------------------------------
-do_regen_hist(Time, GKey)
+regen_history(Time, GKey)
   when is_integer(Time), is_integer(GKey) ->
     [G] = ?rgame(GKey),
     DL = mafia_time:get_prev_deadline(G, Time),
-    do_regen_hist(Time, {G, DL#dl.phase});
-do_regen_hist(Time, {G, Phase = #phase{}}) ->
+    regen_history(Time, {G, DL#dl.phase});
+regen_history(Time, {G, Phase = #phase{}}) ->
     ?dbg(Time, {"DO REGENERATE_HISTORY 3", Phase, Time}),
     regen_hist_txt(G, Phase),
     regen_hist_html(G, Phase),
@@ -266,7 +266,7 @@ handle_info({?deadline, DL}, State) ->
     %% THIS work well when not refreshing!! Should start after...
     %% While refreshing we need to look at message timestamps in
     %% order to see when we have reached/passed the next deadline
-    do_regen_hist(DL#dl.time, State#state.game_key),
+    regen_history(DL#dl.time, State#state.game_key),
     S2 = set_dl_timer(State, DL#dl.time),
     {noreply, S2};
 handle_info(do_polling, State) ->

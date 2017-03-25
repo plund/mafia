@@ -58,7 +58,7 @@ check_cmds_votes(Re, M, G = #mafia_game{}) ->
                 PhasePrevM /= PhaseM
         end,
     if DoGenerate ->
-            mafia_web:do_regen_hist(M#message.time, G#mafia_game.key);
+            mafia_web:regen_history(M#message.time, G#mafia_game.key);
        true -> ok
     end,
     if not IsEnded ->
@@ -98,7 +98,7 @@ check_for_gm_cmds(Re, M, G, DoGenerate) ->
        G7 /= G6, %% someone died
        RelTimeSecs >= 0,
        RelTimeSecs =< ?MAX_GM_DL_MINS * ?MinuteSecs ->
-            mafia_web:do_regen_hist(M#message.time, G#mafia_game.key);
+            mafia_web:regen_history(M#message.time, G#mafia_game.key);
        true ->
             ok
     end,

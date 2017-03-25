@@ -2,7 +2,7 @@
 
 -include("mafia.hrl").
 %% - make one fun for generate html file used both for web and file.
-%% - web_impl:game_status should read from file
+%% - web_impl:game_status should redirect to/read from file
 %% - split mafia_print. stats and tracker into separate modules?
 %% present msgid link on all messages
 %% ?add user "peterlund" to GMs?
@@ -395,7 +395,7 @@ kill_player(MsgId, Player, Comment) ->
                 {{ok, DeathPhase}, _G2} ->
                     ?man(Time, Cmd),
                     mafia_file:manual_cmd_to_file(ThId, Cmd),
-                    mafia_web:do_regen_hist(M#message.time,
+                    mafia_web:regen_history(M#message.time,
                                             G#mafia_game.key),
                     {player_killed, DeathPhase};
                 {not_remaining_player, _G2} ->

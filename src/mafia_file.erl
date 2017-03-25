@@ -8,6 +8,8 @@
          cmd_filename/1, %% FN of manual commands issued, relative run dir
 
          game_phase_full_fn/2, %% full FN to out text file
+         game_phase_full_fn/3,
+
          game_link_and_text/2, %% link to out text file, relative to DOCROOT
          %%                       (for web page)
          game_link_and_text/3,

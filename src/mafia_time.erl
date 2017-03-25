@@ -662,7 +662,6 @@ end_game(M, G) when G#mafia_game.game_end == ?undefined ->
     G2 = G#mafia_game{deadlines = DLs3,
                       game_end = {EndTime, MsgId}},
     ?dwrite_game(G2),
-    %% mafia_web:do_regen_hist(EndTime, {G, NextPhase}),
     mafia_web:do_regen_hist(EndTime, G#mafia_game.key),
     mafia_web:update_current(),
     {?game_ended, G2};

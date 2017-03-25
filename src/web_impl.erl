@@ -415,7 +415,6 @@ s_unit("NIGHT") -> ?night.
 
 %% -----------------------------------------------------------------------------
 %% http://mafia.peterlund.se/e/web/game_status
-%% http://mafia.peterlund.se/e/web/game_status?debug
 %% http://mafia.peterlund.se/e/web/game_status?phase=day&num=1
 %% http://mafia.peterlund.se/e/web/game_status?phase=night&num=2
 %% http://mafia.peterlund.se/e/web/game_status?phase=end

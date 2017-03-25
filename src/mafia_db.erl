@@ -168,6 +168,7 @@ reset_game(ThId) ->
     mnesia:dirty_delete(mafia_game, ThId),
     write_game(ThId).
 
+%% Write game record to DB
 write_game(?false) -> ?error;
 write_game(GName) when is_atom(GName) ->
     {ok, L} = file:consult("game_info.txt"),
@@ -182,7 +183,7 @@ write_game2(GName, false) when is_atom(GName) ->
     do_write_game(GName, GName);
 write_game2(ThId, false) when is_integer(ThId) ->
     {error, no_game_name};
-write_game2(GName, {GName, ThId}) ->
+write_game2(_, {GName, ThId}) ->
     do_write_game(GName, ThId).
 
 -spec do_write_game(atom(), Key :: thread_id() | atom())
@@ -332,8 +333,6 @@ remk(Key) -> mnesia:dirty_delete(kv_store, Key).
 
 set_kv(?game_key, {?error, {?undefined, GName}}) ->
     set_kv(?game_key, GName);
-set_kv(?game_key, ThId) when is_integer(ThId) ->
-    set_kv(?game_key, ThId);
 set_kv(Key, Value) ->
     ?dwrite_kv(#kv_store{key = Key, value = Value}).
 

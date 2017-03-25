@@ -132,11 +132,30 @@ do_regen_hist(Time, GKey)
     do_regen_hist(Time, {G, DL#dl.phase});
 do_regen_hist(Time, {G, Phase = #phase{}}) ->
     ?dbg(Time, {"DO REGENERATE_HISTORY 3", Phase, Time}),
+    regen_hist_txt(G, Phase),
+    regen_hist_html(G, Phase),
+    ok.
+
+regen_hist_txt(G, Phase = #phase{}) ->
     FileName = mafia_file:game_phase_full_fn(G, Phase),
     {ok, Fd} = file:open(FileName, [write]),
     mafia_print:print_votes([{?game_key, G#mafia_game.key},
                              {?phase, Phase},
                              {?dev, Fd}]),
+    file:close(Fd).
+
+regen_hist_html(G, Phase = #phase{}) ->
+    FileName = mafia_file:game_phase_full_fn(?html, G, Phase),
+    {ok, Fd} = file:open(FileName, [write]),
+    Title = ["History ", mafia_print:print_phase(Phase)],
+    Start = ?HTML_TAB_START(Title, " border=\"0\""),
+    io:format(Fd, "~s", [Start]),
+    Html0 = mafia_print:print_votes([{?game_key, G#mafia_game.key},
+                                     {?phase, Phase},
+                                     {?mode, ?html}
+                                    ]),
+    io:format(Fd, "~s", [Html0]),
+    io:format(Fd, "~s", [?HTML_TAB_END]),
     file:close(Fd),
     ok.
 
@@ -294,11 +313,13 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 
 update_current(GameKey, Minutes) ->
-    update_currentI(GameKey, [{?period, Minutes}]).
+    update_current_txt(GameKey, [{?period, Minutes}]),
+    update_current_html(GameKey, [{?period, Minutes}]),
+    ok.
 
-update_currentI(GameKey, UpdateOpts) ->
-    FileName = mafia_file:game_phase_full_fn(
-                 GameKey, ?current),
+update_current_txt(GameKey, UpdateOpts) ->
+    %% update current html here too!
+    FileName = mafia_file:game_phase_full_fn(GameKey, ?current),
     {ok, Fd} = file:open(FileName, [write]),
     Phase = mafia_time:calculate_phase(GameKey),
     mafia_print:print_votes([{?game_key, GameKey},
@@ -307,6 +328,37 @@ update_currentI(GameKey, UpdateOpts) ->
                              {?use_time, mafia_time:utc_secs1970()}
                             ] ++ UpdateOpts),
     file:close(Fd).
+
+update_current_html(GameKey, _UpdateOpts) ->
+    FileName = mafia_file:game_phase_full_fn(?html, GameKey, ?current),
+    {ok, Fd} = file:open(FileName, [write]),
+    Phase = mafia_time:calculate_phase(GameKey),
+    Title = ["Game Status ", mafia_print:print_phase(Phase)],
+    Start = ?HTML_TAB_START(Title, " border=\"0\""),
+    io:format(Fd, "~s", [Start]),
+    UseTime = [{?use_time, mafia_time:utc_secs1970()}],
+    PeriodOpts =
+        case catch mafia_web:get_state() of
+            {'EXIT', _} -> [];
+            KVs ->
+                case {lists:keyfind(timer, 1, KVs),
+                      lists:keyfind(timer_minutes, 1, KVs)} of
+                    {{_, TRef},
+                     {_, PeriodMins}} when TRef /= ?undefined ->
+                        [{?period, PeriodMins}];
+                    _ -> []
+                end
+        end,
+    Html0 = mafia_print:print_votes([{?game_key, ?getv(?game_key)},
+                             {?phase, Phase},
+                             {?mode, ?html}
+                            ]
+                            ++ UseTime
+                            ++ PeriodOpts),
+    io:format(Fd, "~s", [Html0]),
+    io:format(Fd, "~s", [?HTML_TAB_END]),
+    file:close(Fd),
+    ok.
 
 get_en1_ip() ->
     lists:nth(2, lists:dropwhile(

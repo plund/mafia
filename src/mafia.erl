@@ -1,7 +1,8 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% - generate historical html to file
+%% - make one fun for generate html file used both for web and file.
+%% - web_impl:game_status should read from file
 %% - split mafia_print. stats and tracker into separate modules?
 %% present msgid link on all messages
 %% ?add user "peterlund" to GMs?

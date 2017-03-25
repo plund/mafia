@@ -251,12 +251,11 @@ print_votes(Opts) ->
 
 print_votesI(PPin) ->
     PP = setup_pp(PPin),
-    #pp{game = G, day = Day} = PP,
     PhaseType = case PP#pp.phase of
                     #phase{don = ?game_ended} -> ?game_ended;
                     #phase{don = DoN} -> DoN
                 end,
-    Day = PP#pp.day,
+    #pp{game = G, day = Day} = PP,
     RealRemPlayers = PP#pp.players_rem,
 
     %% IsEnd -> EndTime in Game TZ for DL (last 4 dls)

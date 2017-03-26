@@ -440,16 +440,16 @@ game_status_out(?current, Phase) ->
     game_status_out_current(?getv(?game_key), Phase, Title);
 game_status_out(?history, Phase) ->
     %% Check that phase is not in the future
-    Title = ["History ", mafia_print:print_phase(Phase)],
     GameKey = ?getv(?game_key),
-    Time = mafia_time:utc_secs1970(),
-    case mafia_time:get_time_for_phase(GameKey, Phase) of
-        PhaseTime when PhaseTime =< Time ->
-            game_status_out_hist(GameKey, Phase, Title);
+    FileName = mafia_file:game_phase_full_fn(?html, GameKey, Phase),
+    game_status_out_hist(GameKey, Phase, FileName, read_file(FileName)).
+
+read_file(FileName) ->
+    case file:read_file_info(FileName) of
+        {ok, _} ->
+            file:read_file(FileName);
         _ ->
-            [?HTML_TAB_START(Title, " border=\"0\""),
-             "<tr><td>Phase has not concluded yet.</td></tr>"
-             ?HTML_TAB_END]
+            not_on_file
     end.
 
 game_status_out_current(GameKey, Phase, Title) ->
@@ -457,8 +457,28 @@ game_status_out_current(GameKey, Phase, Title) ->
             {?period, mafia_time:timer_minutes(GameKey)}],
     do_game_status_out(GameKey, Phase, Title, Opts).
 
-game_status_out_hist(GameKey, Phase, Title) ->
-    do_game_status_out(GameKey, Phase, Title, []).
+game_status_out_hist(_GameKey, _Phase, _FileName, {ok, Bin}) ->
+    Bin;
+game_status_out_hist(GameKey, Phase, FileName, _) ->
+    Title = ["History ", mafia_print:print_phase(Phase)],
+    Time = mafia_time:utc_secs1970(),
+    case mafia_time:get_time_for_phase(GameKey, Phase) of
+        PhaseTime when PhaseTime =< Time ->
+            %% Normally there should be a file and this generate should not run
+            mafia_web:regen_history(PhaseTime, {GameKey, Phase}),
+            case read_file(FileName) of
+                {ok, Bin} ->
+                    Bin;
+                _ ->
+                    %% Should not happen!
+                    io:format("Still not Found ~p\n", [FileName]),
+                    do_game_status_out(GameKey, Phase, Title, [])
+            end;
+        _ ->
+            [?HTML_TAB_START(Title, " border=\"0\""),
+             "<tr><td>Phase has not concluded yet.</td></tr>"
+             ?HTML_TAB_END]
+    end.
 
 do_game_status_out(GameKey, Phase, Title, ExtraOpts) ->
     Opts = [{?game_key, GameKey},

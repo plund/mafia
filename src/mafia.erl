@@ -1,7 +1,6 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% - web_impl:game_status should redirect to/read from file
 %% - split mafia_print. stats and tracker into separate modules?
 %% present msgid link on all messages
 %% ?add user "peterlund" to GMs?

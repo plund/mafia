@@ -173,4 +173,4 @@ chelp() ->
 help(T) when T==e; T==erlang -> ehelp();
 help(T) when T==m; T==mafia -> mhelp();
 help(T) when T==c; T==cmd; T==command -> chelp();
-help(T) -> help().
+help(_T) -> help().

@@ -204,7 +204,7 @@ switch_to_gameI(ThId, refresh) -> %% Should always work
     mafia_data:refresh_messages().
 
 %% -----------------------------------------------------------------------------
-%% @doc Starts up a game giving it e.g. m26, 1234567
+%% @doc Create a game and translation in table and on file
 %% @end
 %% -----------------------------------------------------------------------------
 -spec game_start(GName :: atom(), ThId :: thread_id()) -> ok | term().

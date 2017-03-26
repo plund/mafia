@@ -2,7 +2,7 @@
 
 -include("mafia.hrl").
 
--export([help/0, ehelp/0, chelp/0,
+-export([help/0, help/1, mhelp/0, ehelp/0, chelp/0,
          l/0,
 
          grep/1, grep/2,
@@ -59,9 +59,6 @@ stop() -> mafia:stop().
 
 l() -> mafia:l().
 
-ehelp() ->
-    shell_default:help().
-
 -define(HELP,
 "MAFIA HELP
 ----------
@@ -98,42 +95,27 @@ stop()         - Stop the gen_server and the http server
 
 l()            - Load all beams found in src dir.
 
+mhelp()        - Mafia help
 chelp()        - Command help
 ehelp()        - Erlang shell help
+help(type())
+  where type() :: e | erlang | m | mafia | c | cmd | command.
 ").
 
-help() ->
-    io:format("~s", [?HELP]).
+-define(MAFIA_HELP,
+"Game Life Cycle
+---------------
+Days before:
+mafia:create_and_switch_to_pregame(m99). - create pregame
+When game starts:
+mafia:game_start(m99, 1460042).     - Assign thread id
+mafia:switch_to_game(m99, refresh). - Switch and create page_recs.
+mafia:refresh_votes().              - Count votes
 
--define(CMD_HELP,
-"Erlang shell commands
----------------------
 mafia:game_start(GName, ThId) - Creates game and defines ThId for game
 mafia:check_game_data(Id) - Id = m25 | thread_id()
 mafia:switch_to_game(Id)  - Id = m25 | thread_id()
 mafia:switch_to_game(Id, refresh) - read disk, Id = m25 | thread_id()
-
-mafia_data:refresh_messages() - Reread all messages from disk, use 'game_key'
-mafia:refresh_votes()  - Clear mafia_day and mafia_game and reread all"
-" messages.
-
-mafia:export_user_data() - export to file 'user_data.txt'
-mafia:import_user_data() - import from file 'user_data.txt'
-mafia:print_votes()  - Current status
-
-mafia_time:show_time_offset()   - Display offset
-mafia_time:set_time_offset(Off) - Change the time offset
-         do a refresh_votes() after changing offset
-         Offset = Secs | {msg_id, MsgId} | {days_hours, Days, Hours})
-
-mafia:show_all_users()          - List primary keys in User DB
-mafia:show_all_users(Search)    - List primary keys matching Search
-mafia:show_all_aliases()        - Display all defined
-mafia:show_aliases(Search)      - User search string.
-mafia:add_alias(User, Alias)    - Add one alias
-mafia:remove_alias(User, Alias) - Remove one alias
-mafia:add_thread(atom(), integer()) - add thread name
-mafia:rm_thread(atom() | integer()) - remove thread name
 
 Manual Commands
 ---------------
@@ -150,7 +132,45 @@ mafia:kill_player(MsgId, Player, Comment) - Kill a player
 mafia:replace_player(MsgId, OldPlayer, NewPlayer)
     New player is replacing old player in game. Exact names!
     Old player must exist in user DB
-    New player is created if missing in DB").
+    New player is created if missing in DB
 
+mafia_data:refresh_messages() - Reread all messages from disk, use 'game_key'
+mafia:refresh_votes()  - Clear mafia_day and mafia_game and reread all"
+" messages.
+mafia:print_votes()  - Current status
+").
+
+-define(CMD_HELP,
+"Erlang shell commands
+---------------------
+mafia:export_user_data() - export to file 'user_data.txt'
+mafia:import_user_data() - import from file 'user_data.txt'
+
+mafia_time:show_time_offset()   - Display offset
+mafia_time:set_time_offset(Off) - Change the time offset
+         do a refresh_votes() after changing offset
+         Offset = Secs | {msg_id, MsgId} | {days_hours, Days, Hours})
+
+mafia:show_all_users()          - List primary keys in User DB
+mafia:show_all_users(Search)    - List primary keys matching Search
+mafia:show_all_aliases()        - Display all defined
+mafia:show_aliases(Search)      - User search string.
+mafia:add_alias(User, Alias)    - Add one alias
+mafia:remove_alias(User, Alias) - Remove one alias
+mafia:add_thread(atom(), integer()) - add thread name
+mafia:rm_thread(atom() | integer()) - remove thread name
+").
+
+help() ->
+    io:format("~s", [?HELP]).
+ehelp() ->
+    shell_default:help().
+mhelp() ->
+    io:format("~s", [?MAFIA_HELP]).
 chelp() ->
     io:format("~s", [?CMD_HELP]).
+
+help(T) when T==e; T==erlang -> ehelp();
+help(T) when T==m; T==mafia -> mhelp();
+help(T) when T==c; T==cmd; T==command -> chelp();
+help(T) -> help().

@@ -419,67 +419,55 @@ s_unit("NIGHT") -> ?night.
 %% http://mafia.peterlund.se/e/web/game_status?phase=night&num=2
 %% http://mafia.peterlund.se/e/web/game_status?phase=end
 game_status(Sid, _Env, In) ->
-    {A, Html} =
+    Html =
         case get_phase(In) of
-            {current, Phase} ->  %% in = []
-                Title = ["Game Status ", mafia_print:print_phase(Phase)],
-                A0 = del_start(Sid, Title, 0),
-                Html0 = game_status_out(current, Phase),
-                {A0, Html0};
-            {ok, Phase} ->
-                %%GameKey = ?getv(?game_key),
-                %% HistoryHtmlFN  = mafia_file:
-                Title = ["History ", mafia_print:print_phase(Phase)],
-                A0 = del_start(Sid, Title, 0),
-                Html0 = game_status_out(ok, Phase),
-                {A0, Html0};
-            {error, ErrorHtml} ->
-                A0 = del_start(Sid, "Game Status", 0),
-                Html0 = ErrorHtml,
-                {A0, Html0}
+            {?current, Phase} -> game_status_out(?current, Phase);
+            {?history, Phase} -> game_status_out(?history, Phase);
+            {?error, ErrorHtml} ->
+                [?HTML_TAB_START("Game Status", " border=\"0\""),
+                 ErrorHtml,
+                 ?HTML_TAB_END]
         end,
-    B = web:deliver(Sid, Html),
-    C = del_end(Sid),
+    web:deliver(Sid, ""), %% No special headers
+    NumBytes = web:deliver(Sid, Html),
     PQ = httpd:parse_query(In),
     Args = make_args(PQ, ["phase", "num"]),
-    {A + B + C, Args}.
+    {NumBytes, Args}.
 
--spec game_status_out(ok | current, #phase{}) -> string().
-game_status_out(current, Phase) ->
-    UseTime = [{?use_time, mafia_time:utc_secs1970()}],
-    game_status_out2(Phase, UseTime);
-game_status_out(ok, Phase) ->
+-spec game_status_out(?history | ?current, #phase{}) -> [ok | string()].
+game_status_out(?current, Phase) ->
+    Title = ["Game Status ", mafia_print:print_phase(Phase)],
+    game_status_out_current(?getv(?game_key), Phase, Title);
+game_status_out(?history, Phase) ->
     %% Check that phase is not in the future
+    Title = ["History ", mafia_print:print_phase(Phase)],
     GameKey = ?getv(?game_key),
     Time = mafia_time:utc_secs1970(),
     case mafia_time:get_time_for_phase(GameKey, Phase) of
         PhaseTime when PhaseTime =< Time ->
-            game_status_out2(Phase, []);
+            game_status_out_hist(GameKey, Phase, Title);
         _ ->
-            "<tr><td>Phase has not concluded yet.</td></tr>"
+            [?HTML_TAB_START(Title, " border=\"0\""),
+             "<tr><td>Phase has not concluded yet.</td></tr>"
+             ?HTML_TAB_END]
     end.
 
-game_status_out2(Phase, UseTime) ->
-    PeriodOpts =
-        case catch mafia_web:get_state() of
-            {'EXIT', _} -> [];
-            KVs ->
-                case {lists:keyfind(timer, 1, KVs),
-                      lists:keyfind(timer_minutes, 1, KVs)} of
-                    {{_, TRef},
-                     {_, PeriodMins}} when TRef /= ?undefined ->
-                        [{?period, PeriodMins}];
-                    _ -> []
-                end
-        end,
-    mafia_print:print_votes([{?game_key, ?getv(?game_key)},
-                             {?phase, Phase},
-                             {?mode, ?html}
-                            ]
-                            ++ UseTime
-                            ++ PeriodOpts).
+game_status_out_current(GameKey, Phase, Title) ->
+    Opts = [{?use_time, mafia_time:utc_secs1970()},
+            {?period, mafia_time:timer_minutes(GameKey)}],
+    do_game_status_out(GameKey, Phase, Title, Opts).
 
--spec get_phase(list()) -> {ok | current, #phase{}} | {error, term()}.
+game_status_out_hist(GameKey, Phase, Title) ->
+    do_game_status_out(GameKey, Phase, Title, []).
+
+do_game_status_out(GameKey, Phase, Title, ExtraOpts) ->
+    Opts = [{?game_key, GameKey},
+            {?phase, Phase},
+            {?mode, ?html}
+           ] ++ ExtraOpts,
+    mafia_web:get_html(Title, Opts).
+
+-spec get_phase(list()) -> {history | current, #phase{}} | {error, term()}.
 get_phase([]) ->
     GameKey = ?getv(?game_key),
     Phase = mafia_time:calculate_phase(GameKey),
@@ -498,15 +486,15 @@ get_phase(In) ->
     end.
 
 gs_phase({"phase", "end"}, _) ->
-    {ok, #phase{don = ?game_ended}};
+    {?history, #phase{don = ?game_ended}};
 gs_phase({"phase", "day"}, {"num", Str}) ->
     case conv_to_num(Str) of
-        {ok, Num} -> {ok, #phase{num = Num, don = ?day}};
+        {ok, Num} -> {?history, #phase{num = Num, don = ?day}};
         {error, _HtmlErr} = E -> E
     end;
 gs_phase({"phase", "night"}, {"num", Str}) ->
     case conv_to_num(Str) of
-        {ok, Num} -> {ok, #phase{num = Num, don = ?night}};
+        {ok, Num} -> {?history, #phase{num = Num, don = ?night}};
         {error, _HtmlErr} = E -> E
     end;
 gs_phase(_, _) ->

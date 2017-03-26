@@ -30,6 +30,7 @@
 -define(phase, phase).
 -define(game_ended, game_ended).
 -define(current, current).
+-define(history, history).
 -define(total_stats, total_stats).
 -define(global, global).
 -define(bytes, bytes).

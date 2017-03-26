@@ -508,6 +508,7 @@ timer_minutes(ThId) ->
     case ?getv(?timer_minutes) of
         Mins when is_integer(Mins), Mins > 0 ->
             Mins;
+        _ when is_atom(ThId) -> 10;
         _ ->
             case nearest_deadline(ThId) of
                 none -> none;

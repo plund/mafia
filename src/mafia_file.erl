@@ -98,7 +98,7 @@ game_link_and_text(G, Phase) ->
 
 -spec game_link_and_text(?text | ?html,
                          thread_id() | #mafia_game{},
-                         #phase{} | ?current | ?game_ended)
+                         #phase{} | ?current)
                         -> {string(), string()}.
 game_link_and_text(Mode, G, Phase) ->
     {GameDir, PhaseFN} = dir_and_filename(Mode, G, Phase),
@@ -121,10 +121,12 @@ game_phase_full_fn(Mode, G, Phase) ->
 
 dir_and_filename(Mode, G, Phase) ->
     {GameDir, FilePrefix} = game_prefixes(G),
-    PhaseBaseFN = if Phase == ?current -> ?CURRENT_GAME_FN;
-                     Phase == ?game_ended -> ?CURRENT_GAME_FN;
-                     true -> phase_base_fn(FilePrefix, Phase)
-                  end,
+    PhaseBaseFN =
+        case Phase of
+            ?current -> ?CURRENT_GAME_FN;
+            #phase{don = ?game_ended} -> ?CURRENT_GAME_FN;
+            _ -> phase_base_fn(FilePrefix, Phase)
+        end,
     PhaseFN = PhaseBaseFN ++ suffix(Mode),
     {GameDir, PhaseFN}.
 
@@ -212,7 +214,7 @@ file_name_test() ->
        game_phase_full_fn(
          ?text,
          #mafia_game{game_num = 26},
-         ?game_ended)
+         #phase{don = ?game_ended})
       ),
     ?assertEqual({"/m29/m29_d2.txt", "m29_d2.txt"},
                  game_link_and_text(?text,

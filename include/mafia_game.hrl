@@ -1,3 +1,5 @@
+-define(M28ThId, 1465173).
+-define(M27ThId, 1447615).
 -define(M26ThId, 1432756).
 -define(M25ThId, 1420289).
 -define(M24ThId, 1404320).
@@ -7,12 +9,15 @@
         ["Oztra", "Chaqa", "rdrivera2005", "Maniac", "MoscowFleet",
          "peterlund", "snowy801", "stupidfighter", "Ezio",
          "DemonOverlord", "Balduran", "Hellenic Riot", "bo_sox48",
-         "VashtaNeurotic", "Kakarroto", "Floodgates", "Ikaneko",
+         "VashtaNeurotic", "Kakarroto", "Tom Bombadil", %%"Floodgates",
+         "Ikaneko",
          "dargorygel", "curupira", "Balki Bartokomous", "DemonRHK"]).
 %% M28 Game Thread
 %% M28 signup threadid = 1460042
 %% Substitute:
-%% 1. Tom Bombadil
+%% 1. Tom Bombadil = "Tom Bombadil"
+%% 2. Dammmdaniel
+%% 3. Teacon7
 
 -define(M27_GMs, ["DemonOverlord",  "dargorygel"]).
 -define(M27_players,

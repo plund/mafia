@@ -219,7 +219,7 @@ do_write_game_2(G, GName, Key) ->
 get_game_rec(m28) ->
     _ = #mafia_game{
       game_num = 28,
-      name = <<"Mafia 28: Item Madness">>,
+      name = <<"Mafia 28: -JEBEDIAH'S WRATH-">>, %% Item Madness
       day_hours = 48,
       night_hours = 24,
       time_zone = -5,

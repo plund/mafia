@@ -2,10 +2,8 @@
 
 -include("mafia.hrl").
 %% kill_player should be possible to do to move to a earlier message
-%% Fix title part="p12-" part="d2", word="XXX", user="peter*"
 %% - How did I get 18 messages from page 2 also into page 1?
 %% - split mafia_print. stats and tracker into separate modules?
-%% present msgid link on all messages
 %% ?add user "peterlund" to GMs?
 %% ##bot endgame <msgid> | unendgame
 %% ##bot endphase|unendphase <msgid>

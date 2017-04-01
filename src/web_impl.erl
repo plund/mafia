@@ -43,6 +43,11 @@ msgs(Sid, _Env, In) ->
     UsersText = get_arg(PQ, "user"),
     WordsText = get_arg(PQ, "word"),
     PartsText = get_arg(PQ, "part"),
+    Title = "Msgs " ++
+        string:join([Arg
+                     || Arg <- [UsersText, WordsText, PartsText],
+                        Arg /= ""],
+                    ", "),
     DayCond = find_part(PartsText),
     UsersU = find_word_searches(UsersText),
     WordsU = find_word_searches(WordsText),
@@ -159,17 +164,14 @@ msgs(Sid, _Env, In) ->
                         {HH, MM} = mafia_time:hh_mm_to_deadline(ThId, Time),
                         %% Add context link when doing User/Word search
                         MsgRef = ["msg_id=", ?i2l(MsgId)],
+
+                        {Pages, _, _} = page_context(Page, 1),
                         HPage =
-                            if IsUserCond or IsWordCond ->
-                                    {Pages, _, _} = page_context(Page, 1),
-                                    ["<a href=\"msgs?part=p",
-                                     Pages,
-                                     "#", MsgRef,
-                                     "\">page ", ?i2l(Page),
-                                     "</a>"];
-                               true ->
-                                    ["page ", ?i2l(Page)]
-                            end,
+                            ["<a href=\"msgs?part=p",
+                             Pages,
+                             "#", MsgRef,
+                             "\">page ", ?i2l(Page),
+                             "</a>"],
                         OutB =
                             ?l2b(
                                ["<tr", BgColor, ">"
@@ -202,7 +204,7 @@ msgs(Sid, _Env, In) ->
            (_, MI)  ->
                 MI#miter{last = false}
         end,
-    A = del_start(Sid, "Mafia Search Result", 0),
+    A = del_start(Sid, Title, 0),
     B = if DoCont ->
                 TabStart = "<tr><td><table cellpadding=6 cellspacing=3>",
                 Row1 = ["<tr><td colspan=\"2\" align=center>"

@@ -1418,7 +1418,9 @@ pr_head_html(IterVotes, PrAbbrF) ->
      "<th>Time</th>"
      "<th>Voter</th>",
      "<th>Move</th>",
-     "<th colspan=4 align=\"left\">Vote Count per Vote</th>"
+     "<th colspan=4 align=\"left\">",
+     nbsp("Vote Count per Vote"),
+     "</th>"
      "</tr>\r\n"].
 
 %% replace_space

@@ -155,11 +155,8 @@ msgs(Sid, _Env, In) ->
                                     "Game End "
                             end,
                         MsgBoldMarked = bold_mark_words(Msg, WordsU),
-                        Hash = erlang:phash2(MsgUserB, 16#1000000),
-                        Color = Hash bor 16#C0C0C0,
-                        ColorStr = integer_to_list(Color, 16),
+                        BgColor = mafia_lib:bgcolor(MsgUserB),
                         {HH, MM} = mafia_time:hh_mm_to_deadline(ThId, Time),
-
                         %% Add context link when doing User/Word search
                         MsgRef = ["msg_id=", ?i2l(MsgId)],
                         HPage =
@@ -175,8 +172,8 @@ msgs(Sid, _Env, In) ->
                             end,
                         OutB =
                             ?l2b(
-                               ["<tr bgcolor=\"#", ColorStr,
-                                "\"><td valign=\"top\">"
+                               ["<tr", BgColor, ">"
+                                "<td valign=\"top\">"
                                 "<a name=\"", MsgRef, "\">"
                                 "<b>", MsgUserB,
                                 "</b></a><br>", DayStr, " ",

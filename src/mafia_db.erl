@@ -17,6 +17,7 @@
          remove_mnesia/0,
          create_tables/0,
          create_table/1,
+         get_game_rec/1,
 
          reset_game/1,
          write_game/1,
@@ -193,8 +194,9 @@ do_write_game(GName, ThId) when is_integer(ThId) ->
         {[], []} ->
             G = get_game_rec(GName),
             do_write_game_2(G, GName, ThId);
-        {[G], []} ->
+        {[_PreG], []} ->
             mnesia:dirty_delete(mafia_game, GName),
+            G = get_game_rec(GName),
             do_write_game_2(G, GName, ThId);
         {_, [_]} ->
             {error, e_exists}

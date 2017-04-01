@@ -1,6 +1,9 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% kill_player should be possible to do to move to a earlier message
+%% Fix title part="p12-" part="d2", word="XXX", user="peter*"
+%% - How did I get 18 messages from page 2 also into page 1?
 %% - split mafia_print. stats and tracker into separate modules?
 %% present msgid link on all messages
 %% ?add user "peterlund" to GMs?
@@ -217,7 +220,8 @@ game_start(GName, ThId) when is_atom(GName), is_integer(ThId) ->
                             io_lib:format("{~p, ~p}.\n", [GName, ThId]),
                             [append]),
             mafia_db:write_game({GName, ThId});
-        E -> E
+        _E ->
+            mafia_db:write_game({GName, ThId})
     end.
 
 %% -----------------------------------------------------------------------------

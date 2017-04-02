@@ -1,7 +1,6 @@
 -module(mafia_print).
 
 -define(NumColsInGrp, 8).
--define(TURQUOISE, "bgcolor=\"#dfffdf\"").
 
 %% Manual API
 -export([
@@ -761,7 +760,7 @@ print_num_dls(PP, Num) ->
             print_past_dls_text(PP, Coming2, "Deadlines in the future");
        PP#pp.mode == ?html ->
             ["<br>"
-             "<table border=1 align=center ", ?TURQUOISE, ">",
+             "<table border=1 align=center ", ?BG_TURQUOISE, ">",
              print_past_dls(Past2, "Deadlines in the past"),
              print_past_dls(Coming2, "Deadlines in the future"),
              "</table>"]
@@ -891,7 +890,7 @@ pr_votes(PP) ->
            PP#pp.mode == ?html ->
                 ["<tr><th>","<br>",
                  "Vote Count ", pr_phase_long(PP#pp.phase), "</th></tr>",
-                 "<tr><td><table border=0 align=center ", ?TURQUOISE, ">",
+                 "<tr><td><table border=0 align=center ", ?BG_TURQUOISE, ">",
                  "<tr><th>Wagon</th><th>#</th><th>Voters</th></tr>",
                  [["<tr><td", bgcolor(Vote), " align=center>", nbsp(?b2l(Vote)),
                    "</td><td align=center>(", ?i2l(N), ")</td>",
@@ -1160,7 +1159,7 @@ do_print_stats(PP, PrStats) ->
                                        (tr, _) -> "Total Counts";
                                        (_, _) -> []
                                     end),
-    HtmlStats = ["<br><table align=center ", ?TURQUOISE, ">",
+    HtmlStats = ["<br><table align=center ", ?BG_TURQUOISE, ">",
                  Html2, "</table>"],
     NonPostTitle =
         if NonPosters == [] -> "Non-posters: -";
@@ -1312,7 +1311,7 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                           FmtTime,
                           [pr_ivs_user(IterVotes, fun(_) -> "===" end)]);
            PP#pp.mode == ?html ->
-                ["<table ", ?TURQUOISE, ">", pr_head_html(IterVotes, PrAbbrF)]
+                ["<table ", ?BG_TURQUOISE, ">", pr_head_html(IterVotes, PrAbbrF)]
         end,
 
     #ra{html = Html} =

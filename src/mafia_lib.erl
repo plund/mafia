@@ -244,29 +244,31 @@ alpha_sort(Strings) ->
 
 %% -----------------------------------------------------------------------------
 
+bgcolor("") ->
+    bgcolorI(?TURQUOISE_HEX);
 bgcolor(Str) when is_list(Str) ->
     bgcolor(?l2b(Str));
 bgcolor(Bin) when is_binary(Bin) ->
     Hash = erlang:phash2(Bin, 16#1000000),
-    Color = Hash bor 16#C0C0C0,
-    %% Blue = Hash band 255,
-    %% Green = (Hash bsr 8) band 255,
-    %% Red = (Hash bsr 16) band 255,
-    %% Max = lists:max([Red, Green, Blue]),
-    %% Scale = fun(X) -> (255 * X) div Max end,
-    %% Soft = fun(X) -> (X + 510) div 3 end,
-    %% Red2 = Scale(Red),
-    %% Green2 = Scale(Green),
-    %% Blue2 = Scale(Blue),
-    %% if Blue2 == 255 ->
-    %%         Red3 = Soft(Red2),
-    %%         Green3 = Soft(Green2);
-    %%    true ->
-    %%         Red3 = Red2,
-    %%         Green3 = Green2
-    %% end,
-    %% Color = (((Red3 bsl 8) + Green3) bsl 8) + Blue2,
-    [" bgcolor=\"#", integer_to_list(Color, 16), "\""].
+    %% Color = Hash bor 16#C0C0C0,
+    Blue = Hash band 255,
+    Green = (Hash bsr 8) band 255,
+    Red = (Hash bsr 16) band 255,
+    {Red2, Green2, Blue2} = modify_colors(Red, Green, Blue),
+    Color = (((Red2 bsl 8) + Green2) bsl 8) + Blue2,
+    bgcolorI(integer_to_list(Color, 16)).
+
+
+modify_colors(Red, Green, Blue) ->
+    High = 255,
+    ModC = fun(Col, Low) ->
+                   Diff = High - Low,
+                   Low + Col * Diff div 255
+           end,
+    {ModC(Red, 160), ModC(Green, 160), ModC(Blue, 140)}.
+
+bgcolorI(ColorStr) ->
+    [" bgcolor=\"#", ColorStr, "\""].
 
 %% -----------------------------------------------------------------------------
 

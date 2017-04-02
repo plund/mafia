@@ -5,6 +5,8 @@
 -define(MINUTE_MS, 60000).
 
 -define(SERVER_NAME, "MAFIA TRACKER").
+-define(TURQUOISE_HEX, "DFFFDF").
+-define(BG_TURQUOISE, "bgcolor=\"#" ++ ?TURQUOISE_HEX ++ "\"").
 
 -define(GSECS_1970, 62167219200).
 -define(GDAYS_1970, 719528).

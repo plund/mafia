@@ -258,14 +258,38 @@ bgcolor(Bin) when is_binary(Bin) ->
     Color = (((Red2 bsl 8) + Green2) bsl 8) + Blue2,
     bgcolorI(integer_to_list(Color, 16)).
 
-
 modify_colors(Red, Green, Blue) ->
-    High = 255,
-    ModC = fun(Col, Low) ->
-                   Diff = High - Low,
-                   Low + Col * Diff div 255
+    TargBright = 220,
+    HighOut = 255,
+    LowOut = 160,
+
+    %% Scale to high value range
+    ModC = fun(Col) ->
+                   DiffOut = HighOut - LowOut,
+                   LowOut + Col * DiffOut div 255
            end,
-    {ModC(Red, 170), ModC(Green, 170), ModC(Blue, 170)}.
+    R = ModC(Red),
+    G = ModC(Green),
+    B = ModC(Blue),
+
+    %% Calculate brightness
+    TargetBright2 = TargBright * TargBright,
+    Bright = brightness2(R, G, B),
+
+    %% Adjust to target brightness
+    Div = 1000,
+    Factor = math:sqrt(TargetBright2 / Bright),
+    Fac = trunc(Div * Factor),
+    Scale = fun(X) ->
+                    X2 = (Fac * X) div Div,
+                    if X2 > 255 -> 255;
+                       true -> X2
+                    end
+            end,
+    {Scale(R), Scale(G), Scale(B)}.
+
+%% @doc Brightness ^ 2
+brightness2(R, G, B) -> 0.299 * R * R + 0.587 * G * G + 0.114 * B * B.
 
 bgcolorI(ColorStr) ->
     [" bgcolor=\"#", ColorStr, "\""].

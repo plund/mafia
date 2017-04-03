@@ -265,7 +265,7 @@ modify_colors(Red, Green, Blue) ->
                    Diff = High - Low,
                    Low + Col * Diff div 255
            end,
-    {ModC(Red, 160), ModC(Green, 160), ModC(Blue, 140)}.
+    {ModC(Red, 170), ModC(Green, 170), ModC(Blue, 170)}.
 
 bgcolorI(ColorStr) ->
     [" bgcolor=\"#", ColorStr, "\""].

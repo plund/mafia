@@ -438,7 +438,6 @@ check_for_player_replacement(Re, M, G) ->
     end.
 
 do_check_for_player_replacement(Re, M, G) ->
-    io:format("~p\n~p\n", [Re#regex.msg_text_upper, Re#regex.msg_text]),
     case find_player_replacement(Re) of
         no_replace ->
             G;
@@ -909,26 +908,28 @@ reg_end_vote(Op, M) ->
 -include_lib("eunit/include/eunit.hrl").
 
 get_pl_re(Text) ->
-    #regex{msg_text_upper = ?l2u(mafia_print:html2txt(Text)),
+    Txt = mafia_print:html2txt(Text),
+    #regex{msg_text_upper = ?l2u(Txt),
+           msg_text = Txt,
            play_repl = regex_player_replacement()}.
 
 find_player_replacement_test_() ->
     [
      ?_assertMatch(
-        {replace, "BBB", "AAA"},
+        {replace, "Bbb", "Aaa", #regex{}},
         find_player_replacement(get_pl_re("Aaa is replacing Bbb"))),
      ?_assertMatch(
-        {replace, "BBB", "AAA"},
+        {replace, "Bbb", "Aaa", #regex{}},
         find_player_replacement(
           get_pl_re(
             "\nsadf\raf\nAaa is replacing Bbb\nfsda\nfdsa"))),
      ?_assertMatch(
-        {replace, "BBB", "AAA"},
+        {replace, "Bbb", "Aaa", #regex{}},
         find_player_replacement(
           get_pl_re(
             "Aaa    has replaced   Bbb\r\n   \n  jj"))),
      ?_assertMatch(
-        {replace, "BBB", "AAA"},
+        {replace, "Bbb", "Aaa", #regex{}},
         find_player_replacement(
           get_pl_re(
             "Aaa    has  replaced   Bbb")))

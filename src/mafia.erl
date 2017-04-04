@@ -1,6 +1,7 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% Extract death text in GM case
 %% kill_player should be possible to do to move to a earlier message
 %% - How did I get 18 messages from page 2 also into page 1?
 %% - split mafia_print. stats and tracker into separate modules?

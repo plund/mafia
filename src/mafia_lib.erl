@@ -274,14 +274,14 @@ modify_colors(Red, Green, Blue) ->
 
     %% Calculate brightness
     TargetBright2 = TargBright * TargBright,
-    Bright = brightness2(R, G, B),
+    Bright2 = brightness2(R, G, B),
 
     %% Adjust to target brightness
     Div = 1000,
-    Factor = math:sqrt(TargetBright2 / Bright),
-    Fac = trunc(Div * Factor),
+    Factor = math:sqrt(TargetBright2 / Bright2),
+    DivFac = trunc(Div * Factor),
     Scale = fun(X) ->
-                    X2 = (Fac * X) div Div,
+                    X2 = (DivFac * X) div Div,
                     if X2 > 255 -> 255;
                        true -> X2
                     end

@@ -1,6 +1,6 @@
 -module(mafia_print).
 
--define(NumColsInGrp, 8).
+-define(NumColsInGrp, 6).
 
 %% Manual API
 -export([

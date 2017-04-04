@@ -43,7 +43,7 @@ msgs(Sid, _Env, In) ->
     UsersText = get_arg(PQ, "user"),
     WordsText = get_arg(PQ, "word"),
     PartsText = get_arg(PQ, "part"),
-    Title = "Msgs " ++
+    Title = "Thread " ++
         string:join([Arg
                      || Arg <- [UsersText, WordsText, PartsText],
                         Arg /= ""],

@@ -14,6 +14,7 @@
 
 -record(regex,
         {msg_text_upper,
+         msg_text,
          play_repl,
          game_end,
          game_unend
@@ -35,8 +36,10 @@ get_regexs() ->
                       -> MsgTime :: seconds1970() | ignore.
 check_cmds_votes(Re, M = #message{}) ->
     mafia_data:update_stat(M),
-    MsgU = ?l2u(mafia_print:html2txt(?b2l(M#message.message))),
-    check_cmds_votes(Re#regex{msg_text_upper = MsgU},
+    Msg = mafia_print:html2txt(?b2l(M#message.message)),
+    MsgU = ?l2u(Msg),
+    check_cmds_votes(Re#regex{msg_text_upper = MsgU,
+                              msg_text = Msg},
                      M,
                      ?rgame(M#message.thread_id)).
 
@@ -431,18 +434,23 @@ check_for_player_replacement(Re, M, G) ->
         0 -> %% no-one has been replaced
             G;
         _ ->
-            case find_player_replacement(Re) of
-                no_replace ->
-                    G;
-                {replace, OldPlayer, NewPlayer} ->
-                    ?dbg(M#message.time, {replace_match, OldPlayer, NewPlayer}),
-                    case replace_player(G, M, NewPlayer, OldPlayer) of
-                        {ok, G2} -> G2;
-                        {Err, G2} ->
-                            ?dbg(M#message.time, {replace, Err}),
-                            G2
-                    end
-            end
+            do_check_for_player_replacement(Re, M, G)
+    end.
+
+do_check_for_player_replacement(Re, M, G) ->
+    io:format("~p\n~p\n", [Re#regex.msg_text_upper, Re#regex.msg_text]),
+    case find_player_replacement(Re) of
+        no_replace ->
+            G;
+        {replace, OldPlayer, NewPlayer, Re2} ->
+            ?dbg(M#message.time, {replace_match, OldPlayer, NewPlayer}),
+            case replace_player(G, M, NewPlayer, OldPlayer) of
+                {ok, G2} -> G2;
+                {Err, G2} ->
+                    ?dbg(M#message.time, {replace, Err}),
+                    G2
+            end,
+            do_check_for_player_replacement(Re2, M, G2)
     end.
 
 regex_player_replacement() ->
@@ -451,12 +459,19 @@ regex_player_replacement() ->
     %% fprof did not see any performance improvment with comiled regexs.
     element(2, re:compile(Reg)).
 
-find_player_replacement(#regex{msg_text_upper = MsgTextU, play_repl = RE}) ->
-    case re:run(MsgTextU, RE, [{capture, [2, 4], list}]) of
+find_player_replacement(Reg = #regex{play_repl = RE}) ->
+    case re:run(Reg#regex.msg_text_upper, RE, [{capture, [2, 4, 5]}]) of
         nomatch ->
             no_replace;
-        {match, [NewPlayer, OldPlayer]} ->
-            {replace, OldPlayer, NewPlayer}
+        {match, [M1, M2, {End,_}]} ->
+            Matches = [M1, M2],
+            [NewPlayer, OldPlayer] =
+                mafia_lib:re_matches(Reg#regex.msg_text, Matches),
+            MsgU2 = lists:nthtail(End, Reg#regex.msg_text_upper),
+            Msg2 = lists:nthtail(End, Reg#regex.msg_text),
+            Reg2 = Reg#regex{msg_text_upper = MsgU2,
+                             msg_text = Msg2},
+            {replace, OldPlayer, NewPlayer, Reg2}
     end.
 
 -type replace_result() :: ok | old_no_exists | not_remain | ?game_ended.
@@ -705,7 +720,8 @@ auto_correct_case(CcUser, [G]) ->
     ?dwrite_game(
        G#mafia_game{players_orig = PsOrigB,
                     players_rem = PsRemB,
-                    player_deaths = NewDeaths}).
+                    player_deaths = NewDeaths}),
+    mafia:refresh_votes().
 
 %% return a fun, that returns a binary with correct case
 ccf(CorrectCase) when is_list(CorrectCase) ->

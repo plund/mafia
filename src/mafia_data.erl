@@ -803,8 +803,11 @@ rm_to_after_pos(Str, Search) ->
         P -> {P, get_after_pos(P, length(Search), Str)}
     end.
 
-get_after_pos(P, Len, Str) ->
-    lists:nthtail(P - 1 + Len, Str).
+%% refactor tail_pos_and_len(Pos, MatchStr, String) -> string().
+get_after_pos(P, Len, Str) when is_integer(Len) ->
+    lists:nthtail(P - 1 + Len, Str);
+get_after_pos(P, Search, Str) when is_list(Search) ->
+    get_after_pos(P, length(Search), Str).
 
 %% -----------------------------------------------------------------------------
 

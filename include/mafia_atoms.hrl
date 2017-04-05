@@ -6,6 +6,8 @@
 -define(error, error).
 -define(stop, stop).
 -define(none, none).
+-define(match, match).
+-define(nomatch, nomatch).
 -define(dummy, dummy).
 -define(new_page, new_page).
 -define(add_id, add_id).

@@ -13,8 +13,12 @@
 -include("mafia.hrl").
 
 -record(regex,
-        {msg_text_upper,
+        {msg_text_u,
          msg_text,
+         match,
+         pos,
+         pre_match,
+         pre_match_u,
          play_repl,
          game_end,
          game_unend
@@ -38,7 +42,7 @@ check_cmds_votes(Re, M = #message{}) ->
     mafia_data:update_stat(M),
     Msg = mafia_print:html2txt(?b2l(M#message.message)),
     MsgU = ?l2u(Msg),
-    check_cmds_votes(Re#regex{msg_text_upper = MsgU,
+    check_cmds_votes(Re#regex{msg_text_u = MsgU,
                               msg_text = Msg},
                      M,
                      ?rgame(M#message.thread_id)).
@@ -107,36 +111,35 @@ check_for_gm_cmds(Re, M, G, DoGenerate) ->
     end,
     G7.
 
-check_for_deaths(#regex{msg_text_upper = Msg}, M, G) ->
-    check_for_deaths(Msg, M, G);
-check_for_deaths(Msg, M, G) ->
+check_for_deaths(Reg = #regex{}, M, G) ->
     %% find "has died" on line
     SearchU1 = "DIED",
     SearchU2 = "DEAD",
     SearchU3 = "BEEN LYNCHED",
-    case {find_parts(Msg, SearchU1),
-          find_parts(Msg, SearchU2),
-          find_parts(Msg, SearchU3)} of
-        {{0,_,_}, {0,_,_}, {0,_,_}} -> %% no-one has died
+    case {regex_find(SearchU1, Reg),
+          regex_find(SearchU2, Reg),
+          regex_find(SearchU3, Reg)} of
+        {{?nomatch, _}, {?nomatch, _}, {?nomatch, _}} -> %% no-one has died
             G;
         {Pos1, Pos2, Pos3} ->
-            {Pos, HStr, TStr} =
-                if element(1, Pos1) /= 0 -> Pos1;
-                   element(1, Pos2) /= 0 -> Pos2;
+            {?match, Reg2} =
+                if element(1, Pos1) == ?match -> Pos1;
+                   element(1, Pos2) == ?match -> Pos2;
                    true -> Pos3
                 end,
             {KilledUserB, Comment, _MsgAfterNL} =
-                read_death_line(G, HStr, TStr),
+                read_death_line(G, Reg2),
             DeathComment =
-                if Comment == ?use_full_line -> get_line_at(Pos, Msg);
+                if Comment == ?use_full_line ->
+                        get_line_at(Reg2#regex.pos, Reg#regex.msg_text);
                    true -> Comment
                 end,
             case KilledUserB of
                 ?noone_died -> %% no match
-                    check_for_deaths(TStr, M, G);
+                    check_for_deaths(Reg2, M, G);
                 _ ->
                     {_, G2} = kill_player(G, M, KilledUserB, DeathComment),
-                    check_for_deaths(TStr, M, G2)
+                    check_for_deaths(Reg2, M, G2)
             end
     end.
 
@@ -173,48 +176,57 @@ kill_player(G, M, DeadB, DeathComment, true) ->
     {{ok, DeathPhase}, G2}.
 
 %% Returns exact User binary.
--spec read_death_line(#mafia_game{}, string(), string())
+-spec read_death_line(#mafia_game{}, #regex{})
                      -> {user() | ?noone_died,
                          Comment :: ?use_full_line | string(),
                          StrAfterNL :: string()}.
-read_death_line(G, HStr, TStr) ->
+read_death_line(G, Reg) ->
     %% find one remaining player before on the same line.
-    RevStr = ?lrev(HStr),
-    RevStr2 = case string:tokens(RevStr, ".\n") of
-                  [] -> "";
-                  [Head | _] -> Head
-              end,
-    PreLine = ?lrev(RevStr2),
-    RemUsersU = G#mafia_game.players_rem,
+    PreLineU = pre_to_nl(Reg#regex.pre_match_u),
     Users =
         lists:dropwhile(
-          fun(UserU) ->
-                  case find_parts(PreLine, ?b2ul(UserU)) of
+          fun(User) ->
+                  case find_parts(PreLineU, ?b2ul(User)) of
                       {0, _, _} -> true;
                       {_, HStr2, TStr2} ->
                           not is_last_non_letter(HStr2) orelse
                               not is_first_non_letter(TStr2)
                   end
           end,
-          RemUsersU),
-    DeadUser = case Users of
-                    [First | _] -> First;
-                    [] -> ?noone_died
-                end,
-    {_, RemLine, AfterNextNL} = find_parts(TStr, "\n"),
+          G#mafia_game.players_rem
+         ),
+    DeadPlayer =
+        case Users of
+            [First | _] ->
+                First;
+            [] ->
+                ?noone_died
+        end,
+    {_, Reg2} = regex_find("\n", Reg), %% Get text to/before next new-line
+    Reg3 = Reg2#regex{msg_text = Reg2#regex.pre_match,
+                      msg_text_u = Reg2#regex.pre_match_u},
     WasComment =
-        case {find_parts_match(RemLine, "SHE WAS"),
-              find_parts_match(RemLine, "HE WAS")} of
-            {{0, _, _, _}, {0, _, _, _}} -> % Neither found use full line
+        case {regex_find("SHE WAS", Reg3),
+              regex_find("HE WAS", Reg3)} of
+            {{?nomatch, _}, {?nomatch, _}} -> % Neither found use full line
                 ?use_full_line;
             {Find1, Find2} ->
-                {_, _Before, Match, After} =
-                    if element(1, Find1) /= 0 -> Find1;
+                {?match, #regex{match = Match, msg_text = After}} =
+                    if element(1, Find1) == ?match -> Find1;
                        true -> Find2
                     end,
                 Match ++ After
         end,
-    {DeadUser, WasComment, AfterNextNL}.
+    AfterNextNL = Reg2#regex.msg_text,
+    {DeadPlayer, WasComment, AfterNextNL}.
+
+pre_to_nl(HStrU) ->
+    RevStr = ?lrev(HStrU),
+    RevStr2 = case string:tokens(RevStr, ".\n") of
+                  [] -> "";
+                  [Head | _] -> Head
+              end,
+    ?lrev(RevStr2).
 
 get_line_at(Pos, Msg) ->
     Left = string:left(Msg, Pos - 1),
@@ -288,11 +300,11 @@ is_last_non_letter(HStr) ->
 
 is_first_non_letter([]) -> true;
 is_first_non_letter([H|_]) ->
-    lists:member(H, " ,.;:!\"#€%7&/()=+?´`<>-_\t\r\n").
+    lists:member(H, " ,.;:!\"*#€%7&/()=+?´`<>-_\t\r\n").
 
 %% -----------------------------------------------------------------------------
 
-check_for_early_end(#regex{msg_text_upper = MsgText}, Time, G) ->
+check_for_early_end(#regex{msg_text_u = MsgText}, Time, G) ->
     case find_early_end(MsgText) of
         {?error, _} -> G;
         {ok, DoN} ->
@@ -365,7 +377,7 @@ find_early_end(MsgText) ->
 
 %% -----------------------------------------------------------------------------
 
-check_for_deadline_move(#regex{msg_text_upper = MsgText}, M, G) ->
+check_for_deadline_move(#regex{msg_text_u = MsgText}, M, G) ->
     G3 = case find_deadline_move(MsgText) of
              {found, DeltaSecs} ->
                  {_, G2} = mafia_time:move_next_deadline(G, M, DeltaSecs),
@@ -430,7 +442,7 @@ find_expr(Text, Reg) ->
         #regex{}, #message{}, #mafia_game{}
        ) -> #mafia_game{}.
 check_for_player_replacement(Re, M, G) ->
-    case string:str(Re#regex.msg_text_upper, "REPLAC") of
+    case string:str(Re#regex.msg_text_u, "REPLAC") of
         0 -> %% no-one has been replaced
             G;
         _ ->
@@ -459,16 +471,16 @@ regex_player_replacement() ->
     element(2, re:compile(Reg)).
 
 find_player_replacement(Reg = #regex{play_repl = RE}) ->
-    case re:run(Reg#regex.msg_text_upper, RE, [{capture, [2, 4, 5]}]) of
+    case re:run(Reg#regex.msg_text_u, RE, [{capture, [2, 4, 5]}]) of
         nomatch ->
             no_replace;
         {match, [M1, M2, {End,_}]} ->
             Matches = [M1, M2],
             [NewPlayer, OldPlayer] =
                 mafia_lib:re_matches(Reg#regex.msg_text, Matches),
-            MsgU2 = lists:nthtail(End, Reg#regex.msg_text_upper),
+            MsgU2 = lists:nthtail(End, Reg#regex.msg_text_u),
             Msg2 = lists:nthtail(End, Reg#regex.msg_text),
-            Reg2 = Reg#regex{msg_text_upper = MsgU2,
+            Reg2 = Reg#regex{msg_text_u = MsgU2,
                              msg_text = Msg2},
             {replace, OldPlayer, NewPlayer, Reg2}
     end.
@@ -546,7 +558,7 @@ repl_user(OldUB, NewUB, Users) ->
 %% -----------------------------------------------------------------------------
 
 check_for_game_end(S, M, G) ->
-    case string:str(S#regex.msg_text_upper, "GAME") of
+    case string:str(S#regex.msg_text_u, "GAME") of
         0 ->
             G;
         _ ->
@@ -564,7 +576,7 @@ regex_game_end() ->
     %% Reg = "^((.|\\s)*\\s)?GAME +((HAS +)?ENDED|IS +OVER)(\\s(.|\\s)*)?$",
     element(2, re:compile(Reg)).
 
-find_game_end(#regex{msg_text_upper = MsgTextU, game_end = RE}) ->
+find_game_end(#regex{msg_text_u = MsgTextU, game_end = RE}) ->
     re:run(MsgTextU, RE).
 
 %% -----------------------------------------------------------------------------
@@ -582,12 +594,12 @@ regex_game_unend() ->
     Reg = "^((.|\\s)*\\s)?(GAME +(HAS +)?UNENDED|UNEND +GAME)(\\s(.|\\s)*)?$",
     element(2, re:compile(Reg)).
 
-find_game_unend(#regex{msg_text_upper = MsgTextU, game_unend = RE}) ->
+find_game_unend(#regex{msg_text_u = MsgTextU, game_unend = RE}) ->
     re:run(MsgTextU, RE).
 
 %% -----------------------------------------------------------------------------
 
-check_for_votes(#regex{msg_text_upper = MsgUC}, M, G) ->
+check_for_votes(#regex{msg_text_u = MsgUC}, M, G) ->
     check_VOTE(MsgUC, M, G),
     EndStr = "##END",
     UnendStr = "##UNEND",
@@ -771,7 +783,6 @@ add_nolynch_and_aliases(Players) ->
                 end
         end,
     Aliases = lists:foldl(AddAlias, [], Players),
-    %% io:format("aliases ~p\n", [Aliases]),
     [?b2l(P) || P <- Players] ++ ?Extra ++ Aliases.
 
 %% -----------------------------------------------------------------------------
@@ -785,13 +796,42 @@ rank_options(Players, RestUC) ->
         end,
     ?lrev(lists:sort([{F(P), ?l2b(select_name(P))} || P <- Players])).
 
+%% @doc Search for upper case SearchU in #regex.msg_txt_u
+-spec regex_find(SearchU :: string(), #regex{}) ->
+                        {?nomatch, #regex{}} |
+                        {?match,
+                         PreMatch :: string(),
+                         PreMatchU :: string(),
+                         #regex{}}.
+regex_find(SearchU, Reg = #regex{}) ->
+    MsgU = Reg#regex.msg_text_u,
+    case string:str(MsgU, SearchU) of
+        0 ->
+            {?nomatch,
+             Reg#regex{pos = 0,
+                       pre_match = Reg#regex.msg_text,
+                       pre_match_u = Reg#regex.msg_text_u
+                      }};
+        P ->
+            Msg = Reg#regex.msg_text,
+            PreMatch = string:left(Msg, P - 1),
+            PreMatchU = string:left(MsgU, P - 1),
+            Match = string:substr(Msg, P, length(SearchU)),
+            PostMatch = mafia_data:get_after_pos(P, SearchU, Msg),
+            PostMatchU = mafia_data:get_after_pos(P, SearchU, MsgU),
+            Reg2 = Reg#regex{msg_text = PostMatch,
+                             msg_text_u = PostMatchU,
+                             match = Match,
+                             pos = P,
+                             pre_match = PreMatch,
+                             pre_match_u = PreMatchU
+                            },
+            {?match, Reg2}
+    end.
+
 %% Return {MatchPos, PreMatchStr, PostMatchStr}
 find_parts(Str, Search) ->
     find_parts_I(Str, Search, no_match).
-
-%% Return {MatchPos, PreMatchStr, MatchStr, PostMatchStr}
-find_parts_match(Str, Search) ->
-    find_parts_I(Str, Search, w_match).
 
 find_parts_I(Str, Search, Mode) ->
     StrU = ?l2u(Str),
@@ -803,16 +843,9 @@ find_parts_I(Str, Search, Mode) ->
 
 find_parts_reply(no_match, 0, Str, _Search) ->
     {0, Str, ""};
-find_parts_reply(w_match, 0, Str, _Search) ->
-    {0, Str, "", ""};
 find_parts_reply(no_match, P, Str, Search) ->
     {P,
      string:left(Str, P - 1),
-     mafia_data:get_after_pos(P, length(Search), Str)};
-find_parts_reply(w_match, P, Str, Search) ->
-    {P,
-     string:left(Str, P - 1),
-     string:substr(Str, P, length(Search)),
      mafia_data:get_after_pos(P, length(Search), Str)}.
 
 waste_spaces(L) -> [E || E <- L, E /= $\s].
@@ -909,7 +942,7 @@ reg_end_vote(Op, M) ->
 
 get_pl_re(Text) ->
     Txt = mafia_print:html2txt(Text),
-    #regex{msg_text_upper = ?l2u(Txt),
+    #regex{msg_text_u = ?l2u(Txt),
            msg_text = Txt,
            play_repl = regex_player_replacement()}.
 
@@ -939,7 +972,9 @@ tu(Str) -> ?l2u(mafia_print:html2txt(Str)).
 
 find_deadline_move_test_() ->
     [
-     ?_assertMatch(not_found, find_deadline_move(tu("deadline move 24 H earlier"))),
+     ?_assertMatch(
+        not_found,
+        find_deadline_move(tu("deadline move 24 H earlier"))),
      ?_assertMatch(
         {found, -86400},
         find_deadline_move(tu("deadline moved 24 H earlier"))),
@@ -983,7 +1018,7 @@ find_deadline_move_test_() ->
     ].
 
 get_game_end(Text) ->
-    #regex{msg_text_upper = ?l2u(mafia_print:html2txt(Text)),
+    #regex{msg_text_u = ?l2u(mafia_print:html2txt(Text)),
            game_end = regex_game_end()}.
 
 %% GAME ((HAS )?ENDED|IS OVER)
@@ -1006,7 +1041,7 @@ find_game_end_test_() ->
     ].
 
 get_game_unend(Text) ->
-    #regex{msg_text_upper = ?l2u(mafia_print:html2txt(Text)),
+    #regex{msg_text_u = ?l2u(mafia_print:html2txt(Text)),
            game_unend = regex_game_unend()}.
 
 find_game_unend_test_() ->

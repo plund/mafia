@@ -555,9 +555,9 @@ end_phase(G, Phase = #phase{}, Time, false) ->
     NewDLs = change_dl_time(G#mafia_game.deadlines, Phase, Time),
     G2 = G#mafia_game{deadlines = NewDLs},
     ?dwrite_game(G2),
+    mafia_web:regen_history(Time, G#mafia_game.key),
     G2;
 end_phase(G, _Phase, _Time, _DL) ->
-    %%already_inserted.
     G.
 
 unend_phase(G, M) ->

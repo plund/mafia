@@ -833,21 +833,38 @@ update_page_rec(S, MsgIdInt) ->
                              thread_id = S#s.thread_id,
                              complete = false}};
             [P = #page_rec{message_ids = MsgIds, complete = Comp}] ->
-                IsMember = lists:member(MsgIdInt, MsgIds),
-                MsgIds2 = MsgIds ++
-                    case IsMember of
-                        false -> [MsgIdInt];
-                        true -> []
+                {Act, MsgIds2} =
+                    case lists:member(MsgIdInt, MsgIds) of
+                        false -> {?add_id, MsgIds ++ [MsgIdInt]};
+                        true -> {?unchanged, MsgIds}
                     end,
-                Act = if IsMember -> ?unchanged;
-                         not IsMember -> ?add_id
-                      end,
                 Comp2 = Comp orelse not S#s.is_last_page,
                 {Act, P#page_rec{message_ids = MsgIds2,
                                  complete = Comp2}}
         end,
     ?dwrite_page(PageRec),
+    remove_duplicate_msgid(S, Action, MsgIdInt),
     Action.
+
+%% @doc Possibly remove MsgId from page 1 when adding MsgId to page 2.
+%% (webdiplomacy.net can have upto 48 messages on page 1 before
+%% splitting them into the 2 first pages)
+remove_duplicate_msgid(S = #s{page_last_read = 2}, Action, MsgId)
+  when Action == ?add_id;
+       Action == ?new_page ->
+    case ?rpage(S#s.thread_id, 1) of
+        [P = #page_rec{message_ids = MsgIds}] ->
+            case lists:member(MsgId, MsgIds) of
+                true ->
+                    ?dbg({rm_duplicate_page1, MsgId}),
+                    ?dwrite_page(P#page_rec{message_ids = MsgIds -- [MsgId]});
+                false -> ok
+            end;
+        _ ->
+            ok
+    end;
+remove_duplicate_msgid(_, _, _) ->
+    ok.
 
 write_message_rec(S, MsgIdInt, User, Time, Msg) ->
     ?dwrite_msg(

@@ -127,13 +127,8 @@ check_for_deaths(Reg = #regex{}, M, G) ->
                    element(1, Pos2) == ?match -> Pos2;
                    true -> Pos3
                 end,
-            {KilledUserB, Comment, _MsgAfterNL} =
-                read_death_line(G, Reg2),
-            DeathComment =
-                if Comment == ?use_full_line ->
-                        get_line_at(Reg2#regex.pos, Reg#regex.msg_text);
-                   true -> Comment
-                end,
+            {KilledUserB, DeathComment} =
+                read_death_line(G, Reg#regex.msg_text, Reg2),
             case KilledUserB of
                 ?noone_died -> %% no match
                     check_for_deaths(Reg2, M, G);
@@ -176,11 +171,10 @@ kill_player(G, M, DeadB, DeathComment, true) ->
     {{ok, DeathPhase}, G2}.
 
 %% Returns exact User binary.
--spec read_death_line(#mafia_game{}, #regex{})
+-spec read_death_line(#mafia_game{}, string(), #regex{})
                      -> {user() | ?noone_died,
-                         Comment :: ?use_full_line | string(),
-                         StrAfterNL :: string()}.
-read_death_line(G, Reg) ->
+                         Comment :: ?use_full_line | string()}.
+read_death_line(G, MsgLong, Reg) ->
     %% find one remaining player before on the same line.
     PreLineU = pre_to_nl(Reg#regex.pre_match_u),
     Users =
@@ -203,13 +197,11 @@ read_death_line(G, Reg) ->
                 ?noone_died
         end,
     {_, Reg2} = regex_find("\n", Reg), %% Get text to/before next new-line
-    Reg3 = Reg2#regex{msg_text = Reg2#regex.pre_match,
-                      msg_text_u = Reg2#regex.pre_match_u},
     WasComment =
-        case {regex_find("SHE WAS", Reg3),
-              regex_find("HE WAS", Reg3)} of
+        case {regex_pre_find("SHE WAS", Reg2),
+              regex_pre_find("HE WAS", Reg2)} of
             {{?nomatch, _}, {?nomatch, _}} -> % Neither found use full line
-                ?use_full_line;
+                get_line_at(Reg#regex.pos, MsgLong);
             {Find1, Find2} ->
                 {?match, #regex{match = Match, msg_text = After}} =
                     if element(1, Find1) == ?match -> Find1;
@@ -217,8 +209,7 @@ read_death_line(G, Reg) ->
                     end,
                 Match ++ After
         end,
-    AfterNextNL = Reg2#regex.msg_text,
-    {DeadPlayer, WasComment, AfterNextNL}.
+    {DeadPlayer, WasComment}.
 
 pre_to_nl(HStrU) ->
     RevStr = ?lrev(HStrU),
@@ -300,7 +291,7 @@ is_last_non_letter(HStr) ->
 
 is_first_non_letter([]) -> true;
 is_first_non_letter([H|_]) ->
-    lists:member(H, " ,.;:!\"*#€%7&/()=+?´`<>-_\t\r\n").
+    lists:member(H, " ,.;:!\"#€%&/()=+?^´`'*<>-_\t\r\n").
 
 %% -----------------------------------------------------------------------------
 
@@ -796,13 +787,40 @@ rank_options(Players, RestUC) ->
         end,
     ?lrev(lists:sort([{F(P), ?l2b(select_name(P))} || P <- Players])).
 
+%% @doc Search for upper case SearchU in #regex.pre_match_u
+-spec regex_pre_find(SearchU :: string(), #regex{}) ->
+                            {?nomatch, #regex{}} |
+                            {?match, #regex{}}.
+regex_pre_find(SearchU, Reg = #regex{}) ->
+    MsgU = Reg#regex.pre_match_u,
+    case string:str(MsgU, SearchU) of
+        0 ->
+            {?nomatch,
+             Reg#regex{pos = 0,
+                       msg_text = "",
+                       msg_text_u = ""
+                      }};
+        P ->
+            Msg = Reg#regex.pre_match,
+            PreMatch = string:left(Msg, P - 1),
+            PreMatchU = string:left(MsgU, P - 1),
+            Match = string:substr(Msg, P, length(SearchU)),
+            PostMatch = mafia_data:get_after_pos(P, SearchU, Msg),
+            PostMatchU = mafia_data:get_after_pos(P, SearchU, MsgU),
+            Reg2 = Reg#regex{msg_text = PostMatch,
+                             msg_text_u = PostMatchU,
+                             match = Match,
+                             pos = P,
+                             pre_match = PreMatch,
+                             pre_match_u = PreMatchU
+                            },
+            {?match, Reg2}
+    end.
+
 %% @doc Search for upper case SearchU in #regex.msg_txt_u
 -spec regex_find(SearchU :: string(), #regex{}) ->
                         {?nomatch, #regex{}} |
-                        {?match,
-                         PreMatch :: string(),
-                         PreMatchU :: string(),
-                         #regex{}}.
+                        {?match, #regex{}}.
 regex_find(SearchU, Reg = #regex{}) ->
     MsgU = Reg#regex.msg_text_u,
     case string:str(MsgU, SearchU) of

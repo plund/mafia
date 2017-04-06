@@ -259,9 +259,9 @@ bgcolor(Bin) when is_binary(Bin) ->
     bgcolorI(integer_to_list(Color, 16)).
 
 modify_colors(Red, Green, Blue) ->
-    TargBright = 220,
+    TargBright = 210,
     HighOut = 255,
-    LowOut = 160,
+    LowOut = 140,
 
     %% Scale to high value range
     ModC = fun(Col) ->
@@ -278,7 +278,10 @@ modify_colors(Red, Green, Blue) ->
 
     %% Adjust to target brightness
     Div = 1000,
-    Factor = math:sqrt(TargetBright2 / Bright2),
+    Fac = math:sqrt(TargetBright2 / Bright2),
+    Factor = if Fac < 0.95 -> 0.95; % Max 5% reduce
+                true -> Fac
+             end,
     DivFac = trunc(Div * Factor),
     Scale = fun(X) ->
                     X2 = (DivFac * X) div Div,

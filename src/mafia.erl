@@ -2,6 +2,7 @@
 
 -include("mafia.hrl").
 %% kill_player should be possible to do to move to a earlier message
+%% make it possible to negate a player kill in order to move it later
 %% - split mafia_print. stats and tracker into separate modules?
 %% ?add user "peterlund" to GMs?
 %% ##bot endgame <msgid> | unendgame

@@ -663,14 +663,13 @@ find_game_unend(#regex{msg_text_u = MsgTextU, game_unend = RE}) ->
 
 %% -----------------------------------------------------------------------------
 
-check_for_votes(#regex{msg_text_u = MsgUC}, M, G) ->
-    check_VOTE(MsgUC, M, G),
+check_for_votes(#regex{msg_text_u = MsgU}, M, G) ->
+    check_VOTE(MsgU, M, G),
     EndStr = "##END",
     UnendStr = "##UNEND",
-    case {string:str(MsgUC, EndStr),
-          string:str(MsgUC, UnendStr)} of
-        {0, 0} ->
-            ok;
+    case {string:str(MsgU, EndStr),
+          string:str(MsgU, UnendStr)} of
+        {0, 0} -> ok;
         {_, 0} -> %% add end
             reg_end_vote(add, M);
         {0, _} -> %% remove end
@@ -987,17 +986,25 @@ vote2(M, G, Vote, RawVote, IsOkVote) ->
                            },
             Day = ?rday(M#message.thread_id, Phase),
             Votes = Day#mafia_day.votes,
-            Votes2 = case lists:keyfind(User, 1, Votes) of
-                         false ->
-                             [{User, [NewVote]} | Votes];
-                         {User, UVotes} ->
-                             UVotes2 =
-                                 lists:keystore(NewVote#vote.id,
-                                                #vote.id,
-                                                UVotes,
-                                                NewVote),
-                             lists:keystore(User, 1, Votes, {User, UVotes2})
-                     end,
+            Votes2 =
+                case lists:keyfind(User, 1, Votes) of
+                    false -> [{User, [NewVote]} | Votes];
+                    {User, UVotes} ->
+                        ExistVote = lists:keyfind(NewVote#vote.id,
+                                                  #vote.id,
+                                                  UVotes),
+                        UVotes2 =
+                            if IsOkVote; ExistVote == false ->
+                                    %% Overwrite vote for this msg_id is ok
+                                    lists:keystore(NewVote#vote.id,
+                                                   #vote.id,
+                                                   UVotes,
+                                                   NewVote);
+                               true ->
+                                    UVotes
+                            end,
+                        lists:keystore(User, 1, Votes, {User, UVotes2})
+                end,
             ?dwrite_day(Day#mafia_day{votes = Votes2});
         _ ->
             ignore

@@ -28,8 +28,18 @@
 
 %% http://mafia.peterlund.se/e/web/msgs
 msgs(Sid, _Env, In) ->
-    ThId = ?getv(?game_key),
-    PQ = httpd:parse_query(In),
+    PQ = httpd:parse_query(In) -- [{[],[]}],
+    NotAllowed = [Key || {Key, _} <- PQ]
+        -- ["g", "user", "word", "part", "button"],
+    ThId = get_thread_id(get_arg(PQ, "g")),
+    msgs2(Sid, ThId, In, PQ, NotAllowed).
+
+msgs2(Sid, _ThId, _In, _PQ, NotAllowed) when NotAllowed /= [] ->
+    error_resp(Sid, ["Params not allowed: ",
+                string:join(NotAllowed, ", ")]);
+msgs2(Sid, {?error, _}, _In, _PQ, _)  ->
+    error_resp(Sid, "Bad: g=value");
+msgs2(Sid, ThId, In, PQ, []) ->
     Url1 = ?BotUrl,
     Url2 = "e/web/msgs?",
     In3 = [string:tokens(I, "=") || I <- string:tokens(In, "&")],
@@ -414,14 +424,30 @@ s_unit("NIGHT") -> ?night.
 
 %% -----------------------------------------------------------------------------
 %% http://mafia.peterlund.se/e/web/game_status
-%% http://mafia.peterlund.se/e/web/game_status?phase=day&num=1
-%% http://mafia.peterlund.se/e/web/game_status?phase=night&num=2
-%% http://mafia.peterlund.se/e/web/game_status?phase=end
+%% http://mafia.peterlund.se/e/web/game_status?game=m28&phase=day&num=1
+%% http://mafia.peterlund.se/e/web/game_status?game=m28phase=night&num=2
+%% http://mafia.peterlund.se/e/web/game_status?game=m28phase=end
 game_status(Sid, _Env, In) ->
+    PQ = httpd:parse_query(In) -- [{[],[]}],
+    NotAllowed = [Key || {Key, _} <- PQ] -- ["g", "phase", "num"],
+    GameKey = get_thread_id(get_arg(PQ, "g")),
+    game_status2(Sid, GameKey, PQ, NotAllowed).
+
+game_status2(Sid, _GameKey, _PQ, NotAllowed) when NotAllowed /= [] ->
+    error_resp(Sid, ["Params not allowed: ",
+                string:join(NotAllowed, ", ")]);
+game_status2(Sid, {?error, _}, _PQ, _) ->
+    error_resp(Sid, "Bad: g=value");
+game_status2(Sid, GameKey, PQ, []) ->
+    PhaseStr = get_arg(PQ, "phase"),
+    NumStr = get_arg(PQ, "num"),
+    io:format("GK ~p, PQ ~p\n", [GameKey, PQ]),
     Html =
-        case get_phase(In) of
-            {?current, Phase} -> game_status_out(?current, Phase);
-            {?history, Phase} -> game_status_out(?history, Phase);
+        case get_phase(GameKey, PhaseStr, NumStr) of
+            {?current, Phase} ->
+                game_status_out(?current, GameKey, Phase);
+            {?history, Phase} ->
+                game_status_out(?history, GameKey, Phase);
             {?error, ErrorHtml} ->
                 [?HTML_TAB_START("Game Status", " border=\"0\""),
                  ErrorHtml,
@@ -429,17 +455,17 @@ game_status(Sid, _Env, In) ->
         end,
     web:deliver(Sid, ""), %% No special headers
     NumBytes = web:deliver(Sid, Html),
-    PQ = httpd:parse_query(In),
     Args = make_args(PQ, ["phase", "num"]),
     {NumBytes, Args}.
 
--spec game_status_out(?history | ?current, #phase{}) -> [ok | string()].
-game_status_out(?current, Phase) ->
+-spec game_status_out(?history | ?current, integer(), #phase{})
+                     -> [ok | string()].
+game_status_out(?current, GameKey, Phase) ->
     Title = ["Game Status ", mafia_print:print_phase(Phase)],
-    game_status_out_current(?getv(?game_key), Phase, Title);
-game_status_out(?history, Phase) ->
+    game_status_out_current(GameKey, Phase, Title);
+game_status_out(?history, GameKey, Phase) ->
     %% Check that phase is not in the future
-    GameKey = ?getv(?game_key),
+    %% GameKey = ?getv(?game_key),
     FileName = mafia_file:game_phase_full_fn(?html, GameKey, Phase),
     game_status_out_hist(GameKey, Phase, FileName, read_file(FileName)).
 
@@ -486,35 +512,29 @@ do_game_status_out(GameKey, Phase, Title, ExtraOpts) ->
            ] ++ ExtraOpts,
     mafia_web:get_html(Title, Opts).
 
--spec get_phase(list()) -> {history | current, #phase{}} | {error, term()}.
-get_phase([]) ->
-    GameKey = ?getv(?game_key),
+-spec get_phase(integer(), string(), string) ->
+                       {history | current, #phase{}} | {error, term()}.
+get_phase(GameKey, "", "") ->
     Phase = mafia_time:calculate_phase(GameKey),
     {current, Phase};
-get_phase(In) ->
-    PQ = httpd:parse_query(In),
-    NotAllowed = [Key || {Key, _} <- PQ] -- ["phase", "num"],
-    if NotAllowed == [] ->
-            gs_phase(lists:keyfind("phase", 1, PQ),
-                     lists:keyfind("num", 1, PQ)
-                    );
-       true ->
-            {error, ["Params: ",
-                     string:join(NotAllowed, ", "),
-                     " not allowed."]}
-    end.
+get_phase(_GameKey, PhaseStr, NumStr) ->
+    gs_phase(PhaseStr, NumStr).
 
-gs_phase({"phase", "end"}, _) ->
+gs_phase("end", _) ->
     {?history, #phase{don = ?game_ended}};
-gs_phase({"phase", "day"}, {"num", Str}) ->
+gs_phase("day", Str) ->
     case conv_to_num(Str) of
-        {ok, Num} -> {?history, #phase{num = Num, don = ?day}};
-        {error, _HtmlErr} = E -> E
+        {ok, Num} ->
+            {?history, #phase{num = Num, don = ?day}};
+        {error, _HtmlErr} = E ->
+            E
     end;
-gs_phase({"phase", "night"}, {"num", Str}) ->
+gs_phase("night", Str) ->
     case conv_to_num(Str) of
-        {ok, Num} -> {?history, #phase{num = Num, don = ?night}};
-        {error, _HtmlErr} = E -> E
+        {ok, Num} ->
+            {?history, #phase{num = Num, don = ?night}};
+        {error, _HtmlErr} = E ->
+            E
     end;
 gs_phase(_, _) ->
     {error, "<tr><td>"
@@ -794,6 +814,35 @@ del_start(Sid, Title, Border) ->
 
 del_end(Sid) ->
     web:deliver(Sid, ?HTML_TAB_END).
+
+get_thread_id("") -> ?getv(?game_key);
+get_thread_id("m" ++ NumStr) ->
+    get_thread_id2(NumStr);
+get_thread_id(NumStr) ->
+    get_thread_id2(NumStr).
+
+get_thread_id2(NumStr) ->
+    case catch list_to_integer(NumStr) of
+        {'EXIT', _} -> {?error, not_number};
+        Num ->
+            MatchHead2 = #mafia_game{key = '$1', game_num = '$2', _='_'},
+            Guard = [{'==', '$2', Num}],
+            Result = '$1',
+            MatchExpr2 = [{MatchHead2, Guard, [Result]}],
+            case mnesia:dirty_select(mafia_game, MatchExpr2) of
+                [Key] -> Key;
+                _ -> {?error, no_game}
+            end
+    end.
+
+error_resp(Sid, Specific) ->
+    Html = [?HTML_TAB_START("Game Status", " border=\"0\""),
+            ["<tr align=center><td>", Specific, "</td></tr>"],
+            ?HTML_TAB_END],
+    web:deliver(Sid, ""), %% No special headers
+    NumBytes = web:deliver(Sid, Html),
+    Args = [],
+    {NumBytes, Args}.
 
 get_arg(PQ, ArgStr) ->
     case lists:keyfind(ArgStr, 1, PQ) of

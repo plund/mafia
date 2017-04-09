@@ -1,6 +1,7 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% - fix page links on all history pages
 %% LOW - list server alias defs, list previous deadlines
 %% - split mafia_print. stats and tracker into separate modules?
 %% ?add user "peterlund" to GMs? - NO

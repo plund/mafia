@@ -30,7 +30,7 @@
 msgs(Sid, _Env, In) ->
     PQ = httpd:parse_query(In) -- [{[],[]}],
     NotAllowed = [Key || {Key, _} <- PQ]
-        -- ["g", "user", "word", "part", "button"],
+        -- ["g", "user", "word", "part", "UorW", "button"],
     ThId = get_thread_id(get_arg(PQ, "g")),
     msgs2(Sid, ThId, In, PQ, NotAllowed).
 

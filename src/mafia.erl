@@ -1,10 +1,7 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% LOW - kill_player should be possible to do reference an earlier message
-%%       Solution: set_death_msgid(MsgId, User, DeathMsgId) where MsgId is
-%%       later than all other death messages for this User
-%%       Motivation: Fix GM error
+%% LOW - list server alias defs, list previous deadlines
 %% - split mafia_print. stats and tracker into separate modules?
 %% ?add user "peterlund" to GMs? - NO
 %% Instead add ServerKeeper/GM commands:
@@ -52,6 +49,7 @@
 
          replace_player/3,
          kill_player/3,
+         set_death_msgid/4,
          set_death_comment/3, %% deprecated
 
          print_votes/0,
@@ -373,6 +371,36 @@ replace_player(MsgId, OldPlayer, NewPlayer) ->
                     ok;
                 _ ->
                     replace_failed
+            end;
+        {?error, _} = E -> E
+    end.
+
+%% -----------------------------------------------------------------------------
+%% @doc Set the #death.msgid, time, to point to DeathMsgId, MsgId need to be
+%% set to the last death announcement or later.
+%% @end
+%% -----------------------------------------------------------------------------
+%% mafia:set_death_msgid(1468321, "Maniac", 1468307, "he was Big Ham, the Mafia Goon.").
+set_death_msgid(MsgId, Player, DeathMsgId, DeathComment) ->
+    case find_mess_game(MsgId) of
+        {ok, G, M} ->
+            #message{thread_id = ThId,
+                     time = Time} = M,
+            Cmd = #cmd{time = Time,
+                       msg_id = MsgId,
+                       mfa = {mafia, set_death_msgid,
+                              [MsgId, Player, DeathMsgId, DeathComment]}},
+            PlayerB = ?l2b(Player),
+            case mafia_vote:set_death_msgid(G, M,
+                                            PlayerB,
+                                            ?rmess(DeathMsgId),
+                                            DeathComment) of
+                ok ->
+                    ?man(Time, Cmd),
+                    mafia_file:manual_cmd_to_file(ThId, Cmd),
+                    %%io:format("Do mafia:refresh_votes().\n"),
+                    {set_death_msgid, Player, DeathMsgId};
+                {?error, _} = E -> E
             end;
         {?error, _} = E -> E
     end.

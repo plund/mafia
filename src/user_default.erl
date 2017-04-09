@@ -127,8 +127,10 @@ mafia:move_next_deadline(MsgId, Dir, Time) - Moves next deadline
          Time = H | {H, M}
 mafia:end_game(MsgId)   - Ends the game with the given msg_id
 mafia:unend_game(MsgId) - Unend game
-mafia:kill_player(MsgId, Player, Comment) - Kill a player
 
+mafia:kill_player(MsgId, Player, Comment) - Kill a player
+mafia:set_death_msgid(MsgId, Player, DeathMsgId, Comment).
+    Reference a previous msgid as the death message, give comment.
 mafia:replace_player(MsgId, OldPlayer, NewPlayer)
     New player is replacing old player in game. Exact names!
     Old player must exist in user DB

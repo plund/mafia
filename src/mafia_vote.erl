@@ -7,6 +7,7 @@
          print_verify_user/1,
 
          kill_player/4,
+         set_death_msgid/5,
          replace_player/4
         ]).
 
@@ -65,7 +66,7 @@ check_cmds_votes(Re, M, G = #mafia_game{}) ->
                 PhasePrevM /= PhaseM
         end,
     if DoGenerate ->
-            mafia_web:regen_history(M#message.time, G#mafia_game.key);
+            mafia_web:regen_history(M, G);
        true -> ok
     end,
     if not IsEnded ->
@@ -105,7 +106,7 @@ check_for_gm_cmds(Re, M, G, DoGenerate) ->
        G7 /= G6, %% someone died
        RelTimeSecs >= 0,
        RelTimeSecs =< ?MAX_GM_DL_MINS * ?MinuteSecs ->
-            mafia_web:regen_history(M#message.time, G#mafia_game.key);
+            mafia_web:regen_history(M, G);
        true ->
             ok
     end,
@@ -137,59 +138,6 @@ check_for_deaths(Reg = #regex{}, M, G) ->
                     check_for_deaths(Reg2, M, G2)
             end
     end.
-
--spec kill_player(#mafia_game{}, #message{}, user(), string())
-                 -> {Resp :: term(), #mafia_game{}}.
-kill_player(G, M, DeadB, DeathComment) ->
-    IsMember = lists:member(DeadB, G#mafia_game.players_rem),
-    kill_player(G, M, DeadB, DeathComment, IsMember).
-
-%% Not remaining. Already dead?
-kill_player(G, M, DeadB, DeathComment, false) ->
-    %% check in death records (allow edit of text and msgid)
-    Deaths = [D || D = #death{player = P} <- G#mafia_game.player_deaths,
-                  P == DeadB],
-    case Deaths of
-        [D] ->
-            io:format(
-              "~s Update death for player ~s\n",
-              [mafia_print:print_time(M#message.time, short), ?b2l(DeadB)]),
-            {IsEnd, DeathPhase} = is_end_of_phase(M, G),
-            Death = D#death{msg_id = M#message.msg_id,
-                            time = M#message.time,
-                            is_end = IsEnd,
-                            comment = ?l2b(DeathComment)},
-            NewDeaths = add_modify_deaths(Death, G),
-            G2 = G#mafia_game{player_deaths = NewDeaths},
-            ?dwrite_game(G2),
-            update_day_rec(G, Death),
-            {{ok, DeathPhase}, G2};
-        _ ->
-            ?dbg(not_in_death_list),
-            {not_remaining_player, G}
-    end;
-%% Remaining player. Kill him/her..
-kill_player(G, M, DeadB, DeathComment, true) ->
-    %% remove player from _rem lists.
-    NewRems = G#mafia_game.players_rem -- [DeadB],
-    io:format(
-      "~s Player ~s died\n",
-      [mafia_print:print_time(M#message.time, short), ?b2l(DeadB)]),
-    {IsEnd, DeathPhase} = is_end_of_phase(M, G),
-    Death = #death{player = DeadB,
-                   is_end = IsEnd,
-                   phase = DeathPhase,
-                   msg_id = M#message.msg_id,
-                   time = M#message.time,
-                   comment = ?l2b(DeathComment),
-                   is_deleted = false
-                  },
-    NewDeaths = add_modify_deaths(Death, G),
-    update_day_rec(G, Death),
-    G2 = G#mafia_game{players_rem = NewRems,
-                      player_deaths = NewDeaths},
-    ?dwrite_game(G2),
-    {{ok, DeathPhase}, G2}.
 
 %% Returns exact User binary.
 -spec read_death_line(#mafia_game{}, string(), #regex{})
@@ -235,6 +183,104 @@ read_death_line(G, MsgLong, Reg) ->
                 Match ++ After
         end,
     {DeadPlayer, WasComment}.
+
+-spec kill_player(#mafia_game{}, #message{}, user(), string())
+                 -> {Resp :: term(), #mafia_game{}}.
+kill_player(G, M, DeadB, DeathComment) ->
+    IsMember = lists:member(DeadB, G#mafia_game.players_rem),
+    kill_player(G, M, DeadB, DeathComment, IsMember).
+
+%% Remaining player. Kill him/her..
+kill_player(G, M, DeadB, DeathComment, true) ->
+    %% remove player from _rem lists.
+    NewRems = G#mafia_game.players_rem -- [DeadB],
+    io:format(
+      "~s Player ~s died\n",
+      [mafia_print:print_time(M#message.time, short), ?b2l(DeadB)]),
+    {IsEnd, DeathPhase} = is_end_of_phase(M, G),
+    Death = #death{player = DeadB,
+                   is_end = IsEnd,
+                   phase = DeathPhase,
+                   msg_id = M#message.msg_id,
+                   time = M#message.time,
+                   comment = ?l2b(DeathComment),
+                   is_deleted = false
+                  },
+    NewDeaths = add_modify_deaths(Death, G),
+    update_day_rec(G, Death),
+    G2 = G#mafia_game{players_rem = NewRems,
+                      player_deaths = NewDeaths},
+    ?dwrite_game(G2),
+    {{ok, DeathPhase}, G2};
+%% Not remaining. Already dead?
+kill_player(G, M, DeadB, DeathComment, false) ->
+    %% check in death records (allow edit of text and msgid)
+    Deaths = [D || D = #death{player = P} <- G#mafia_game.player_deaths,
+                  P == DeadB],
+    case Deaths of
+        [D] ->
+            io:format(
+              "~s Update death for player ~s\n",
+              [mafia_print:print_time(M#message.time, short), ?b2l(DeadB)]),
+            {IsEnd, DeathPhase} = is_end_of_phase(M, G),
+            OldPhase = D#death.phase,
+            Death = D#death{msg_id = M#message.msg_id,
+                            time = M#message.time,
+                            phase = DeathPhase,
+                            is_end = IsEnd,
+                            comment = ?l2b(DeathComment)},
+            NewDeaths = add_modify_deaths(Death, G),
+            G2 = G#mafia_game{player_deaths = NewDeaths},
+            ?dwrite_game(G2),
+            if DeathPhase#phase.num /= OldPhase#phase.num ->
+                    %% TODO / FIXME
+                    ?dbg(M#message.time,
+                         "WARNING: Death moved between day records "
+                         "Not fixed! Do refresh_votes()");
+               true ->
+                    update_day_rec(G2, Death),
+                    mafia_web:regen_history(M, {G2, DeathPhase})
+            end,
+            {{ok, DeathPhase}, G2};
+        _ ->
+            {not_remaining_player, G}
+    end.
+
+set_death_msgid(_G, _M, _, [], _) ->
+    {?error, msg_no_exist};
+set_death_msgid(G, M, DeadB, [DeathMsg], DeathComment) ->
+    Deaths = [D || D = #death{player = P} <- G#mafia_game.player_deaths,
+                   P == DeadB],
+    case Deaths of
+        [D] ->
+            io:format(
+              "~s Set death msg id for player ~s\n",
+              [mafia_print:print_time(M#message.time, short), ?b2l(DeadB)]),
+            {IsEnd, DeathPhase} = is_end_of_phase(DeathMsg, G),
+            io:format("~p\n", [{IsEnd, DeathPhase}]),
+            OldPhase = D#death.phase,
+            Death = D#death{msg_id = DeathMsg#message.msg_id,
+                            time = DeathMsg#message.time,
+                            phase = DeathPhase,
+                            is_end = IsEnd,
+                            comment = ?l2b(DeathComment)
+                           },
+            NewDeaths = add_modify_deaths(Death, G),
+            G2 = G#mafia_game{player_deaths = NewDeaths},
+            ?dwrite_game(G2),
+            if DeathPhase#phase.num /= OldPhase#phase.num ->
+                    %% TODO / FIXME
+                    ?dbg(M#message.time,
+                         "WARNING: Death moved between day records "
+                         "Not fixed! Do refresh_votes()");
+               true ->
+                    update_day_rec(G2, Death),
+                    mafia_web:regen_history(DeathMsg, {G2, DeathPhase})
+            end,
+            ok;
+        _ ->
+            {?error, player_not_dead}
+    end.
 
 pre_to_nl(HStrU) ->
     RevStr = ?lrev(HStrU),

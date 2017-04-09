@@ -552,7 +552,6 @@ iter_msgids(ThId, MsgIdFun, Acc, PageFilter) ->
     All = mafia:pages_for_thread(ThId),
     Pages = if PageFilter == all ->
                     All;
-               %% dialyzer: said no fun was possible?
                is_function(PageFilter) ->
                     lists:filter(PageFilter, All)
             end,

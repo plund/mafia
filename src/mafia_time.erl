@@ -555,7 +555,7 @@ end_phase(G, Phase = #phase{}, Time, false) ->
     NewDLs = change_dl_time(G#mafia_game.deadlines, Phase, Time),
     G2 = G#mafia_game{deadlines = NewDLs},
     ?dwrite_game(G2),
-    mafia_web:regen_history(Time, G#mafia_game.key),
+    mafia_web:regen_history(Time, G),
     G2;
 end_phase(G, _Phase, _Time, _DL) ->
     G.
@@ -663,7 +663,7 @@ end_game(M, G) when G#mafia_game.game_end == ?undefined ->
     G2 = G#mafia_game{deadlines = DLs3,
                       game_end = {EndTime, MsgId}},
     ?dwrite_game(G2),
-    mafia_web:regen_history(EndTime, G#mafia_game.key),
+    mafia_web:regen_history(EndTime, G),
     mafia_web:update_current(),
     {?game_ended, G2};
 end_game(_M, G) ->

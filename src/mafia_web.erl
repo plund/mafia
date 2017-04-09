@@ -126,6 +126,12 @@ update_current() ->
 %% @doc Regenerate history text page
 %% @end
 %%--------------------------------------------------------------------
+regen_history(M, {G = #mafia_game{}, Phase}) ->
+    regen_history(M, {G#mafia_game.key, Phase});
+regen_history(M = #message{}, G) ->
+    regen_history(M#message.time, G);
+regen_history(M, G = #mafia_game{}) ->
+    regen_history(M, G#mafia_game.key);
 regen_history(Time, GKey) ->
     regen_historyI(Time, GKey).
 

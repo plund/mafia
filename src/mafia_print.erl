@@ -263,6 +263,7 @@ print_votesI(PPin) ->
     %% not IsCurrentPhase -> DLTime in Game TZ (No DLs)
 
     %% Part - Page heading - Print Game Name
+    DoDispTime2DL = PhaseType /= ?game_ended andalso is_integer(PP#pp.use_time),
     GName = ?b2l(G#mafia_game.name),
     HTitle =
         if PP#pp.mode == ?text ->
@@ -284,7 +285,7 @@ print_votesI(PPin) ->
                             end,
                 ModMsgV = ?getv(?mod_msg),
                 ModMsg =
-                    if is_list(ModMsgV), ModMsgV /= "" ->
+                    if DoDispTime2DL, is_list(ModMsgV), ModMsgV /= "" ->
                             ["<tr><td align=center width=600>"
                              "<i>", ModMsgV, "</i>"
                              "</td></tr>\r\n"];
@@ -311,7 +312,6 @@ print_votesI(PPin) ->
         end,
 
     %% Part - Display time Left to Deadline or display End of Game message
-    DoDispTime2DL = PhaseType /= ?game_ended andalso is_integer(PP#pp.use_time),
     HDeadLine =
         if PP#pp.mode == ?text ->
                 if DoDispTime2DL ->

@@ -257,7 +257,8 @@ print_votesI(PPin) ->
     #pp{game = G, day = Day} = PP,
     RealRemPlayers = PP#pp.players_rem,
 
-    %% IsEnd -> EndTime in Game TZ for DL (last 4 dls)
+    %% Idea:
+    %% IsEnd -> EndTime in Game TZ for DL (4 last DLs passed)
     %% IsCurrentPhase -> Time to DL (next 4 DL)
     %% not IsCurrentPhase -> DLTime in Game TZ (No DLs)
 
@@ -1281,7 +1282,12 @@ print_tracker(PP) ->
     VThtml = print_tracker_tab(PP, Abbrs, AllPlayersB),
     [RKhtml, VThtml].
 
+%% Record definitions for fun print_tracker_tab/3
+%% iterated vote per user: User and Vote
 -record(iv, {n, u, ub, v, vlong}).
+%% u = UserStr, ub = UserBin, v=Abbr, vlong = FullUserName
+
+%% Acc record when iterating over all votes in vote tracker
 -record(ra, {ivs, html}).
 
 print_tracker_tab(PP, Abbrs, AllPlayersB) ->

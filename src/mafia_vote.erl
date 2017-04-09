@@ -144,16 +144,37 @@ kill_player(G, M, DeadB, DeathComment) ->
     IsMember = lists:member(DeadB, G#mafia_game.players_rem),
     kill_player(G, M, DeadB, DeathComment, IsMember).
 
-kill_player(G, _M, _DeadB, _DeathComment, false) ->
-    {not_remaining_player, G};
+%% Not remaining. Already dead?
+kill_player(G, M, DeadB, DeathComment, false) ->
+    %% check in death records (allow edit of text and msgid)
+    Deaths = [D || D = #death{player = P} <- G#mafia_game.player_deaths,
+                  P == DeadB],
+    case Deaths of
+        [D] ->
+            io:format(
+              "~s Update death for player ~s\n",
+              [mafia_print:print_time(M#message.time, short), ?b2l(DeadB)]),
+            {IsEnd, DeathPhase} = is_end_of_phase(M, G),
+            Death = D#death{msg_id = M#message.msg_id,
+                            time = M#message.time,
+                            is_end = IsEnd,
+                            comment = ?l2b(DeathComment)},
+            NewDeaths = add_modify_deaths(Death, G),
+            G2 = G#mafia_game{player_deaths = NewDeaths},
+            ?dwrite_game(G2),
+            update_day_rec(G, Death),
+            {{ok, DeathPhase}, G2};
+        _ ->
+            ?dbg(not_in_death_list),
+            {not_remaining_player, G}
+    end;
+%% Remaining player. Kill him/her..
 kill_player(G, M, DeadB, DeathComment, true) ->
     %% remove player from _rem lists.
     NewRems = G#mafia_game.players_rem -- [DeadB],
-    DeadStr = ?b2l(DeadB),
     io:format(
       "~s Player ~s died\n",
-      [mafia_print:print_time(M#message.time, short),
-       DeadStr]),
+      [mafia_print:print_time(M#message.time, short), ?b2l(DeadB)]),
     {IsEnd, DeathPhase} = is_end_of_phase(M, G),
     Death = #death{player = DeadB,
                    is_end = IsEnd,
@@ -163,8 +184,8 @@ kill_player(G, M, DeadB, DeathComment, true) ->
                    comment = ?l2b(DeathComment),
                    is_deleted = false
                   },
-    NewDeaths = add_death(Death, G),
-    update_day_rec(M, G, Death),
+    NewDeaths = add_modify_deaths(Death, G),
+    update_day_rec(G, Death),
     G2 = G#mafia_game{players_rem = NewRems,
                       player_deaths = NewDeaths},
     ?dwrite_game(G2),
@@ -176,6 +197,10 @@ kill_player(G, M, DeadB, DeathComment, true) ->
                          Comment :: ?use_full_line | string()}.
 read_death_line(G, MsgLong, Reg) ->
     %% find one remaining player before on the same line.
+    %% Extend the search list with already dead players to make an update
+    %% of the death comment possible.
+    Deaths = [D#death.player || D = #death{} <- G#mafia_game.player_deaths],
+    LookForUsers = G#mafia_game.players_rem ++ Deaths,
     PreLineU = pre_to_nl(Reg#regex.pre_match_u),
     Users =
         lists:dropwhile(
@@ -187,7 +212,7 @@ read_death_line(G, MsgLong, Reg) ->
                               not is_first_non_letter(TStr2)
                   end
           end,
-          G#mafia_game.players_rem
+          LookForUsers
          ),
     DeadPlayer =
         case Users of
@@ -227,12 +252,12 @@ get_line_at(Pos, Msg) ->
     RightLine = lists:takewhile(NotNlF, Right),
     LeftLine ++ RightLine.
 
--spec add_death(#death{}, #mafia_game{} | #mafia_day{})
-               -> NewDeaths :: [#death{}].
-add_death(D, G=#mafia_game{})->
+-spec add_modify_deaths(#death{}, #mafia_game{} | #mafia_day{})
+               -> NewDeaths :: [#death{} | #replacement{}].
+add_modify_deaths(D, G=#mafia_game{})->
     Deaths = G#mafia_game.player_deaths,
     add_deathI(D, Deaths);
-add_death(D, Day=#mafia_day{})->
+add_modify_deaths(D, Day=#mafia_day{})->
     Deaths = Day#mafia_day.player_deaths,
     add_deathI(D, Deaths).
 
@@ -252,13 +277,15 @@ add_deathI(D, Deaths) ->
     end.
 
 %% mafia_lib?
+%% @doc Find matching element or false
+-spec find(MatchF :: function(), list()) -> false | any().
 find(MatchF, List) ->
     case lists:dropwhile(fun(E) -> not MatchF(E) end, List) of
         [] -> false;
         [MatchElement | _] -> MatchElement
     end.
 
-%% mafia_lib?
+%% @doc Replace element in list if MatchF returns true
 replace(MatchF, List, NewR) ->
     [case MatchF(E) of true -> NewR; false -> E end || E <- List].
 
@@ -274,11 +301,11 @@ is_end_of_phase(M, G) ->
 
 %% In case someone votes before GM annouce dead, the day record
 %% will have too many remaining players
-update_day_rec(_M, G, Death) ->
+update_day_rec(G, Death) ->
     case Death#death.phase of
         Phase = #phase{don = ?day} ->
             D = ?rday(G, Phase),
-            NewDeaths = add_death(Death, D),
+            NewDeaths = add_modify_deaths(Death, D),
             NewRems = D#mafia_day.players_rem -- [Death#death.player],
             ?dwrite_day(
                D#mafia_day{players_rem = NewRems,

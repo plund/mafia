@@ -1,22 +1,28 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% kill_player should be possible to do to move to a earlier message
-%% make it possible to negate a player kill in order to move it later
+%% LOW - kill_player should be possible to do reference an earlier message
+%%       Solution: set_death_msgid(MsgId, User, DeathMsgId) where MsgId is
+%%       later than all other death messages for this User
+%%       Motivation: Fix GM error
 %% - split mafia_print. stats and tracker into separate modules?
-%% ?add user "peterlund" to GMs?
+%% ?add user "peterlund" to GMs? - NO
+%% Instead add ServerKeeper/GM commands:
 %% ##bot endgame <msgid> | unendgame
 %% ##bot endphase|unendphase <msgid>
 %% ##bot replaceplayer <msgid> <old> <new>
 %% ##bot deadline <msgid> earlier|later <time>
 %% ##bot assistant add|remove <msgid> <player>
-%% Fix deadline listing at button of game_status
-%% - impl the idea on how and when to present deadlines (top of print_votes())
+%% Fix deadline listing at bottom of game_status page
+%% - Think through how and when to present deadlines (ideas top of print_votes())
 %% - Add timestamp for each entry in message_ids to use when time_offset /= 0
+%%     Motivation: simplify time offset?
 %% - Verify stored files (when refresh_messages) that all messages come in
 %%   msg_id and in time order.
-%% - merge all variants of mafia_time:get_next_deadline
-%% - change primary key in mafia_game table:
+%%     Motivation: test if there is a problem webdiplomacy.net
+%% - Merge all variants of mafia_time:get_next_deadline
+%%     Motivation: clean up messy code
+%% - Change primary key in mafia_game table:
 %%   1 change name key -> thread_id :: ?undefined | thread_id()
 %%   2 add a new primary key in first position game_name :: game_name()
 %%   3 -type game_name() :: atom().

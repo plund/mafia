@@ -431,13 +431,7 @@ sum_stat(#stat{key = KA,
     Key = if KA == ?undefined -> KB;
              true -> KA
           end,
-    MsgIds =
-        case {is_list(MsgIdsA), is_list(MsgIdsB)} of
-            {true, true} -> MsgIdsA ++ MsgIdsB;
-            {false, true} -> [MsgIdsA | MsgIdsB];
-            {true, false} -> [MsgIdsB | MsgIdsA];
-            {false, false} -> [MsgIdsA, MsgIdsB]
-        end,
+    MsgIds = MsgIdsA ++ MsgIdsB,
     #stat{key = Key,
           msg_ids = MsgIds,
           num_chars = NChA + NChB,
@@ -459,15 +453,7 @@ sum_stat(#prstat{key = KA,
     Key = if KA == ?undefined -> KB;
              true -> KA
           end,
-    MsgIds =
-        case {is_list(MsgIdsA), is_list(MsgIdsB)} of
-            {true, true} ->
-                MsgIdsA ++ MsgIdsB
-                %% Dialyzer says the 3 next cannot happen
-                %% {false, true} -> [MsgIdsA | MsgIdsB];
-                %% {true, false} -> [MsgIdsB | MsgIdsA];
-                %% {false, false} -> [MsgIdsA, MsgIdsB]
-        end,
+    MsgIds = MsgIdsA ++ MsgIdsB,
     NewNumPosts = NPoA + NPoB,
     NewNumWords = NWoA + NWoB,
     #prstat{key = Key,

@@ -825,10 +825,11 @@ get_thread_id2(NumStr) ->
     case catch list_to_integer(NumStr) of
         {'EXIT', _} -> {?error, not_number};
         Num ->
-            MatchHead2 = #mafia_game{key = '$1', game_num = '$2', _='_'},
+            Pattern = mnesia:table_info(mafia_game, wild_pattern),
+            MatchHead = Pattern#mafia_game{key = '$1', game_num = '$2'},
             Guard = [{'==', '$2', Num}],
             Result = '$1',
-            MatchExpr2 = [{MatchHead2, Guard, [Result]}],
+            MatchExpr2 = [{MatchHead, Guard, [Result]}],
             case mnesia:dirty_select(mafia_game, MatchExpr2) of
                 [Key] -> Key;
                 _ -> {?error, no_game}

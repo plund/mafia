@@ -91,25 +91,25 @@
          votes = [] :: [{player(), [#vote{}]}],
          end_votes = [] :: [player()],
          players_rem = [] :: [player()],
-         player_deaths = [] :: [#death{} | #replacement{}] %% Dead players in mid day
+         player_deaths = [] :: [#death{} | #replacement{}] %% Deaths mid day
         }).
 
 -record(mafia_game,
-        {key :: ?undefined | thread_id(),
+        {key :: atom() | ?undefined | thread_id(),
          name :: ?undefined | binary(),
-         day_hours = 48 :: integer(),    %% Typically 48
-         night_hours = 24 :: integer(),  %% Typically 24
-         time_zone = 0 :: integer(),     %% (EST=-5, UK = 0, CET=1)
+         day_hours = 48 :: integer(),
+         night_hours = 24 :: integer(),
+         time_zone = 0 :: integer(), %% (EST=-5, UK = 0, CET=1)
          day1_dl_time :: ?undefined | datetime(), %% Game TZ local time
-         is_init_dst :: ?undefined | boolean(),   %% true = DST, false = normal time
+         is_init_dst :: ?undefined | boolean(), %% true = DST
          dst_changes = [] :: [{datetime(), ToDst::boolean()}],
          deadlines = [] :: [#dl{}],
          gms = [] :: [user()],
          players_orig = [] :: [player()],
          players_rem = [] :: [player()],
-         game_num :: ?undefined | integer(),
+         game_num :: atom() | ?undefined | integer(),
          player_deaths = [] :: [#death{} | #replacement{}],
-         page_to_read :: ?undefined | integer(), %% set_kv(page_to_read, 1),
+         page_to_read :: ?undefined | integer(),
          game_end :: ?undefined | {seconds1970(), msg_id()},
          last_msg_id :: ?undefined | msg_id(),
          last_msg_time :: ?undefined | seconds1970()
@@ -128,10 +128,10 @@
                  ThId::integer(),
                  ?game_ended | {integer(), day_night()}}
               | term(),
-         msg_ids :: '_' | [msg_id()],
-         num_chars :: '_' | integer(),
-         num_words :: '_' | integer(),
-         num_postings :: '_' | integer()
+         msg_ids :: [msg_id()],
+         num_chars :: integer(),
+         num_words :: integer(),
+         num_postings :: integer()
         }).
 
 -record(prstat,
@@ -151,7 +151,7 @@
         {key :: {CounterName :: binary()}
               | {CounterName :: binary(), Day1970 :: integer()}
               | term(),
-         value :: '_' | integer()
+         value :: integer()
         }).
 
 -record(cmd,

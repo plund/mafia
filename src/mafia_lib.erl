@@ -476,8 +476,9 @@ save_cnts_to_file() ->
 -define(l(V), to_list(V)).
 
 print_all_cntsI(Fd, Guard) ->
-    MatchHead2 = #cnt{key = {'$1', '$2'}, _='_'},
-    MatchHead3 = #cnt{key = {'$1', '$2', '$3'}, _='_'},
+    Pattern = mnesia:table_info(cnt, wild_pattern),
+    MatchHead2 = Pattern#cnt{key = {'$1', '$2'}},
+    MatchHead3 = Pattern#cnt{key = {'$1', '$2', '$3'}},
     Result = '$_',
     MatchExpr2 = [{MatchHead2, Guard, [Result]}],
     MatchExpr3 = [{MatchHead3, Guard, [Result]}],

@@ -1022,14 +1022,16 @@ print_statsI(PP) ->
 
 print_stats_match(PP) when PP#pp.phase == ?total_stats ->
     %% TOTAL stats
-    MatchHead = #stat{key = {'$1', '$2'}, _='_'},
+    Pattern = mnesia:table_info(stat, wild_pattern),
+    MatchHead = Pattern#stat{key = {'$1', '$2'}},
     Guard = [{'==', '$2', PP#pp.game_key}],
     Result = '$_',
     MatchExpr = [{MatchHead, Guard, [Result]}],
     print_statsI(PP#pp{match_expr = MatchExpr});
 print_stats_match(PP) when (PP#pp.phase)#phase.don == ?game_ended ->
     %% END stats
-    MatchHead = #stat{key = {'$1', '$2', '$3'}, _='_'},
+    Pattern = mnesia:table_info(stat, wild_pattern),
+    MatchHead = Pattern#stat{key = {'$1', '$2', '$3'}},
     Guard = [{'==', '$2', PP#pp.game_key},
              {'==', '$3', ?game_ended}],
     Result = '$_',
@@ -1038,7 +1040,8 @@ print_stats_match(PP) when (PP#pp.phase)#phase.don == ?game_ended ->
 print_stats_match(PP) ->
     %% PHASE stats
     #phase{num = Day, don = DoN} = PP#pp.phase,
-    MatchHead = #stat{key = {'$1', '$2', {'$3', '$4'}}, _='_'},
+    Pattern = mnesia:table_info(stat, wild_pattern),
+    MatchHead = Pattern#stat{key = {'$1', '$2', {'$3', '$4'}}},
     Guard = [{'==', '$2', PP#pp.game_key},
              {'==', '$3', Day}, {'==', '$4', DoN}],
     Result = '$_',

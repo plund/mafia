@@ -811,7 +811,9 @@ print_past_dls(DLs, Title) ->
 
 pr_thread_links(PP, _DoDispTime2DL)
   when (PP#pp.phase)#phase.don == ?game_ended ->
-    Link = "<a href=\"/e/web/msgs?part=end\">Game End</a>",
+    GameNumStr = integer_to_list((PP#pp.game)#mafia_game.game_num),
+    Link = "<a href=\"/e/web/msgs?g=" ++ GameNumStr ++
+        "&part=end\">Game End</a>",
     ["<tr><td align=center>Messages for this phase: ", Link,
      "</td></tr>"];
 pr_thread_links(PP, DoDispTime2DL) ->
@@ -819,6 +821,7 @@ pr_thread_links(PP, DoDispTime2DL) ->
     StartTime = mafia_time:get_time_for_prev_phase(PP#pp.game, PP#pp.phase),
     EndTime = mafia_time:get_time_for_phase(PP#pp.game, PP#pp.phase),
     PageKeys = mafia_lib:all_page_keys(PP#pp.game_key),
+    GameNumStr = integer_to_list((PP#pp.game)#mafia_game.game_num),
     case lists:foldl(
            fun(_PK, Acc = {done, _}) -> Acc;
               (PK = {_, P}, Acc) ->
@@ -839,7 +842,7 @@ pr_thread_links(PP, DoDispTime2DL) ->
         {_, {StartPage0, EndPage}} when is_integer(StartPage0),
                                         is_integer(EndPage) ->
             StartPage = max(StartPage0, 1),
-            UrlPart = "/e/web/msgs?part=p",
+            UrlPart = "/e/web/msgs?g=" ++ GameNumStr ++ "&part=p",
             PageNs = fun(PN) ->
                              EndPN = min(PN + 4, EndPage),
                              [?i2l(PN),"-", ?i2l(EndPN)]
@@ -856,7 +859,7 @@ pr_thread_links(PP, DoDispTime2DL) ->
                         [" or <a href=\"", UrlPart, Pages(StartPage, EndPage),
                          "\">complete ", print_phase(PP#pp.phase), "</a>"]
                 end,
-            Links = my_string_join( Links0 ++ [LastLink], " "),
+            Links = my_string_join(Links0 ++ [LastLink], " "),
             ["<tr><td align=center>Messages for this phase: ", Links,
              "</td></tr>"];
         _Other ->

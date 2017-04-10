@@ -96,6 +96,7 @@ filename_timestamp_suffix() ->
 game_link_and_text(G, Phase) ->
     game_link_and_text(?text, G, Phase).
 
+%% {"/m28/current_game_status.txt", "current_game_status.txt"}
 -spec game_link_and_text(?text | ?html,
                          thread_id() | #mafia_game{},
                          #phase{} | ?current)

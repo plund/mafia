@@ -548,8 +548,14 @@ gs_phase(_, _) ->
 %% http://mafia.peterlund.se/e/web/vote_tracker?msg_id=1420335
 vote_tracker(Sid, _Env, In) ->
     PQ = httpd:parse_query(In) -- [{[],[]}],
-    GameNumStr = get_arg(PQ, "g"),
-    GameKey = get_thread_id(GameNumStr),
+    GameNumStrArg = get_arg(PQ, "g"),
+    GameKey = get_thread_id(GameNumStrArg),
+    GameNumStr =
+        case GameNumStrArg of
+            "" ->
+                integer_to_list((hd(?rgame(GameKey)))#mafia_game.game_num);
+            _ -> GameNumStrArg
+        end,
     A = case vote_tracker2(GameKey,
                            get_arg(PQ, "day"),
                            get_arg(PQ, "msg_id")) of

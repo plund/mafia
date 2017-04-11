@@ -1297,7 +1297,8 @@ print_tracker(PP) ->
 -record(ra, {ivs, html}).
 
 print_tracker_tab(PP, Abbrs, AllPlayersB) ->
-    #mafia_day{votes = Votes0, player_deaths = Deaths} = PP#pp.day,
+    Votes0 = (PP#pp.day)#mafia_day.votes,
+    Deaths = (PP#pp.game)#mafia_game.player_deaths,
     Votes = [V || V <- Votes0,
                   lists:member(element(1, V), AllPlayersB)],
     Votes3 = user_vote_timesort(Votes),
@@ -1423,10 +1424,18 @@ set_ivote(IVs, User, NewVote, VFull) ->
 non_ivote(UserB) -> #iv{u = ?b2l(UserB), ub = UserB, v = "---", vlong = ""}.
 
 reset_dead_votes(IVs, VoteTime, Deaths) ->
-    %% check if someone in Deaths has died by V#vote.time
-    %% if so replace with NonIVote(User)
-    DeathsAtVote = [D#death.player || D = #death{time = DTime} <- Deaths,
-                                      DTime =< VoteTime],
+    %% check if someone in Deaths has died or been replaced by V#vote.time
+    %% if so reset the vote
+    DeathsAtVote =
+        lists:foldl(
+          fun(#death{time = DTime, player = Pl}, Acc)
+                when DTime =< VoteTime -> [Pl|Acc];
+             (#replacement{replaced_player = Pl, time = RTime}, Acc)
+                when RTime =< VoteTime -> [Pl|Acc];
+             (_, Acc) -> Acc
+          end,
+          [],
+          Deaths),
     [case lists:member(UserB, DeathsAtVote) of
          true -> IV#iv{v = "---", vlong = ""};
          false -> IV

@@ -1258,8 +1258,14 @@ add_vote(Vote, Raw, Time, User, Acc) ->
 %% -----------------------------------------------------------------------------
 
 %% human
-web_vote_tracker(DayNum) ->
-    GameKey = ?getv(?game_key),
+web_vote_tracker(DayNum) when is_integer(DayNum) ->
+    web_vote_tracker([{?day, DayNum}]);
+web_vote_tracker(Opts) ->
+    {_, DayNum} = lists:keyfind(?day, 1, Opts),
+    GameKey = case lists:keyfind(?game_key, 1, Opts) of
+                  {_, GK} -> GK;
+                  false -> ?getv(?game_key)
+              end,
     Phase = #phase{num = DayNum, don = ?day},
     PP = #pp{game_key = GameKey,
              day_num = DayNum,

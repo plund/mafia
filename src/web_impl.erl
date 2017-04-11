@@ -547,11 +547,15 @@ gs_phase(_, _) ->
 %% http://mafia.peterlund.se/e/web/vote_tracker?day=1
 %% http://mafia.peterlund.se/e/web/vote_tracker?msg_id=1420335
 vote_tracker(Sid, _Env, In) ->
-    PQ = httpd:parse_query(In),
-    A = case vote_tracker2(lists:keyfind("day", 1,  PQ),
-                           lists:keyfind("msg_id", 1,  PQ)) of
+    PQ = httpd:parse_query(In) -- [{[],[]}],
+    GameNumStr = get_arg(PQ, "g"),
+    GameKey = get_thread_id(GameNumStr),
+    A = case vote_tracker2(GameKey,
+                           get_arg(PQ, "day"),
+                           get_arg(PQ, "msg_id")) of
             {tracker, Out} ->
-                del_start(Sid, "Vote Tracker", 0);
+                Title = "Vote Tracker M" ++ GameNumStr,
+                del_start(Sid, Title, 0);
             {error, Out} ->
                 del_start(Sid, "Vote Tracker Error", 1);
             Out ->
@@ -562,11 +566,11 @@ vote_tracker(Sid, _Env, In) ->
     Args = make_args(PQ, ["day"]),
     {A + B + C, Args}.
 
-vote_tracker2({"day", Str},
-              _) ->
+vote_tracker2(GameKey, DayStr, _) when DayStr /= "" ->
     try
-        DayNum = list_to_integer(Str),
-        [RK, VT] = mafia_print:web_vote_tracker(DayNum),
+        DayNum = list_to_integer(DayStr),
+        [RK, VT] = mafia_print:web_vote_tracker([{?game_key, GameKey},
+                                                 {?day, DayNum}]),
         {tracker, ?l2b(["<tr><td>", RK, "</td></tr>",
                         "<tr><td>", VT, "</td></tr>"
                        ])}
@@ -576,10 +580,9 @@ vote_tracker2({"day", Str},
              "Was not able to convert day value to integer"
              "</td></tr>"}
     end;
-vote_tracker2(?false,
-              {"msg_id", Str}) ->
+vote_tracker2(_, "", MsgIdStr) when MsgIdStr /= "" ->
     try
-        MsgId = list_to_integer(Str),
+        MsgId = list_to_integer(MsgIdStr),
         show_message(MsgId, vote)
     catch _:_ ->
             {error,
@@ -587,10 +590,8 @@ vote_tracker2(?false,
              "Was not able to convert msg_id value to integer"
              "</td></tr>"}
     end;
-vote_tracker2(?false,
-              ?false) ->
-    {error,
-     "<tr><td>bad_request</td></tr>"}.
+vote_tracker2(_, "", "") ->
+    {error, "<tr><td>bad_request</td></tr>"}.
 
 %% -----------------------------------------------------------------------------
 %% http://mafia.peterlund.se/e/web/msg?id=(msgid)&var=vote&player=(playername)
@@ -635,7 +636,9 @@ msg2([M], Variant, Player) ->
 %% http://mafia.peterlund.se/e/web/stats?phase=end
 %% http://mafia.peterlund.se/e/web/stats?phase=total
 stats(Sid, _Env, In) ->
-    PQ = httpd:parse_query(In),
+    PQ = httpd:parse_query(In) -- [{[],[]}],
+    GameKey = get_thread_id(get_arg(PQ, "g")),
+
     Sort = case get_arg(PQ, "sort") of
                "words_per_post" ->
                    [{?sort, ?words_per_post}];
@@ -648,7 +651,7 @@ stats(Sid, _Env, In) ->
                     lists:keyfind("num", 1,  PQ)) of
             {ok, Phase} ->
                 ["<tr><td>",
-                 mafia_print:print_stats([{?game_key, ?getv(game_key)},
+                 mafia_print:print_stats([{?game_key, GameKey},
                                           {?phase, Phase},
                                           {?mode, ?html}
                                          ] ++ Sort),

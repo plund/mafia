@@ -1304,7 +1304,7 @@ print_tracker(PP) ->
 
 print_tracker_tab(PP, Abbrs, AllPlayersB) ->
     Votes0 = (PP#pp.day)#mafia_day.votes,
-    Deaths = (PP#pp.game)#mafia_game.player_deaths,
+    Deaths = (PP#pp.day)#mafia_day.player_deaths,
     Votes = [V || V <- Votes0,
                   lists:member(element(1, V), AllPlayersB)],
     Votes3 = user_vote_timesort(Votes),
@@ -1329,7 +1329,8 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                           FmtTime,
                           [pr_ivs_user(IterVotes, fun(_) -> "===" end)]);
            PP#pp.mode == ?html ->
-                ["<table ", ?BG_TURQUOISE, ">", pr_head_html(IterVotes, PrAbbrF)]
+                ["<table ", ?BG_TURQUOISE, ">",
+                 pr_head_html(IterVotes, PrAbbrF)]
         end,
 
     #ra{html = Html} =

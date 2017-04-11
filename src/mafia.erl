@@ -1,8 +1,8 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% - fix page links on all history pages
-%% LOW - list server alias defs, list previous deadlines
+%% - Stats page needs the game number in title
+%% LOW - list server alias defs, list previous deadlines and times, DST change info
 %% - split mafia_print. stats and tracker into separate modules?
 %% ?add user "peterlund" to GMs? - NO
 %% Instead add ServerKeeper/GM commands:
@@ -13,7 +13,7 @@
 %% ##bot assistant add|remove <msgid> <player>
 %% Fix deadline listing at bottom of game_status page
 %% - Think through how and when to present deadlines (ideas top of print_votes())
-%% - Add timestamp for each entry in message_ids to use when time_offset /= 0
+%% ?- Add timestamp for each entry in message_ids to use when time_offset /= 0
 %%     Motivation: simplify time offset?
 %% - Verify stored files (when refresh_messages) that all messages come in
 %%   msg_id and in time order.
@@ -22,9 +22,10 @@
 %%     Motivation: clean up messy code
 %% - Change primary key in mafia_game table:
 %%   1 change name key -> thread_id :: ?undefined | thread_id()
-%%   2 add a new primary key in first position game_name :: game_name()
+%%   2 add a new primary key in first position game_num :: integer()
 %%   3 -type game_name() :: atom().
 %%   4 do mnesia:transform_table
+%%   5 use dirty_select to find m28 in #mafia_game / remove game_info
 
 %% - Use new DL calc and remove old calculation NEW: "get_some_extra_dls"
 %%   - define how and when to use a smarter vote reader!!

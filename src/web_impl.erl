@@ -441,7 +441,6 @@ game_status2(Sid, {?error, _}, _PQ, _) ->
 game_status2(Sid, GameKey, PQ, []) ->
     PhaseStr = get_arg(PQ, "phase"),
     NumStr = get_arg(PQ, "num"),
-    io:format("GK ~p, PQ ~p\n", [GameKey, PQ]),
     Html =
         case get_phase(GameKey, PhaseStr, NumStr) of
             {?current, Phase} ->

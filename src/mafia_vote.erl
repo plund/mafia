@@ -1,7 +1,7 @@
 -module(mafia_vote).
 
 -export([get_regexs/0,
-         check_cmds_votes/2,
+         check_cmds_votes/3,
          verify_msg_user/1,
          check_user/1,
          print_verify_user/1,
@@ -37,21 +37,17 @@ get_regexs() ->
 %% -----------------------------------------------------------------------------
 %% Returns ignore when #message or #mafia_game cannot be found
 %% -----------------------------------------------------------------------------
--spec check_cmds_votes(#regex{}, #message{})
-                      -> MsgTime :: seconds1970() | ignore.
-check_cmds_votes(Re, M = #message{}) ->
-    mafia_data:update_stat(M),
+-spec check_cmds_votes(#mafia_game{},
+                       #regex{}, #message{})
+                      -> MsgTime :: seconds1970().
+check_cmds_votes(G = #mafia_game{}, Re, M = #message{}) ->
+    mafia_data:update_stat(G, M),
     Msg = mafia_print:html2txt(?b2l(M#message.message)),
     MsgU = ?l2u(Msg),
-    check_cmds_votes(Re#regex{msg_text_u = MsgU,
-                              msg_text = Msg},
-                     M,
-                     ?rgame(M#message.thread_id)).
+    Re2 = Re#regex{msg_text_u = MsgU, msg_text = Msg},
+    check_cmds_votes2(G, Re2, M).
 
-check_cmds_votes(_Re, _M, []) -> ignore;
-check_cmds_votes(Re, M, [G = #mafia_game{}]) ->
-    check_cmds_votes(Re, M, G);
-check_cmds_votes(Re, M, G = #mafia_game{}) ->
+check_cmds_votes2(G, Re, M) ->
     IsEnded = case G#mafia_game.game_end of
                   ?undefined -> false;
                   {EndTime, _MsgId} ->
@@ -581,11 +577,11 @@ replace3(G, M, NewPlayer, Old, []) ->
     replace3(G, M, NewPlayer, Old, [New]);
 replace3(G, M, _NewPlayer, Old, [New]) ->
     %% replace ALSO in #mafia_day.players_rem
-    Phase = mafia_time:calculate_phase(G#mafia_game.key, M#message.time),
+    Phase = mafia_time:calculate_phase(G, M#message.time),
     if Phase#phase.don == ?game_ended ->
             {?game_ended, G};
        true ->
-            D = ?rday(G#mafia_game.key, Phase),
+            D = ?rday(G#mafia_game.game_num, Phase),
             NewP = New#user.name,
             OldP = Old#user.name,
             ?dbg(M#message.time, {?b2l(NewP), replaces, ?b2l(OldP)}),
@@ -984,7 +980,7 @@ vote2(M, G, Vote, RawVote, IsOkVote) ->
                             raw = RawVote,
                             valid = IsOkVote
                            },
-            Day = ?rday(M#message.thread_id, Phase),
+            Day = ?rday(G#mafia_game.game_num, Phase),
             Votes = Day#mafia_day.votes,
             Votes2 =
                 case lists:keyfind(User, 1, Votes) of

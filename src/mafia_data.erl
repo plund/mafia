@@ -4,7 +4,8 @@
 -export([refresh_messages/0,
          refresh_messages/1,
          refresh_votes/0,
-         refresh_stat/0
+         refresh_stat/0,
+         refresh_stat/1
         ]).
 
 %% interface
@@ -21,11 +22,10 @@
         ]).
 
 %% utilities
--export([update_stat/1,
+-export([update_stat/2,
          compress_txt_files/0,
          grep/1, grep/2,
          iterate_all_msgs/2
-         %%iterate_all_msg_ids/3,
         ]).
 
 -include("mafia.hrl").
@@ -44,6 +44,7 @@
          body_on_file = false :: boolean(),
          page_last_read :: ?undefined |  page_num(),
          page_total_last_read :: ?undefined | page_num(),
+         game_rec :: ?undefined | #mafia_game{},
          thread_id :: ?undefined | thread_id(),
          url :: ?undefined | string(),
          body :: ?undefined | string(),
@@ -55,6 +56,7 @@
          last_msg_id
         }).
 
+%% -----------------------------------------------------------------------------
 %% MANUAL
 %% Download any thread
 %% set first: ?thread_id
@@ -68,6 +70,7 @@ downl(S = #s{}) -> downl2(S);
 downl(do_refresh_msgs) ->
     downl2(#s{do_refresh_msgs = true}).
 
+%% ?thread_id, ?page_to_read for manual
 downl2(S) when S#s.thread_id == ?undefined ->
     downl2(S#s{thread_id = ?getv(?thread_id)});
 downl2(S) when S#s.page_to_read == ?undefined ->
@@ -76,19 +79,24 @@ downl2(S) ->
     download(S),
     ok.
 
+%% -----------------------------------------------------------------------------
+
 -spec download(#s{}) -> {ok | {error, Reason :: term()}, #s{}}.
 download(S) when S#s.utc_time == ?undefined ->
-    ThId = S#s.thread_id,
-    S2 = case ?rgame(ThId) of
-             [G] ->
+    S2 = case S#s.game_rec of
+             ?undefined -> S;
+             G ->
                  LMI = G#mafia_game.last_msg_id,
                  LMT = G#mafia_game.last_msg_time,
-                 S#s{check_vote_fun = check_vote_msgid_fun(ThId, LMI, LMT)};
-             [] -> S
+                 S#s{check_vote_fun = check_vote_msgid_fun(G, LMI, LMT)}
          end,
     download(
       S2#s{utc_time = mafia_time:utc_secs1970()});
 download(S) ->
+    do_download(S).
+
+%% The loop
+do_download(S) ->
     case get_body(S#s{dl_time = ?undefined}) of
         {ok, S2} ->
             S3 = analyse_body(S2),
@@ -97,26 +105,29 @@ download(S) ->
                             timer:sleep(10000);
                        true -> ok
                     end,
-                    download(S3);
+                    do_download(S3);
                true -> {ok, S3}
             end;
         {error, _Error} = Err ->
             {Err, S}
     end.
 
-%% Download a game thread
+%% -----------------------------------------------------------------------------
+%% Automatic triggered downloads
+
 -spec downl_web(integer() | #mafia_game{} | [#mafia_game{}]) -> ok.
-downl_web(GameKey) when is_integer(GameKey) ->
-    downl_web(?rgame(GameKey));
+downl_web(GNum) when is_integer(GNum) ->
+    downl_web(?rgame(GNum));
 downl_web([]) -> ok;
 downl_web([G]) -> downl_web(G);
 downl_web(G = #mafia_game{}) ->
-    GameKey = G#mafia_game.key,
+    ThId = G#mafia_game.thread_id, %thread
     LMI = G#mafia_game.last_msg_id,
     LMT = G#mafia_game.last_msg_time,
     S = #s{utc_time = mafia_time:utc_secs1970(),
-           check_vote_fun = check_vote_msgid_fun(GameKey, LMI, LMT),
-           thread_id = GameKey,
+           check_vote_fun = check_vote_msgid_fun(G, LMI, LMT),
+           game_rec = G,
+           thread_id = ThId,
            page_to_read = G#mafia_game.page_to_read,
            last_msg_id = LMI,
            last_msg_time = LMT
@@ -124,13 +135,13 @@ downl_web(G = #mafia_game{}) ->
     ?dbg({down_web, S#s.page_to_read, LMT}),
     {Page, LMI2, LMT2} = check_db(G),
     case download(S#s{check_vote_fun =
-                          check_vote_msgid_fun(GameKey, LMI2, LMT2),
+                          check_vote_msgid_fun(G, LMI2, LMT2),
                       page_to_read = Page,
                       last_msg_id = LMI2,
                       last_msg_time = LMT2
                      }) of
         {_, S3} ->
-            update_page_to_read(GameKey,
+            update_page_to_read(G#mafia_game.game_num,
                                 S3#s.page_to_read,
                                 S3#s.last_msg_id,
                                 S3#s.last_msg_time)
@@ -142,12 +153,12 @@ check_db(G) ->
     {MsgIdFun, Acc} = checkvote_fun(G, true),
     Filter = fun(Page) -> Page >= InitPage end,
     {_, PageNum, MsgId, MsgTime} =
-        iter_msgids(G#mafia_game.key, MsgIdFun, Acc, Filter),
+        iter_msgids(G#mafia_game.thread_id, MsgIdFun, Acc, Filter), %%thread
     {PageNum, MsgId, MsgTime}.
 
-update_page_to_read(GameKey, PageToRead, LastMsgId, LastMsgTime)
-  when is_integer(GameKey), is_integer(PageToRead) ->
-    G = hd(?rgame(GameKey)),
+update_page_to_read(GNum, PageToRead, LastMsgId, LastMsgTime)
+  when is_integer(GNum), is_integer(PageToRead) ->
+    G = hd(?rgame(GNum)),
     if PageToRead /= G#mafia_game.page_to_read;
        LastMsgId /= G#mafia_game.last_msg_id ->
             ?dwrite_game(G#mafia_game{page_to_read = PageToRead,
@@ -155,6 +166,8 @@ update_page_to_read(GameKey, PageToRead, LastMsgId, LastMsgTime)
                                       last_msg_time = LastMsgTime});
        true -> ok
     end.
+
+%% -----------------------------------------------------------------------------
 
 refresh_messages() -> refresh_messages(?game_key).
 
@@ -183,43 +196,43 @@ refresh_messages(Id) ->
     %% Populate tables message and page_rec again
     downl(#s{thread_id = ThId, page_to_read = 1}).
 
-    %% if DoVotes ->
-    %%         refresh_votes();
-    %%    true -> ok
-    %% end.
-
 %% -spec refresh_votes() -> ok.
 refresh_votes() ->
-    ThId = ?getv(?game_key),
-    clear_mafia_day_and_stat(ThId),
+    GNum = ?getv(?game_key),
+    clear_mafia_day_and_stat(GNum),
     ?dbg(hard_game_reset),
     %% Reinitialize the game table
-    mafia_db:reset_game(ThId),
-    refresh_votes(ThId, ?rgame(ThId), all).
+    mafia_db:reset_game(GNum),
+    refresh_votes(?rgame(GNum), all).
 
-refresh_votes(_ThId, [], _F) ->
+refresh_votes([], _F) ->
     ok;
-refresh_votes(ThId, [G], PageFilter) ->
-    refresh_votes(ThId, G, PageFilter);
-refresh_votes(ThId, G = #mafia_game{}, PageFilter) ->
+refresh_votes([G], PageFilter) ->
+    refresh_votes(G, PageFilter);
+refresh_votes(G = #mafia_game{}, PageFilter) ->
+    ThId = G#mafia_game.thread_id,
     {MsgIdFun, Acc} = checkvote_fun(G, false),
     case iter_msgids(ThId, MsgIdFun, Acc, PageFilter) of
         none ->
             ?dbg({last_iter_msg_ref, none}),
             ok;
-        {ThId, PageNum, MsgId, MsgTime} ->
+        {_, PageNum, MsgId, MsgTime} ->
             ?dbg({last_iter_msg_ref, ThId, PageNum, MsgId}),
             M = hd(?rmess(MsgId)),
             if MsgTime /= M#message.time ->
                     ?dbg({refresh_votes, not_same, MsgTime, M#message.time});
                true -> ok
             end,
-            update_page_to_read(ThId, PageNum, MsgId, MsgTime)
+            update_page_to_read(G#mafia_game.game_num,
+                                PageNum,
+                                MsgId,
+                                MsgTime)
     end,
     mafia_web:update_current(),
     ok.
 
--record(acc, {thid,
+-record(acc, {game_num,
+              thid,
               last_page,
               last_msg_id,
               last_msg_time,
@@ -227,8 +240,10 @@ refresh_votes(ThId, G = #mafia_game{}, PageFilter) ->
 
 %% MsgId and #message{} are ok
 checkvote_fun(G, DoPrint) ->
+    GNum = G#mafia_game.game_num,
     %% iterate_all_msg_ids
-    Cmds = case file:consult(mafia_file:cmd_filename(G#mafia_game.key)) of
+    CommandFile = mafia_file:cmd_filename(G),
+    Cmds = case file:consult(CommandFile) of
                {ok, CmdsOnFile} -> [C || C = #cmd{} <- CmdsOnFile];
                _ -> []
            end,
@@ -236,13 +251,13 @@ checkvote_fun(G, DoPrint) ->
     DoCheck =
         fun(Msg) ->
                 MsgId = Msg#message.msg_id,
-                Resp = mafia_vote:check_cmds_votes(REs, Msg),
+                G2 = hd(?rgame(GNum)),
+                Resp = mafia_vote:check_cmds_votes(G2, REs, Msg),
                 [erlang:apply(M, F, A) || #cmd{msg_id = MId,
                                                mfa = {M, F, A}} <- Cmds,
                                           MId == MsgId],
                 Resp
         end,
-    GameKey = G#mafia_game.key,
     LMI = G#mafia_game.last_msg_id,
     LMT = G#mafia_game.last_msg_time,
     DLs = if LMT == ?undefined -> ?lrev(G#mafia_game.deadlines);
@@ -251,7 +266,7 @@ checkvote_fun(G, DoPrint) ->
                                   ?lrev(G#mafia_game.deadlines))
           end,
     {fun(report, A) ->
-             {A#acc.thid, A#acc.last_page, A#acc.last_msg_id,
+             {A#acc.game_num, A#acc.last_page, A#acc.last_msg_id,
               A#acc.last_msg_time};
         (MsgId, Acc) when Acc#acc.last_msg_time == ?undefined ->
              [Msg] = ?rmess(MsgId),
@@ -289,7 +304,8 @@ checkvote_fun(G, DoPrint) ->
                      Acc
              end
      end,
-     #acc{thid = GameKey,
+     #acc{game_num = GNum,
+          thid = G#mafia_game.thread_id, %thread
           last_page = G#mafia_game.page_to_read,
           last_msg_id = LMI,
           last_msg_time = LMT,
@@ -298,14 +314,14 @@ checkvote_fun(G, DoPrint) ->
     }.
 
 gen_hist_and_get_dls(NextT, Acc) ->
-    mafia_web:regen_history(NextT, Acc#acc.thid),
-    [G] = ?rgame(Acc#acc.thid),
+    mafia_web:regen_history(NextT, Acc#acc.game_num),
+    [G] = ?rgame(Acc#acc.game_num),
     lists:dropwhile(fun(#dl{time = DT}) -> DT =< NextT end,
                     ?lrev(G#mafia_game.deadlines)).
 
 %% MsgId and #message{} are ok
-check_vote_msgid_fun(ThId, LMI, LMT) ->
-    Cmds = case file:consult(mafia_file:cmd_filename(ThId)) of
+check_vote_msgid_fun(G, LMI, LMT) ->
+    Cmds = case file:consult(mafia_file:cmd_filename(G)) of
                {ok, CmdsOnFile} -> [C || C = #cmd{} <- CmdsOnFile];
                _ -> []
            end,
@@ -313,7 +329,7 @@ check_vote_msgid_fun(ThId, LMI, LMT) ->
     DoCheck =
         fun(Msg) ->
                 MsgId = Msg#message.msg_id,
-                Resp = mafia_vote:check_cmds_votes(REs, Msg),
+                Resp = mafia_vote:check_cmds_votes(G, REs, Msg),
                 [erlang:apply(M, F, A) || #cmd{msg_id = MId,
                                                mfa = {M, F, A}} <- Cmds,
                                           MId == MsgId],
@@ -332,20 +348,20 @@ check_vote_msgid_fun(ThId, LMI, LMT) ->
     end.
 
 %% clear #mafia_day and #stat for this ThId
-clear_mafia_day_and_stat(ThId) ->
-    clear_mafia_day(ThId),
-    clear_stat(ThId),
+clear_mafia_day_and_stat(GNum) ->
+    clear_mafia_day(GNum),
+    clear_stat(GNum),
     ok.
 
-clear_mafia_day(ThId) ->
-    %% Remove mafia_days for ThId
+clear_mafia_day(GNum) ->
+    %% Remove mafia_days
     Res = [mnesia:dirty_delete(mafia_day, K)
-           || K = {ThId2, _} <- mnesia:dirty_all_keys(mafia_day),
-              ThId2 == ThId],
-    ?dbg({clear_mafia_day, ThId, deleted, length(Res)}).
+           || K = {GNum2, _} <- mnesia:dirty_all_keys(mafia_day),
+              GNum2 == GNum],
+    ?dbg({clear_mafia_day, GNum, deleted, length(Res)}).
 
 %% Remove stats for thread.
-clear_stat(ThId) ->
+clear_stat(GNum) ->
     StatKeyCheck = fun(Id, K) -> case K of
                                      {_, Id} -> true;
                                      {_, Id, _} -> true;
@@ -353,43 +369,40 @@ clear_stat(ThId) ->
                                  end
                    end,
     Res = [mnesia:dirty_delete(stat, K)
-           || K <- mnesia:dirty_all_keys(stat), StatKeyCheck(ThId, K)],
-    ?dbg({clear_stat, ThId, deleted, length(Res)}).
+           || K <- mnesia:dirty_all_keys(stat), StatKeyCheck(GNum, K)],
+    ?dbg({clear_stat, GNum, deleted, length(Res)}).
 
 refresh_stat() ->
     mnesia:clear_table(stat),
-    ThId = ?getv(?game_key),
-    refresh_stat(ThId, ?rgame(ThId)).
+    GNum = ?getv(?game_key),
+    refresh_stat(?rgame(GNum)).
 
-refresh_stat(_ThId, []) -> ok;
-refresh_stat(ThId, [_G]) ->
-    iterate_all_msg_ids(ThId, fun update_stat/1),
+refresh_stat(GNum) when is_integer(GNum) ->
+    refresh_stat(?rgame(GNum));
+refresh_stat([]) -> ok;
+refresh_stat([G = #mafia_game{thread_id = ThId}]) ->
+    UpdateStatF = fun(MsgId) ->
+                          update_stat(?rmess(MsgId), G)
+                  end,
+    iterate_all_msg_ids(ThId, UpdateStatF),
     ok.
 
-update_stat(MsgId) when is_integer(MsgId) ->
-    update_stat(MsgId, ?rmess(MsgId));
-update_stat(M = #message{}) ->
-    update_stat(M#message.msg_id, [M]).
-
-update_stat(_MsgId, []) -> ok;
-update_stat(MsgId, [M = #message{thread_id = ThId}]) ->
-    update_stat(MsgId, M, ?rgame(ThId)).
-
-update_stat(_MsgId, _M, []) -> ok;
-update_stat(MsgId, M, [G = #mafia_game{}]) ->
-    #message{thread_id = ThId,  %% :: thread_id(),
+update_stat([], _) -> ok;
+update_stat([M], G) ->
+    update_stat(M, G);
+update_stat(G, M) ->
+    GNum = G#mafia_game.game_num,
+    #message{msg_id = MsgId,
              user_name = UserB, %% :: user(),
              time = Time,       %% :: seconds1970(),
              message = MsgBin   %% :: message()
             } = M,
-    %% UserB is in correct case in messages!
-    %% UserUB = ?b2ub(UserB),
     Phase = case mafia_time:calculate_phase(G, Time) of
                 #phase{don = ?game_ended} -> ?game_ended;
                 #phase{num = Num, don = DoN} -> {Num, DoN}
             end,
-    Key1 = {UserB, ThId},
-    Key2 = {UserB, ThId, Phase},
+    Key1 = {UserB, GNum},
+    Key2 = {UserB, GNum, Phase},
     Msg = ?b2l(MsgBin),
     Count = #stat{msg_ids = [MsgId],
                   num_chars = size(MsgBin),
@@ -464,6 +477,7 @@ sum_stat(#prstat{key = KA,
             words_per_post = NewNumWords / NewNumPosts
            }.
 
+%% for mafia.erl!
 grep(Str) -> grep(Str, summary).
 
 grep(Str, s) -> grep(Str, summary);
@@ -668,10 +682,10 @@ store_page(S, Body) ->
     end.
 
 th_filenames_read(S) ->
-    mafia_file:th_filenames(S#s.thread_id, S#s.page_to_read).
+    mafia_file:th_filenames(S#s.game_rec, S#s.thread_id, S#s.page_to_read).
 
 th_filenames_store(S) ->
-    mafia_file:th_filenames(S#s.thread_id, S#s.page_last_read).
+    mafia_file:th_filenames(S#s.game_rec, S#s.thread_id, S#s.page_last_read).
 
 %% -----------------------------------------------------------------------------
 

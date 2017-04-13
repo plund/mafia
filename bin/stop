@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PID=$(ps a | grep mafia | grep -v grep | sed 's/^ *//' | cut -f1 -d\ )
+PID=$(ps aux | grep -vE "(grep|to_erl|run_erl)" | grep mafia | awk '{print $2}')
 
 if [ "$PID" != "" ] ; then
     echo Stopping Mafia server on PID=$PID

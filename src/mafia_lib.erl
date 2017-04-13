@@ -111,15 +111,16 @@ all_page_keys() ->
 
 %% -----------------------------------------------------------------------------
 
-rday(ThId, #phase{num = DayNum}) ->
-    rday(ThId, DayNum);
-rday(ThId, DayNum) when is_integer(ThId); is_atom(ThId) ->
-    rday(?rgame(ThId), DayNum);
+rday(GameNum, #phase{num = DayNum}) ->
+    rday(GameNum, DayNum);
+rday(GameNum, DayNum) when is_integer(GameNum) ->
+    rday(?rgame(GameNum), DayNum);
 rday([#mafia_game{} = G], DayNum) ->
     rday(G, DayNum);
 rday(#mafia_game{} = G, DayNum) ->
-    ThId = G#mafia_game.key,
-    case mnesia:dirty_read(mafia_day, Key = {ThId, DayNum}) of
+    GameNum = G#mafia_game.game_num,
+    ThId = G#mafia_game.thread_id,
+    case mnesia:dirty_read(mafia_day, Key = {GameNum, DayNum}) of
         [] ->
             #mafia_day{key = Key,
                        thread_id = ThId,
@@ -135,9 +136,9 @@ rday(#mafia_game{} = G, DayNum) ->
 
 %% -----------------------------------------------------------------------------
 
-rgame(ThId) ->
+rgame(GameNum) ->
     OffsetNow = mafia_time:utc_secs1970(),
-    case rgameI(ThId) of
+    case rgameI(GameNum) of
         [] -> [];
         [G] ->
             %% - reading game need to filter out "future" deaths
@@ -163,8 +164,8 @@ rgame(ThId) ->
             [G2]
     end.
 
-rgameI(ThId) ->
-    mnesia:dirty_read(mafia_game, ThId).
+rgameI(GameNum) ->
+    mnesia:dirty_read(mafia_game, GameNum).
 
 %% -----------------------------------------------------------------------------
 

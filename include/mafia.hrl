@@ -13,6 +13,7 @@
 -type date() :: {year(), month(), day()}.
 -type datetime() :: {date(), time()}.
 
+-type game_num() :: integer().
 -type thread_id() :: integer().
 -type page_num() :: integer().
 -type msg_id() :: integer().
@@ -85,17 +86,19 @@
         }).
 
 -record(mafia_day,
-        {key :: ?undefined | {thread_id(), day_num()},
+        {key :: ?undefined | {game_num(), day_num()},
          thread_id :: ?undefined | thread_id(),
          day :: ?undefined | day_num(),
          votes = [] :: [{player(), [#vote{}]}],
          end_votes = [] :: [player()],
          players_rem = [] :: [player()],
-         player_deaths = [] :: [#death{} | #replacement{}] %% Deaths mid day
+         %% Deaths and replacements in mid day
+         player_deaths = [] :: [#death{} | #replacement{}]
         }).
 
 -record(mafia_game,
-        {key :: atom() | ?undefined | thread_id(),
+        {game_num :: ?undefined | integer(),
+         thread_id :: '$1' | ?undefined | thread_id(),
          name :: ?undefined | binary(),
          day_hours = 48 :: integer(),
          night_hours = 24 :: integer(),
@@ -107,7 +110,6 @@
          gms = [] :: [user()],
          players_orig = [] :: [player()],
          players_rem = [] :: [player()],
-         game_num :: atom() | ?undefined | integer(),
          player_deaths = [] :: [#death{} | #replacement{}],
          page_to_read :: ?undefined | integer(),
          game_end :: ?undefined | {seconds1970(), msg_id()},
@@ -123,10 +125,9 @@
         }).
 
 -record(stat,
-        {key :: {player(), ThId::integer()}
-              | {player(),
-                 ThId::integer(),
-                 ?game_ended | {integer(), day_night()}}
+        {key :: {player(), game_num()}
+              | {player(), game_num(),
+                 ?game_ended | {day_num(), day_night()}}
               | term(),
          msg_ids :: [msg_id()],
          num_chars :: integer(),
@@ -135,10 +136,9 @@
         }).
 
 -record(prstat,
-        {key :: {player(), ThId::integer()}
-              | {player(),
-                 ThId::integer(),
-                 ?game_ended | {integer(), day_night()}}
+        {key :: {player(), game_num()}
+              | {player(), game_num(),
+                 ?game_ended | {day_num(), day_night()}}
               | ?undefined,
          msg_ids :: [msg_id()],
          num_chars :: integer(),

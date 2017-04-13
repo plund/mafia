@@ -47,7 +47,7 @@
          dl_timer :: ?undefined | timer:tref(),
          dl_time :: ?undefined | seconds1970(),
          web_pid :: ?undefined | pid(),
-         game_key :: ?undefined | thread_id()
+         game_num :: ?undefined | integer()
         }).
 
 %%%===================================================================
@@ -127,13 +127,13 @@ update_current() ->
 %% @end
 %%--------------------------------------------------------------------
 regen_history(M, {G = #mafia_game{}, Phase}) ->
-    regen_history(M, {G#mafia_game.key, Phase});
+    regen_history(M, {G#mafia_game.game_num, Phase}); %key
 regen_history(M = #message{}, G) ->
     regen_history(M#message.time, G);
 regen_history(M, G = #mafia_game{}) ->
-    regen_history(M, G#mafia_game.key);
-regen_history(Time, GKey) ->
-    regen_historyI(Time, GKey).
+    regen_history(M, G#mafia_game.game_num); %key
+regen_history(Time, GNum) ->
+    regen_historyI(Time, GNum).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -153,7 +153,7 @@ regen_history(Time, GKey) ->
 init([Arg]) ->
     mafia:setup_mnesia(),
     GameKey = ?getv(?game_key),
-    State = start_web(#state{game_key = GameKey}),
+    State = start_web(#state{game_num = GameKey}),
     S2 = set_dl_timer(State),
     TimerMins = case ?getv(?timer_minutes) of
                     ?undefined -> 10;
@@ -240,15 +240,15 @@ handle_info({?deadline, DL}, State) ->
     %% THIS work well when not refreshing!! Should start after...
     %% While refreshing we need to look at message timestamps in
     %% order to see when we have reached/passed the next deadline
-    regen_historyI(DL#dl.time, State#state.game_key),
+    regen_historyI(DL#dl.time, State#state.game_num),
     S2 = set_dl_timer(State, DL#dl.time),
     {noreply, S2};
 handle_info(do_polling, State) ->
     {_Reply, S2} = maybe_change_timer(State),
     TimeStr = mafia_print:print_time(?console),
-    if is_integer(State#state.game_key) ->
+    if is_integer(State#state.game_num) ->
             io:format("~s poll for new messages\n", [TimeStr]),
-            mafia_data:downl_web(State#state.game_key),
+            mafia_data:downl_web(State#state.game_num),
             flush(do_polling);
        true -> ok
     end,
@@ -290,25 +290,29 @@ state_as_kvs(State) ->
     Values = tl(tuple_to_list(State)),
     lists:zip(Fields, Values).
 
-update_current(#state{game_key = GameKey,
+update_current(#state{game_num = GameNum,
                       timer_minutes = Minutes}) ->
-    Phase = mafia_time:calculate_phase(GameKey),
-    Opts = [{?game_key, GameKey},
+    Phase = mafia_time:calculate_phase(GameNum),
+    Opts = [{?game_key, GameNum},
             {?phase, Phase},
-            {?period, Minutes}, %% mafia_time:timer_minutes(GameKey)
+            {?period, Minutes}, %% mafia_time:timer_minutes(GameNum)
             {?use_time, mafia_time:utc_secs1970()}],
-    update_current_txt(GameKey, Opts),
-    update_current_html(GameKey, Phase, Opts),
+    update_current_txt(GameNum, Opts),
+    update_current_html(GameNum, Phase, Opts),
     ok.
 
-update_current_txt(GameKey, Opts) ->
+update_current_txt(GameNum, Opts) when is_integer(GameNum) ->
+    update_current_txt(?rgame(GameNum), Opts);
+update_current_txt([G], Opts) ->
     %% update current html here too!
-    FileName = mafia_file:game_phase_full_fn(GameKey, ?current),
+    FileName = mafia_file:game_phase_full_fn(G, ?current),
     write_text(FileName, Opts).
 
-update_current_html(GameKey, Phase, Opts) ->
-    FileName = mafia_file:game_phase_full_fn(?html, GameKey, ?current), %
-    Title = ["Game Status ", mafia_print:print_phase(Phase)], %
+update_current_html(GameNum, Phase, Opts) when is_integer(GameNum) ->
+    update_current_html(?rgame(GameNum), Phase, Opts);
+update_current_html([G], Phase, Opts) ->
+    FileName = mafia_file:game_phase_full_fn(?html, G, ?current),
+    Title = ["Game Status ", mafia_print:print_phase(Phase)],
     write_html(FileName, Title, Opts).
 
 %%--------------------------------------------------------------------
@@ -316,24 +320,27 @@ update_current_html(GameKey, Phase, Opts) ->
 %% @end
 %%--------------------------------------------------------------------
 
-regen_historyI(Time, GKey)
-  when is_integer(Time), is_integer(GKey) ->
-    [G] = ?rgame(GKey),
+regen_historyI(Time, GNum)
+  when is_integer(Time), is_integer(GNum) ->
+    [G] = ?rgame(GNum),
     DL = mafia_time:get_prev_deadline(G, Time),
-    regen_historyI(Time, {GKey, DL#dl.phase});
+    regen_historyI(Time, GNum, DL#dl.phase, [G]);
 regen_historyI(Time, {GKey, Phase = #phase{}}) ->
+    regen_historyI(Time, GKey, Phase, ?rgame(GKey)).
+
+regen_historyI(Time, GKey, Phase = #phase{}, [G]) ->
     ?dbg(Time, {"DO REGENERATE_HISTORY 3", Phase, Time}),
     Opts = [{?game_key, GKey},
             {?phase, Phase}],
-    regen_hist_txt(GKey, Phase, Opts),
-    regen_hist_html(GKey, Phase, Opts),
+    regen_hist_txt(G, Phase, Opts),
+    regen_hist_html(G, Phase, Opts),
     ok.
 
-regen_hist_txt(GKey, Phase = #phase{}, Opts) ->
-    FileName = mafia_file:game_phase_full_fn(GKey, Phase),
+regen_hist_txt(G = #mafia_game{}, Phase = #phase{}, Opts) ->
+    FileName = mafia_file:game_phase_full_fn(G, Phase),
     write_text(FileName, Opts).
 
-regen_hist_html(G, Phase = #phase{}, Opts) ->
+regen_hist_html(G = #mafia_game{}, Phase = #phase{}, Opts) ->
     FileName = mafia_file:game_phase_full_fn(?html, G, Phase),
     Title = ["History ", mafia_print:print_phase(Phase)],
     write_html(FileName, Title, Opts).
@@ -431,8 +438,8 @@ stop_web(State) ->
 -spec maybe_change_timer(#state{}) -> {Reply::term(), #state{}}.
 maybe_change_timer(S = #state{timer = TRef,
                               timer_minutes = TMins,
-                              game_key = ThId}) ->
-    Mins = mafia_time:timer_minutes(ThId),
+                              game_num = GNum}) ->
+    Mins = mafia_time:timer_minutes(GNum),
     if TMins == ?stopped -> {no_change, S};
        Mins == none -> {cancelled, cancel_timer_interval(S)};
        TRef == ?undefined; Mins /= TMins ->
@@ -443,7 +450,7 @@ maybe_change_timer(S = #state{timer = TRef,
 set_dl_timer(S) -> set_dl_timer(S, mafia_time:utc_secs1970()).
 
 set_dl_timer(S, Time) ->
-    set_dl_timer(S, Time, ?rgame(S#state.game_key)).
+    set_dl_timer(S, Time, ?rgame(S#state.game_num)).
 
 set_dl_timer(S, _Time, []) -> S;
 set_dl_timer(S, Time, [G]) ->

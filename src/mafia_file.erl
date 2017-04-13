@@ -3,7 +3,7 @@
 -export([manual_cmd_to_file/2,
          manual_cmd_from_file/2,
 
-         th_filenames/2, %% FN of thread file, relative run dir
+         th_filenames/3, %% FN of thread file, relative run dir
 
          cmd_filename/1, %% FN of manual commands issued, relative run dir
 
@@ -20,10 +20,10 @@
 
 -include("mafia.hrl").
 
--define(CURRENT_GAME_FN, "current_game_status").
+-define(CURRENT_GAME_FN, "game_status").
 
-manual_cmd_to_file(ThId, Cmd) ->
-    FN = cmd_filename(ThId),
+manual_cmd_to_file(G, Cmd) ->
+    FN = cmd_filename(G),
     DoAppend =
         case file:consult(FN) of
             {error, enoent} -> true;
@@ -37,8 +37,8 @@ manual_cmd_to_file(ThId, Cmd) ->
        not DoAppend -> ok
     end.
 
-manual_cmd_from_file(ThId, Cmd) ->
-    FN = cmd_filename(ThId),
+manual_cmd_from_file(G, Cmd) ->
+    FN = cmd_filename(G),
     case file:consult(FN) of
         {error, enoent} -> true;
         {ok, CmdsOnFile} ->
@@ -55,27 +55,32 @@ manual_cmd_from_file(ThId, Cmd) ->
 %% -----------------------------------------------------------------------------
 
 %% Filename to thread store file, relative to run dir (src).
-th_filenames(ThId, PageNum) ->
-    FileName = th_filename(ThId, PageNum),
+th_filenames(Game, ThId, PageNum) ->
+    FileName = th_filename(Game, ThId, PageNum),
     TarBallName = FileName ++ ".tgz",
     {FileName, TarBallName}.
 
-th_filename(Thread, Page) ->
+th_filename(?undefined, ThId, Page) ->
+    th_filename2("", ThId, Page);
+th_filename(G, _ThId, Page) ->
+    GamePrefix = game_file_prefix(G),
+    th_filename2(GamePrefix, G#mafia_game.thread_id, Page).
+
+th_filename2(GamePrefix, ThId, Page) ->
     DirName = "thread_pages",
     %% verify_exist(DirName),
-    GamePrefix = game_file_prefix(Thread),
-    DirName2 = GamePrefix ++ ?i2l(Thread),
+    DirName2 = GamePrefix ++ ?i2l(ThId),
     verify_exist(filename:join(DirName, DirName2)),
     BaseName = ?i2l(Page) ++ ".txt",
     filename:join([DirName, DirName2, BaseName]).
 
 %% -----------------------------------------------------------------------------
 
-cmd_filename(ThId) ->
+cmd_filename(G = #mafia_game{}) ->
     DirName =  "command_files",
     %% verify_exist(DirName),
-    GamePrefix = game_file_prefix(ThId),
-    BaseName = GamePrefix ++ ?i2l(ThId) ++ "_manual_cmds.txt",
+    GamePrefix = game_file_prefix(G),
+    BaseName = GamePrefix ++ "manual_cmds.txt",
     filename:join([DirName, BaseName]).
 
 cnt_filename() ->
@@ -111,10 +116,13 @@ game_phase_full_fn(G, Phase) ->
     game_phase_full_fn(?text, G, Phase).
 
 -spec game_phase_full_fn(?text | ?html,
-                         thread_id() | #mafia_game{},
+                         integer() | #mafia_game{},
                          #phase{} | ?current | ?game_ended)
                         -> string().
-game_phase_full_fn(Mode, G, Phase) ->
+game_phase_full_fn(Mode, GNum, Phase) when is_integer(GNum) ->
+    [G] = ?rgame(GNum),
+    game_phase_full_fn(Mode, G, Phase);
+game_phase_full_fn(Mode, G = #mafia_game{}, Phase) ->
     {GameDir, PhaseFN} = dir_and_filename(Mode, G, Phase),
     DirName = filename:join(get_path(h_doc_root), GameDir),
     verify_exist(DirName),
@@ -145,21 +153,13 @@ phase_base_fn(FilePrefix, Phase = #phase{}) ->
     FilePrefix ++ PhStr.
 
 game_prefixes(G) ->
-    Pre = game_prefix(G),
+    Pre = game_file_prefix2(G),
     {Pre, Pre ++ "_"}.
 
 game_file_prefix(G) ->
-    case game_prefix(G) of
-        "" -> "";
-        Pre -> Pre ++ "_"
-    end.
+    game_file_prefix2(G) ++ "_".
 
-game_prefix(ThId) when is_integer(ThId); is_atom(ThId) ->
-    game_prefix(?rgame(ThId));
-game_prefix([]) -> "";
-game_prefix([G]) ->
-    game_prefix(G);
-game_prefix(G) ->
+game_file_prefix2(G = #mafia_game{}) ->
     "m" ++ ?i2l(G#mafia_game.game_num).
 
 verify_exist(DirName) ->
@@ -231,5 +231,20 @@ file_name_test() ->
                  game_link_and_text(?html,
                                     #mafia_game{game_num = 28},
                                     #phase{num = 3, don = ?night})
+                ),
+    ?assertEqual("command_files/m28_manual_cmds.txt",
+                 cmd_filename(#mafia_game{game_num = 28, thread_id = 1234})
+                ),
+    ?assertEqual("thread_pages/1234/11.txt",
+                 th_filename(?undefined, 1234, 11)
+                ),
+    ?assertEqual("thread_pages/m28_4567/11.txt",
+                 th_filename(#mafia_game{game_num = 28, thread_id = 4567},
+                             1234, 11)
+                ),
+    ?assertEqual({"thread_pages/m28_4567/11.txt",
+                  "thread_pages/m28_4567/11.txt.tgz"},
+                 th_filenames(#mafia_game{game_num = 28, thread_id = 4567},
+                             1234, 11)
                 ),
     meck:unload(Mods).

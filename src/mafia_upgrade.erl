@@ -26,20 +26,66 @@ recreate_game_table() ->
 
 %% mnesia_table arity is number of fields + 1
 upgrade() ->
+    upgrade(mafia_game),
     upgrade(user).
 
+upgrade(mafia_game = Tab) ->
+    upgrade(Tab,
+            mnesia:table_info(Tab, attributes),
+            record_info(fields, mafia_game));
 upgrade(user) ->
     upgrade(user,
             mnesia:table_info(user, attributes),
             record_info(fields, user)).
 
+upgrade(Tab = mafia_game,
+        As = [key,name,day_hours,night_hours,time_zone,day1_dl_time,
+              is_init_dst,dst_changes,deadlines,gms,players_orig,
+              players_rem,game_num,player_deaths,page_to_read,game_end,
+              last_msg_id,last_msg_time],
+        Fs = [game_num,thread_id,name,day_hours,night_hours,time_zone,
+              day1_dl_time,is_init_dst,dst_changes,deadlines,gms,players_orig,
+              players_rem,player_deaths,page_to_read,game_end,
+              last_msg_id,last_msg_time]) ->
+    upgrade_tab_game_170412(Tab, As, Fs);
 upgrade(Tab = user,
         As = [name_upper, name, verification_status],
         Fs = [name_upper, name, aliases, verification_status]) ->
     upgrade_tab_user_161210(Tab, As, Fs);
+upgrade(Tab, As, Fs) when As == Fs ->
+    io:format("No upgrade for table '~p' with attributes: ~999p\n", [Tab, As]);
 upgrade(Tab, As, Fs) ->
     io:format("No upgrade for table '~p' from:\n~999p\nto\n~999p\n",
               [Tab, As, Fs]).
+
+%% -----------------------------------------------------------------------------
+%% Upgrade mnesia_table using new keys
+%% 1. copy objects with new value order, 2. transform attribute list in mnesia
+%% -----------------------------------------------------------------------------
+upgrade_tab_game_170412(Tab, As, Fs) ->
+    io:format("Upgrade table '~p' from:\n~999p\nto\n~999p\n",
+              [Tab, As, Fs]),
+    Trans =
+        fun(RecOld) ->
+                ValuesOldList = tl(tuple_to_list(RecOld)),
+                NameChange = fun(key) -> thread_id; (N) -> N end,
+                As2 = [NameChange(A) || A <- As],
+                KVs = lists:zip(As2, ValuesOldList),
+                Values = [proplists:get_value(F, KVs) || F <- Fs],
+                RecNew = list_to_tuple([Tab | Values]),
+                io:format("~p\n", [RecNew]),
+                RecNew
+        end,
+    KeysToChange = [ K || K <- mnesia:dirty_all_keys(mafia_game),
+                          not is_integer(K) orelse K > 999999],
+    lists:foreach(fun(Key) ->
+                          RecOld = hd(mnesia:dirty_read(Tab, Key)),
+                          RecNew = Trans(RecOld),
+                          mnesia:dirty_write(RecNew),
+                          mnesia:dirty_delete(Tab, Key)
+                  end,
+                  KeysToChange),
+    mnesia:transform_table(Tab, ignore, Fs).
 
 %% -----------------------------------------------------------------------------
 %% Add field is_deleted into #death{}, 161211

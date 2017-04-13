@@ -820,7 +820,8 @@ pr_thread_links(PP, DoDispTime2DL) ->
     %% Day4(p98-) p103-, p108-, p113-, p118-, p123-, p128-, last(p130)
     StartTime = mafia_time:get_time_for_prev_phase(PP#pp.game, PP#pp.phase),
     EndTime = mafia_time:get_time_for_phase(PP#pp.game, PP#pp.phase),
-    PageKeys = mafia_lib:all_page_keys(PP#pp.game_key),
+    ThId = (PP#pp.game)#mafia_game.thread_id,
+    PageKeys = mafia_lib:all_page_keys(ThId),
     GameNumStr = integer_to_list((PP#pp.game)#mafia_game.game_num),
     case lists:foldl(
            fun(_PK, Acc = {done, _}) -> Acc;

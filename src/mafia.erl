@@ -1,8 +1,31 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% do not create double command files.
+%% check manual pages are up-to-date
+%% set(game_key, 28).
+%% Changed table: mafia_game, mafia_day (key), stat (key)
+%% Unchanged tables: message, page_rec
+%% test: ok-transform, refresh_votes, view current, gen stat, check stat keys,
+%%       check mafia_day keys, mafia_data:grep,
+%%       create/start new dummy game towards a short thread
+%% Upgrade steps mafia_game:
+%% 1. mafia_upgrade:upgrade().
+%% 2. set(game_key, 28).
+%% 3. mafia:refresh_votes().
+%% 4. poll().
+%% 6. switch_to_game(24). mafia:refresh().
+%% 5. delete old files and records <---------- *
+%% length([mnesia:dirty_delete(mafia_day, K) || K = {Th, _} <- mnesia:dirty_all_keys(mafia_day), Th > 9999]).
+%% length([mnesia:dirty_delete(stat, K)|| K = {_, Th} <- mnesia:dirty_all_keys(stat), Th > 9999]).
+%% length([mnesia:dirty_delete(stat, K)|| K = {_, Th, _} <- mnesia:dirty_all_keys(stat), Th > 9999]).
+%% rm command files with thread_id
+%% rm m*/current*
+
 %% - Stats page needs the game number in title
-%% LOW - list server alias defs, list previous deadlines and times, DST change info
+%% LOW - list player alias defs
+%%     - list previous deadlines and times
+%%     - DST change info
 %% - split mafia_print. stats and tracker into separate modules?
 %% ?add user "peterlund" to GMs? - NO
 %% Instead add ServerKeeper/GM commands:
@@ -12,7 +35,7 @@
 %% ##bot deadline <msgid> earlier|later <time>
 %% ##bot assistant add|remove <msgid> <player>
 %% Fix deadline listing at bottom of game_status page
-%% - Think through how and when to present deadlines (ideas top of print_votes())
+%% - Think how and when to present deadlines (ideas top of print_votes())
 %% ?- Add timestamp for each entry in message_ids to use when time_offset /= 0
 %%     Motivation: simplify time offset?
 %% - Verify stored files (when refresh_messages) that all messages come in
@@ -47,6 +70,7 @@
          unend_game/1,
          switch_to_game/1,
          switch_to_game/2,
+         game_thread/1,
          create_and_switch_to_pregame/1,
 
          replace_player/3,
@@ -167,10 +191,10 @@ check_game_data(Id) ->
 %% @doc Create and Switch to game that has not started yet
 %% @end
 %% -----------------------------------------------------------------------------
-create_and_switch_to_pregame(GN) when is_atom(GN) ->
-    mafia_db:write_game(GN),
-    ?set(game_key, GN),
-    mafia:stop(),  %% Set gen_server #state.game_key
+create_and_switch_to_pregame(GNum) when is_integer(GNum) ->
+    mafia_db:write_game(GNum),
+    ?set(game_key, GNum),
+    mafia:stop(),  %% Set gen_server #state.game_num
     mafia:start(),
     mafia_web:poll(). %% creates text file
 
@@ -178,55 +202,51 @@ create_and_switch_to_pregame(GN) when is_atom(GN) ->
 %% @doc Switch to other game and reread all info
 %% @end
 %% -----------------------------------------------------------------------------
--spec switch_to_game(GameId :: atom() | thread_id()) -> term().
-switch_to_game(Id) ->
-    switch_to_gameI(?thid(Id), normal).
+-spec switch_to_game(GNum :: game_num()) -> term().
+switch_to_game(GNum) ->
+    switch_to_gameI(GNum, normal).
 
--spec switch_to_game(GameId :: atom() | thread_id(),
-                     Method :: normal | refresh
-                               ) -> term().
-switch_to_game(Id, Method) ->
-    switch_to_gameI(?thid(Id), Method).
+-spec switch_to_game(GNum :: game_num(),
+                     Method :: normal | refresh) -> term().
+switch_to_game(GNum, Method) ->
+    switch_to_gameI(GNum, Method).
 
 %% -----------------------------------------------------------------------------
-
-switch_to_gameI({?error, _} = E, _) -> E;
-
 %% if all data for game already is in DB
-switch_to_gameI(ThId, normal) ->
-    ?set(game_key, ThId), %% Must have it set for gen_server and web_impl
+switch_to_gameI(GNum, normal) ->
+    ?set(game_key, GNum), %% Must have it set for gen_server and web_impl
+    ThId = game_thread(GNum),
     ?set(thread_id, ThId),  %% not needed?
     ?set(page_to_read, 1),  %% not needed?
     mafia:stop(),  %% Set gen_server #state.game_key
     mafia:start();
 
 %% if not data for game in DB
-switch_to_gameI(ThId, refresh) -> %% Should always work
-    mafia_db:reset_game(ThId), %% recreates the  game record
-    ?set(game_key, ThId),
+switch_to_gameI(GNum, refresh) -> %% Should always work
+    mafia_db:reset_game(GNum), %% recreates the  game record
+    ?set(game_key, GNum),
+    ThId = game_thread(GNum),
     ?set(thread_id, ThId),
     ?set(page_to_read, 1),
     mafia:stop(),  %% Set gen_server #state.game_key
     mafia:start(),
     mafia_data:refresh_messages().
 
+game_thread(GNum) ->
+    case ?rgame(GNum) of
+        [G] -> G#mafia_game.thread_id;
+        [] -> ?getv(?thread_id)
+    end.
+
 %% -----------------------------------------------------------------------------
 %% @doc Create a game and translation in table and on file
 %% @end
 %% -----------------------------------------------------------------------------
--spec game_start(GName :: atom(), ThId :: thread_id()) -> ok | term().
-game_start(GName, ThId) when is_atom(GName), is_integer(ThId) ->
-    case mafia_db:add_thread(GName, ThId) of
-        {reg_add, _} ->
-            ?set(game_key, ThId),
-            ?set(thread_id, ThId),
-            file:write_file("game_info.txt",
-                            io_lib:format("{~p, ~p}.\n", [GName, ThId]),
-                            [append]),
-            mafia_db:write_game({GName, ThId});
-        _E ->
-            mafia_db:write_game({GName, ThId})
-    end.
+-spec game_start(GNum :: integer(), ThId :: thread_id()) -> ok | term().
+game_start(GNum, ThId) when is_integer(GNum), is_integer(ThId) ->
+    ?set(game_key, GNum),
+    ?set(thread_id, ThId),
+    mafia_db:write_game(GNum, ThId).
 
 %% -----------------------------------------------------------------------------
 %% @doc End current phase with GM message and set next phase at
@@ -237,7 +257,6 @@ end_phase(MsgId) ->
     case find_mess_game(MsgId) of
         {ok, G, M} ->
             Time = M#message.time,
-            ThId = M#message.thread_id,
             case mafia_time:calculate_phase(G, Time) of
                 #phase{don = ?game_ended} -> {?error, ?game_ended};
                 Phase = #phase{} ->
@@ -245,7 +264,7 @@ end_phase(MsgId) ->
                                msg_id = MsgId,
                                mfa = {mafia, end_phase, [MsgId]}},
                     ?man(Time, Cmd),
-                    mafia_file:manual_cmd_to_file(ThId, Cmd),
+                    mafia_file:manual_cmd_to_file(G, Cmd),
                     mafia_time:end_phase(G, Phase, Time),
                     done
             end;
@@ -258,12 +277,11 @@ unend_phase(MsgId) ->
     case find_mess_game(MsgId) of
         {ok, G, M} ->
             Time = M#message.time,
-            ThId = M#message.thread_id,
             Cmd = #cmd{time = Time,
                        msg_id = MsgId,
                        mfa = {mafia, end_phase, [MsgId]}},
             ?man(Time, {'UNDO', Cmd}),
-            mafia_file:manual_cmd_from_file(ThId, Cmd),
+            mafia_file:manual_cmd_from_file(G, Cmd),
             mafia_time:unend_phase(G, M);
         {?error, _} = E -> E
     end.
@@ -301,7 +319,7 @@ move_next_deadline(MsgId, Direction, TimeDiff) ->
                              mfa = {mafia, move_next_deadline,
                                     [MsgId, Direction, TimeDiff]}},
                     ?man(M#message.time, Cmd),
-                    mafia_file:manual_cmd_to_file(M#message.thread_id, Cmd);
+                    mafia_file:manual_cmd_to_file(G, Cmd);
                true ->
                     ok
             end,
@@ -318,12 +336,12 @@ move_next_deadline(MsgId, Direction, TimeDiff) ->
 end_game(MsgId) ->
     case find_mess_game(MsgId) of
         {ok, G, M} ->
-            #message{thread_id = ThId, time = Time} = M,
+            Time = M#message.time,
             Cmd = #cmd{time = Time,
                        msg_id = MsgId,
                        mfa = {mafia, end_game, [MsgId]}},
             ?man(Time, Cmd),
-            mafia_file:manual_cmd_to_file(ThId, Cmd),
+            mafia_file:manual_cmd_to_file(G, Cmd),
             {Reply, _G2} = mafia_time:end_game(M, G),
             Reply;
         {?error, _} = E -> E
@@ -338,12 +356,12 @@ end_game(MsgId) ->
 unend_game(MsgId) ->
     case find_mess_game(MsgId) of
         {ok, G, M} ->
-            #message{thread_id = ThId, time = Time} = M,
+            Time = M#message.time,
             Cmd = #cmd{time = Time,
                        msg_id = MsgId,
                        mfa = {mafia, end_game, [MsgId]}},
             ?man(Time, {'UNDO', Cmd}),
-            mafia_file:manual_cmd_from_file(ThId, Cmd),
+            mafia_file:manual_cmd_from_file(G, Cmd),
             {Reply, _G2} = mafia_time:unend_game(G),
             Reply;
         {?error, _} = E -> E
@@ -369,7 +387,7 @@ replace_player(MsgId, OldPlayer, NewPlayer) ->
                              mfa = {mafia, replace_player,
                                     [MsgId, OldPlayer, NewPlayer]}},
                     ?man(M#message.time, Cmd),
-                    mafia_file:manual_cmd_to_file(M#message.thread_id, Cmd),
+                    mafia_file:manual_cmd_to_file(G, Cmd),
                     ok;
                 _ ->
                     replace_failed
@@ -382,12 +400,12 @@ replace_player(MsgId, OldPlayer, NewPlayer) ->
 %% set to the last death announcement or later.
 %% @end
 %% -----------------------------------------------------------------------------
-%% mafia:set_death_msgid(1468321, "Maniac", 1468307, "he was Big Ham, the Mafia Goon.").
+%% mafia:set_death_msgid(1468321, "Maniac", 1468307, "he was Big Ham, the "
+%% "Mafia Goon.").
 set_death_msgid(MsgId, Player, DeathMsgId, DeathComment) ->
     case find_mess_game(MsgId) of
         {ok, G, M} ->
-            #message{thread_id = ThId,
-                     time = Time} = M,
+            Time = M#message.time,
             Cmd = #cmd{time = Time,
                        msg_id = MsgId,
                        mfa = {mafia, set_death_msgid,
@@ -399,7 +417,7 @@ set_death_msgid(MsgId, Player, DeathMsgId, DeathComment) ->
                                             DeathComment) of
                 ok ->
                     ?man(Time, Cmd),
-                    mafia_file:manual_cmd_to_file(ThId, Cmd),
+                    mafia_file:manual_cmd_to_file(G, Cmd),
                     %%io:format("Do mafia:refresh_votes().\n"),
                     {set_death_msgid, Player, DeathMsgId};
                 {?error, _} = E -> E
@@ -420,8 +438,7 @@ set_death_msgid(MsgId, Player, DeathMsgId, DeathComment) ->
 kill_player(MsgId, Player, Comment) ->
     case find_mess_game(MsgId) of
         {ok, G, M} ->
-            #message{thread_id = ThId,
-                     time = Time} = M,
+            Time = M#message.time,
             Cmd = #cmd{time = Time,
                        msg_id = MsgId,
                        mfa = {mafia, kill_player,
@@ -430,9 +447,8 @@ kill_player(MsgId, Player, Comment) ->
             case mafia_vote:kill_player(G, M, PlayerB, Comment) of
                 {{ok, DeathPhase}, _G2} ->
                     ?man(Time, Cmd),
-                    mafia_file:manual_cmd_to_file(ThId, Cmd),
-                    mafia_web:regen_history(M#message.time,
-                                            G#mafia_game.key),
+                    mafia_file:manual_cmd_to_file(G, Cmd),
+                    mafia_web:regen_history(M, G),
                     {player_killed, DeathPhase};
                 {not_remaining_player, _G2} ->
                     case ?ruser(Player) of
@@ -463,11 +479,19 @@ find_mess_game(MsgId) ->
         [] -> {?error, msg_not_found};
         [M] ->
             ThId = M#message.thread_id,
-            case ?rgame(ThId) of
+            case game_for_thid(ThId) of
                 [] -> {?error, game_not_found};
                 [G] -> {ok, G, M}
             end
     end.
+
+game_for_thid(ThId) ->
+    Pattern = mnesia:table_info(mafia_game, wild_pattern),
+    MatchHead = Pattern#mafia_game{thread_id = '$1'},
+    Guard = [{'==', '$1', ThId}],
+    Result = '$_',
+    MatchExpr2 = [{MatchHead, Guard, [Result]}],
+    mnesia:dirty_select(mafia_game, MatchExpr2).
 
 %% load all beams in local dir
 l() ->

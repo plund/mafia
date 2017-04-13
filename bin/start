@@ -48,7 +48,8 @@ while [[ $# -gt 0 ]] ; do
     esac
 done
 
-RUNNING_ALREADY=$(ps aux | grep beam | grep -v grep | wc -l)
+RUNNING_ALREADY=$(ps aux | grep -vE "(grep|to_erl|run_erl)" \
+                      | grep mafia | wc -l)
 
 if [ $RUNNING_ALREADY = 1 ] ; then
     echo "$APP_NAME is already running"

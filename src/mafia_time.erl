@@ -378,17 +378,17 @@ return_time_left(TimeLeft, DL, ?seconds) ->
 
 %% -----------------------------------------------------------------------------
 
--spec calculate_phase(Game :: integer() | #mafia_game{})
+-spec calculate_phase(G :: integer() | #mafia_game{})
                      -> #phase{}.
-calculate_phase(ThId) ->
+calculate_phase(G) ->
     Time = utc_secs1970(),
-    calculate_phase(ThId, Time).
+    calculate_phase(G, Time).
 
--spec calculate_phase(Game :: integer() | #mafia_game{},
+-spec calculate_phase(G :: integer() | #mafia_game{},
                       Time :: seconds1970())
                      -> false | #phase{}.
-calculate_phase(ThId, Time) when is_integer(ThId); is_atom(ThId) ->
-    case ?rgame(ThId) of
+calculate_phase(GNum, Time) when is_integer(GNum) ->
+    case ?rgame(GNum) of
         [G] -> calculate_phase(G, Time);
         [] -> false
     end;
@@ -489,8 +489,8 @@ nearest_deadline([G]) ->
 -spec nearest_deadline(integer() | #mafia_game{} | [#mafia_game{}],
                        seconds1970())
                       -> {integer(), #dl{}} | none.
-nearest_deadline(ThId, Time) when is_integer(ThId) ->
-    nearest_deadline(?rgame(ThId), Time);
+nearest_deadline(GNum, Time) when is_integer(GNum) ->
+    nearest_deadline(?rgame(GNum), Time);
 nearest_deadline([], _) -> none;
 nearest_deadline([G = #mafia_game{}], Time) ->
     nearest_deadline(G, Time);
@@ -503,14 +503,13 @@ nearest_deadline(G = #mafia_game{}, Time) ->
 
 %% -----------------------------------------------------------------------------
 
--spec timer_minutes(ThId :: thread_id()) -> none | integer().
-timer_minutes(ThId) ->
+-spec timer_minutes(GNum :: thread_id()) -> none | integer().
+timer_minutes(GNum) ->
     case ?getv(?timer_minutes) of
         Mins when is_integer(Mins), Mins > 0 ->
             Mins;
-        _ when is_atom(ThId) -> 10;
         _ ->
-            case nearest_deadline(ThId) of
+            case nearest_deadline(GNum) of
                 none -> none;
                 {RelTimeSecs, ?game_ended} ->
                     t_mins(?game_ended, RelTimeSecs);
@@ -555,7 +554,7 @@ end_phase(G, Phase = #phase{}, Time, false) ->
     NewDLs = change_dl_time(G#mafia_game.deadlines, Phase, Time),
     G2 = G#mafia_game{deadlines = NewDLs},
     ?dwrite_game(G2),
-    mafia_web:regen_history(Time, G),
+    mafia_web:regen_history(Time, G), %% Change to G2?
     G2;
 end_phase(G, _Phase, _Time, _DL) ->
     G.
@@ -663,7 +662,7 @@ end_game(M, G) when G#mafia_game.game_end == ?undefined ->
     G2 = G#mafia_game{deadlines = DLs3,
                       game_end = {EndTime, MsgId}},
     ?dwrite_game(G2),
-    mafia_web:regen_history(EndTime, G),
+    mafia_web:regen_history(EndTime, G), %% change to G2?
     mafia_web:update_current(),
     {?game_ended, G2};
 end_game(_M, G) ->

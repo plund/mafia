@@ -31,15 +31,16 @@ msgs(Sid, _Env, In) ->
     PQ = httpd:parse_query(In) -- [{[],[]}],
     NotAllowed = [Key || {Key, _} <- PQ]
         -- ["g", "user", "word", "part", "UorW", "button"],
-    ThId = get_thread_id(get_arg(PQ, "g")),
-    msgs2(Sid, ThId, In, PQ, NotAllowed).
+    GNum = get_gnum(get_arg(PQ, "g")),
+    msgs2(Sid, GNum, In, PQ, NotAllowed).
 
-msgs2(Sid, _ThId, _In, _PQ, NotAllowed) when NotAllowed /= [] ->
+msgs2(Sid, _GNum, _In, _PQ, NotAllowed) when NotAllowed /= [] ->
     error_resp(Sid, ["Params not allowed: ",
                 string:join(NotAllowed, ", ")]);
 msgs2(Sid, {?error, _}, _In, _PQ, _)  ->
     error_resp(Sid, "Bad: g=value");
-msgs2(Sid, ThId, In, PQ, []) ->
+msgs2(Sid, GNum, In, PQ, []) ->
+    ThId = mafia:game_thread(GNum),
     Url1 = ?BotUrl,
     Url2 = "e/web/msgs?",
     In3 = [string:tokens(I, "=") || I <- string:tokens(In, "&")],
@@ -73,7 +74,7 @@ msgs2(Sid, ThId, In, PQ, []) ->
                      time = Time,
                      message = MsgB},
             MI) when MI#miter.bytes < ?OUT_LIMIT  ->
-                MsgPhase = mafia_time:calculate_phase(ThId, Time),
+                MsgPhase = mafia_time:calculate_phase(GNum, Time),
                 Msg = ?b2l(MsgB),
                 B2U = fun(B) -> string:to_upper(binary_to_list(B)) end,
                 MsgUserU = B2U(MsgUserB),
@@ -171,7 +172,7 @@ msgs2(Sid, ThId, In, PQ, []) ->
                             end,
                         MsgBoldMarked = bold_mark_words(Msg, WordsU),
                         BgColor = mafia_lib:bgcolor(MsgUserB),
-                        {HH, MM} = mafia_time:hh_mm_to_deadline(ThId, Time),
+                        {HH, MM} = mafia_time:hh_mm_to_deadline(GNum, Time),
                         %% Add context link when doing User/Word search
                         MsgRef = ["msg_id=", ?i2l(MsgId)],
 
@@ -430,7 +431,7 @@ s_unit("NIGHT") -> ?night.
 game_status(Sid, _Env, In) ->
     PQ = httpd:parse_query(In) -- [{[],[]}],
     NotAllowed = [Key || {Key, _} <- PQ] -- ["g", "phase", "num"],
-    GameKey = get_thread_id(get_arg(PQ, "g")),
+    GameKey = get_gnum(get_arg(PQ, "g")),
     game_status2(Sid, GameKey, PQ, NotAllowed).
 
 game_status2(Sid, _GameKey, _PQ, NotAllowed) when NotAllowed /= [] ->
@@ -487,7 +488,7 @@ game_status_out_hist(GameKey, Phase, FileName, _) ->
     Title = ["History ", mafia_print:print_phase(Phase)],
     Time = mafia_time:utc_secs1970(),
     case mafia_time:get_time_for_phase(GameKey, Phase) of
-        PhaseTime when PhaseTime =< Time ->
+        PhaseTime when PhaseTime =< Time, is_integer(PhaseTime) ->
             %% Normally there should be a file and this generate should not run
             mafia_web:regen_history(PhaseTime, {GameKey, Phase}),
             case read_file(FileName) of
@@ -548,7 +549,7 @@ gs_phase(_, _) ->
 vote_tracker(Sid, _Env, In) ->
     PQ = httpd:parse_query(In) -- [{[],[]}],
     GameNumStrArg = get_arg(PQ, "g"),
-    GameKey = get_thread_id(GameNumStrArg),
+    GameKey = get_gnum(GameNumStrArg),
     GameNumStr =
         case GameNumStrArg of
             "" ->
@@ -642,7 +643,7 @@ msg2([M], Variant, Player) ->
 %% http://mafia.peterlund.se/e/web/stats?phase=total
 stats(Sid, _Env, In) ->
     PQ = httpd:parse_query(In) -- [{[],[]}],
-    GameKey = get_thread_id(get_arg(PQ, "g")),
+    GameKey = get_gnum(get_arg(PQ, "g")),
 
     Sort = case get_arg(PQ, "sort") of
                "words_per_post" ->
@@ -823,26 +824,9 @@ del_start(Sid, Title, Border) ->
 del_end(Sid) ->
     web:deliver(Sid, ?HTML_TAB_END).
 
-get_thread_id("") -> ?getv(?game_key);
-get_thread_id("m" ++ NumStr) ->
-    get_thread_id2(NumStr);
-get_thread_id(NumStr) ->
-    get_thread_id2(NumStr).
-
-get_thread_id2(NumStr) ->
-    case catch list_to_integer(NumStr) of
-        {'EXIT', _} -> {?error, not_number};
-        Num ->
-            Pattern = mnesia:table_info(mafia_game, wild_pattern),
-            MatchHead = Pattern#mafia_game{key = '$1', game_num = '$2'},
-            Guard = [{'==', '$2', Num}],
-            Result = '$1',
-            MatchExpr2 = [{MatchHead, Guard, [Result]}],
-            case mnesia:dirty_select(mafia_game, MatchExpr2) of
-                [Key] -> Key;
-                _ -> {?error, no_game}
-            end
-    end.
+get_gnum("") -> ?getv(?game_key);
+get_gnum("m" ++ NumStr) -> ?l2i(NumStr);
+get_gnum(NumStr) -> ?l2i(NumStr).
 
 error_resp(Sid, Specific) ->
     Html = [?HTML_TAB_START("Game Status", " border=\"0\""),

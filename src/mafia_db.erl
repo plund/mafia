@@ -21,6 +21,7 @@
 
          reset_game/1,
          write_game/1,
+         write_game/2,
          write_default_user_table/0
         ]).
 
@@ -102,8 +103,7 @@ start_mnesia(Op) ->
     case mnesia:start() of
         ok ->
             if Op == do_create ->
-                    create_tables(),
-                    insert_initial_data();
+                    create_tables();
                true ->
                     ok
             end,
@@ -119,41 +119,6 @@ to_bin(LoL = [[_|_]|_]) -> [?l2b(L) || L <- LoL].
 to_bin_sort(LoL = [[_|_]|_]) ->
     [?l2b(L) || L <- mafia_lib:alpha_sort(LoL)].
 
-insert_initial_data() ->
-    io:format("Adding values to kv_store\n", []),
-    ?set(?page_to_read, 1),
-    ?set(?timezone_user, 1),
-    ?set(?dst_user, false),
-    ?set(?console_tz, user),
-    ?set(?mod_msg, ?undefined),
-    write_default_user_table(),
-    add_threads().
-
-add_threads() ->
-    ThInfos = [{CurGame, CurGameId}|_] =
-        lists:reverse(
-          lists:sort(
-            element(2,
-                    file:consult("game_info.txt")))),
-    _ = [begin
-             add_thread(Game, Id),
-             write_game(Game)
-         end || {Game, Id} <- ThInfos],
-    ?set(?thread_id, CurGameId),
-    ?set(?game_key, CurGameId),
-%%% ?game_key (DB kv_store):
-%%% - Must be set right for the single game we are serving at the moment
-%%% - gen_server mafia_web sets this ?game_key value in its init
-%%% - ?game_key is used as game reference for all web calls
-%%% - the ?game_key is also default value for many MANUAL commands:
-%%%   refresh_messages, refresh_votes, refresh_stat, print_votes,
-%%%   print_stats_opts, web_vote_tracker,
-%%% ?page_to_read (DB kv_store):
-%%%    used in manual downl/0, mafia_print:pp/pps use when not game
-    G = get_game_rec(CurGame),
-    ?set(?timezone_game, G#mafia_game.time_zone),
-    ?set(?dst_game, G#mafia_game.is_init_dst).
-
 write_default_user_table() ->
     [ ?dwrite_user(
          #user{name_upper = ?l2ub(U),
@@ -165,60 +130,44 @@ write_default_user_table() ->
                               ?M26_players ++ ?M26_GMs)],
     ok.
 
-reset_game(ThId) ->
-    mnesia:dirty_delete(mafia_game, ThId),
-    write_game(ThId).
+-define(Cpy(Template, Field), Field = Template#mafia_game.Field).
+reset_game(GNum) ->
+    T = make_game_rec(GNum),
+    G = get_game_rec(GNum),
+    G2 = G#mafia_game{?Cpy(T, players_rem),
+                      ?Cpy(T, player_deaths),
+                      ?Cpy(T, page_to_read),
+                      ?Cpy(T, game_end),
+                      ?Cpy(T, last_msg_id),
+                      ?Cpy(T, last_msg_time)},
+    ?dwrite_game(G2).
 
 %% Write game record to DB
-write_game(?false) -> ?error;
-write_game(GName) when is_atom(GName) ->
-    {ok, L} = file:consult("game_info.txt"),
-    write_game2(GName, lists:keyfind(GName, 1, L ++ ?getv(?reg_threads)));
-write_game(ThId) when is_integer(ThId) ->
-    {ok, L} = file:consult("game_info.txt"),
-    write_game2(ThId, lists:keyfind(ThId, 2, L ++ ?getv(?reg_threads)));
-write_game({GName, ThId}) ->
-    do_write_game(GName, ThId).
+write_game(GNum, ThId) when is_integer(GNum), is_integer(ThId) ->
+    G = get_game_rec(GNum),
+    io:format("Setting thread id for Mafia Game\n  ~p: ~s\n",
+              [GNum, ?b2l(G#mafia_game.name)]),
+    G2 = G#mafia_game{thread_id = ThId},
+    ?dwrite_game(G2).
 
-write_game2(GName, false) when is_atom(GName) ->
-    do_write_game(GName, GName);
-write_game2(ThId, false) when is_integer(ThId) ->
-    {error, no_game_name};
-write_game2(_, {GName, ThId}) ->
-    do_write_game(GName, ThId).
+write_game(GNum) when is_integer(GNum) ->
+    G = get_game_rec(GNum),
+    ?dwrite_game(G).
 
--spec do_write_game(atom(), Key :: thread_id() | atom())
-                   -> ok | {error, term()}.
-do_write_game(GName, ThId) when is_integer(ThId) ->
-    case {?rgame(GName), ?rgame(ThId)} of
-        {[], []} ->
-            G = get_game_rec(GName),
-            do_write_game_2(G, GName, ThId);
-        {[_PreG], []} ->
-            mnesia:dirty_delete(mafia_game, GName),
-            G = get_game_rec(GName),
-            do_write_game_2(G, GName, ThId);
-        {_, [_]} ->
-            {error, e_exists}
-    end;
-do_write_game(GName, Key) when is_atom(Key) ->
-    case ?rgame(Key) of
+get_game_rec(GNum) when is_integer(GNum) ->
+    case ?rgame(GNum) of
+        [G] ->
+            io:format("Updating deadlines for Mafia Game\n  ~p: ~s\n",
+                      [GNum, ?b2l(G#mafia_game.name)]),
+            mafia_time:initial_deadlines(G);
         [] ->
-            G = get_game_rec(GName),
-            do_write_game_2(G, GName, Key);
-        [_] ->
-            {error, e_exists}
+            G = make_game_rec(GNum),
+            io:format("Initializing Mafia Game\n  ~p: ~s\n",
+                      [GNum, ?b2l(G#mafia_game.name)]),
+            mafia_time:initial_deadlines(G)
     end.
 
-do_write_game_2(G, GName, Key) ->
-    %% G = get_game_rec(GName),
-    io:format("Initializing Mafia Game\n  ~p: ~s\n",
-              [GName, ?b2l(G#mafia_game.name)]),
-    G2 = G#mafia_game{key = Key},
-    Game = mafia_time:initial_deadlines(G2),
-    ?dwrite_game(Game).
-
-get_game_rec(m28) ->
+make_game_rec(28) ->
     _ = #mafia_game{
       game_num = 28,
       name = <<"Mafia 28: -JEBEDIAH'S WRATH-">>, %% Item Madness
@@ -235,7 +184,7 @@ get_game_rec(m28) ->
       player_deaths = [],
       page_to_read = 1
      };
-get_game_rec(m27) ->
+make_game_rec(27) ->
     %% M27 Game Thread 1447615
     %% M27 signup threadid = 1442470
     _ = #mafia_game{
@@ -254,7 +203,7 @@ get_game_rec(m27) ->
       player_deaths = [],
       page_to_read = 1
      };
-get_game_rec(m26) ->
+make_game_rec(26) ->
     %% Game Thread 1432756
     %% M26 signup threadid = 1429158
     _ = #mafia_game{
@@ -273,12 +222,12 @@ get_game_rec(m26) ->
       player_deaths = [],
       page_to_read = 1
      };
-get_game_rec(m25) ->
+make_game_rec(25) ->
     %% M25 GOD QT https://www.quicktopic.com/52/H/gBqFhw3Bidb
     %% M25 spectator QT https://www.quicktopic.com/52/H/ZPja4vQgBFQ7
     _ = #mafia_game{
-      key = ?M25ThId,
       game_num = 25,
+      thread_id = ?M25ThId,
       name = <<"MAFIA XXV: Kanye's Quest">>,
       day_hours = 48,
       night_hours = 24,
@@ -292,10 +241,10 @@ get_game_rec(m25) ->
       player_deaths = [],
       page_to_read = 1
      };
-get_game_rec(m24) ->
+make_game_rec(24) ->
     _ = #mafia_game{
-      key = ?M24ThId,
       game_num = 24,
+      thread_id = ?M24ThId,
       name = <<"MAFIA XXIV: Webdiplomacy's Tom Clancy's The Division">>,
       day_hours = 48,
       night_hours = 24,

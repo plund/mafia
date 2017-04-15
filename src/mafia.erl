@@ -1,27 +1,7 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% do not create double command files.
-%% check manual pages are up-to-date
-%% set(game_key, 28).
-%% Changed table: mafia_game, mafia_day (key), stat (key)
-%% Unchanged tables: message, page_rec
-%% test: ok-transform, refresh_votes, view current, gen stat, check stat keys,
-%%       check mafia_day keys, mafia_data:grep,
-%%       create/start new dummy game towards a short thread
-%% Upgrade steps mafia_game:
-%% 1. mafia_upgrade:upgrade().
-%% 2. set(game_key, 28).
-%% 3. mafia:refresh_votes().
-%% 4. poll().
-%% 6. switch_to_game(24). mafia:refresh().
-%% 5. delete old files and records <---------- *
-%% length([mnesia:dirty_delete(mafia_day, K) || K = {Th, _} <- mnesia:dirty_all_keys(mafia_day), Th > 9999]).
-%% length([mnesia:dirty_delete(stat, K)|| K = {_, Th} <- mnesia:dirty_all_keys(stat), Th > 9999]).
-%% length([mnesia:dirty_delete(stat, K)|| K = {_, Th, _} <- mnesia:dirty_all_keys(stat), Th > 9999]).
-%% rm command files with thread_id
-%% rm m*/current*
-
+%% Force split long Z-line?
 %% - Stats page needs the game number in title
 %% LOW - list player alias defs
 %%     - list previous deadlines and times
@@ -43,12 +23,6 @@
 %%     Motivation: test if there is a problem webdiplomacy.net
 %% - Merge all variants of mafia_time:get_next_deadline
 %%     Motivation: clean up messy code
-%% - Change primary key in mafia_game table:
-%%   1 change name key -> thread_id :: ?undefined | thread_id()
-%%   2 add a new primary key in first position game_num :: integer()
-%%   3 -type game_name() :: atom().
-%%   4 do mnesia:transform_table
-%%   5 use dirty_select to find m28 in #mafia_game / remove game_info
 
 %% - Use new DL calc and remove old calculation NEW: "get_some_extra_dls"
 %%   - define how and when to use a smarter vote reader!!
@@ -71,7 +45,8 @@
          switch_to_game/1,
          switch_to_game/2,
          game_thread/1,
-         create_and_switch_to_pregame/1,
+         pregame_create/1,
+         pregame_update/0,
 
          replace_player/3,
          kill_player/3,
@@ -166,16 +141,16 @@ check_pages(Id) ->
     [{P, length((hd(?rpage(T,P)))#page_rec.message_ids)}
      || {T,P} <- mafia_lib:all_page_keys(ThId)].
 
-check_game_data(Id) ->
-    ThId = ?thid(Id),
-    case ?rgame(ThId) of
+check_game_data(GNum) ->
+    ThId = game_thread(GNum),
+    case ?rgame(GNum) of
         [] ->
             io:format("No game record exist\n");
         [_] ->
             io:format("Game record exist\n")
     end,
-    DayKeys = [K || K = {Th, _} <- mnesia:dirty_all_keys(mafia_day),
-                    Th == ThId],
+    DayKeys = [K || K = {GN, _} <- mnesia:dirty_all_keys(mafia_day),
+                    GN == GNum],
     io:format("Num Day records ~p\n", [DayKeys]),
     PageKeys = [K || K = {Th, _} <- mnesia:dirty_all_keys(page_rec),
                      Th == ThId],
@@ -191,10 +166,19 @@ check_game_data(Id) ->
 %% @doc Create and Switch to game that has not started yet
 %% @end
 %% -----------------------------------------------------------------------------
-create_and_switch_to_pregame(GNum) when is_integer(GNum) ->
-    mafia_db:write_game(GNum),
+pregame_create(GNum) when is_integer(GNum) ->
+    Create = fun() -> mafia_db:write_game(GNum) end,
     ?set(game_key, GNum),
-    mafia:stop(),  %% Set gen_server #state.game_num
+    pregame(Create).
+
+pregame_update() ->
+    GNum = ?getv(game_key),
+    Create = fun() -> mafia_db:rewrite_game(GNum) end,
+    pregame(Create).
+
+pregame(Create) ->
+    Create(),
+    mafia:stop(),     %% Set gen_server #state.game_num
     mafia:start(),
     mafia_web:poll(). %% creates text file
 

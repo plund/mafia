@@ -63,12 +63,11 @@ l() -> mafia:l().
 "MAFIA HELP
 ----------
 FILES:
-game_info.txt  - Mapping thread names m26 to thread ids
-user_data.txt  - User table exported, may be imported
 thread_pages/  - Raw downloaded source thread pages to be reread
 command_files/ - Manual commands issued, rerun when refresh_votes
 patches/       - Store updated beam files here and do l() to load them
 logs/          - Logs run_erl.log, erlang.log.N
+user_data.txt  - User table exported, may be imported
 
 DBG: grep/1, grep/2, rmess/1, rpage/2, rday/2, rgame/1
 
@@ -106,16 +105,17 @@ help(type())
 "Game Life Cycle
 ---------------
 Days before:
-mafia:create_and_switch_to_pregame(m99). - create pregame
+mafia:pregame_create(99)  - create pregame
+mafia:pregame_update()    - rewrite pregame
 When game starts:
-mafia:game_start(m99, 1460042).     - Assign thread id
-mafia:switch_to_game(m99, refresh). - Switch and create page_recs.
-mafia:refresh_votes().              - Count votes
+mafia:game_start(99, 1460042).  - Assign thread id
+mafia:switch_to_game(99).       - Switch and create page_recs.
+mafia:refresh_votes().          - Count votes
 
-mafia:game_start(GName, ThId) - Creates game and defines ThId for game
-mafia:check_game_data(Id) - Id = m25 | thread_id()
-mafia:switch_to_game(Id)  - Id = m25 | thread_id()
-mafia:switch_to_game(Id, refresh) - read disk, Id = m25 | thread_id()
+mafia:game_start(GNum, ThId) - Creates game using GNum ThId
+mafia:check_game_data(GNum)
+mafia:switch_to_game(GNum)
+mafia:switch_to_game(GNum, refresh)
 
 Manual Commands
 ---------------
@@ -159,6 +159,7 @@ mafia:show_all_aliases()        - Display all defined
 mafia:show_aliases(Search)      - User search string.
 mafia:add_alias(User, Alias)    - Add one alias
 mafia:remove_alias(User, Alias) - Remove one alias
+
 mafia:add_thread(atom(), integer()) - add thread name
 mafia:rm_thread(atom() | integer()) - remove thread name
 ").

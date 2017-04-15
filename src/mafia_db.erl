@@ -21,6 +21,7 @@
 
          reset_game/1,
          write_game/1,
+         rewrite_game/1,
          write_game/2,
          write_default_user_table/0
         ]).
@@ -154,6 +155,10 @@ write_game(GNum) when is_integer(GNum) ->
     G = get_game_rec(GNum),
     ?dwrite_game(G).
 
+rewrite_game(GNum) when is_integer(GNum) ->
+    G = make_game_and_deadlines(GNum),
+    ?dwrite_game(G).
+
 get_game_rec(GNum) when is_integer(GNum) ->
     case ?rgame(GNum) of
         [G] ->
@@ -161,11 +166,14 @@ get_game_rec(GNum) when is_integer(GNum) ->
                       [GNum, ?b2l(G#mafia_game.name)]),
             mafia_time:initial_deadlines(G);
         [] ->
-            G = make_game_rec(GNum),
-            io:format("Initializing Mafia Game\n  ~p: ~s\n",
-                      [GNum, ?b2l(G#mafia_game.name)]),
-            mafia_time:initial_deadlines(G)
+            make_game_and_deadlines(GNum)
     end.
+
+make_game_and_deadlines(GNum) ->
+    G = make_game_rec(GNum),
+    io:format("Initializing Mafia Game\n  ~p: ~s\n",
+              [GNum, ?b2l(G#mafia_game.name)]),
+    mafia_time:initial_deadlines(G).
 
 make_game_rec(28) ->
     _ = #mafia_game{
@@ -256,6 +264,23 @@ make_game_rec(24) ->
       gms = to_bin(?M24_GMs),
       players_orig = to_bin(?M24_players),
       players_rem = to_bin(?M24_players),
+      player_deaths = [],
+      page_to_read = 1
+     };
+make_game_rec(99) ->
+    _ = #mafia_game{
+      game_num = 99,
+      name = <<"Mafia 99: TEST GAME">>,
+      day_hours = 48,
+      night_hours = 24,
+      time_zone = -5,
+      day1_dl_time = {{2017,4,17},{18,0,0}},
+      is_init_dst = true,
+      dst_changes = [{{{2017,3,12},{2,0,0}}, true}, %% USA 2017
+                     {{{2017,11,05},{2,0,0}}, false}],
+      gms = to_bin(?M28_GMs),
+      players_orig = to_bin_sort(?M28_players),
+      players_rem = to_bin_sort(?M28_players),
       player_deaths = [],
       page_to_read = 1
      }.

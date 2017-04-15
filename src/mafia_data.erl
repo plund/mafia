@@ -120,41 +120,44 @@ downl_web(GNum) when is_integer(GNum) ->
     downl_web(?rgame(GNum));
 downl_web([]) -> ok;
 downl_web([G]) -> downl_web(G);
-downl_web(G = #mafia_game{}) ->
-    ThId = G#mafia_game.thread_id, %thread
+downl_web(G = #mafia_game{thread_id = ThId}) when is_integer(ThId) ->
+    Page = G#mafia_game.page_to_read,
     LMI = G#mafia_game.last_msg_id,
     LMT = G#mafia_game.last_msg_time,
+    ?dbg({down_web, Page, LMT}),
+    {Page2, LMI2, LMT2} = case check_db(G) of
+                             ?none -> {Page, LMI, LMT};
+                              V -> V
+                          end,
     S = #s{utc_time = mafia_time:utc_secs1970(),
-           check_vote_fun = check_vote_msgid_fun(G, LMI, LMT),
            game_rec = G,
            thread_id = ThId,
-           page_to_read = G#mafia_game.page_to_read,
-           last_msg_id = LMI,
-           last_msg_time = LMT
+           check_vote_fun = check_vote_msgid_fun(G, LMI2, LMT2),
+           page_to_read = Page2,
+           last_msg_id = LMI2,
+           last_msg_time = LMT2
           },
-    ?dbg({down_web, S#s.page_to_read, LMT}),
-    {Page, LMI2, LMT2} = check_db(G),
-    case download(S#s{check_vote_fun =
-                          check_vote_msgid_fun(G, LMI2, LMT2),
-                      page_to_read = Page,
-                      last_msg_id = LMI2,
-                      last_msg_time = LMT2
-                     }) of
+    case do_download(S) of
         {_, S3} ->
             update_page_to_read(G#mafia_game.game_num,
                                 S3#s.page_to_read,
                                 S3#s.last_msg_id,
                                 S3#s.last_msg_time)
     end,
+    ok;
+downl_web(#mafia_game{}) -> %% pre-game
     ok.
 
 check_db(G) ->
     InitPage = G#mafia_game.page_to_read,
     {MsgIdFun, Acc} = checkvote_fun(G, true),
     Filter = fun(Page) -> Page >= InitPage end,
-    {_, PageNum, MsgId, MsgTime} =
-        iter_msgids(G#mafia_game.thread_id, MsgIdFun, Acc, Filter), %%thread
-    {PageNum, MsgId, MsgTime}.
+    case iter_msgids(G#mafia_game.thread_id, MsgIdFun, Acc, Filter) of
+        {_, PageNum, MsgId, MsgTime} ->
+            {PageNum, MsgId, MsgTime};
+        ?none -> %% unread thread - nothing in DB
+            ?none
+    end.
 
 update_page_to_read(GNum, PageToRead, LastMsgId, LastMsgTime)
   when is_integer(GNum), is_integer(PageToRead) ->
@@ -321,6 +324,7 @@ gen_hist_and_get_dls(NextT, Acc) ->
 
 %% MsgId and #message{} are ok
 check_vote_msgid_fun(G, LMI, LMT) ->
+    GNum = G#mafia_game.game_num,
     Cmds = case file:consult(mafia_file:cmd_filename(G)) of
                {ok, CmdsOnFile} -> [C || C = #cmd{} <- CmdsOnFile];
                _ -> []
@@ -329,7 +333,8 @@ check_vote_msgid_fun(G, LMI, LMT) ->
     DoCheck =
         fun(Msg) ->
                 MsgId = Msg#message.msg_id,
-                Resp = mafia_vote:check_cmds_votes(G, REs, Msg),
+                G2 = hd(?rgame(GNum)),
+                Resp = mafia_vote:check_cmds_votes(G2, REs, Msg),
                 [erlang:apply(M, F, A) || #cmd{msg_id = MId,
                                                mfa = {M, F, A}} <- Cmds,
                                           MId == MsgId],
@@ -340,7 +345,8 @@ check_vote_msgid_fun(G, LMI, LMT) ->
             DoCheck(Msg);
        (MsgId) when is_integer(MsgId) ->
             case ?rmess(MsgId) of
-                [Msg] when LMI /= Msg#message.msg_id ->
+                [Msg] when Msg#message.time >= LMT,
+                           Msg#message.msg_id /= LMI ->
                     DoCheck(Msg);
                 _ -> ignore
             end;
@@ -865,17 +871,16 @@ remove_duplicate_msgid(S = #s{page_last_read = 2}, Action, MsgId)
 remove_duplicate_msgid(_, _, _) ->
     ok.
 
-write_message_rec(S, MsgIdInt, User, Time, Msg) ->
-    ?dwrite_msg(
-       M = #message{msg_id = MsgIdInt,
-                    thread_id = S#s.thread_id,
-                    page_num = S#s.page_last_read,
-                    user_name = User,
-                    time = Time,
-                    message = ?l2b(Msg)
-                   }
-      ),
-    M.
+write_message_rec(S, MsgIdInt, User, Time, MsgText) ->
+    Msg = #message{msg_id = MsgIdInt,
+                   thread_id = S#s.thread_id,
+                   page_num = S#s.page_last_read,
+                   user_name = User,
+                   time = Time,
+                   message = ?l2b(MsgText)
+                  },
+    ?dwrite_msg(Msg),
+    Msg.
 
 strip(Str) ->
     t_strip(h_strip(Str)).

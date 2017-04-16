@@ -581,7 +581,7 @@ replace3(G, M, _NewPlayer, Old, [New]) ->
     if Phase#phase.don == ?game_ended ->
             {?game_ended, G};
        true ->
-            D = ?rday(G#mafia_game.game_num, Phase),
+            D = ?rday(G, Phase),
             NewP = New#user.name,
             OldP = Old#user.name,
             ?dbg(M#message.time, {?b2l(NewP), replaces, ?b2l(OldP)}),
@@ -980,7 +980,7 @@ vote2(M, G, Vote, RawVote, IsOkVote) ->
                             raw = RawVote,
                             valid = IsOkVote
                            },
-            Day = ?rday(G#mafia_game.game_num, Phase),
+            Day = ?rday(G, Phase),
             Votes = Day#mafia_day.votes,
             Votes2 =
                 case lists:keyfind(User, 1, Votes) of

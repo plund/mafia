@@ -92,3 +92,5 @@
 -define(timezone_game, timezone_game).
 -define(timezone_user, timezone_user).
 %% positive offset means that simulated time is in the past.
+-define(http_ip, http_ip).
+-define(http_interface, http_interface).

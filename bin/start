@@ -1,5 +1,32 @@
 #!/bin/bash
 
+# Use one of $HTTP_IP or $HTTP_INTERFACE for the mafia webserver to listen to.
+# If interface is given it will look for an IPv4 address on this interface
+#HTTP_IP="192.168.0.3"
+HTTP_INTERFACE="en0"
+
+# directory path setup
+# $HOME needs to be defined here or by the OS
+
+DOMAIN_NAME="mafia.peterlund.se"
+APP_NAME=mafia
+RUN_DIR=$HOME/running/$APP_NAME
+SERVER_ROOT=$RUN_DIR/httpd/$DOMAIN_NAME
+
+# A secure way to figure out where the repo and this script is located
+SCRIPT_DIR=$(cd $(dirname $0) && pwd)
+
+# other
+CMD=$(basename $0)
+FULL_CMD=$SCRIPT_DIR/$CMD
+silent=off
+
+if [ "$HTTP_IP" != "" ]; then
+    EXTRA="-http_ip $HTTP_IP"
+elif  [ "$HTTP_INTERFACE" != "" ]; then
+    EXTRA="-http_interface $HTTP_INTERFACE"
+fi
+
 echo "Started "$(date "+%Y-%m-%d, %H:%M:%S")
 echo "whoami: "$(whoami)
 echo "PATH: "$PATH
@@ -8,23 +35,20 @@ echo "pwd: "$(pwd)
 echo "@: "$@
 echo "rebar3: "$(which rebar3)
 
-APP_NAME=mafia
-
-# A secure way to figure out where this script is located
-SCRIPT_DIR=$(cd $(dirname $0) && pwd)
-
-cmd=$(basename $0)
-
-echo $cmd
-
-silent=off
-fullcmd=$SCRIPT_DIR/$cmd
+echo $CMD
 
 print_usage () {
     cat <<EOF
-$fullcmd              - Manual interactive start
-$fullcmd -s|--silent  - Start silently (automatic)
-$fullcmd -h|--help    - Prints this help text
+Description
+  Compiles, installs, configures and starts up the Mafia bot.
+  In order to run as a internet service a DOMAIN_NAME needs to point to the
+  public IP address of your home router.
+  The router needs to redirect http traffic to port 80 for your domain name to
+  this machine port 50666.
+Usage
+  $CMD              - Manual interactive start
+  $CMD -s|--silent  - Start silently with no questions
+  $CMD -h|--help    - Prints this help text
 EOF
 }
 
@@ -55,9 +79,6 @@ if [ $RUNNING_ALREADY = 1 ] ; then
     echo "$APP_NAME is already running"
     exit 0
 fi
-
-RUN_DIR=$HOME/running/$APP_NAME
-SERVER_ROOT=$RUN_DIR/httpd/mafia.peterlund.se
 
 # create directories for the mafia application
 LOG_DIR=$RUN_DIR/logs
@@ -140,7 +161,7 @@ export RUN_ERL_LOG_GENERATIONS=20
 
 run_erl -daemon $PIPE $LOG_DIR "exec erl -pa $ERLPATH $PATCHES \
 -h_srv_root $SERVER_ROOT -h_doc_root $DOC_ROOT -h_log_root $LOG_ROOT \
--repo_dir $REPO_DIR -sname $NODE_NAME -s mafia"
+-repo_dir $REPO_DIR $EXTRA -sname $NODE_NAME -s mafia"
 
 echo "Connect to system with:"
 echo "to_erl $PIPE"

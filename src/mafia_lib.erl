@@ -19,6 +19,7 @@
          prev_msg/1,
 
          get_path/1,
+         get_arg/1,
          my_string_substr/3,
          alpha_sort/1,
          bgcolor/1,
@@ -223,6 +224,33 @@ get_path(P) when P == h_srv_root;
                  P == repo_dir ->
     {ok, [[Path]]} = init:get_argument(P),
     Path.
+
+get_arg(P) when P == ?http_ip;
+                P == ?http_interface ->
+    case get_arg_file(P) of
+        R1 = {ok, _} -> R1;
+        _ ->
+            get_arg_init(P)
+    end.
+
+%% {http_ip, "192.168.0.100"}.
+%% {http_interface, "en1"}.
+get_arg_file(P) ->
+    case file:consult("HTTP_CONFIG.txt") of
+        {ok, KVs} ->
+            case lists:keyfind(P, 1, KVs) of
+                false -> false;
+                {_, Val} -> {ok, Val}
+            end;
+        _ -> false
+    end.
+
+get_arg_init(P) ->
+    case init:get_argument(P) of
+        {ok, [[Value]]} ->
+            {ok, Value};
+        _Error -> false
+    end.
 
 %% -----------------------------------------------------------------------------
 

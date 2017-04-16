@@ -32,7 +32,7 @@
         ]).
 
 %% test
--export([get_en1_ip/0
+-export([get_interface_ip/1
         ]).
 
 %% gen_server callbacks
@@ -85,7 +85,7 @@ start_polling() -> gen_server:call(?SERVER, ?start_polling).
 stop_polling() -> gen_server:call(?SERVER, ?stop_polling).
 
 stop_httpd() ->
-    IpStr = get_en1_ip(),
+    IpStr = bind_address(),
     RespStr = os:cmd("telnet " ++ IpStr ++ " " ++ ?i2l(?WEBPORT)),
     case string:str(RespStr, "Escape character is") of
         0 -> %% nothing running on port
@@ -369,10 +369,34 @@ get_html(Title, Opts) ->
 
 %%--------------------------------------------------------------------
 
-get_en1_ip() ->
-    lists:nth(2, lists:dropwhile(
-                   fun("inet") -> false; (_) -> true end,
-                   string:tokens(os:cmd("ifconfig en1"), "\t\n\s"))).
+get_interface_ip(IfName) ->
+    ?dbg("Looking for IPv4 on interface " ++ IfName),
+    case lists:dropwhile(
+           fun("inet") -> false; (_) -> true end,
+           %% string:tokens(os:cmd("ifconfig en1"), "\t\n\s"))).
+           string:tokens(os:cmd("ifconfig " ++ IfName), "\t\n\s")) of
+        L when length(L) >=2 ->
+            lists:nth(2, L);
+        _ ->
+            throw("No IPv4 found on " ++ IfName)
+    end.
+
+bind_address() ->
+    case mafia_lib:get_arg(?http_ip) of
+        false ->
+            case mafia_lib:get_arg(?http_interface) of
+                false ->
+                    %% default look for IPv4 on en1 (MacOS)
+                    get_interface_ip("en1");
+                {ok, IfName} ->
+                    IP  = get_interface_ip(IfName),
+                    ?dbg({interface_arg, IfName, use_ip, IP}),
+                    IP
+            end;
+        {ok, IpAddress} ->
+            ?dbg({ip_arg, IpAddress}),
+            IpAddress
+    end.
 
 start_web(S) ->
     inets:start(),
@@ -389,13 +413,14 @@ start_web(S) ->
     os:cmd("cp " ++ CurrVote ++ DocRoot),
     os:cmd("cp " ++ GmCmds ++ DocRoot),
     os:cmd("cp " ++ PlVote ++ DocRoot),
-    IP_en1 = get_en1_ip(),
+    S2 = stop_web(S),
+    IpAddr = bind_address(),
     Params = [{port, ?WEBPORT},
               {server_name, "mafia.peterlund.se"},
               {server_root, SrvRoot},
               {document_root, DocRoot},
               {directory_index, ["index.html"]},
-              {bind_address, IP_en1},
+              {bind_address, IpAddr},
 %%% specifying modules removes the default list in where
 %%% mod_esi and mod_dir already are included by default
 %%                       {modules, [
@@ -415,9 +440,8 @@ start_web(S) ->
               {security_log, "logs/security_log.txt"},
               {transfer_log, "logs/transfer_log.txt"}
              ],
-    S2 = stop_web(S),
     io:format("Starting up a webserver listening on ~s port ~p\n",
-              [IP_en1, ?WEBPORT]),
+              [IpAddr, ?WEBPORT]),
     case inets:start(httpd, Params) of
         {ok, Pid} ->
             S2#state{web_pid = Pid};
@@ -427,6 +451,7 @@ start_web(S) ->
     end.
 
 stop_web(State) ->
+    ?dbg("Stop web server"),
     if State#state.web_pid /= undefined ->
             inets:stop(httpd, State#state.web_pid),
             State#state{web_pid = ?undefined};

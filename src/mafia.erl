@@ -78,7 +78,8 @@
         ]).
 
 %% libary
--export([pages_for_thread/1,
+-export([game_for_thid/1,
+         pages_for_thread/1,
          last_msg_in_thread/1
         ]).
 

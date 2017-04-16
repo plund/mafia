@@ -667,9 +667,9 @@ check_for_votes(#regex{msg_text_u = MsgU}, M, G) ->
           string:str(MsgU, UnendStr)} of
         {0, 0} -> ok;
         {_, 0} -> %% add end
-            reg_end_vote(add, M);
+            reg_end_vote(G, add, M);
         {0, _} -> %% remove end
-            reg_end_vote(remove, M);
+            reg_end_vote(G, remove, M);
         _ -> ok
     end.
 
@@ -957,8 +957,8 @@ r_count([], [], N) ->
 
 reg_vote(M, G, Vote, RawVote, IsOkVote) ->
     case ?b2ul(Vote) of
-        ?END -> reg_end_vote(add, M);
-        ?UNEND -> reg_end_vote(remove, M);
+        ?END -> reg_end_vote(G, add, M);
+        ?UNEND -> reg_end_vote(G, remove, M);
         _ ->
             vote2(M, G, Vote, RawVote, IsOkVote)
     end.
@@ -1006,26 +1006,23 @@ vote2(M, G, Vote, RawVote, IsOkVote) ->
             ignore
     end.
 
-reg_end_vote(Op, M) ->
-    case mafia_time:calculate_phase(M#message.thread_id, M#message.time) of
+reg_end_vote(G, Op, M) ->
+    case mafia_time:calculate_phase(G, M#message.time) of
         Phase = #phase{don = ?day} ->
-            case ?rday(M#message.thread_id, Phase) of
-                Day ->
-                    User = M#message.user_name,
-                    OldEndVotes = Day#mafia_day.end_votes,
-                    NewEndVotes =
-                        case Op of
-                            add ->
-                                case lists:member(User, OldEndVotes) of
-                                    false -> OldEndVotes ++ [User];
-                                    true ->  OldEndVotes
-                                end;
-                            remove ->
-                                OldEndVotes -- [M#message.user_name]
-                        end,
-                    ?dwrite_day(Day#mafia_day{end_votes = NewEndVotes})
-                %% _ -> ok
-            end;
+            Day = ?rday(G, Phase),
+            User = M#message.user_name,
+            OldEndVotes = Day#mafia_day.end_votes,
+            NewEndVotes =
+                case Op of
+                    add ->
+                        case lists:member(User, OldEndVotes) of
+                            false -> OldEndVotes ++ [User];
+                            true ->  OldEndVotes
+                        end;
+                    remove ->
+                        OldEndVotes -- [M#message.user_name]
+                end,
+            ?dwrite_day(Day#mafia_day{end_votes = NewEndVotes});
         _ ->
             ok
     end.

@@ -1,7 +1,24 @@
 -module(discord_test).
 
+%% -----------------------------------------------------------------------------
+%% Gateway (WebSocket) API
+%% Discord's Gateway API is used for maintaining persistent, stateful websocket
+%% connections between your client and our servers.
 
+%% Gateways are Discord's form of real-time communication over secure
+%% websockets. Clients will receive events and data over the gateway they are
+%% connected to and send data over the REST API
+
+%% 1. Cache gateway response
+%% GET /gateway
+%% Clients should cache this value and only call this endpoint to retrieve a
+%% new URL if they are unable to properly establish a connection using the
+%% cached version of the URL.
+%% (GET/gateway/bot - about same - for advanced sharding usage)
+
+%% -----------------------------------------------------------------------------
 %% someone else should log the discord channel too if the bot does it.
+%% -----------------------------------------------------------------------------
 
 %% Base URL
 %% --------

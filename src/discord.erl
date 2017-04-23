@@ -8,8 +8,9 @@
 %%%-------------------------------------------------------------------
 -module(discord).
 
--behaviour(gen_server).
+-behaviour(gen_server). %% websocket_client
 
+-compile(export_all).
 %% API
 -export([discord_client/0,
          read_discord_bot_registration_data/0,
@@ -38,6 +39,21 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
+
+test() ->
+    ssl:start(),
+    %% {ok, { StatusLine={_,_,_}, Headers = [], Resp :: string()  }} =
+    httpc:request("https://discordapp.com/api/gateway"),
+    %% request() :: {url(), headers()}
+    Url = "https://discordapp.com/api" ++ msgs_arg(),
+    Headers = [{"Host", api_host()},
+               {"Authorization", "Bot " ++ token()},
+               {"User-Agent", "DiscordBot MafiaBot/1.0"}],
+    case httpc:request(get, {Url, Headers}, [], []) of
+        {ok, {_StatusLine, _Headers, Body}} ->
+            decode_json_body(Body)
+    end.
+
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -218,13 +234,16 @@ decode_json(Str) ->
     %% {Ch, Rest} = split(Chunks, "\r\n0\r\n\r\n"),
     %% io:format("Rest ~p\n", [Rest]),
     %% io:format("Chunk ~p\n", [Ch]),
-    {ok, Tokens, _} = erl_scan:string(Ch),
+    decode_json_body(Ch).
+
+decode_json_body(Body) ->
+    {ok, Tokens, _} = erl_scan:string(Body),
     %% io:format("Token ~p\n", [Tokens]),
     Ts2 = replace_curly(Tokens),
     %% io:format("curly ~p\n", [Ts2]),
     Ts3 = replace_colon(Ts2),
     %% io:format("colon ~p\n", [Ts3]),
-    {ok, [Ts4]} = erl_parse:parse_term(Ts3 ++ [{dot,1}]),
+    {ok, Ts4} = erl_parse:parse_term(Ts3 ++ [{dot,1}]),
     mk_atom_keys(Ts4).
 
 split(Str, Search) ->
@@ -243,22 +262,17 @@ replace_curly(L) ->
         end,
     [F(T) || T <- L].
 
-replace_colon([T1, {':',1} | TT]) ->
+replace_colon([T1, {':', 1} | TT]) ->
     {Right, Rest} = get_right(TT, 0, []),
     [{'{', 1}, T1, {',', 1}] ++ replace_colon(Right) ++ [{'}', 1}]
         ++ replace_colon(Rest);
 replace_colon([H | TT]) -> [H | replace_colon(TT)];
 replace_colon([]) -> [].
 
-mk_atom_keys([{Str, Val} | T]) when is_list(Str) ->
-    [{list_to_atom(Str), mk_atom_keys(Val)} | mk_atom_keys(T)];
-mk_atom_keys([H | T]) -> [H | mk_atom_keys(T)];
-mk_atom_keys([]) -> [];
-mk_atom_keys(Val) -> Val.
-
-
 get_right([H = {'[', 1} | T], N, Acc) ->
     get_right(T, N + 1, [H | Acc]);
+get_right([H = {']', 1} | T], N, Acc) when N == 1 ->
+    {lists:reverse([H | Acc]), T};
 get_right([H = {']', 1} | T], N, Acc) ->
     get_right(T, N - 1, [H | Acc]);
 get_right([H | T], 0, []) ->
@@ -267,3 +281,9 @@ get_right(Rest, 0, Acc) ->
     {lists:reverse(Acc), Rest};
 get_right([H | T], N, Acc) ->
     get_right(T, N, [H | Acc]).
+
+mk_atom_keys([{Str, Val} | T]) when is_list(Str) ->
+    [{list_to_atom(Str), mk_atom_keys(Val)} | mk_atom_keys(T)];
+mk_atom_keys([H | T]) -> [mk_atom_keys(H) | mk_atom_keys(T)];
+mk_atom_keys([]) -> [];
+mk_atom_keys(Val) -> Val.

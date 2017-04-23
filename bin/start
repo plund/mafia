@@ -146,12 +146,17 @@ mkdir -p $APP_RUN/include
 \cp $APP_REPO/ebin/* $APP_RUN/ebin/
 \cp $APP_REPO/include/* $APP_RUN/include/
 
+WS_REPO=$REPO_DIR/_build/default/lib/websocket_client
+WS_RUN=$RUN_DIR/lib/websocket_client
+mkdir -p $WS_RUN/ebin
+\cp $WS_REPO/ebin/* $WS_RUN/ebin/
+
 MECK_REPO=$REPO_DIR/_build/default/lib/meck
 MECK_RUN=$RUN_DIR/lib/meck
 mkdir -p $MECK_RUN/ebin
 \cp $MECK_REPO/ebin/* $MECK_RUN/ebin/
 
-ERLPATH="$APP_RUN/ebin $MECK_RUN/ebin"
+ERLPATH="$APP_RUN/ebin $WS_RUN/ebin $MECK_RUN/ebin"
 
 cd $RUN_DIR
 

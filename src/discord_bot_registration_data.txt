@@ -1,0 +1,6 @@
+%% This data is retrieved from the discord bot creation interface
+%% when creating a discord bot
+{discord_client_id, "replace me"}.       % not used at the moment
+{discord_client_secret, "replace me"}.   % not used at the moment
+{discord_client_user_name, "replace me"}.% not used at the moment
+{discord_client_token, "replace me"}.    % USED!

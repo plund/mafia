@@ -661,7 +661,7 @@ print_votesI(PPin) ->
                         io:format(
                           PP#pp.dev,
                           "Mafia game thread at: ~s\n",
-                          [?UrlBeg ++ ?i2l(PP#pp.game_key)]);
+                          [?UrlBeg ++ ?i2l((PP#pp.game)#mafia_game.thread_id)]);
                    true -> ok
                 end;
            PP#pp.mode == ?html ->
@@ -674,7 +674,7 @@ print_votesI(PPin) ->
                  end,
                  if is_integer(PP#pp.game_key) ->
                          ["Mafia game thread at: ", ?UrlBeg,
-                          ?i2l(PP#pp.game_key)];
+                          ?i2l((PP#pp.game)#mafia_game.thread_id)];
                     true -> ""
                  end,
                  "</td></tr>"]

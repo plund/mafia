@@ -1,3 +1,18 @@
+Procedure
+start game M29
+---------
+% upload new code
+mafia:add_thread(su29, 1478635).
+set(thread_id, su29).
+set(page_to_read, 1).
+mafia_data:man_downl().
+mafia_db:verify_new_user_list(29).
+mafia:pregame_create(29).
+% when game starts and we know game thread id.
+mafia:game_start(29, ThId).
+%?? mafia:switch_to_game(29).
+
+
 fprof.analysis.refresh_votes.1
 [{ totals,                                                         20111419,       116751.376,       114978.863}].  %%%
 { {re,run,3},                                                          140,         26506.203,        25703.494},     %

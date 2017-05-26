@@ -28,6 +28,9 @@
 
 
 %% Pre-check user list given by GM in initial game PM
+verify_new_user_list(29) ->
+    Users = ?M29_GMs ++ ?M29_players ++ ?M29_subs,
+    verify_new_user_list2(Users);
 verify_new_user_list(28) ->
     Users = ?M28_GMs ++ ?M28_players,
     verify_new_user_list2(Users);
@@ -175,6 +178,23 @@ make_game_and_deadlines(GNum) ->
               [GNum, ?b2l(G#mafia_game.name)]),
     mafia_time:initial_deadlines(G).
 
+make_game_rec(29 = GNum) ->
+    _ = #mafia_game{
+      game_num = GNum,
+      name = <<"Mafia XXIX: ">>,
+      day_hours = 48,
+      night_hours = 24,
+      time_zone = -6,
+      day1_dl_time = {{2017,5,30},{17,0,0}},
+      is_init_dst = true,
+      dst_changes = [{{{2017,3,12},{2,0,0}}, true}, %% USA 2017
+                     {{{2017,11,05},{2,0,0}}, false}],
+      gms = to_bin(?M29_GMs),
+      players_orig = to_bin_sort(?M29_players),
+      players_rem = to_bin_sort(?M29_players),
+      player_deaths = [],
+      page_to_read = 1
+     };
 make_game_rec(28) ->
     _ = #mafia_game{
       game_num = 28,

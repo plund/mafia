@@ -648,36 +648,39 @@ print_votesI(PPin) ->
     %% Part - Footer
     HFooter =
         if PP#pp.mode == ?text ->
-                io:format(PP#pp.dev, "\n", []),
-                if is_integer(PP#pp.period) ->
-                        io:format(
-                          PP#pp.dev,
-                          "Updates currently every ~p minutes "
-                          "(more often near deadlines).\n",
-                          [PP#pp.period]);
-                   true -> ok
-                end,
-                if is_integer(PP#pp.game_key) ->
+                GameThId = (PP#pp.game)#mafia_game.thread_id,
+                if is_integer(GameThId) ->
+                        io:format(PP#pp.dev, "\n", []),
+                        if is_integer(PP#pp.period) ->
+                                io:format(
+                                  PP#pp.dev,
+                                  "Updates currently every ~p minutes "
+                                  "(more often near deadlines).\n",
+                                  [PP#pp.period]);
+                           true -> ok
+                        end,
                         io:format(
                           PP#pp.dev,
                           "Mafia game thread at: ~s\n",
-                          [?UrlBeg ++ ?i2l((PP#pp.game)#mafia_game.thread_id)]);
+                          [?UrlBeg ++ ?i2l(GameThId)]);
                    true -> ok
                 end;
            PP#pp.mode == ?html ->
-                ["<tr><td align=center><br>",
-                 if is_integer(PP#pp.period) ->
-                         ["Updates currently every ", ?i2l(PP#pp.period),
-                          " minutes (more often near deadlines)."
-                          "<br>"];
-                    true -> []
-                 end,
-                 if is_integer(PP#pp.game_key) ->
+                GameThId = (PP#pp.game)#mafia_game.thread_id,
+                if is_integer(GameThId) ->
+                        ["<tr><td align=center><br>",
+                         if is_integer(PP#pp.period) ->
+                                 ["Updates currently every ",
+                                  ?i2l(PP#pp.period),
+                                  " minutes (more often near deadlines)."
+                                  "<br>"];
+                            true -> []
+                         end,
                          ["Mafia game thread at: ", ?UrlBeg,
-                          ?i2l((PP#pp.game)#mafia_game.thread_id)];
-                    true -> ""
-                 end,
-                 "</td></tr>"]
+                          ?i2l(GameThId)],
+                         "</td></tr>"];
+                   true -> ""
+                end
         end,
     if PP#pp.mode == ?text -> ok;
        PP#pp.mode == ?html ->

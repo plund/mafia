@@ -1,7 +1,10 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% Force split long Z-line?
+%% ok - make script that start apache2, mafia and minecraft
+%% - try again to autostart this script when reboot
+%% - generate search page 24 - current game (check DB)
+%% Force split long lines in thread
 %% - Stats page needs the game number in title
 %% LOW - list player alias defs
 %%     - list previous deadlines and times

@@ -1,10 +1,21 @@
+-define(M29SuTh, 1478635).
 -define(M28ThId, 1465173).
 -define(M27ThId, 1447615).
 -define(M26ThId, 1432756).
 -define(M25ThId, 1420289).
 -define(M24ThId, 1404320).
 
--define(M28_GMs, ["ND",  "brainbomb"]).
+-define(M29_GMs, ["bo_sox48", "dargorygel"]).
+-define(M29_players,
+        ["snowy801", "TrPrado", "DemonOverlord", "Balduran",
+         "Tom Bombadil", "peterlund", "MoscowFleet", "ND",
+         "ghug", "Jamiet99uk", "Ikaneko", "Balki Bartokomous", "y2kjbk",
+         "Chaqa", "VashtaNeurotic", "Hellenic Riot", "rdrivera2005",
+         "Oztra", "Ezio"
+        ]).
+-define(M29_subs, ["brainbomb", "Lamish", "Jeff Kuta"]).
+
+-define(M28_GMs, ["ND", "brainbomb"]).
 -define(M28_players,
         ["Oztra", "Chaqa", "rdrivera2005", "Maniac", "MoscowFleet",
          "peterlund", "snowy801", "stupidfighter", "Ezio",

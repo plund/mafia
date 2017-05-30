@@ -185,7 +185,7 @@ make_game_rec(29 = GNum) ->
       day_hours = 48,
       night_hours = 24,
       time_zone = -6,
-      day1_dl_time = {{2017,5,30},{17,0,0}},
+      day1_dl_time = {{2017,6,1},{17,0,0}},
       is_init_dst = true,
       dst_changes = [{{{2017,3,12},{2,0,0}}, true}, %% USA 2017
                      {{{2017,11,05},{2,0,0}}, false}],

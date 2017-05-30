@@ -2,6 +2,7 @@
 
 -include("mafia.hrl").
 %% ok - make script that start apache2, mafia and minecraft
+%% - add unit tests for abbreviations
 %% - try again to autostart this script when reboot
 %% - generate search page 24 - current game (check DB)
 %% Force split long lines in thread

@@ -10,10 +10,10 @@
         ["snowy801", "TrPrado", "DemonOverlord", "Balduran",
          "Tom Bombadil", "peterlund", "MoscowFleet", "ND",
          "ghug", "Jamiet99uk", "Ikaneko", "Balki Bartokomous", "y2kjbk",
-         "Chaqa", "VashtaNeurotic", "Hellenic Riot", "rdrivera2005",
+         "Cerrynity", "VashtaNeurotic", "Hellenic Riot", "rdrivera2005",
          "Oztra", "Ezio"
         ]).
--define(M29_subs, ["brainbomb", "Lamish", "Jeff Kuta"]).
+-define(M29_subs, ["brainbomb", "Chaqa", "Jeff Kuta"]).
 
 -define(M28_GMs, ["ND", "brainbomb"]).
 -define(M28_players,

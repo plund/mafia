@@ -1,16 +1,27 @@
 Procedure
 start game M29
 ---------
-% upload new code
+% Update 1:
 mafia:add_thread(su29, 1478635).
 set(thread_id, su29).
 set(page_to_read, 1).
 mafia_data:man_downl().
 mafia_db:verify_new_user_list(29).
 mafia:pregame_create(29).
-% when game starts and we know game thread id.
-mafia:game_start(29, ThId).
-%?? mafia:switch_to_game(29).
+
+% Update 2:
+mafia:pregame_update().
+mafia:man_downl().
+mafia_db:verify_new_user_list(29).
+
+% When game starts and we know game thread id.
+mafia:pregame_update().
+mafia:add_thread(m29, 1479977).
+mafia:game_start(29, 1479977).
+
+% mafia:game_start(29, m29). %% This should work! Fix!
+
+% need? mafia:switch_to_game(29).
 
 
 fprof.analysis.refresh_votes.1

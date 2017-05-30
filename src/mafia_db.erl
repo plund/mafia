@@ -181,7 +181,8 @@ make_game_and_deadlines(GNum) ->
 make_game_rec(29 = GNum) ->
     _ = #mafia_game{
       game_num = GNum,
-      name = <<"Mafia XXIX: ">>,
+      name = <<"Mafia XXIX: Revenge of the Aliens!">>,
+      thread_id = 1479977,
       day_hours = 48,
       night_hours = 24,
       time_zone = -6,

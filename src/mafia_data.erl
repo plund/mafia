@@ -861,7 +861,7 @@ remove_duplicate_msgid(S = #s{page_last_read = 2}, Action, MsgId)
         [P = #page_rec{message_ids = MsgIds}] ->
             case lists:member(MsgId, MsgIds) of
                 true ->
-                    ?dbg({rm_duplicate_page1, MsgId}),
+                    ?dbg({rm_duplicate_on_page1, MsgId}),
                     ?dwrite_page(P#page_rec{message_ids = MsgIds -- [MsgId]});
                 false -> ok
             end;

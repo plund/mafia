@@ -87,8 +87,10 @@ dwrite_page(P) ->
         [] ->
             mnesia:dirty_write(P);
         [Db] ->
-            Db2 = if length(P#page_rec.message_ids)
-                     > length(Db#page_rec.message_ids) ->
+            NumDb = length(Db#page_rec.message_ids),
+            NumNew = length(P#page_rec.message_ids),
+            Db2 = if NumNew >= 30;
+                     NumNew > NumDb ->
                           Db#page_rec{message_ids = P#page_rec.message_ids};
                      true -> Db
                   end,

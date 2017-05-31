@@ -141,8 +141,21 @@ refresh_votes() ->
 %%        <- element(2,file:consult("fprof.analysis.refresh_votes.5"))]))).
 %% 5. rm fprof.trace
 
-check_pages(Id) ->
+check_pages(GNum) when is_integer(GNum) ->
+    case ?rgame(GNum) of
+        [] ->
+            io:format("No game record exist for ~p\n", [GNum]);
+        [#mafia_game{thread_id = ThId}] when is_integer(ThId) ->
+            io:format("Game page keys and messages\n"),
+            check_pagesI(ThId);
+        [_] ->
+            io:format("Game has no thread id\n")
+    end;
+check_pages(Id) when is_atom(Id) ->
     ThId = ?thid(Id),
+    check_pagesI(ThId).
+
+check_pagesI(ThId) ->
     [{P, length((hd(?rpage(T,P)))#page_rec.message_ids)}
      || {T,P} <- mafia_lib:all_page_keys(ThId)].
 

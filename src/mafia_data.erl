@@ -10,7 +10,6 @@
 
 %% interface
 -export([man_downl/0, % Human
-         downl/1, % Human
          downl_web/1  % from web
         ]).
 
@@ -59,29 +58,18 @@
 %% -----------------------------------------------------------------------------
 %% MANUAL
 %% Download any thread
-%% set first: ?thread_id
-%%       ?page_to_read
--spec man_downl() -> ok.
-man_downl() ->
-    downl2(#s{}).
+-spec man_downl() -> {ok | {error, Reason :: term()}, #s{}}.
+man_downl() -> download(new_s()).
 
--spec downl(#s{} | do_refresh_msgs) -> ok.
-downl(S = #s{}) -> downl2(S);
-downl(do_refresh_msgs) ->
-    downl2(#s{do_refresh_msgs = true}).
-
-%% ?thread_id, ?page_to_read for manual
-downl2(S) when S#s.thread_id == ?undefined ->
-    downl2(S#s{thread_id = ?getv(?thread_id)});
-downl2(S) when S#s.page_to_read == ?undefined ->
-    downl2(S#s{page_to_read = ?getv(?page_to_read)});
-downl2(S) ->
-    download(S),
-    ok.
+new_s() ->
+    #s{thread_id = ?getv(?thread_id),
+       page_to_read = ?getv(?page_to_read)
+      }.
 
 %% -----------------------------------------------------------------------------
 
 -spec download(#s{}) -> {ok | {error, Reason :: term()}, #s{}}.
+%% sets #s.utc_time and #s.check_vote_fun
 download(S) when S#s.utc_time == ?undefined ->
     S2 = case S#s.game_rec of
              ?undefined -> S;
@@ -90,7 +78,7 @@ download(S) when S#s.utc_time == ?undefined ->
                  LMT = G#mafia_game.last_msg_time,
                  S#s{check_vote_fun = check_vote_msgid_fun(G, LMI, LMT)}
          end,
-    download(
+    do_download(
       S2#s{utc_time = mafia_time:utc_secs1970()});
 download(S) ->
     do_download(S).
@@ -174,20 +162,21 @@ update_page_to_read(GNum, PageToRead, LastMsgId, LastMsgTime)
 
 refresh_messages() -> refresh_messages(?game_key).
 
--spec refresh_messages(ThId :: integer() | ?game_key | ?thread_id) -> ok.
+-spec refresh_messages(GNum :: integer() | ?game_key) -> ok.
 refresh_messages(?game_key = K) -> refresh_messages(?getv(K));
-refresh_messages(?thread_id = K) -> refresh_messages(?getv(K));
-refresh_messages(Id) ->
-    ThId = ?thid(Id),
-    ?set(?page_to_read, 1), %% Is this really needed ?
+refresh_messages(GNum) ->
+    refresh_messagesI(GNum, ?rgame(GNum)).
 
-    %% Delete mafia_game
-    mafia_db:reset_game(ThId), %% resets last_msg_id, last_msg_time...
+refresh_messagesI(GNum, [G = #mafia_game{thread_id = ThId}])
+  when is_integer(ThId) ->
+    %% reset mafia_game to default values
+    mafia_db:reset_game(GNum), %% resets last_msg_id, last_msg_time...
 
     %% Delete mafia_day
     _ = [mnesia:dirty_delete(mafia_day, K)
-         || K = {Th,_} <- mnesia:dirty_all_keys(mafia_day),
-            Th == ThId],
+         || K = {GN, _} <- mnesia:dirty_all_keys(mafia_day),
+            GN == GNum],
+
     %% Delete messages for msg_ids found in page_rec of thread
     MsgIdFun = fun(MsgId) -> mnesia:dirty_delete(message, MsgId) end,
     iterate_all_msg_ids(ThId, MsgIdFun, all),
@@ -197,7 +186,10 @@ refresh_messages(Id) ->
      || K = {ThId2, _P} <- mnesia:dirty_all_keys(page_rec), ThId2 == ThId],
 
     %% Populate tables message and page_rec again
-    downl(#s{thread_id = ThId, page_to_read = 1}).
+    case download(#s{game_rec = G, thread_id = ThId, page_to_read = 1}) of
+        {ok, _S} -> ok;
+        {E = {error, _}, _S} -> E
+    end.
 
 %% -spec refresh_votes() -> ok.
 refresh_votes() ->
@@ -244,7 +236,6 @@ refresh_votes(G = #mafia_game{}, PageFilter) ->
 %% MsgId and #message{} are ok
 checkvote_fun(G, DoPrint) ->
     GNum = G#mafia_game.game_num,
-    %% iterate_all_msg_ids
     CommandFile = mafia_file:cmd_filename(G),
     Cmds = case file:consult(CommandFile) of
                {ok, CmdsOnFile} -> [C || C = #cmd{} <- CmdsOnFile];

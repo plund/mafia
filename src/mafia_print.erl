@@ -49,7 +49,7 @@
     message :: ?undefined | #message{},
     msg_id :: ?undefined | msg_id(),
     match_expr :: term(),
-    dev = standard_io,
+    dev = ?standard_io,
     mode = ?text :: ?text | ?html,
     t_mode = ?long :: ?short | ?long | ?extensive | ?file_suffix,
     period :: ?undefined | integer(),   %% Poll period
@@ -134,7 +134,7 @@ ppsI(ThId, Page) ->
 %% -----------------------------------------------------------------------------
 
 pm(MsgId) when is_integer(MsgId) ->
-    pm(standard_io, MsgId);
+    pm(?standard_io, MsgId);
 pm(PP = #pp{}) when PP#pp.message == ?undefined ->
     pm_rmess(PP);
 pm(PP = #pp{}) ->
@@ -243,7 +243,7 @@ print_votes(DayNum, DoN) ->
 print_votes(Opts) ->
     DefOpts = [{?game_key, ?getv(?game_key)},
                {?mode, ?text},
-               {?dev, standard_io}],
+               {?dev, ?standard_io}],
     PP = po(#pp{}, DefOpts),
     PP2 = po(PP, Opts),
     print_votesI(PP2).
@@ -1007,7 +1007,7 @@ print_stats(Num, DoN) ->
 print_stats_opts(Opts) ->
     DefOpts = [{?game_key, ?getv(?game_key)},
                {?phase, #phase{num = 1, don = ?day}},
-               {?dev, standard_io},
+               {?dev, ?standard_io},
                {?sort, ?normal}],
     PP = po(#pp{}, DefOpts),
     PP2 = po(PP, Opts),
@@ -1715,7 +1715,7 @@ print_message_full(Fd, M) ->
     print_message_full(#pp{message = M, dev = Fd, time_zone = TzH, dst = Dst}).
 
 print_message_full(M = #message{}) ->
-    print_message_full(standard_io, M);
+    print_message_full(?standard_io, M);
 print_message_full(PP = #pp{}) ->
     #pp{message = M, dev = Fd} = PP,
     io:format(Fd,

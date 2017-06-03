@@ -48,6 +48,8 @@
 -define(game, game).
 -define(mode, mode).
 -define(period, period).
+-define(standard_io, standard_io).
+-define(return_text, return_text).
 -define(html, html).
 -define(text, text).
 -define(t_mode, t_mode).

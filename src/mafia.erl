@@ -1,7 +1,9 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% ok - make script that start apache2, mafia and minecraft
+%% balki vote on Jamie d1 46:13 did not get the correct part in console due to unicode
+%% http://mafia_test.peterlund.se/e/web/msgs?part=p3-5#msg_id=1480166
+
 %% - add unit tests for abbreviations
 %% - try again to autostart this script when reboot
 %% - generate search page 24 - current game (check DB)
@@ -66,6 +68,7 @@
          add_thread/2,
          rm_thread/1,
          show_settings/0,
+         refresh_messages/0,
          refresh_votes/0,
 
          show_all_users/0,
@@ -127,6 +130,8 @@ rm_thread(ThNameOrId) -> mafia_db:rm_thread(ThNameOrId).
 
 setup_mnesia() -> mafia_db:setup_mnesia().
 remove_mnesia() -> mafia_db:remove_mnesia().
+
+refresh_messages() -> mafia_data:refresh_messages().
 
 refresh_votes() ->
     %% fprof:trace(start),
@@ -538,11 +543,13 @@ last_msg_in_thread(ThId) when is_integer(ThId) ->
 
 show_all_users() ->
     io:format("All Users\n"),
-    show_users(all_keys(user), all).
+    show_usersI(?standard_io, all_keys(user), all).
 
+show_all_users(?return_text) ->
+    show_usersI(?return_text, all_keys(user), all);
 show_all_users(Search) ->
     UserKeys = match_user_keys(Search),
-    show_users(UserKeys, all).
+    show_usersI(?standard_io, UserKeys, all).
 
 all_keys(Tab) -> lists:sort(mnesia:dirty_all_keys(Tab)).
 
@@ -563,22 +570,48 @@ show_aliases(Search) ->
     [show_aliasesI(UKey) || UKey <- UserKeys],
     ok.
 
-show_users(UserKeys, M) when M == alias; M == all->
-    io:format("~-15s ~s\n", ["User", "Aliases"]),
-    io:format("~-15s ~s\n", ["----", "-------"]),
-    [begin
-         U = hd(?ruserUB(UserUB)),
-         if M == all; U#user.aliases /= [] ->
-                 io:format(
-                   "~-15s ~s\n",
-                   [?b2l(U#user.name),
-                    string:join(["\"" ++ ?b2l(AlB) ++ "\""
-                                 || AlB <- U#user.aliases], ", ")]);
-            true -> ok
+show_users(UserKeys, M) ->
+    show_usersI(?standard_io, UserKeys, M).
+
+show_usersI(Mode, UserKeys, M) when M == alias; M == all ->
+    H1 = print(Mode, ["User", "Aliases"]),
+    H2 = print(Mode, ["----", "-------"]),
+    Text =
+        [begin
+             U = hd(?ruserUB(UserUB)),
+             if M == all; U#user.aliases /= [] ->
+                     case U#user.aliases of
+                         [] -> print(Mode, [?b2l(U#user.name)]);
+                         _ -> print(Mode,
+                                    [?b2l(U#user.name),
+                                     string:join(
+                                       ["\"" ++ ?b2l(AlB) ++ "\""
+                                        || AlB <- U#user.aliases], ", ")])
+                     end;
+                true -> ""
+             end
          end
-     end
-     || UserUB <- UserKeys],
-    ok.
+         || UserUB <- UserKeys],
+    case Mode of
+        ?return_text -> [H1, H2, Text];
+        ?standard_io -> ok
+    end.
+
+
+print(Mode, Args) ->
+    Fmt = case Mode of
+              ?return_text ->
+                  NumArgs = length(Args),
+                  case NumArgs of
+                      1 -> "~s\n";
+                      2 -> "~s <=> ~s\n"
+                  end;
+              ?standard_io -> "~-15s ~s\n"
+          end,
+    do_print(Mode, Fmt, Args).
+
+do_print(?standard_io, Fmt, Args) -> io:format(Fmt, Args);
+do_print(?return_text, Fmt, Args) -> io_lib:format(Fmt, Args).
 
 show_aliasesI(User) ->
     case ?ruserUB(User) of

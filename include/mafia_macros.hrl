@@ -98,7 +98,7 @@
   <body bgcolor=\"#cfffaf\">
     <center>
       <table" ++ TabAttrStr ++ ">
-      <tr><td align=\"center\"><h2>" ++ Title ++ "</h2></td></tr>").
+      <tr><td align=\"center\"><h2>" ++ Title ++ "</h2></td>\r\n</tr>").
 
 -define(HTML_TAB_END, "
       </table>

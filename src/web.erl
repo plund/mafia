@@ -8,6 +8,7 @@
          vote_tracker/3,
          stats/3,
          'forum.php'/3,
+         users/3,
          deliver/2
         ]).
 
@@ -51,6 +52,13 @@ stats(Sid, Env, In) ->
       Sid, stats,
       fun(do) -> web_impl:forum_php(Sid, Env, In);
          (in) -> {stat, In}
+      end).
+
+users(Sid, Env, In) ->
+    catch_debug(
+      Sid, users,
+      fun(do) -> web_impl:users(Sid, Env, In);
+         (in) -> {users, In}
       end).
 
 catch_debug(Sid, Tag, F) ->

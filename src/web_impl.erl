@@ -7,6 +7,7 @@
          msg/3,
          stats/3,
          forum_php/3,
+         users/3,
 
          show_msg/1
         ]).
@@ -706,6 +707,7 @@ conv_to_num(Str) ->
     end.
 
 %% -----------------------------------------------------------------------------
+
 forum_php(Sid, _Env, In) ->
     PQ = httpd:parse_query(In),
     ThId = get_arg(PQ, "threadID"),
@@ -718,6 +720,21 @@ forum_php(Sid, _Env, In) ->
            "<p>"
            "<a href=\"", Url, "\">", UrlDisp, "</a></td></tr>"]
          ),
+    C = del_end(Sid),
+    {A + B + C, ?none}.
+
+%% -----------------------------------------------------------------------------
+%% http://mafia.peterlund.se/e/web/users
+users(Sid, _Env, _In) ->
+    A = del_start(Sid, "Existing Users and Aliases in bot DB", 0),
+    Html = ["<tr><td><font size=-1><i>Players must exist in the user DB before "
+            "they can replace a player in game.<br>\r\n"
+            "Ask replacement player to send one message in game if they "
+            "are not listed here</i></font></td></tr>\r\n",
+            "<tr><td><pre>",
+            mafia:show_all_users(?return_text),
+            "</pre></td></tr>"],
+    B = web:deliver(Sid, Html),
     C = del_end(Sid),
     {A + B + C, ?none}.
 

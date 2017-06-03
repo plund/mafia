@@ -552,30 +552,22 @@ find_player_replacement(Reg = #regex{play_repl = RE}) ->
                      string())
                     -> {replace_result(), #mafia_game{}}.
 replace_player(G, M, NewPlayer, OldPlayer) ->
-    replace1(G, M, NewPlayer, ?ruserUB(OldPlayer)).
+    replace1(G, M, ?ruserUB(NewPlayer), ?ruserUB(OldPlayer)).
 
-replace1(G, _M, _NewPlayer, []) ->
-    {old_no_exists, G};
-replace1(G, M, NewPlayer, [Old]) ->
-    replace2(G, M, NewPlayer, Old,
+replace1(G, _M, _NewPlayer, []) -> {old_no_exists, G};
+replace1(G, _M, [], _OldPlayer) -> {new_no_exists, G};
+replace1(G, M, [New], [Old]) ->
+    replace2(G, M, New, Old,
              lists:member(Old#user.name, G#mafia_game.players_rem)).
 
-replace2(G, _M, _NewPlayer, _Old, false) ->
+replace2(G, _M, _New, _Old, false) ->
     {not_remain, G};
-replace2(G, M, NewPlayer, Old, true) ->
-    replace3(G, M, NewPlayer, Old, ?ruserUB(NewPlayer)).
+replace2(G, M, New, Old, true) ->
+    replace3(G, M, New, Old).
 
--spec replace3(#mafia_game{}, #message{}, term(), term(), term()) ->
+-spec replace3(#mafia_game{}, #message{}, #user{}, #user{}) ->
                       {ok, #mafia_game{}} | {?game_ended, #mafia_game{}}.
-replace3(G, M, NewPlayer, Old, []) ->
-    NewNameUB = ?l2ub(NewPlayer),
-    New = #user{name_upper = NewNameUB,
-                name = ?l2b(NewPlayer),
-                aliases = [],
-                verification_status = ?unverified},
-    ?dwrite_user(New),
-    replace3(G, M, NewPlayer, Old, [New]);
-replace3(G, M, _NewPlayer, Old, [New]) ->
+replace3(G, M, New, Old) ->
     %% replace ALSO in #mafia_day.players_rem
     Phase = mafia_time:calculate_phase(G, M#message.time),
     if Phase#phase.don == ?game_ended ->

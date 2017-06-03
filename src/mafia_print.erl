@@ -1092,7 +1092,16 @@ do_print_stats(PP, PrStats) ->
                 end
         end,
     StatsSorted = lists:sort(SortFun, PrStats),
-    PrFn = fun(tr, S) -> element(1, S#prstat.key);
+    UserF = fun(S) -> element(1, S#prstat.key) end,
+    Phase = PP#pp.phase,
+    GNum = (PP#pp.game)#mafia_game.game_num,
+    PrFn = fun(tr, S) -> UserF(S);
+              (link, S) -> ["<a href=\"msgs?g=",
+                            ?i2l(GNum),
+                            "&part=",
+                            pr_phase_long(Phase), "&user=",
+                            UserF(S), "\">", UserF(S), "</a>"
+                           ];
               %% transl(element(1, S#prstat.key));
               (cell, _) -> "td";
               (bgcolor, S) -> bgcolor(element(1, S#prstat.key)
@@ -1103,7 +1112,6 @@ do_print_stats(PP, PrStats) ->
     PlayersRem = PP#pp.players_rem,
     NonPosters = [PRem || PRem <- PlayersRem]
         -- [PrFn(tr, S) || S <- PrStats],
-    Phase = PP#pp.phase,
     HtmlHead =
         if PP#pp.mode == ?text ->
                 io:format(PP#pp.dev,
@@ -1168,6 +1176,7 @@ do_print_stats(PP, PrStats) ->
     Html2 = Html1 ++
         print_stat_row(PP, SumStat, fun(cell, _) -> "th";
                                        (tr, _) -> "Total Counts";
+                                       (link, _) -> "Total Counts";
                                        (_, _) -> []
                                     end),
     HtmlStats = ["<br><table align=center ", ?BG_TURQUOISE, ">",
@@ -1237,7 +1246,7 @@ print_stat_row(PP, S, PrFn) when PP#pp.mode == ?html ->
      CEnd, CBegR, ?i2l(S#prstat.num_words),
      CEnd, CBegR, ?i2l(S#prstat.num_chars),
      CEnd, CBegR, io_lib:format("~.2f", [S#prstat.words_per_post]),
-     CEnd, CBegL, PrFn(tr, S),
+     CEnd, CBegL, PrFn(link, S),
      CEnd, "</tr>\r\n"].
 
 %% Get user name as stored normal case string

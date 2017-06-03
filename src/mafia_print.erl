@@ -1095,11 +1095,15 @@ do_print_stats(PP, PrStats) ->
     UserF = fun(S) -> element(1, S#prstat.key) end,
     Phase = PP#pp.phase,
     GNum = (PP#pp.game)#mafia_game.game_num,
+    PhaseRef = fun() -> case Phase of
+                            ?total_stats -> "";
+                            _ -> ["&part=", pr_phase_long(Phase)]
+                        end
+               end,
     PrFn = fun(tr, S) -> UserF(S);
               (link, S) -> ["<a href=\"msgs?g=",
                             ?i2l(GNum),
-                            "&part=",
-                            pr_phase_long(Phase), "&user=",
+                            PhaseRef(), "&user=",
                             UserF(S), "\">", UserF(S), "</a>"
                            ];
               %% transl(element(1, S#prstat.key));

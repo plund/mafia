@@ -520,24 +520,22 @@ timer_minutes(GNum) ->
 
 -define(m2s(Min), (Min * ?MinuteSecs)).
 %%   Day nearest
-t_mins(?day, T) when T < ?m2s(-120) -> 6;
-t_mins(?day, T) when T < ?m2s(-30) -> 3;
-t_mins(?day, T) when T < ?m2s(-7) -> 2;
-t_mins(?day, T) when T < ?m2s(7) -> 1;
-t_mins(?day, T) when T < ?m2s(20) -> 2;
-t_mins(?day, T) when T < ?m2s(60) -> 3;
-t_mins(?day, T) when T >= ?m2s(60) -> 6;
+t_mins(?day, T) when T < ?m2s(-90) -> 3;
+t_mins(?day, T) when T < ?m2s(-30) -> 2;
+t_mins(?day, T) when T < ?m2s(30) -> 1;
+t_mins(?day, T) when T < ?m2s(90) -> 2;
+t_mins(?day, T) when T >= ?m2s(90) -> 3;
 %%  Night nearest
-t_mins(?night, T) when T < ?m2s(-40) -> 6;
-t_mins(?night, T) when T < ?m2s(-10) -> 3;
-t_mins(?night, T) when T < ?m2s(20) -> 2;
-t_mins(?night, T) when T < ?m2s(90) -> 4;
-t_mins(?night, T) when T >= ?m2s(90) -> 6;
+t_mins(?night, T) when T < ?m2s(-90) -> 3;
+t_mins(?night, T) when T < ?m2s(-30) -> 2;
+t_mins(?night, T) when T < ?m2s(30) -> 1;
+t_mins(?night, T) when T < ?m2s(90) -> 2;
+t_mins(?night, T) when T >= ?m2s(90) -> 3;
 %%  Game has ended
-t_mins(?game_ended, T) when T < ?m2s(60) -> 5;
-t_mins(?game_ended, T) when T < ?m2s(180) -> 10;
-t_mins(?game_ended, T) when T < ?m2s(360) -> 20;
-t_mins(?game_ended, T) when T < ?m2s(24*60) -> 60;
+t_mins(?game_ended, T) when T < ?m2s(60) -> 2;
+t_mins(?game_ended, T) when T < ?m2s(180) -> 4;
+t_mins(?game_ended, T) when T < ?m2s(360) -> 10;
+t_mins(?game_ended, T) when T < ?m2s(24*60) -> 20;
 t_mins(?game_ended, T) when T >= ?m2s(24*60) -> 120.
 
 %% -----------------------------------------------------------------------------

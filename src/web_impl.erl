@@ -179,8 +179,9 @@ msgs2(Sid, GNum, In, PQ, []) ->
 
                         {Pages, _, _} = page_context(Page, 1),
                         HPage =
-                            ["<a href=\"msgs?part=p",
-                             Pages,
+                            ["<a href=\"msgs"
+                             "?g=", ?i2l(GNum),
+                             "&part=p", Pages,
                              "#", MsgRef,
                              "\">page ", ?i2l(Page),
                              "</a>"],

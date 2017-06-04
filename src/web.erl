@@ -2,7 +2,8 @@
 
 -include("mafia.hrl").
 
--export([game_status/3,
+-export([search/3,
+         game_status/3,
          msgs/3,
          msg/3,
          vote_tracker/3,
@@ -17,6 +18,13 @@ game_status(Sid, Env, In) ->
       Sid, game_status,
       fun(do) -> web_impl:game_status(Sid, Env, In);
          (in) -> {game_status, In}
+      end).
+
+search(Sid, Env, In) ->
+    catch_debug(
+      Sid, search,
+      fun(do) -> web_impl:search(Sid, Env, In);
+         (in) -> {search, In}
       end).
 
 msgs(Sid, Env, In) ->

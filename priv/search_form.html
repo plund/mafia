@@ -9,7 +9,7 @@
       <h1>Mafia Search</h1>
       <p><b>Search for Message in Current Game</b>
       </p>
-      <form method="post" action="e/web/msgs">
+      <form method="post" action="/e/web/msgs">
         <table cellspan="10" cellspacing=5 cellpadding=5 width="700">
           <tr bgcolor="#afefaf">
             <td>User Names</td>
@@ -32,6 +32,7 @@
           <tr bgcolor="#afefaf">
             <td>Game</td>
             <td>
+              <!-- START GAME SELECTION -->
               <select name="g">
                 <option value="">M29 (current)</option>
                 <option value="28">M28</option>
@@ -40,6 +41,7 @@
                 <option value="25">M25</option>
                 <option value="24">M24</option>
               </select>
+              <!-- END GAME SELECTION -->
             </td>
             <td>Leave this normally at current game.</td>
           </tr>

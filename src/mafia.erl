@@ -6,7 +6,6 @@
 
 %% - add unit tests for abbreviations
 %% - try again to autostart this script when reboot
-%% - generate search page 24 - current game (check DB)
 %% Force split long lines in thread
 %% - Stats page needs the game number in title
 %% LOW - list player alias defs

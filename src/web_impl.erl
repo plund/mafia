@@ -1,7 +1,8 @@
 -module(web_impl).
 
 %% web
--export([msgs/3,
+-export([search/3,
+         msgs/3,
          game_status/3,
          vote_tracker/3,
          msg/3,
@@ -13,6 +14,38 @@
         ]).
 
 -include("mafia.hrl").
+
+%% -----------------------------------------------------------------------------
+%% replace game selection section in file.
+
+-define(START_MARK, "<!-- START GAME SELECTION -->").
+-define(END_MARK, "<!-- END GAME SELECTION -->").
+
+search(Sid, _Env, _In) ->
+    DocRoot = mafia_file:get_path(h_doc_root),
+    SearchFormFN = filename:join(DocRoot, "search_form.html"),
+    {ok, MsgBin} = file:read_file(SearchFormFN),
+    Msg = ?b2l(MsgBin),
+    {_, Pre, Post1} = mafia_vote:find_parts(Msg, ?START_MARK),
+    {_, _Pre2, Post} = mafia_vote:find_parts(Post1, ?END_MARK),
+    GNums = ?lrev(lists:sort(mnesia:dirty_all_keys(mafia_game))),
+    Curr = mafia_db:getv(game_key),
+    %% <select name="g">
+    %%   <option value="27" selected>M27</option>
+    %%   <option value="26">M26</option>
+    %% </select>
+    POpt =
+        fun(GN) when GN == Curr ->
+                ["<option value=\"", ?i2l(GN), "\"",
+                 " selected",
+                 ">M", ?i2l(GN), " Current</option>\r\n"];
+           (GN) ->
+                ["<option value=\"", ?i2l(GN), "\"",
+                 ">M", ?i2l(GN), "</option>\r\n"]
+        end,
+    Opts = ["<select name=\"g\">", [POpt(GN) || GN <- GNums], "</select>"],
+    Size = web:deliver(Sid, [Pre, Opts, Post]),
+    {Size, ?none}.
 
 %% -----------------------------------------------------------------------------
 

@@ -8,7 +8,9 @@
 
          kill_player/4,
          set_death_msgid/5,
-         replace_player/4
+         replace_player/4,
+
+         find_parts/2
         ]).
 
 -include("mafia.hrl").

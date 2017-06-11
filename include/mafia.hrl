@@ -22,6 +22,7 @@
 -type user() :: binary().
 -type player() :: user().
 -type seconds1970() :: integer().
+-type greg_secs() :: integer().
 -type message() :: binary().
 -type day_night() :: ?day | ?night | ?game_ended.
 -type mfargs() :: {atom(), atom(), list()}.

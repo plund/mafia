@@ -1,16 +1,17 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% Display time to game start in pregame mode.
+%% Present deadlines in ended games.
+%% LOW - list previous deadlines and times
+%%     - present DST change info
+%% Add "g=..." into copy/paste link when it is missing
+%% "important?" Requires "important*" - ? should be word boundary in searches
 %% balki vote on Jamie d1 46:13 did not get the correct part in console due to unicode
 %% http://mafia_test.peterlund.se/e/web/msgs?part=p3-5#msg_id=1480166
-
-%% - add unit tests for abbreviations
 %% - try again to autostart this script when reboot
 %% Force split long lines in thread
 %% - Stats page needs the game number in title
-%% LOW - list player alias defs
-%%     - list previous deadlines and times
-%%     - DST change info
 %% - split mafia_print. stats and tracker into separate modules?
 %% ?add user "peterlund" to GMs? - NO
 %% Instead add ServerKeeper/GM commands:
@@ -26,14 +27,12 @@
 %% - Verify stored files (when refresh_messages) that all messages come in
 %%   msg_id and in time order.
 %%     Motivation: test if there is a problem webdiplomacy.net
-%% - Merge all variants of mafia_time:get_next_deadline
-%%     Motivation: clean up messy code
 
-%% - Use new DL calc and remove old calculation NEW: "get_some_extra_dls"
-%%   - define how and when to use a smarter vote reader!!
+%%   - define how and when to use a smarter vote reader!! ??
 %% - Display msgs since last login with a browser (cookie)
 %% - fix a better player name recognition in votes and deaths?
-%%     - check if abbrev code can loop forever
+%%    - check if abbrev code can loop forever
+%%    - add unit tests for abbreviations
 
 %% interface
 -export([

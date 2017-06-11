@@ -204,14 +204,14 @@ file_name_test() ->
                           #phase{num = 3, don = ?night})
       ),
     ?assertEqual(
-       "/my_mecked_path/m28/current_game_status.html",
+       "/my_mecked_path/m28/game_status.html",
        game_phase_full_fn(
          ?html,
          #mafia_game{game_num = 28},
          ?current)
       ),
     ?assertEqual(
-       "/my_mecked_path/m26/current_game_status.txt",
+       "/my_mecked_path/m26/game_status.txt",
        game_phase_full_fn(
          ?text,
          #mafia_game{game_num = 26},
@@ -222,7 +222,7 @@ file_name_test() ->
                                     #mafia_game{game_num = 29},
                                     #phase{num = 2, don = ?day})
                 ),
-    ?assertEqual({"/m29/current_game_status.txt", "current_game_status.txt"},
+    ?assertEqual({"/m29/game_status.txt", "game_status.txt"},
                  game_link_and_text(?text,
                                     #mafia_game{game_num = 29},
                                     ?current)

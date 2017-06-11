@@ -58,9 +58,9 @@ utc_secs1970I() ->
 %% Return the current number of days since Jan 1 1970
 -spec utc_day1970() -> Day :: integer().
 utc_day1970() ->
-    (calendar:datetime_to_gregorian_seconds(
-      calendar:universal_time())
-        - ?GSECS_1970) div ?DaySecs.
+    greg_secs2secs1970(
+      calendar:datetime_to_gregorian_seconds(
+        calendar:universal_time())) div ?DaySecs.
 
 -spec utc_day2date(Day :: integer()) -> date().
 utc_day2date(DayNum) ->
@@ -69,8 +69,11 @@ utc_day2date(DayNum) ->
 
 -spec date2utc_day(Date :: date()) -> Day :: integer().
 date2utc_day(Date) ->
-    (calendar:datetime_to_gregorian_seconds({Date, {0,0,0}})
-     - ?GSECS_1970) div ?DaySecs.
+    greg_secs2secs1970(
+      calendar:datetime_to_gregorian_seconds({Date, {0,0,0}})) div ?DaySecs.
+
+-spec greg_secs2secs1970(greg_secs()) -> seconds1970().
+greg_secs2secs1970(GregSecs) -> GregSecs - ?GSECS_1970.
 
 %% -----------------------------------------------------------------------------
 
@@ -103,7 +106,7 @@ set_time_offsetI({days_hours, NumDays, NumHours})
 conv_gtime_secs1970(G, DateTime) ->
     IsDst = is_dst(DateTime, G),
     TZ = G#mafia_game.time_zone,
-    utc_gs(DateTime, TZ, IsDst) - ?GSECS_1970.
+    greg_secs2secs1970(utc_gs(DateTime, TZ, IsDst)).
 
 utc_gs(DateTime, TZ, Dst) ->
     calendar:datetime_to_gregorian_seconds(DateTime)
@@ -163,77 +166,25 @@ update_deadlines(ThId) ->
 add_deadlines(MGame) ->
     MGame#mafia_game{deadlines = expand_deadlines(MGame)}.
 
-%% @doc Return an expanded list of deadlines in reversed order
--spec expand_deadlines(#mafia_game{}) -> NewDLs :: [#dl{}].
+%% @doc Return an expanded list of deadlines (newest first)
+-spec expand_deadlines(#mafia_game{}) -> [#dl{}].
 expand_deadlines(G) ->
-    DLsIn = G#mafia_game.deadlines,
-    FirstNewPh = if DLsIn == [] -> #phase{num = 1, don = ?day};
-                    true -> inc_phase(hd(DLsIn))
-                 end,
+    DLs = G#mafia_game.deadlines,
+    DLs2 = if DLs == [] ->
+                   [#dl{phase = first_phase(),
+                        time = first_deadline_secs1970(G)}];
+              true -> DLs
+           end,
     TargetTime = utc_secs1970() + 11 * ?DaySecs,
-    expand_deadlinesI(G, TargetTime, DLsIn, calc_one_deadlineI(FirstNewPh, G)).
+    get_some_extra_dls(G, DLs2, TargetTime).
 
-expand_deadlinesI(_G, TargetTime, Dls, Dl = #dl{time = Time})
-  when Time > TargetTime ->
-    [Dl|Dls];
-expand_deadlinesI(G, TargetTime, Dls, Dl) ->
-    Ph = inc_phase(Dl),
-    expand_deadlinesI(G, TargetTime, [Dl|Dls], calc_one_deadlineI(Ph, G)).
-
--spec calc_one_deadlineI(#phase{},
-                         Game :: #mafia_game{})
-                        -> #dl{}.
-calc_one_deadlineI(Phase = #phase{num = Num, don = DayNight}, Game)
-  when DayNight == ?day;
-       DayNight == ?night ->
-    #mafia_game{
-      day_hours = DayHours,
-      night_hours = NightHours,
-      time_zone = TZ,
-      %% day1_dl_time = DeadD1LocalDateTime,
-      is_init_dst = IsInitDst,
-      dst_changes = DstChanges
-     } = Game,
-
-    %% know time and phase D1
-    %% know where we want to go
-
-    %% UtcGS = utc_gs(DeadD1LocalDateTime, TZ, IsInitDst),  %% D1 utc secs
-    UtcGS = calc_game_start_time_greg_secs(Game),
-
-    UtcGS2 = UtcGS + (Num - 1) * (DayHours + NightHours) * ?HourSecs,
-    UtcGS2b = UtcGS2 + if DayNight == ?night ->
-                               NightHours * ?HourSecs;
-                          true -> 0
-                       end,
-    UtcGS3 = dst_change_adapt(TZ,
-                              IsInitDst,
-                              DstChanges,
-                              UtcGS2b), %% Target DL utc secs
-    #dl{phase = Phase, time = UtcGS3 - ?GSECS_1970}.
-
-dst_change_adapt(TZ, IsInitDst, DstChanges, UtcGS) ->
-    %% dst_changes = [{{{2016,11,6},{2,0,0}},false},
-    %%                {{{2017,4,1},{2,0,0}},true}],
-    IsDstAtDL =
-        lists:foldl(fun({SwitchDT, IsDstSw}, IsDstAcc) ->
-                            SwiGS = utc_gs(SwitchDT, TZ, false),
-                            if UtcGS > SwiGS -> IsDstSw;
-                               true -> IsDstAcc
-                            end
-                    end,
-                    IsInitDst,
-                    DstChanges),
-    case {IsInitDst, IsDstAtDL} of
-        {true, false} ->
-            UtcGS + ?HourSecs;
-        {false, true} ->
-            UtcGS - ?HourSecs;
-        _ -> UtcGS
-    end.
+first_phase() -> #phase{num = 1, don = ?day}.
 
 %% gregorian_seconds().
-calc_game_start_time_greg_secs(G) ->
+first_deadline_secs1970(G) ->
+    greg_secs2secs1970(first_deadline_greg_secs(G)).
+
+first_deadline_greg_secs(G) ->
     #mafia_game{time_zone = TZ,
                 day1_dl_time = DeadD1LocalDateTime,
                 is_init_dst = IsInitDst
@@ -358,11 +309,12 @@ get_next_deadline(G = #mafia_game{}, Time, Mode)
             return_time_left(0, ?game_ended, Mode)
     end.
 
+%% Returns Num next deadlines in time for game
 next_deadlines(#mafia_game{deadlines = DLs}, Time, Num) ->
     RevDLs = ?lrev(DLs),
     NextDLs = lists:dropwhile(fun(#dl{time = DlTime}) -> DlTime =< Time end,
                               RevDLs),
-    if Num < length(NextDLs) ->
+    if Num =< length(NextDLs) ->
             string:left(NextDLs, Num);
        true ->
             if length(RevDLs) > Num ->
@@ -407,6 +359,11 @@ get_nxt_deadline(Game) ->
 %% @end
 -spec get_nxt_deadline(#mafia_game{}, seconds1970()) -> #dl{}.
 get_nxt_deadline(Game = #mafia_game{}, Time) ->
+    {ComingDLs, _} = split_dls(Game, Time),
+    Game2 = if length(ComingDLs) < 4 -> add_deadlines(Game);
+               true -> Game
+            end,
+    ?dwrite_game(Game2),
     GetNext =
         fun({Take, _Drop}) ->
                 case Take of
@@ -415,7 +372,7 @@ get_nxt_deadline(Game = #mafia_game{}, Time) ->
                         lists:last(Take)
                 end
         end,
-    get_a_deadline(Game, Time, GetNext).
+    GetNext(split_dls(Game2, Time)).
 
 -spec get_prev_deadline(#mafia_game{}, seconds1970()) -> #dl{} | ?undefined.
 get_prev_deadline(Game = #mafia_game{}, Time) when is_integer(Time) ->
@@ -424,22 +381,10 @@ get_prev_deadline(Game = #mafia_game{}, Time) when is_integer(Time) ->
                 case Drop of [DL|_] -> DL; _ -> ?undefined
                 end
         end,
-    get_a_deadline(Game, Time, GetPrev).
-
-get_a_deadline(G = #mafia_game{game_end = {_, _}}, Time, Fun) ->
-    get_a_deadline2(G, Time, Fun);
-get_a_deadline(Game, Time, Fun)
-  when Time >= (hd(Game#mafia_game.deadlines))#dl.time ->
-    Game2 = add_deadlines(Game),
-    ?dwrite_game(Game2),
-    get_a_deadline2(Game2, Time, Fun);
-get_a_deadline(Game, Time, Fun) ->
-    get_a_deadline2(Game, Time, Fun).
-
-get_a_deadline2(Game, Time, Fun) ->
-    Fun(split_dls(Game, Time)).
+    GetPrev(split_dls(Game, Time)).
 
 %% -> {TakeWhile, DropWhile}
+%% {ComingDLs, PrevDLs}
 split_dls(Game, Time) ->
     lists:splitwith(
       fun(#dl{time = DLTime}) -> DLTime > Time end,
@@ -466,10 +411,20 @@ get_time_for_prev_phase(G, Phase) ->
     PrevPhase = decr_phase(Phase),
     case get_time_for_phase(G, PrevPhase) of
         ?undefined ->
-            calc_game_start_time_greg_secs(G)
-                - ?GSECS_1970
-                - G#mafia_game.day_hours * ?DaySecs;
+            game_start_secs1970(G);
         Time -> Time
+    end.
+
+game_start_secs1970(G) ->
+    Deadline = first_deadline_secs1970(G),
+    GameStart = Deadline - G#mafia_game.day_hours * ?DaySecs,
+    case dst_change(GameStart,
+                    Deadline,
+                    G#mafia_game.dst_changes,
+                    G#mafia_game.time_zone) of
+        same -> GameStart;
+        to_dst -> GameStart + ?HourSecs;
+        to_normal -> GameStart - ?HourSecs
     end.
 
 -spec nearest_deadline(integer() | #mafia_game{} | [#mafia_game{}])
@@ -679,7 +634,9 @@ unend_game(G = #mafia_game{game_end = {_EndTime, _MsgId}}) ->
 unend_game(G = #mafia_game{game_end = ?undefined}) ->
     {already_running, G}.
 
-get_some_extra_dls(_G, DLs=[#dl{time = Time} | _], Target)
+%% Must exist ONE dl before
+-spec get_some_extra_dls(#mafia_game{}, [#dl{}], seconds1970()) -> [#dl{}].
+get_some_extra_dls(_G, DLs = [#dl{time = Time} | _], Target)
   when Time > Target -> DLs;
 get_some_extra_dls(G, DLs = [DL | _], Target) ->
     NewDL = inc_deadline(G, DL),

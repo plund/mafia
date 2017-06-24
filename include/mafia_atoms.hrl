@@ -56,6 +56,7 @@
 -define(file_suffix, file_suffix).
 -define(short, short).
 -define(long, long).
+-define(human, human).
 -define(extensive, extensive).
 %% -define(time, time).
 -define(use_time, use_time).

@@ -44,7 +44,8 @@
                                                 % non-posts
     players_vote :: ?undefined | [player()], %% for vote tracker
     game_key :: ?undefined | thread_id(),
-    phase  :: ?undefined | #phase{} | ?total_stats,
+    phase :: ?undefined | #phase{} | ?total_stats,
+    phase_type :: ?undefined | ?day | ?night | ?game_ended,
     day_num :: ?undefined | integer(),
     message :: ?undefined | #message{},
     msg_id :: ?undefined | msg_id(),
@@ -224,6 +225,12 @@ setup_pp(PP) when PP#pp.players_vote == ?undefined ->
           PlayersRem,
           Deaths),
     setup_pp(PP#pp{players_vote = AllPlayersB});
+setup_pp(PP) when PP#pp.phase_type == ?undefined ->
+    PhaseType = case PP#pp.phase of
+                    #phase{don = ?game_ended} -> ?game_ended;
+                    #phase{don = DoN} -> DoN
+                end,
+    setup_pp(PP#pp{phase_type = PhaseType});
 setup_pp(PP) -> PP.
 
 %% -----------------------------------------------------------------------------
@@ -250,17 +257,9 @@ print_votes(Opts) ->
 
 print_votesI(PPin) ->
     PP = setup_pp(PPin),
-    PhaseType = case PP#pp.phase of
-                    #phase{don = ?game_ended} -> ?game_ended;
-                    #phase{don = DoN} -> DoN
-                end,
     #pp{game = G, day = Day} = PP,
     RealRemPlayers = PP#pp.players_rem,
-
-    %% Idea:
-    %% IsEnd -> EndTime in Game TZ for DL (4 last DLs passed)
-    %% IsCurrentPhase -> Time to DL (next 4 DL)
-    %% not IsCurrentPhase -> DLTime in Game TZ (No DLs)
+    PhaseType = PP#pp.phase_type,
 
     %% Part - Page heading - Print Game Name
     DoDispTime2DL = PhaseType /= ?game_ended andalso is_integer(PP#pp.use_time),
@@ -638,12 +637,8 @@ print_votesI(PPin) ->
                  "</table>"]
     end,
 
-    %% Part - Deadlines
-    HDeadlines =
-        if DoDispTime2DL ->
-                print_num_dls(PP, 4);
-           true -> []
-        end,
+    %% Part - 4 Deadlines
+    HDeadlines = print_num_dls(PP, DoDispTime2DL, 4),
 
     %% Part - Footer
     HFooter =
@@ -751,7 +746,24 @@ print_time_left_to_dl(PP) ->
              "</center></th></tr>"]
     end.
 
-print_num_dls(PP, Num) ->
+print_num_dls(PP, _, _) when PP#pp.phase_type == ?game_ended ->
+    %% print all deadlines including EndOfGame, without relative times
+    G = PP#pp.game,
+    DLs = G#mafia_game.deadlines,
+    {Time, _} = G#mafia_game.game_end,
+    {GameDLs, _} =
+        lists:partition(fun(DL) -> DL#dl.time =< Time end, DLs),
+    %% Time = mafia_time:utc_secs1970(),
+    DlInfo = prep_dl_info(G, Time, GameDLs),
+    if PP#pp.mode == ?text ->
+            print_dls_text(PP, DlInfo, "All Game Deadlines", false);
+       PP#pp.mode == ?html ->
+            ["<br>"
+             "<table border=1 align=center ", ?BG_TURQUOISE, ">",
+             print_dls_html(DlInfo, "All Game Deadlines", false),
+             "</table>"]
+    end;
+print_num_dls(PP, DoDispTime2DL, Num) when DoDispTime2DL == true ->
     Time = mafia_time:utc_secs1970(),
     G = PP#pp.game,
     DLs = mafia_time:next_deadlines(G, Time, Num),
@@ -760,32 +772,48 @@ print_num_dls(PP, Num) ->
     Past2 = prep_dl_info(G, Time, PastDLs),
     Coming2 = prep_dl_info(G, Time, ComingDLs),
     if PP#pp.mode == ?text ->
-            print_past_dls_text(PP, Past2, "Deadlines in the past"),
-            print_past_dls_text(PP, Coming2, "Deadlines in the future");
+            print_dls_text(PP, Past2, "Deadlines in the past", true),
+            print_dls_text(PP, Coming2, "Deadlines in the future", true);
        PP#pp.mode == ?html ->
             ["<br>"
              "<table border=1 align=center ", ?BG_TURQUOISE, ">",
-             print_past_dls(Past2, "Deadlines in the past"),
-             print_past_dls(Coming2, "Deadlines in the future"),
+             print_dls_html(Past2, "Deadlines in the past", true),
+             print_dls_html(Coming2, "Deadlines in the future", true),
              "</table>"]
-    end.
+    end;
+print_num_dls(_PP, DoDispTime2DL, _Num)
+  when DoDispTime2DL == false -> [].
 
-print_past_dls_text(_PP, DLs, _Title) when length(DLs) =< 0 -> ok;
-print_past_dls_text(PP, DLs, Title) ->
-    Fmt = "~-8s ~-13s ~s\n",
+print_dls_text(_PP, DLs, _Title, _) when length(DLs) =< 0 -> ok;
+print_dls_text(PP, DLs, Title, PrintRelative) ->
+    Fmt = if PrintRelative ->
+                  "~-8s ~-13s ~s\n";
+             true ->
+                  "~-8s ~s\n"
+          end,
+    Hdrs = if PrintRelative ->
+                   ["Phase", "Relative now", "Absolute time",
+                    ul($-, "Phase"), ul($-, "Relative now"), ul($-, 56)];
+              true ->
+                   ["Phase", "Absolute time",
+                    ul($-, "Phase"), ul($-, 32)]
+           end,
     io:format(PP#pp.dev,
               "\n"
               "~s\n"
               "~s\n"
               ++ Fmt ++ Fmt,
-              [Title, ul($-, Title),
-               "Phase", "Relative now", "Absolute time",
-               ul($-, "Phase"), ul($-, "Relative now"), ul($-, 56)]),
+              [Title, ul($-, Title)] ++ Hdrs),
     [io:format(PP#pp.dev,
                Fmt,
-               [[DoNStr, " ", Nstr],
-                [?i2l(Days), "D ",?i2l(HH), "H ", ?i2l(MM), "M"],
-                TimeStr])
+               if PrintRelative ->
+                       [[DoNStr, " ", Nstr],
+                        [?i2l(Days), "D ",?i2l(HH), "H ", ?i2l(MM), "M"],
+                        TimeStr];
+                  true ->
+                       [[DoNStr, " ", Nstr],
+                        TimeStr]
+               end)
      || {Nstr, DoNStr, {Days, {HH, MM, _}}, TimeStr} <- DLs].
 
 ul(Char, N) when is_integer(N), N > 0 -> [Char|| _ <- lists:seq(1, N)];
@@ -794,19 +822,30 @@ ul(Char, Str) when is_list(Str) -> [Char || _ <- Str].
 prep_dl_info(G, Time, DLs) ->
     [{?i2l(N), pr_don(DoN),
       mafia_time:secs2day_hour_min_sec(Time - DLT),
-      print_game_time(G, DLT, ?extensive)}
+      print_game_time(G, DLT, ?human)}
      || #dl{phase = #phase{num = N, don = DoN}, time = DLT} <- DLs].
 
-print_past_dls(DLs, _Title) when length(DLs) =< 0 -> [];
-print_past_dls(DLs, Title) ->
+print_dls_html(DLs, _Title, _PrintRelative) when length(DLs) =< 0 -> [];
+print_dls_html(DLs, Title, PrintRelative) ->
     ["<tr>"
-     "<th colspan=3 align=center>", Title, "</th>"
+     "<th colspan=" ++
+         if PrintRelative -> "3";
+            true -> "2"
+         end ++
+         " align=center>", Title, "</th>"
      "</tr>",
      "<tr>"
-     "<th>Phase</th><th>Relative now</th><th>Absolute time</th>"
+     "<th>Phase</th>" ++
+         if PrintRelative -> "<th>Relative now</th>";
+            true -> ""
+         end ++
+         "<th>Absolute time</th>"
      "</tr>",
-     [["<tr><td>", DoNStr, " ", Nstr, "</td>"
-       "<td>", ?i2l(Days), "D ",?i2l(HH), "H ", ?i2l(MM), "M","</td>"
+     [["<tr><td>", DoNStr, " ", Nstr, "</td>" ++
+           if PrintRelative ->
+                   ["<td>", ?i2l(Days), "D ",?i2l(HH), "H ", ?i2l(MM), "M","</td>"];
+              true -> ""
+           end ++
        "<td>", TimeStr, "</td>"
        "</tr>"]
       || {Nstr, DoNStr, {Days, {HH, MM, _}}, TimeStr} <- DLs]].
@@ -1854,6 +1893,10 @@ print_timeI(PP = #pp{}) ->
                       %% 2017-01-18Z01:02:01 (0)
                       io_lib:format("~s-~s-~s~s~s:~s:~s (~s~s)",
                                     [p(Y), p(M), p(D), Char, p(HH), p(MM), p(SS),
+                                     ?i2l(TzH), DstStr]);
+                  ?human ->
+                      io_lib:format("~s-~s-~s ~s:~s:~s (TZ: ~s~s)",
+                                    [p(Y), p(M), p(D), p(HH), p(MM), p(SS),
                                      ?i2l(TzH), DstStr]);
                   ?extensive ->
                       io_lib:format("~s-~s-~s ~s:~s:~s (Timezone: ~s~s)",

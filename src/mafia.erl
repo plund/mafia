@@ -1,10 +1,10 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% Display time to game start in pregame mode.
-%% Present deadlines in ended games.
-%% LOW - list previous deadlines and times
+%% vhosts in inets - no support - try patch inets :)
+%% LOW - list previous deadlines and times before game end
 %%     - present DST change info
+%% Display time to game start in pregame mode.
 %% Add "g=..." into copy/paste link when it is missing
 %% "important?" Requires "important*" - ? should be word boundary in searches
 %% balki vote on Jamie d1 46:13 did not get the correct part in console due to unicode
@@ -20,8 +20,6 @@
 %% ##bot replaceplayer <msgid> <old> <new>
 %% ##bot deadline <msgid> earlier|later <time>
 %% ##bot assistant add|remove <msgid> <player>
-%% Fix deadline listing at bottom of game_status page
-%% - Think how and when to present deadlines (ideas top of print_votes())
 %% ?- Add timestamp for each entry in message_ids to use when time_offset /= 0
 %%     Motivation: simplify time offset?
 %% - Verify stored files (when refresh_messages) that all messages come in

@@ -310,6 +310,7 @@ get_next_deadline(G = #mafia_game{}, Time, Mode)
     end.
 
 %% Returns Num next deadlines in time for game
+%% Return also previous deadlines in case future deadlines are not many enough
 next_deadlines(#mafia_game{deadlines = DLs}, Time, Num) ->
     RevDLs = ?lrev(DLs),
     NextDLs = lists:dropwhile(fun(#dl{time = DlTime}) -> DlTime =< Time end,

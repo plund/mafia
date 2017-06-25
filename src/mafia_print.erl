@@ -52,7 +52,7 @@
     match_expr :: term(),
     dev = ?standard_io,
     mode = ?text :: ?text | ?html,
-    t_mode = ?long :: ?short | ?long | ?extensive | ?file_suffix,
+    t_mode = ?long :: ?short | ?long | ?human | ?extensive | ?file_suffix,
     period :: ?undefined | integer(),   %% Poll period
     use_time :: ?undefined | seconds1970(),
     %% use_time = time to next DL (current game status)

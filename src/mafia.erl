@@ -1,6 +1,7 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% use quickcheck license
 %% vhosts in inets - no support - try patch inets :)
 %% LOW - list previous deadlines and times before game end
 %%     - present DST change info

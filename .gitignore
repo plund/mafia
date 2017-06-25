@@ -11,3 +11,4 @@ src/game_info.txt
 /doc
 /rebar.lock
 /.DS_Store
+/src/my_discord_data.txt

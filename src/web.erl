@@ -9,6 +9,7 @@
          vote_tracker/3,
          stats/3,
          'forum.php'/3,
+         dst_changes/3,
          users/3,
          deliver/2
         ]).
@@ -57,9 +58,16 @@ stats(Sid, Env, In) ->
 
 'forum.php'(Sid, Env, In) ->
     catch_debug(
-      Sid, stats,
+      Sid, 'forum.php',
       fun(do) -> web_impl:forum_php(Sid, Env, In);
          (in) -> {stat, In}
+      end).
+
+dst_changes(Sid, Env, In) ->
+    catch_debug(
+      Sid, dst_changes,
+      fun(do) -> web_impl:dst_changes(Sid, Env, In);
+         (in) -> {dst_changes, In}
       end).
 
 users(Sid, Env, In) ->

@@ -8,6 +8,7 @@
          msg/3,
          stats/3,
          forum_php/3,
+         dst_changes/3,
          users/3,
 
          show_msg/1
@@ -754,6 +755,85 @@ forum_php(Sid, _Env, In) ->
            "<p>"
            "<a href=\"", Url, "\">", UrlDisp, "</a></td></tr>"]
          ),
+    C = del_end(Sid),
+    {A + B + C, ?none}.
+
+%% -----------------------------------------------------------------------------
+
+dst_changes(Sid, _Env, In) ->
+    PQ = httpd:parse_query(In),
+    Country = get_arg(PQ, "country"),
+    Year =
+        case get_arg(PQ, "year") of
+            "" ->
+                {{Y1, _, _}, _} = calendar:universal_time(),
+                Y1;
+            Y1 ->
+                ?l2i(Y1)
+        end,
+    NextYear = Year + 10,
+    Years = lists:seq(Year, NextYear - 1),
+    Body =
+        case Country of
+            "" ->
+                %% show form with list of countries (and year entry)
+                C1 = mafia_time:dst_change_date(),
+                [["<tr><td align=center>",
+                  "<a href=\"?country=", C, "\">", C, "</a>"
+                  "</td></tr>"]
+                 || C <- C1];
+            _ ->
+                P2 = fun(I) -> string:right(?i2l(I), 2, $0) end,
+                PrDT = fun({Y, M, D}) ->
+                               io_lib:format("~p-~s-~s",
+                                             [Y, P2(M), P2(D)])
+                       end,
+                ToD =
+                    fun(Y) ->
+                            DT = mafia_time:dst_change_date(Country,
+                                                            Y,
+                                                            to_dst),
+                            PrDT(DT)
+                    end,
+                ToN =
+                    fun(Y) ->
+                            DT = mafia_time:dst_change_date(Country,
+                                                            Y,
+                                                            to_normal),
+                            PrDT(DT)
+                    end,
+                %% show rules for dst_changes
+                [ToDst, ToNormal] = mafia_time:dst_change_date(Country),
+                DoRev = ToD(Year) > ToN(Year),
+                ["<tr><td align=center>"
+                 "<table>"
+                 "<tr><td><b>Country/Region:</b> ", Country, "</td></tr>"
+                 "<tr><td><b>DST Start:</b> ", ToDst, "</td></tr>"
+                 "<tr><td><b>DST End:</b> ", ToNormal, "</td></tr>"
+                 "</table>"
+                 "<table>",
+                 if not DoRev ->
+                         "<tr><th>DST Start</th><th>DST End</th></tr>";
+                    DoRev ->
+                         "<tr><th>DST End</th><th>DST Start</th></tr>"
+                 end,
+                 [["<tr><td>",
+                 if not DoRev ->
+                         [ToD(Y), "</td><td>", ToN(Y)];
+                    DoRev ->
+                         [ToN(Y), "</td><td>", ToD(Y)]
+                 end,
+                   "</td></tr>"]
+                  || Y <- Years],
+                 "</table>"
+                 "</td></tr>"
+                 "<tr><td align=center><a href=\"?country=", Country,
+                 "&year=", ?i2l(NextYear), "\">More</a>"
+                 "</td></tr>"
+                 ]
+        end,
+    A = del_start(Sid, "DST Changes", 0),
+    B = web:deliver(Sid, Body),
     C = del_end(Sid),
     {A + B + C, ?none}.
 

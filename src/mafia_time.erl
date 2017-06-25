@@ -14,6 +14,10 @@
          secs1970_to_local_datetime/3,
          secs2day_hour_min_sec/1,
 
+         dst_change_date/0,
+         dst_change_date/1,
+         dst_change_date/3,
+
          initial_deadlines/1,
          update_deadlines/1,
          inc_phase/1,
@@ -44,6 +48,15 @@
         ]).
 
 -include("mafia.hrl").
+
+-define(to_dst, to_dst).
+-define(to_normal, to_normal).
+-define(same, same).
+
+-define(eu, "EU").
+-define(usa, "USA").
+-define(australia, "Australia").
+-define(new_zeeland, "New Zeeland").
 
 %% -----------------------------------------------------------------------------
 
@@ -147,6 +160,62 @@ secs2day_hour_min_sec(Secs) when is_integer(Secs), Secs < 0 ->
 secs2day_hour_min_sec(Secs) when is_integer(Secs), Secs >=0 ->
     {Secs div ?DaySecs,
      calendar:seconds_to_time(Secs rem ?DaySecs)}.
+dst_change_date() ->
+    [?eu, ?usa, ?australia, ?new_zeeland].
+
+dst_change_date(?eu) ->
+    ["Last Sunday March",
+     "Last Sunday October"];
+dst_change_date(?usa) ->
+    ["Second Sunday March",
+     "First Sunday November"];
+dst_change_date(?australia) ->
+    ["First Sunday October",
+     "First Sunday April"];
+dst_change_date(?new_zeeland) ->
+    ["Last Sunday September",
+     "First Sunday April"].
+
+dst_change_date(?eu, Year, ?to_dst) ->
+    %% Last Sunday March
+    Day = calendar:day_of_the_week(Year, 3, 31),
+    DateInMonth = 31 - Day rem 7,
+    {Year, 3, DateInMonth};
+dst_change_date(?eu, Year, ?to_normal) ->
+    %% Last Sunday October
+    Day = calendar:day_of_the_week(Year, 10, 31),
+    DateInMonth = 31 - Day rem 7,
+    {Year, 10, DateInMonth};
+dst_change_date(?usa, Year, ?to_dst) ->
+    %% Second Sunday March
+    Day = calendar:day_of_the_week(Year, 3, 1),
+    DateInMonth = 1 + 7 - Day + 7,
+    {Year, 3, DateInMonth};
+dst_change_date(?usa, Year, ?to_normal) ->
+    %% First Sunday November
+    Day = calendar:day_of_the_week(Year, 11, 1),
+    DateInMonth = 1 + 7 - Day,
+    {Year, 11, DateInMonth};
+dst_change_date(?australia, Year, ?to_dst) ->
+    %% First Sunday October
+    Day = calendar:day_of_the_week(Year, 10, 1),
+    DateInMonth = 1 + 7 - Day,
+    {Year, 10, DateInMonth};
+dst_change_date(?australia, Year, ?to_normal) ->
+    %% First Sunday April
+    Day = calendar:day_of_the_week(Year, 4, 1),
+    DateInMonth = 1 + 7 - Day,
+    {Year, 4, DateInMonth};
+dst_change_date(?new_zeeland, Year, ?to_dst) ->
+    %% Last Sunday September
+    Day = calendar:day_of_the_week(Year, 9, 30),
+    DateInMonth = 30 - Day rem 7,
+    {Year, 9, DateInMonth};
+dst_change_date(?new_zeeland, Year, ?to_normal) ->
+    %% First Sunday April
+    Day = calendar:day_of_the_week(Year, 4, 1),
+    DateInMonth = 1 + 7 - Day,
+    {Year, 4, DateInMonth}.
 
 %% -----------------------------------------------------------------------------
 
@@ -222,9 +291,9 @@ inc_deadline(G, DL = #dl{time = Time}) ->
                              NTime,
                              G#mafia_game.dst_changes,
                              G#mafia_game.time_zone) of
-                 same -> 0;
-                 to_normal -> ?HourSecs;
-                 to_dst -> -?HourSecs
+                 ?same -> 0;
+                 ?to_normal -> ?HourSecs;
+                 ?to_dst -> -?HourSecs
              end,
     #dl{phase = NextPhase, time = NTime + Adjust}.
 
@@ -233,7 +302,7 @@ inc_deadline(G, DL = #dl{time = Time}) ->
                  End :: seconds1970(),
                  DstChanges :: [{datetime(), boolean()}],
                  TZ :: integer())
-                -> same | to_normal | to_dst.
+                -> ?same | ?to_normal | ?to_dst.
 dst_change(Start, End, DstChanges, TZ) ->
     %% dst_changes = [{{{2016,11,6},{2,0,0}}, false},
     %%                {{{2017, 4,1},{2,0,0}}, true}],
@@ -242,14 +311,14 @@ dst_change(Start, End, DstChanges, TZ) ->
     do_dst_change(DstChanges, StartDT, EndDT).
 
 do_dst_change([{DT, _IsDst} | _T], _StartDT, EndDT) when EndDT =< DT ->
-    same;
+    ?same;
 do_dst_change([{DT, _IsDst} | T], StartDT, EndDT) when DT =< StartDT ->
     do_dst_change(T, StartDT, EndDT);
 do_dst_change([{_DT, IsDst} | _DstChanges], _StartDT, _EndDT) ->
-    if IsDst == false -> to_normal;
-       IsDst == true  -> to_dst
+    if IsDst == false -> ?to_normal;
+       IsDst == true  -> ?to_dst
     end;
-do_dst_change([], _, _) -> same.
+do_dst_change([], _, _) -> ?same.
 
 is_dst(DateTime, G) ->
     #mafia_game{
@@ -423,9 +492,9 @@ game_start_secs1970(G) ->
                     Deadline,
                     G#mafia_game.dst_changes,
                     G#mafia_game.time_zone) of
-        same -> GameStart;
-        to_dst -> GameStart + ?HourSecs;
-        to_normal -> GameStart - ?HourSecs
+        ?same -> GameStart;
+        ?to_dst -> GameStart + ?HourSecs;
+        ?to_normal -> GameStart - ?HourSecs
     end.
 
 -spec nearest_deadline(integer() | #mafia_game{} | [#mafia_game{}])
@@ -660,13 +729,13 @@ get_some_extra_dls(G, DLs = [DL | _], Target) ->
 -define(DST5, {{{2016,12,28},{2,0,0}}, false}).
 
 do_dst_change_test_() ->
-    [?_assert(same == do_dst_change([?DST0, ?DST1], ?D1, ?D2)),
-     ?_assert(to_dst == do_dst_change([?DST1, ?DST2], ?D1, ?D2)),
-     ?_assert(to_normal == do_dst_change([?DST1, ?DST3], ?D1, ?D2)),
-     ?_assert(same == do_dst_change([?DST1, ?DST5], ?D1, ?D2)),
-     ?_assert(same == do_dst_change([?DST4, ?DST5], ?D1, ?D2)),
-     ?_assert(to_normal == do_dst_change([?DST3], ?D1, ?D2)),
-     ?_assert(same == do_dst_change([], ?D1, ?D2))
+    [?_assert(?same == do_dst_change([?DST0, ?DST1], ?D1, ?D2)),
+     ?_assert(?to_dst == do_dst_change([?DST1, ?DST2], ?D1, ?D2)),
+     ?_assert(?to_normal == do_dst_change([?DST1, ?DST3], ?D1, ?D2)),
+     ?_assert(?same == do_dst_change([?DST1, ?DST5], ?D1, ?D2)),
+     ?_assert(?same == do_dst_change([?DST4, ?DST5], ?D1, ?D2)),
+     ?_assert(?to_normal == do_dst_change([?DST3], ?D1, ?D2)),
+     ?_assert(?same == do_dst_change([], ?D1, ?D2))
     ].
 
 -define(Time1, 1481655677). % ca 2000 CET 161213
@@ -678,8 +747,8 @@ do_dst_change_test_() ->
 
 dst_change_test_() ->
     [
-     ?_assert(same == dst_change(?Time0, ?Time1, [?DST6], -5)),
-     ?_assert(to_dst == dst_change(?Time1, ?Time2, [?DST6], -5)),
-     ?_assert(to_normal == dst_change(?Time1, ?Time2, [?DST7], -5)),
-     ?_assert(same == dst_change(?Time2, ?Time3, [?DST7], -5))
+     ?_assert(?same == dst_change(?Time0, ?Time1, [?DST6], -5)),
+     ?_assert(?to_dst == dst_change(?Time1, ?Time2, [?DST6], -5)),
+     ?_assert(?to_normal == dst_change(?Time1, ?Time2, [?DST7], -5)),
+     ?_assert(?same == dst_change(?Time2, ?Time3, [?DST7], -5))
     ].

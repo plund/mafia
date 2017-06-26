@@ -360,7 +360,7 @@ get_next_deadline([], _Time) -> false;
 get_next_deadline([#mafia_game{} = G], Time) ->
     get_next_deadline(G, Time);
 get_next_deadline(#mafia_game{game_end = {EndTime, _EndMsgId}},
-                  Time) when Time > EndTime ->
+                  Time) when Time >= EndTime ->
     TimeOver = Time - EndTime,
     {{TimeOver div ?DaySecs,
       calendar:seconds_to_time(TimeOver rem ?DaySecs)},

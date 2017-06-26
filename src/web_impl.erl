@@ -11,7 +11,7 @@
          dst_changes/3,
          users/3,
 
-         show_msg/1
+         show_msg/2
         ]).
 
 -include("mafia.hrl").
@@ -909,17 +909,21 @@ page_context(PageNum, Context) ->
 
 %% ?html mode only, use mafia_print:pp for ?text
 %% return tr
+show_msg(M = #message{}) ->
+    show_msg(?getv(?game_key), M);
 show_msg(MsgId) when is_integer(MsgId) ->
-    show_msg(?rmess(MsgId));
+    show_msg(?getv(?game_key), ?rmess(MsgId)).
 
-show_msg([]) -> "<tr><td>No message found with this id</td></tr>";
-show_msg([M]) -> show_msg(M);
-show_msg(#message{user_name = MsgUserB,
-                  page_num = PageNum,
-                  time = Time,
-                  message = MsgB}) ->
-    GameKey = ?getv(?game_key),
-    MsgPhase = mafia_time:calculate_phase(GameKey, Time),
+show_msg(#mafia_game{game_num = GN}, MsgId) ->
+    show_msgI(GN, ?rmess(MsgId)).
+
+show_msgI(_GN, []) -> "<tr><td>No message found with this id</td></tr>";
+show_msgI(GN, [M]) -> show_msgI(GN, M);
+show_msgI(GN, #message{user_name = MsgUserB,
+                       page_num = PageNum,
+                       time = Time,
+                       message = MsgB}) ->
+    MsgPhase = mafia_time:calculate_phase(GN, Time),
     DayStr =
         case MsgPhase of
             #phase{num = DNum, don = ?day} ->
@@ -929,7 +933,7 @@ show_msg(#message{user_name = MsgUserB,
             #phase{don = ?game_ended} -> "Game End "
         end,
     Color = mafia_lib:bgcolor(MsgUserB),
-    {HH, MM} = mafia_time:hh_mm_to_deadline(GameKey, Time),
+    {HH, MM} = mafia_time:hh_mm_to_deadline(GN, Time),
     ?l2b(["<tr", Color, "><td valign=\"top\"><b>", MsgUserB,
           "</b><br>",
           DayStr, " ", p(HH), ":", p(MM),

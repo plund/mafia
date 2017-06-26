@@ -345,7 +345,7 @@ print_votesI(PPin) ->
                         {TzH, Dst} = mafia_time:get_tz_dst(G, EndTime),
                         LastPhase =
                             print_phase((hd(G#mafia_game.deadlines))#dl.phase),
-                        GmMessage = web_impl:show_msg(EndMsgId),
+                        GmMessage = web_impl:show_msg(G, EndMsgId),
                         ["<tr><td align=center>",
                          "The GAME HAS ENDED in phase ",
                          LastPhase,

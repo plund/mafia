@@ -30,12 +30,27 @@
 -define(day, day).
 -define(night, night).
 -define(phase, phase).
+-define(game_start, game_start).
 -define(game_ended, game_ended).
 -define(current, current).
 -define(history, history).
 -define(total_stats, total_stats).
 -define(global, global).
 -define(bytes, bytes).
+
+-define(to_dst, to_dst).
+-define(to_normal, to_normal).
+-define(same, same).
+
+-define(eu, eu).
+-define(usa, usa).
+-define(australia, australia).
+-define(new_zeeland, new_zeeland).
+
+-define(eu_str, "EU").
+-define(usa_str, "USA").
+-define(australia_str, "Australia").
+-define(new_zeeland_str, "New Zeeland").
 
 -define(verified, verified).
 -define(unverified, unverified).

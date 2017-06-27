@@ -328,6 +328,7 @@ regen_historyI(Time, GNum)
 regen_historyI(Time, {GKey, Phase = #phase{}}) ->
     regen_historyI(Time, GKey, Phase, ?rgame(GKey)).
 
+regen_historyI(_, _, #phase{don = ?game_start}, _) -> ok;
 regen_historyI(Time, GKey, Phase = #phase{}, [G]) ->
     ?dbg(Time, {"DO REGENERATE_HISTORY 3", Phase, Time}),
     Opts = [{?game_key, GKey},

@@ -395,6 +395,7 @@ update_stat(G, M) ->
              message = MsgBin   %% :: message()
             } = M,
     Phase = case mafia_time:calculate_phase(G, Time) of
+                #phase{don = ?game_start} -> ?game_start;
                 #phase{don = ?game_ended} -> ?game_ended;
                 #phase{num = Num, don = DoN} -> {Num, DoN}
             end,

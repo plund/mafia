@@ -1,10 +1,12 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% GM web setup interface
+%% Mnesia overloaded fixes
+%% try autostart again
 %% use quickcheck license
 %% vhosts in inets - no support - try patch inets :)
 %% LOW - list previous deadlines and times before game end
-%%     - present DST change info
 %% Display time to game start in pregame mode.
 %% Add "g=..." into copy/paste link when it is missing
 %% "important?" Requires "important*" - ? should be word boundary in searches

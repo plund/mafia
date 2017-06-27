@@ -784,6 +784,14 @@ print_num_dls(PP, DoDispTime2DL, Num) when DoDispTime2DL == true ->
 print_num_dls(_PP, DoDispTime2DL, _Num)
   when DoDispTime2DL == false -> [].
 
+prep_dl_info(G, Time, DLs) ->
+    [{if DoN == ?game_start -> pr_don(DoN);
+         true -> [pr_don(DoN), " ", ?i2l(N)]
+      end,
+      mafia_time:secs2day_hour_min_sec(Time - DLT),
+      print_game_time(G, DLT, ?human)}
+     || #dl{phase = #phase{num = N, don = DoN}, time = DLT} <- DLs].
+
 print_dls_text(_PP, DLs, _Title, _) when length(DLs) =< 0 -> ok;
 print_dls_text(PP, DLs, Title, PrintRelative) ->
     Fmt = if PrintRelative ->
@@ -807,23 +815,17 @@ print_dls_text(PP, DLs, Title, PrintRelative) ->
     [io:format(PP#pp.dev,
                Fmt,
                if PrintRelative ->
-                       [[DoNStr, " ", Nstr],
+                       [PhaseStr,
                         [?i2l(Days), "D ",?i2l(HH), "H ", ?i2l(MM), "M"],
                         TimeStr];
                   true ->
-                       [[DoNStr, " ", Nstr],
+                       [PhaseStr,
                         TimeStr]
                end)
-     || {Nstr, DoNStr, {Days, {HH, MM, _}}, TimeStr} <- DLs].
+     || {PhaseStr, {Days, {HH, MM, _}}, TimeStr} <- DLs].
 
 ul(Char, N) when is_integer(N), N > 0 -> [Char|| _ <- lists:seq(1, N)];
 ul(Char, Str) when is_list(Str) -> [Char || _ <- Str].
-
-prep_dl_info(G, Time, DLs) ->
-    [{?i2l(N), pr_don(DoN),
-      mafia_time:secs2day_hour_min_sec(Time - DLT),
-      print_game_time(G, DLT, ?human)}
-     || #dl{phase = #phase{num = N, don = DoN}, time = DLT} <- DLs].
 
 print_dls_html(DLs, _Title, _PrintRelative) when length(DLs) =< 0 -> [];
 print_dls_html(DLs, Title, PrintRelative) ->
@@ -841,15 +843,15 @@ print_dls_html(DLs, Title, PrintRelative) ->
          end ++
          "<th>Absolute time</th>"
      "</tr>",
-     [["<tr><td>", DoNStr, " ", Nstr, "</td>" ++
+     [["<tr><td align=center>", PhaseStr, "</td>" ++
            if PrintRelative ->
-                   ["<td>", ?i2l(Days), "D ",?i2l(HH), "H ", ?i2l(MM), "M","</td>"];
+                   ["<td>", ?i2l(Days), "D ",?i2l(HH), "H ",
+                    ?i2l(MM), "M</td>"];
               true -> ""
            end ++
-       "<td>", TimeStr, "</td>"
+           "<td>", TimeStr, "</td>"
        "</tr>"]
-      || {Nstr, DoNStr, {Days, {HH, MM, _}}, TimeStr} <- DLs]].
-
+      || {PhaseStr, {Days, {HH, MM, _}}, TimeStr} <- DLs]].
 
 pr_thread_links(PP, _DoDispTime2DL)
   when (PP#pp.phase)#phase.don == ?game_ended ->
@@ -1752,11 +1754,12 @@ print_dl_div_lineI(PhText, Txt) ->
               "--------------------------------\n",
               [Txt, PhText]).
 
-print_phase(#phase{don = ?game_ended}) ->
-    "Game has Ended";
+print_phase(#phase{don = ?game_start}) -> "Game Start";
+print_phase(#phase{don = ?game_ended}) -> "Game End";
 print_phase(#phase{num = Num, don = DoN}) ->
     pr_don(DoN) ++ " " ++ ?i2l(Num).
 
+pr_don(?game_start) -> "Game Start";
 pr_don(?day) -> "Day";
 pr_don(?night) -> "Night".
 

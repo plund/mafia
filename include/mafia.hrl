@@ -12,6 +12,8 @@
 -type time() :: {hour(), minute(), second()}.
 -type date() :: {year(), month(), day()}.
 -type datetime() :: {date(), time()}.
+-type dst_zone() :: ?eu | ?usa | ?australia | ?new_zeeland.
+-type dst_direction() :: ?to_dst | ?to_normal.
 
 -type game_num() :: integer().
 -type thread_id() :: integer().
@@ -24,7 +26,7 @@
 -type seconds1970() :: integer().
 -type greg_secs() :: integer().
 -type message() :: binary().
--type day_night() :: ?day | ?night | ?game_ended.
+-type day_night() :: ?day | ?night | ?game_start | ?game_ended.
 -type mfargs() :: {atom(), atom(), list()}.
 
 -record(kv_store,
@@ -104,9 +106,9 @@
          day_hours = 48 :: integer(),
          night_hours = 24 :: integer(),
          time_zone = 0 :: integer(), %% (EST=-5, UK = 0, CET=1)
-         day1_dl_time :: ?undefined | datetime(), %% Game TZ local time
-         is_init_dst :: ?undefined | boolean(), %% true = DST
-         dst_changes = [] :: [{datetime(), ToDst::boolean()}],
+         start_time :: ?undefined | datetime(),
+         dst_zone :: ?undefined | dst_zone(),
+         dst_changes = [] :: [{datetime(), dst_direction()}],
          deadlines = [] :: [#dl{}],
          gms = [] :: [user()],
          players_orig = [] :: [player()],

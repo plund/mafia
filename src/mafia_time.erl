@@ -20,6 +20,7 @@
          dst_name/1,
 
          initial_deadlines/1,
+         set_dst_changes/1,
          update_deadlines/1,
          inc_phase/1,
          decr_phase/1,
@@ -49,20 +50,6 @@
         ]).
 
 -include("mafia.hrl").
-
--define(to_dst, to_dst).
--define(to_normal, to_normal).
--define(same, same).
-
--define(eu, eu).
--define(usa, usa).
--define(australia, australia).
--define(new_zeeland, new_zeeland).
-
--define(eu_str, "EU").
--define(usa_str, "USA").
--define(australia_str, "Australia").
--define(new_zeeland_str, "New Zeeland").
 
 %% -----------------------------------------------------------------------------
 
@@ -166,6 +153,7 @@ secs2day_hour_min_sec(Secs) when is_integer(Secs), Secs < 0 ->
 secs2day_hour_min_sec(Secs) when is_integer(Secs), Secs >=0 ->
     {Secs div ?DaySecs,
      calendar:seconds_to_time(Secs rem ?DaySecs)}.
+
 dst_change_date() ->
     [?eu, ?usa, ?australia, ?new_zeeland].
 
@@ -230,8 +218,34 @@ dst_change_date(?new_zeeland, Year, ?to_normal) ->
 
 %% -----------------------------------------------------------------------------
 
-initial_deadlines(MGame) ->
-    add_deadlines(MGame#mafia_game{deadlines = []}).
+initial_deadlines(G) ->
+    G2 = set_dst_changes(G),
+    add_deadlines(G2#mafia_game{deadlines = []}).
+
+%% Set dst_changes field according to dst_zone (and time_zone for EU)
+set_dst_changes(G) ->
+    DstZone = G#mafia_game.dst_zone,
+    {StartDate = {Year, _, _}, _} = G#mafia_game.start_time,
+    AllDstDates = lists:sort(
+                    [{dst_change_date(DstZone, Y, D), D}
+                     || Y <- [Year - 1, Year, Year + 1],
+                        D <- [?to_normal, ?to_dst]]),
+    DstDates = relevant_dst(StartDate, AllDstDates),
+    DstChanges = set_dst_time(G, DstDates),
+    G#mafia_game{dst_changes = DstChanges}.
+
+%% return 1 before and 2 after StartDate
+relevant_dst(SD, [_D1, D2 = {SD2, _} | T]) when SD2 < SD ->
+    relevant_dst(SD, [D2|T]);
+relevant_dst(_, DstChanges) -> lists:sublist(DstChanges, 3).
+
+%% Add times to the DST dates
+set_dst_time(G, DstDates) ->
+    Hour = case G#mafia_game.dst_zone of
+               ?eu -> G#mafia_game.time_zone + 1;
+               _ -> 2
+           end,
+    [{{DT, {Hour, 0, 0}}, Dir} || {DT, Dir} <- DstDates].
 
 %% @doc update the game in mnesia
 update_deadlines(ThId) ->
@@ -243,8 +257,8 @@ update_deadlines(ThId) ->
             NewDLs
     end.
 
-add_deadlines(MGame) ->
-    MGame#mafia_game{deadlines = expand_deadlines(MGame)}.
+add_deadlines(G) ->
+    G#mafia_game{deadlines = expand_deadlines(G)}.
 
 %% @doc Return an expanded list of deadlines (newest first)
 -spec expand_deadlines(#mafia_game{}) -> [#dl{}].
@@ -258,7 +272,7 @@ expand_deadlines(G) ->
     TargetTime = utc_secs1970() + 11 * ?DaySecs,
     get_some_extra_dls(G, DLs2, TargetTime).
 
-first_phase() -> #phase{num = 1, don = ?day}.
+first_phase() -> #phase{don = ?game_start}.
 
 %% gregorian_seconds().
 first_deadline_secs1970(G) ->
@@ -266,15 +280,17 @@ first_deadline_secs1970(G) ->
 
 first_deadline_greg_secs(G) ->
     #mafia_game{time_zone = TZ,
-                day1_dl_time = DeadD1LocalDateTime,
-                is_init_dst = IsInitDst
+                start_time = StartDateTime
                } = G,
-    utc_gs(DeadD1LocalDateTime, TZ, IsInitDst).
+    IsDst = is_dst(StartDateTime, G),
+    utc_gs(StartDateTime, TZ, IsDst).
 
 %% -----------------------------------------------------------------------------
 
 -spec inc_phase(#phase{} | #dl{}) -> #phase{}.
 inc_phase(#dl{phase = Phase}) -> inc_phase(Phase);
+inc_phase(Ph = #phase{don = ?game_start}) ->
+    Ph#phase{num = 1, don = ?day};
 inc_phase(Ph = #phase{don = ?day}) ->
     Ph#phase{don = ?night};
 inc_phase(#phase{num = Num, don = ?night}) ->
@@ -332,17 +348,19 @@ do_dst_change([{_DT, IsDst} | _DstChanges], _StartDT, _EndDT) ->
 do_dst_change([], _, _) -> ?same.
 
 is_dst(DateTime, G) ->
-    #mafia_game{
-            is_init_dst = IsInitDst,
-            dst_changes = DstChanges
-           } = G,
-    lists:foldl(fun({DT, Dst}, Acc) ->
-                        if DT < DateTime -> Dst;
-                           true  -> Acc
-                        end
-                end,
-                IsInitDst,
-                DstChanges).
+    %% dst_zone without DSTs should have dst_changes = []
+    %% => initiate Acc with ?to_normal
+    DstDir = lists:foldl(fun({DT, Dir}, Acc) ->
+                                 if DT < DateTime -> Dir;
+                                    true  -> Acc
+                                 end
+                         end,
+                         ?to_normal,
+                         G#mafia_game.dst_changes),
+    case DstDir of
+        ?to_dst -> true;
+        ?to_normal -> false
+    end.
 
 %% -----------------------------------------------------------------------------
 %% Section of similar functions that need refactoring

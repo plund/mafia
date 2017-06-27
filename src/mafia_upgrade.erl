@@ -39,6 +39,21 @@ upgrade(user) ->
             record_info(fields, user)).
 
 upgrade(Tab = mafia_game,
+        As = [game_num,thread_id,name,day_hours,night_hours,time_zone,
+              day1_dl_time, is_init_dst, %% renamed
+              dst_changes,               %% content change
+              deadlines,gms,players_orig,
+              players_rem,player_deaths,page_to_read,game_end,
+              last_msg_id,last_msg_time],
+        Fs = [game_num,thread_id,name,day_hours,night_hours,time_zone,
+              start_time, dst_zone,      %% renamed
+              dst_changes,               %% content change
+              deadlines,gms,players_orig,
+              players_rem,player_deaths,page_to_read,game_end,
+              last_msg_id,last_msg_time]
+       ) ->
+    upgrade_tab_game_170627(Tab, As, Fs);
+upgrade(Tab = mafia_game,
         As = [key,name,day_hours,night_hours,time_zone,day1_dl_time,
               is_init_dst,dst_changes,deadlines,gms,players_orig,
               players_rem,game_num,player_deaths,page_to_read,game_end,
@@ -62,6 +77,47 @@ upgrade(Tab, As, Fs) ->
 %% Upgrade mnesia_table using new keys
 %% 1. copy objects with new value order, 2. transform attribute list in mnesia
 %% -----------------------------------------------------------------------------
+upgrade_tab_game_170627(Tab, As, Fs) ->
+    %% day1_dl_time, is_init_dst, %% renamed
+    %% dst_changes,               %% content change
+
+    %% start_time, dst_zone,      %% renamed
+    %% dst_changes,               %% content change
+    io:format("Upgrade table '~p' 170627 from:\n~999p\nto\n~999p\n",
+              [Tab, As, Fs]),
+    Trans =
+        fun(RecOld) ->
+                ValuesOldList = tl(tuple_to_list(RecOld)),
+                OldAsVals = lists:zip(As, ValuesOldList),
+
+                DL1DT = proplists:get_value(day1_dl_time, OldAsVals),
+                %% {{2017,4,17},{18,0,0}}
+                DayHs = proplists:get_value(day_hours, OldAsVals),
+                StartTime =
+                    calendar:gregorian_seconds_to_datetime(
+                      calendar:datetime_to_gregorian_seconds(DL1DT)
+                      - DayHs * ?HourSecs),
+                TimeZone = proplists:get_value(time_zone, OldAsVals),
+                DstZone = if TimeZone < -2 -> ?usa;
+                             TimeZone < 5 -> ?eu;
+                             true -> ?australia
+                          end,
+
+                %% Pick values for new rec
+                NewVal = fun(start_time) -> StartTime;
+                            (dst_zone) -> DstZone;
+                            (A) -> proplists:get_value(A, OldAsVals)
+                         end,
+                NewValues = [NewVal(F) || F <- Fs],
+                Game = list_to_tuple([Tab | NewValues]),
+                RecNew = mafia_time:set_dst_changes(Game),
+
+                %% Modify values
+                io:format("Update GameNum ~p\n", [RecNew#mafia_game.game_num]),
+                RecNew
+        end,
+    mnesia:transform_table(Tab, Trans, Fs).
+
 upgrade_tab_game_170412(Tab, As, Fs) ->
     io:format("Upgrade table '~p' from:\n~999p\nto\n~999p\n",
               [Tab, As, Fs]),

@@ -55,19 +55,26 @@ check_cmds_votes2(G, Re, M) ->
                   {EndTime, _MsgId} ->
                       M#message.time >= EndTime
               end,
+    PhaseM = mafia_time:calculate_phase(G, M#message.time),
+    IsStarted = PhaseM#phase.don /= ?game_start,
     DoGenerate =
         case mafia_lib:prev_msg(M) of
             ?none -> false;
             PrevM ->
-                PhaseM = mafia_time:calculate_phase(G, M#message.time),
                 PhasePrevM = mafia_time:calculate_phase(G, PrevM#message.time),
                 PhasePrevM /= PhaseM
+                    andalso PhasePrevM#phase.don /= ?game_start
         end,
     if DoGenerate ->
             mafia_web:regen_history(M, G);
        true -> ok
     end,
-    if not IsEnded ->
+    if not IsStarted ->
+            case player_type(M, G) of
+                ?gm -> check_for_gm_cmds(Re, M, G, true);
+                UserType -> log_unallowed_msg(UserType, M)
+            end;
+       not IsEnded ->
             case player_type(M, G) of
                 ?gm -> check_for_gm_cmds(Re, M, G, DoGenerate);
                 ?player -> check_for_votes(Re, M, G);
@@ -575,11 +582,14 @@ replace3(G, M, New, Old) ->
     if Phase#phase.don == ?game_ended ->
             {?game_ended, G};
        true ->
-            D = ?rday(G, Phase),
+            DayNum = if Phase#phase.don == ?game_start -> 1;
+                        true -> Phase#phase.num
+                     end,
+            Day = ?rday(G, DayNum),
             NewP = New#user.name,
             OldP = Old#user.name,
             ?dbg(M#message.time, {?b2l(NewP), replaces, ?b2l(OldP)}),
-            Rems2 = repl_user(OldP, NewP, D#mafia_day.players_rem),
+            Rems2 = repl_user(OldP, NewP, Day#mafia_day.players_rem),
             Replacement = #replacement{
               new_player = NewP,
               replaced_player = OldP,
@@ -587,9 +597,9 @@ replace3(G, M, New, Old) ->
               msg_id = M#message.msg_id,
               time = M#message.time
              },
-            DeathsD2 = [Replacement | D#mafia_day.player_deaths],
-            ?dwrite_day(D#mafia_day{players_rem = Rems2,
-                                    player_deaths = DeathsD2}),
+            DeathsD2 = [Replacement | Day#mafia_day.player_deaths],
+            ?dwrite_day(Day#mafia_day{players_rem = Rems2,
+                                      player_deaths = DeathsD2}),
             DeathsG2 = [Replacement | G#mafia_game.player_deaths],
             G2 = G#mafia_game{player_deaths = DeathsG2},
             replace4(G2, OldP, NewP)

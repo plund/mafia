@@ -202,6 +202,8 @@ msgs2(Sid, GNum, In, PQ, []) ->
                                     "Day-" ++ ?i2l(DNum);
                                 #phase{num = DNum, don = ?night} ->
                                     "Night-" ++ ?i2l(DNum);
+                                #phase{don = ?game_start} ->
+                                    "Game Start ";
                                 #phase{don = ?game_ended} ->
                                     "Game End "
                             end,

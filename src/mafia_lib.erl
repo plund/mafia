@@ -293,16 +293,19 @@ bgcolor(Bin) when is_binary(Bin) ->
 modify_colors(Red, Green, Blue) ->
     TargBright = 210,
     HighOut = 255,
-    LowOut = 140,
 
-    %% Scale to high value range
-    ModC = fun(Col) ->
-                   DiffOut = HighOut - LowOut,
-                   LowOut + Col * DiffOut div 255
+    LowOutR = 130,
+    LowOutG = 170,  %% less variation green
+    LowOutB = 100,
+
+    %% Scale to high value range, Green higher
+    ModC = fun(Col, Low) ->
+                   DiffOut = HighOut - Low,
+                   Low + Col * DiffOut div 255
            end,
-    R = ModC(Red),
-    G = ModC(Green),
-    B = ModC(Blue),
+    R = ModC(Red, LowOutR),
+    G = ModC(Green, LowOutG),
+    B = ModC(Blue, LowOutB),
 
     %% Calculate brightness
     TargetBright2 = TargBright * TargBright,

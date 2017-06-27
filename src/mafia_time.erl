@@ -272,7 +272,7 @@ expand_deadlines(G) ->
     TargetTime = utc_secs1970() + 11 * ?DaySecs,
     get_some_extra_dls(G, DLs2, TargetTime).
 
-first_phase() -> #phase{don = ?game_start}.
+first_phase() -> #phase{num = 0, don = ?game_start}.
 
 %% gregorian_seconds().
 first_deadline_secs1970(G) ->

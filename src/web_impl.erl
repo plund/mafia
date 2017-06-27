@@ -762,7 +762,7 @@ forum_php(Sid, _Env, In) ->
 
 dst_changes(Sid, _Env, In) ->
     PQ = httpd:parse_query(In),
-    Country = get_arg(PQ, "country"),
+    CAbbr = get_arg(PQ, "country"),
     Year =
         case get_arg(PQ, "year") of
             "" ->
@@ -773,16 +773,20 @@ dst_changes(Sid, _Env, In) ->
         end,
     NextYear = Year + 10,
     Years = lists:seq(Year, NextYear - 1),
+    CAbbrevs = [?a2l(C) || C <- mafia_time:dst_change_date()],
+    IsCAbbrOk = lists:member(CAbbr, CAbbrevs),
     Body =
-        case Country of
-            "" ->
+        case {CAbbr, IsCAbbrOk} of
+            {"", false} ->
                 %% show form with list of countries (and year entry)
-                C1 = mafia_time:dst_change_date(),
                 [["<tr><td align=center>",
-                  "<a href=\"?country=", C, "\">", C, "</a>"
+                  "<a href=\"?country=", ?a2l(C), "\">",
+                  mafia_time:dst_name(C), "</a>"
                   "</td></tr>"]
-                 || C <- C1];
-            _ ->
+                 || C <- mafia_time:dst_change_date()];
+            {_, true} ->
+                CAtom = ?l2a(CAbbr),
+                Country = mafia_time:dst_name(CAtom),
                 P2 = fun(I) -> string:right(?i2l(I), 2, $0) end,
                 PrDT = fun({Y, M, D}) ->
                                io_lib:format("~p-~s-~s",
@@ -790,20 +794,20 @@ dst_changes(Sid, _Env, In) ->
                        end,
                 ToD =
                     fun(Y) ->
-                            DT = mafia_time:dst_change_date(Country,
+                            DT = mafia_time:dst_change_date(CAtom,
                                                             Y,
                                                             to_dst),
                             PrDT(DT)
                     end,
                 ToN =
                     fun(Y) ->
-                            DT = mafia_time:dst_change_date(Country,
+                            DT = mafia_time:dst_change_date(CAtom,
                                                             Y,
                                                             to_normal),
                             PrDT(DT)
                     end,
                 %% show rules for dst_changes
-                [ToDst, ToNormal] = mafia_time:dst_change_date(Country),
+                [ToDst, ToNormal] = mafia_time:dst_change_date(CAtom),
                 DoRev = ToD(Year) > ToN(Year),
                 ["<tr><td align=center>"
                  "<table>"
@@ -827,7 +831,7 @@ dst_changes(Sid, _Env, In) ->
                   || Y <- Years],
                  "</table>"
                  "</td></tr>"
-                 "<tr><td align=center><a href=\"?country=", Country,
+                 "<tr><td align=center><a href=\"?country=", CAbbr,
                  "&year=", ?i2l(NextYear), "\">More</a>"
                  "</td></tr>"
                  ]

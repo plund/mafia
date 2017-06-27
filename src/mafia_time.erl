@@ -17,6 +17,7 @@
          dst_change_date/0,
          dst_change_date/1,
          dst_change_date/3,
+         dst_name/1,
 
          initial_deadlines/1,
          update_deadlines/1,
@@ -53,10 +54,15 @@
 -define(to_normal, to_normal).
 -define(same, same).
 
--define(eu, "EU").
--define(usa, "USA").
--define(australia, "Australia").
--define(new_zeeland, "New Zeeland").
+-define(eu, eu).
+-define(usa, usa).
+-define(australia, australia).
+-define(new_zeeland, new_zeeland).
+
+-define(eu_str, "EU").
+-define(usa_str, "USA").
+-define(australia_str, "Australia").
+-define(new_zeeland_str, "New Zeeland").
 
 %% -----------------------------------------------------------------------------
 
@@ -162,6 +168,11 @@ secs2day_hour_min_sec(Secs) when is_integer(Secs), Secs >=0 ->
      calendar:seconds_to_time(Secs rem ?DaySecs)}.
 dst_change_date() ->
     [?eu, ?usa, ?australia, ?new_zeeland].
+
+dst_name(?eu) -> ?eu_str;
+dst_name(?usa) -> ?usa_str;
+dst_name(?australia) -> ?australia_str;
+dst_name(?new_zeeland) -> ?new_zeeland_str.
 
 dst_change_date(?eu) ->
     ["Last Sunday March",

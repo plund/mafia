@@ -80,7 +80,9 @@
          import_user_data/0,
 
          setup_mnesia/0,
-         remove_mnesia/0
+         remove_mnesia/0,
+         upgrade/0,
+         upgrade/1
         ]).
 
 %% libary
@@ -129,6 +131,8 @@ rm_thread(ThNameOrId) -> mafia_db:rm_thread(ThNameOrId).
 
 setup_mnesia() -> mafia_db:setup_mnesia().
 remove_mnesia() -> mafia_db:remove_mnesia().
+upgrade() -> mafia_upgrade:upgrade().
+upgrade(Tab) -> mafia_upgrade:upgrade(Tab).
 
 refresh_messages() -> mafia_data:refresh_messages().
 

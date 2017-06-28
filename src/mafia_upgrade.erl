@@ -38,6 +38,10 @@ upgrade(user) ->
             mnesia:table_info(user, attributes),
             record_info(fields, user)).
 
+upgrade(Tab = user,
+        As = [name_upper, name, aliases, verification_status],
+        Fs = [name_upper, name, aliases, verification_status, pw_hash]) ->
+    upgrade_tab_user_170628(Tab, As, Fs);
 upgrade(Tab = mafia_game,
         As = [game_num,thread_id,name,day_hours,night_hours,time_zone,
               day1_dl_time, is_init_dst, %% renamed
@@ -190,6 +194,14 @@ update_db_attributes(mafia_day) ->
                   {"No-Lynch", ["No Lynch"]}
                  ]).
 
+upgrade_tab_user_170628(Tab, As, Fs) ->
+    io:format("Upgrading table '~p' 170628 from:\n~999p\nto\n~999p\n", [Tab, As, Fs]),
+    Trans = fun(RecOld) ->
+                    NewList = tuple_to_list(RecOld) ++ [?undefined],
+                    list_to_tuple(NewList)
+            end,
+    mnesia:transform_table(Tab, Trans, Fs).
+
 upgrade_tab_user_161210(Tab, As, Fs) ->
     io:format("Upgrading table '~p' from:\n~999p\nto\n~999p\n", [Tab, As, Fs]),
     save_copy_on_file(user, "user_add_alias"),
@@ -201,7 +213,7 @@ upgrade_tab_user_161210(Tab, As, Fs) ->
                       aliases = Aliases,
                       verification_status = VerSt}
         end,
-    mnesia:transform_table(user, Trans, record_info(fields, user)).
+    mnesia:transform_table(Tab, Trans, record_info(fields, user)).
 
 get_aliases(NameB) ->
     case lists:keyfind(?b2l(NameB), 1, ?Aliases) of

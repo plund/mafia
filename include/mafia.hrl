@@ -124,7 +124,8 @@
         {name_upper :: ?undefined | user(),
          name :: ?undefined | user(),
          aliases = [] :: [alias()],
-         verification_status :: ?undefined | ?verified | ?unverified
+         verification_status :: ?undefined | ?verified | ?unverified,
+         pw_hash :: ?undefined | integer()
         }).
 
 -record(stat,

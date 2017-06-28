@@ -15,6 +15,9 @@
          ruserUB/1,
          rmessI/1,
 
+         set_new_password/1,
+         check_password/2,
+
          %% prev_msg_id/1,
          prev_msg/1,
 
@@ -186,6 +189,37 @@ ruserUB(UserB) when is_binary(UserB) -> ruserUBI(?b2ub(UserB)).
 
 -spec ruserUBI(binary()) -> [#user{}].
 ruserUBI(UserUB) -> mnesia:dirty_read(user, UserUB).
+
+%% -----------------------------------------------------------------------------
+
+-define(PW_SPACE, 1000000).
+
+set_new_password(User) ->
+    case mafia_lib:ruserUB(User) of
+        [U = #user{name = Name}] ->
+            Rand = rand:uniform(?PW_SPACE),
+            PW = base64:encode_to_string(integer_to_list(Rand)),
+            PwHash = erlang:phash2(PW, ?PW_SPACE),
+            ?dwrite_user(U#user{pw_hash = PwHash}),
+            {ok, {?b2l(Name), PW}}; %% send PW to user
+        _ ->
+            {error, user_not_found}
+    end.
+
+check_password(User, Password) ->
+    %% Security improvment: Store time when fun returns error
+    %% Delay response next time for this user to 30 seconds after last error
+    case mafia_lib:ruserUB(User) of
+        [#user{pw_hash = PwHashDb}] ->
+            PwHashCmp = erlang:phash2(Password, ?PW_SPACE),
+            if PwHashCmp == PwHashDb ->
+                    ok;
+               true ->
+                    {error, nomatch_user_password}
+            end;
+        _ ->
+            {error, nomatch_user_password}
+    end.
 
 %% -----------------------------------------------------------------------------
 

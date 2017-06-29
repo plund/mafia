@@ -50,6 +50,8 @@
          switch_to_game/1,
          switch_to_game/2,
          game_thread/1,
+         initiate_game/2,
+         remove_game/1,
          pregame_create/1,
          pregame_update/0,
 
@@ -187,6 +189,47 @@ check_game_data(GNum) ->
     io:format("There are ~p messages in mnesia for this game\n",
               [length(MsgIds)]).
 
+
+%% -----------------------------------------------------------------------------
+%% @doc Initiate game that has not started yet
+%% Do also set(game_key, GN) in the shell after!
+%% @end
+%% -----------------------------------------------------------------------------
+initiate_game(GN, GMs) ->
+    DoFun = fun(G) ->
+                    GMsB = get_user_list(GMs),
+                    ?dwrite_game(G#mafia_game{game_num = GN,
+                                              gms = GMsB}),
+                    {wrote, GN, GMsB}
+            end,
+    do_if_not_running(GN, DoFun).
+
+remove_game(GN) ->
+    DoFun = fun(#mafia_game{game_num = ?undefined}) ->
+                    {non_exist, GN};
+               (#mafia_game{game_num = GNum}) ->
+                    mnesia:dirty_delete(mafia_game, GNum),
+                    {deleted, GN}
+            end,
+    do_if_not_running(GN, DoFun).
+
+do_if_not_running(GN, DoFun) ->
+    do_if_not_running2(?rgame(GN), DoFun).
+
+do_if_not_running2([], DoFun) ->
+    DoFun(#mafia_game{});
+do_if_not_running2([G = #mafia_game{thread_id = ?undefined}], DoFun) ->
+    DoFun(G);
+do_if_not_running2(_, _) ->
+    {error, running}.
+
+get_user_list([]) -> [];
+get_user_list([User | T]) ->
+    case mafia_lib:ruserUB(User) of
+        [#user{name = NameB}] ->
+            [NameB | get_user_list(T)];
+        _ -> get_user_list(T)
+    end.
 
 %% -----------------------------------------------------------------------------
 %% @doc Create and Switch to game that has not started yet

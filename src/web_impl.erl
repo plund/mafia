@@ -861,6 +861,8 @@ users(Sid, _Env, _In) ->
 
 %% -----------------------------------------------------------------------------
 
+-define(UNSET, "(unset)").
+
 game_settings(Sid, _Env, In) ->
     PQ = httpd:parse_query(In),
     GNStr = get_arg(PQ, "game_num"),
@@ -892,6 +894,9 @@ game_settings(Sid, _Env, In) ->
                   "</textarea>"
                   "<ul>"
                   "<li>"
+                  "Any values that are " ++ ?UNSET ++ " must be set before "
+                  "the game starts\r\n"
+                  "</li><li>"
                   "'gms' and 'players' are comma separated lists of users "
                   "found in the bot <a href=users>User DB</a> \r\n"
                   "</li><li>"
@@ -926,18 +931,29 @@ s(_G, []) -> "";
 s(G, [A = game_num | As]) ->
     w(A, ?i2l(G#mafia_game.game_num)) ++ s(G, As);
 s(G, [A = gms | As]) ->
-    w(A, string:join([?b2l(GM) || GM <- G#mafia_game.gms], ","))
-        ++ s(G, As);
-s(G, [A = name | As]) -> w(A, ?b2l(G#mafia_game.name)) ++ s(G, As);
+    w(A, game_users(G#mafia_game.gms)) ++ s(G, As);
+s(G, [A = name | As]) -> w(A, game_name(G)) ++ s(G, As);
 s(G, [A = day_hours | As]) -> w(A, ?i2l(G#mafia_game.day_hours)) ++ s(G, As);
 s(G, [A = night_hours | As]) -> w(A, ?i2l(G#mafia_game.night_hours)) ++ s(G, As);
 s(G, [A = time_zone | As]) -> w(A, ?i2l(G#mafia_game.time_zone)) ++ s(G, As);
 s(G, [A = start_time | As]) ->
-    w(A, mafia_print:print_time(G#mafia_game.start_time, ?local)) ++ s(G, As);
-s(G, [A = dst_zone | As]) -> w(A, ?a2l(G#mafia_game.dst_zone)) ++ s(G, As);
+    w(A, game_start_time(G)) ++ s(G, As);
+s(G, [A = dst_zone | As]) -> w(A, game_dst_zone(G)) ++ s(G, As);
 s(G, [A = players_orig | As]) ->
-    w(A, string:join([?nbsp(P) || P <- G#mafia_game.players_orig], ","))
-        ++ s(G, As).
+    w(A, game_users(G#mafia_game.players_orig)) ++ s(G, As).
+
+game_users([]) -> ?UNSET;
+game_users(Users) -> string:join([?b2l(U) || U <- Users], ",").
+
+game_name(#mafia_game{name = ?undefined}) -> ?UNSET;
+game_name(#mafia_game{name = Name}) -> ?b2l(Name).
+
+game_start_time(#mafia_game{start_time = ?undefined}) -> ?UNSET;
+game_start_time(#mafia_game{start_time = Time}) ->
+    mafia_print:print_time(Time, ?local).
+
+game_dst_zone(#mafia_game{dst_zone = ?undefined}) -> ?UNSET;
+game_dst_zone(#mafia_game{dst_zone = DstZone}) -> ?a2l(DstZone).
 
 %% To be used...
 %% <form action="/action_page.php">

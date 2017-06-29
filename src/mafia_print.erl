@@ -312,21 +312,23 @@ print_votesI(PPin) ->
 
     %% Part - Display time Left to Deadline or display End of Game message
     HDeadLine =
-        if PP#pp.mode == ?text ->
-                if DoDispTime2DL ->
-                        print_time_left_to_dl(PP);
-                   PhaseType == ?game_ended ->
-                        {EndTime, EndMsgId} = G#mafia_game.game_end,
-                        {TzH, Dst} = mafia_time:get_tz_dst(G, EndTime),
-                        LastPhase =
-                            print_phase((hd(G#mafia_game.deadlines))#dl.phase),
+        if DoDispTime2DL ->
+                print_time_left_to_dl(PP);
+           PhaseType == ?game_ended ->
+                {EndTime, EndMsgId} = G#mafia_game.game_end,
+                {TzH, Dst} = mafia_time:get_tz_dst(G, EndTime),
+                EndPhase =
+                    print_phase(
+                      mafia_time:find_phase_with_time(G, EndTime)),
+                EndTimeStr = print_time(EndTime, TzH, Dst, ?extensive),
+                case PP#pp.mode of
+                    ?text ->
                         io:format(
                           PP#pp.dev,
                           "\n"
-                          "The GAME HAS ENDED in phase ~s "
+                          "The GAME HAS ENDED after phase ~s "
                           "and the time was ~s\n",
-                          [LastPhase,
-                           print_time(EndTime, TzH, Dst, ?extensive)]),
+                          [EndPhase, EndTimeStr]),
                         io:format(PP#pp.dev,
                                   "\n"
                                   "Game Master End Message\n"
@@ -335,29 +337,18 @@ print_votesI(PPin) ->
                         pm(PP#pp{msg_id = EndMsgId,
                                  time_zone = TzH,
                                  dst = Dst});
-                   true -> ok
-                end;
-           PP#pp.mode == ?html ->
-                if DoDispTime2DL ->
-                        print_time_left_to_dl(PP);
-                   PhaseType == ?game_ended ->
-                        {EndTime, EndMsgId} = G#mafia_game.game_end,
-                        {TzH, Dst} = mafia_time:get_tz_dst(G, EndTime),
-                        LastPhase =
-                            print_phase((hd(G#mafia_game.deadlines))#dl.phase),
+                    ?html ->
                         GmMessage = web_impl:show_msg(G, EndMsgId),
                         ["<tr><td align=center>",
-                         "The GAME HAS ENDED in phase ",
-                         LastPhase,
-                         " and the time was ",
-                         print_time(EndTime, TzH, Dst, ?extensive),
+                         "The GAME HAS ENDED after phase ",
+                         EndPhase,
+                         " and the time was ", EndTimeStr,
                          "</td></tr>"
                          "<tr><td align=center>"
                          "<table cellpadding=6 cellspacing=3>",
-                         GmMessage, "</table></td></tr>"];
-                   true ->
-                        []
-                end
+                         GmMessage, "</table></td></tr>"]
+                end;
+           true -> []
         end,
 
     %% Part - Thread Links

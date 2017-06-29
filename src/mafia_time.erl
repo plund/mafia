@@ -31,6 +31,7 @@
          next_deadlines/3,
          calculate_phase/1,
          calculate_phase/2,
+         find_phase_with_time/2,
          get_nxt_deadline/1,
          get_nxt_deadline/2,
          get_prev_deadline/2,
@@ -449,6 +450,13 @@ calculate_phase(#mafia_game{game_end = {EndTime, _}}, Time)
 calculate_phase(Game, Time) ->
     DL = get_nxt_deadline(Game, Time),
     DL#dl.phase.
+
+-spec find_phase_with_time(#mafia_game{}, seconds1970()) -> false | #phase{}.
+find_phase_with_time(G, Time) ->
+    case lists:keyfind(Time, #dl.time, G#mafia_game.deadlines) of
+        false -> false;
+        DL = #dl{} -> DL#dl.phase
+    end.
 
 -spec get_nxt_deadline(#mafia_game{}) -> #dl{}.
 get_nxt_deadline(Game) ->

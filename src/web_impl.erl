@@ -7,9 +7,10 @@
          vote_tracker/3,
          msg/3,
          stats/3,
-         forum_php/3,
+         'forum.php'/3,
          dst_changes/3,
          users/3,
+         game_settings/3,
 
          show_msg/2
         ]).
@@ -29,7 +30,7 @@ search(Sid, _Env, _In) ->
     Msg = ?b2l(MsgBin),
     {_, Pre, Post1} = mafia_vote:find_parts(Msg, ?START_MARK),
     {_, _Pre2, Post} = mafia_vote:find_parts(Post1, ?END_MARK),
-    GNums = ?lrev(lists:sort(mnesia:dirty_all_keys(mafia_game))),
+    GNums = game_nums_rev_sort(),
     Curr = mafia_db:getv(game_key),
     %% <select name="g">
     %%   <option value="27" selected>M27</option>
@@ -745,7 +746,7 @@ conv_to_num(Str) ->
 
 %% -----------------------------------------------------------------------------
 
-forum_php(Sid, _Env, In) ->
+'forum.php'(Sid, _Env, In) ->
     PQ = httpd:parse_query(In),
     ThId = get_arg(PQ, "threadID"),
     UrlDisp = ["http://webdiplomacy.net/forum.php?", In],
@@ -860,6 +861,93 @@ users(Sid, _Env, _In) ->
 
 %% -----------------------------------------------------------------------------
 
+game_settings(Sid, _Env, In) ->
+    PQ = httpd:parse_query(In),
+    GNStr = get_arg(PQ, "game_num"),
+    {A, Body} =
+        case GNStr of
+            "" ->
+                GNums = game_nums_rev_sort(),
+                GNumTitles =
+                    [case ?rgame(GN) of
+                         [G] when G#mafia_game.name == ?undefined ->
+                             {GN, ""};
+                         [G] ->
+                             {GN, ?b2l(G#mafia_game.name)}
+                     end || GN <- GNums],
+                {del_start(Sid, "Game Settings", 0),
+                 [["<tr><td>",
+                   "<a href=\"?game_num=", ?i2l(GN), "\">",
+                   ?i2l(GN), " - ", Title, "</a>"
+                   "</td></tr>"]
+                  || {GN, Title} <- GNumTitles]
+                };
+            _ ->
+                GN = ?l2i(GNStr),
+                SettingsText = get_game_settings(GN),
+                {del_start(Sid, "M" ++ GNStr ++ " Settings", 0),
+                 ["<tr><td>"
+                  "<textarea rows=12 cols=100>",
+                  SettingsText,
+                  "</textarea>"
+                  "<ul>"
+                  "<li>"
+                  "'gms' and 'players' are comma separated lists of users "
+                  "found in the bot <a href=users>User DB</a> \r\n"
+                  "</li><li>"
+                  "'time_zone' is the normal time offset to Greenwich. 1 for "
+                  "Sweden,  -5 for New York, -8 for California.<br>\r\n"
+                  "</li><li>"
+                  "'start_time' is the local time in your time zone. There "
+                  "should be a space between date and time.<br>\r\n"
+                  "</li><li>"
+                  "'dst_zone' is either eu, usa, australia or new_zeeland. "
+                  "See <a href=dst_changes>DST Changes</a>\r\n"
+                  "</li>"
+                  "</td></tr>"]
+                }
+        end,
+    B = web:deliver(Sid, Body),
+    C = del_end(Sid),
+    {A + B + C, ?none}.
+
+get_game_settings(GN) ->
+    As = [game_num, gms, name, day_hours, night_hours,
+          time_zone, start_time, dst_zone, players_orig],
+    G = hd(?rgame(GN)),
+    settings(G, As).
+
+settings(G, As) -> s(G, As).
+
+w(players_orig, Str) -> w(players, Str);
+w(A, Str) -> ?a2l(A) ++ "=" ++ Str ++ "\n".
+
+s(_G, []) -> "";
+s(G, [A = game_num | As]) ->
+    w(A, ?i2l(G#mafia_game.game_num)) ++ s(G, As);
+s(G, [A = gms | As]) ->
+    w(A, string:join([?b2l(GM) || GM <- G#mafia_game.gms], ","))
+        ++ s(G, As);
+s(G, [A = name | As]) -> w(A, ?b2l(G#mafia_game.name)) ++ s(G, As);
+s(G, [A = day_hours | As]) -> w(A, ?i2l(G#mafia_game.day_hours)) ++ s(G, As);
+s(G, [A = night_hours | As]) -> w(A, ?i2l(G#mafia_game.night_hours)) ++ s(G, As);
+s(G, [A = time_zone | As]) -> w(A, ?i2l(G#mafia_game.time_zone)) ++ s(G, As);
+s(G, [A = start_time | As]) ->
+    w(A, mafia_print:print_time(G#mafia_game.start_time, ?local)) ++ s(G, As);
+s(G, [A = dst_zone | As]) -> w(A, ?a2l(G#mafia_game.dst_zone)) ++ s(G, As);
+s(G, [A = players_orig | As]) ->
+    w(A, string:join([?nbsp(P) || P <- G#mafia_game.players_orig], ","))
+        ++ s(G, As).
+
+%% To be used...
+%% <form action="/action_page.php">
+%%   <textarea name="comment" required></textarea>
+%%   <input type="submit">
+%% </form>
+
+
+%% -----------------------------------------------------------------------------
+
 %% insert row into row_tab
 show_message(Msg, Variant) ->
     ["<tr><td><table cellpadding=6 cellspacing=3>",
@@ -951,6 +1039,8 @@ show_msgI(GN, #message{user_name = MsgUserB,
 %% ----------------------------------------------------------------------------
 %% INTERNAL FUNCTIONS
 %% ----------------------------------------------------------------------------
+
+game_nums_rev_sort() -> ?lrev(lists:sort(mnesia:dirty_all_keys(mafia_game))).
 
 del_start(Sid, Title, 0) ->
     Border = "",

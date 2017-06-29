@@ -40,6 +40,7 @@
 -define(l2a(L), list_to_atom(L)).
 -define(l2u(L), string:to_upper(L)).
 -define(lrev(L), lists:reverse(L)).
+-define(nbsp(B), mafia_print:nbsp(B)).
 
 %% combined macros
 -define(l2ub(L), ?l2b(?l2u(L))).

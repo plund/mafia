@@ -28,7 +28,8 @@
          print_pages_for_thread/1,
 
          web_vote_tracker/1,
-         html2txt/1
+         html2txt/1,
+         nbsp/1
         ]).
 
 -include("mafia.hrl").
@@ -52,7 +53,8 @@
     match_expr :: term(),
     dev = ?standard_io,
     mode = ?text :: ?text | ?html,
-    t_mode = ?long :: ?short | ?long | ?human | ?extensive | ?file_suffix,
+    t_mode = ?long :: ?short | ?long | ?local | ?human | ?extensive
+                    | ?file_suffix,
     period :: ?undefined | integer(),   %% Poll period
     use_time :: ?undefined | seconds1970(),
     %% use_time = time to next DL (current game status)
@@ -1512,7 +1514,7 @@ pr_head_html(IterVotes, PrAbbrF) ->
 
 %% replace_space
 nbsp(Bin) when is_binary(Bin) ->
-    nbsp(binary_to_list(Bin));
+    nbsp(?b2l(Bin));
 nbsp(Str) ->
     [ if C ==$\s -> "&nbsp;"; true -> C end
       || C <- Str].
@@ -1832,10 +1834,13 @@ print_time(?console, Time) ->
                  {?t_mode, short}]);
 print_time(Time, Mode) when is_integer(Time) ->
     {TzH, Dst} = mafia_time:get_tz_dst(),
+    print_time(Time, TzH, Dst, Mode);
+print_time(Time = {{_,_,_},{_,_,_}}, Mode) ->
+    {TzH, Dst} = mafia_time:get_tz_dst(),
     print_time(Time, TzH, Dst, Mode).
 
 %% /4
-print_time(Time, TzH, Dst, Mode) when is_integer(Time) ->
+print_time(Time, TzH, Dst, Mode) ->
     print_timeI([{?use_time, Time}, {?time_zone, TzH},
                  {?dst, Dst}, {?t_mode, Mode}]).
 
@@ -1861,7 +1866,10 @@ print_timeI(PP = #pp{}) ->
         t_mode = Mode} = PP,
     try
         {{Y, M, D}, {HH, MM, SS}} =
-            mafia_time:secs1970_to_local_datetime(Time, TzH, Dst),
+            if is_integer(Time) ->
+                    mafia_time:secs1970_to_local_datetime(Time, TzH, Dst);
+               true -> Time
+            end,
         DstStr = case {Dst, Mode} of
                      {?false, ?extensive} -> ", Normal Time";
                      {?true, ?extensive} -> ", Daylight Saving Time";
@@ -1888,6 +1896,9 @@ print_timeI(PP = #pp{}) ->
                       io_lib:format("~s-~s-~s~s~s:~s:~s (~s~s)",
                                     [p(Y), p(M), p(D), Char, p(HH), p(MM), p(SS),
                                      ?i2l(TzH), DstStr]);
+                  ?local ->
+                      io_lib:format("~s-~s-~s ~s:~s:~s",
+                                    [p(Y), p(M), p(D), p(HH), p(MM), p(SS)]);
                   ?human ->
                       io_lib:format("~s-~s-~s ~s:~s:~s (TZ: ~s~s)",
                                     [p(Y), p(M), p(D), p(HH), p(MM), p(SS),

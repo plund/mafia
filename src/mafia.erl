@@ -175,10 +175,10 @@ check_game_data(GNum) ->
         [_] ->
             io:format("Game record exist\n")
     end,
-    DayKeys = [K || K = {GN, _} <- mnesia:dirty_all_keys(mafia_day),
+    DayKeys = [K || K = {GN, _} <- all_keys(mafia_day),
                     GN == GNum],
     io:format("Num Day records ~p\n", [DayKeys]),
-    PageKeys = [K || K = {Th, _} <- mnesia:dirty_all_keys(page_rec),
+    PageKeys = [K || K = {Th, _} <- all_keys(page_rec),
                      Th == ThId],
     io:format("Num Page records ~p\n", [length(PageKeys)]),
     MsgIds = [MsgId || {_, MsgId} <- mafia_lib:all_msgids(ThId),
@@ -527,7 +527,7 @@ show_settings() ->
                   SetVal = element(3, Setting),
                   io:format("~p: ~p\n", [SetKey, SetVal])
         end,
-    [PrintSettings(K) || K <- lists:sort(mnesia:dirty_all_keys(?kv_store))],
+    [PrintSettings(K) || K <- all_keys(?kv_store)],
     ok.
 
 pages_for_thread(ThId) ->

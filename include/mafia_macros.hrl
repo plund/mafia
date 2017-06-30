@@ -66,8 +66,8 @@
 -define(rmess(MsgId), mafia_lib:rmess(MsgId)).
 -define(rpage(ThId, Page), mafia_lib:rpage(ThId, Page)).
 -define(rpage(Key), mafia_lib:rpage(Key)).
--define(ruser(MsgId), mafia_lib:ruser(MsgId)).
--define(ruserUB(MsgId), mafia_lib:ruserUB(MsgId)).
+-define(ruser(User), mafia_lib:ruser(User)).
+-define(ruserUB(User), mafia_lib:ruserUB(User)).
 
 -define(rgame(ThId), mafia_lib:rgame(ThId)).
 -define(rday(GK, Phase), mafia_lib:rday(GK, Phase)).

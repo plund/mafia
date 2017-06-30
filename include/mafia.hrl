@@ -105,7 +105,7 @@
          name :: ?undefined | binary(),
          day_hours = 48 :: integer(),
          night_hours = 24 :: integer(),
-         time_zone = 0 :: integer(), %% (EST=-5, UK = 0, CET=1)
+         time_zone :: ?undefined | integer(), %% (EST=-5, UK = 0, CET=1)
          start_time :: ?undefined | datetime(),
          dst_zone :: ?undefined | dst_zone(),
          dst_changes = [] :: [{datetime(), dst_direction()}],

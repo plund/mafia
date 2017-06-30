@@ -278,6 +278,11 @@ make_game_rec(24) ->
       page_to_read = 1
      }.
 
+set(K=?server_keeper, U) ->
+    case ?ruserUB(U) of
+        [User] -> set_kv(K, ?b2l(User#user.name));
+        [] -> {error, user_not_in_db}
+    end;
 set(K=?thread_id, V) when is_integer(V), V > 0 -> set_kv(K, V);
 set(K=?thread_id, V) when is_atom(V) -> set_kv(K, ?thid(V));
 set(K=?game_key, V) when is_integer(V), V > 0 -> set_kv(K, V);

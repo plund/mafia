@@ -1413,6 +1413,7 @@ show_msgI(GN, #message{user_name = MsgUserB,
                 "Day-" ++ ?i2l(DNum);
             #phase{num = DNum, don = ?night} ->
                 "Night-" ++ ?i2l(DNum);
+            #phase{don = ?game_start} -> "Game Start";
             #phase{don = ?game_ended} -> "Game End "
         end,
     Color = mafia_lib:bgcolor(MsgUserB),

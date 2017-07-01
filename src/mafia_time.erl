@@ -587,7 +587,7 @@ t_mins(?night, T) when T < ?m2s(90) -> 2;
 t_mins(?night, T) when T >= ?m2s(90) -> 3;
 %%  Game starting
 t_mins(?game_start, T) when T < ?m2s(-12*60) -> 6;
-t_mins(?game_start, T) -> 2;
+t_mins(?game_start, _T) -> 2;
 %%  Game has ended
 t_mins(?game_ended, T) when T < ?m2s(60) -> 2;
 t_mins(?game_ended, T) when T < ?m2s(180) -> 4;

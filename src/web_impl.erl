@@ -847,10 +847,13 @@ dst_changes(Sid, _Env, In) ->
                    "</td></tr>"]
                   || Y <- Years],
                  "</table>"
-                 "</td></tr>"
-                 "<tr><td align=center><a href=\"?country=", CAbbr,
-                 "&year=", ?i2l(NextYear), "\">More</a>"
-                 "</td></tr>"
+                 "</td></tr>",
+                 if NextYear < 2200 ->
+                         ["<tr><td align=center><a href=\"?country=", CAbbr,
+                          "&year=", ?i2l(NextYear), "\">More</a>"
+                          "</td></tr>"];
+                    true -> []
+                 end
                  ]
         end,
     A = del_start(Sid, "DST Changes", 0),

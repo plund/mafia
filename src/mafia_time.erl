@@ -299,6 +299,10 @@ inc_phase(#phase{num = Num, don = ?night}) ->
 
 -spec decr_phase(#phase{} | #dl{}) -> #phase{}.
 decr_phase(#dl{phase = Phase}) -> decr_phase(Phase);
+decr_phase(#phase{don = ?game_start}) ->
+    ?undefined;
+decr_phase(#phase{num = 1, don = ?day}) ->
+    #phase{num = 0, don = ?game_start};
 decr_phase(#phase{num = Num, don = ?day}) ->
     #phase{num = Num - 1, don = ?night};
 decr_phase(Ph = #phase{don = ?night}) ->
@@ -518,20 +522,8 @@ get_time_for_prev_phase(G, Phase) ->
     PrevPhase = decr_phase(Phase),
     case get_time_for_phase(G, PrevPhase) of
         ?undefined ->
-            game_start_secs1970(G);
+            first_deadline_secs1970(G);
         Time -> Time
-    end.
-
-game_start_secs1970(G) ->
-    Deadline = first_deadline_secs1970(G),
-    GameStart = Deadline - G#mafia_game.day_hours * ?DaySecs,
-    case dst_change(GameStart,
-                    Deadline,
-                    G#mafia_game.dst_changes,
-                    G#mafia_game.time_zone) of
-        ?same -> GameStart;
-        ?to_dst -> GameStart + ?HourSecs;
-        ?to_normal -> GameStart - ?HourSecs
     end.
 
 -spec nearest_deadline(integer() | #mafia_game{} | [#mafia_game{}])
@@ -593,6 +585,9 @@ t_mins(?night, T) when T < ?m2s(-30) -> 2;
 t_mins(?night, T) when T < ?m2s(30) -> 1;
 t_mins(?night, T) when T < ?m2s(90) -> 2;
 t_mins(?night, T) when T >= ?m2s(90) -> 3;
+%%  Game starting
+t_mins(?game_start, T) when T < ?m2s(-12*60) -> 6;
+t_mins(?game_start, T) -> 2;
 %%  Game has ended
 t_mins(?game_ended, T) when T < ?m2s(60) -> 2;
 t_mins(?game_ended, T) when T < ?m2s(180) -> 4;

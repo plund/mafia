@@ -720,21 +720,24 @@ split_into_groups(NumPerRow, Objects) ->
 
 print_time_left_to_dl(PP) ->
     {{Days, {HH, MM, _}},
-     #dl{phase = #phase{num = Num, don = DoN}}} =
+     #dl{phase = Ph = #phase{}}} =
         mafia_time:get_next_deadline(PP#pp.game_key, PP#pp.use_time),
     DayStr = if Days == 0 -> "";
-                true -> ?i2l(Days) ++ " day, "
+                Days == 1 -> ?i2l(Days) ++ " day, ";
+                true -> ?i2l(Days) ++ " days, "
              end,
     if PP#pp.mode == ?text ->
             io:format(PP#pp.dev,
                       "\n"
-                      "Remaining time to next ~s ~p deadline:"
+                      "Remaining time to ~s:"
                       "  ~s~p hours, ~p minutes\n",
-                      [pr_don(DoN), Num, DayStr, HH, MM]);
+                      [print_phase_next(Ph),
+                       DayStr, HH, MM]);
        PP#pp.mode == ?html ->
             ["<tr><th>",
-             "<center>Remaining time to next ",
-             pr_don(DoN), " ", ?i2l(Num), " deadline:"
+             "<center>Remaining time to ",
+             print_phase_next(Ph),
+             ":"
              "  ", DayStr, ?i2l(HH), " hours, ", ?i2l(MM), " minutes\n",
              "</center></th></tr>"]
     end.
@@ -1250,7 +1253,8 @@ do_print_stats(PP, PrStats) ->
 phase_args(?total_stats) -> "phase=total";
 phase_args(#phase{don = ?game_ended}) -> "phase=end";
 phase_args(#phase{don = DoN, num = DNum}) ->
-    Ph = "phase=" ++ if DoN == ?day -> "day";
+    Ph = "phase=" ++ if DoN == ?game_start -> "Game Start";
+                        DoN == ?day -> "day";
                         DoN == ?night -> "night"
                      end,
     Num = "&num=" ++ ?i2l(DNum),
@@ -1751,6 +1755,11 @@ print_phase(#phase{don = ?game_start}) -> "Game Start";
 print_phase(#phase{don = ?game_ended}) -> "Game End";
 print_phase(#phase{num = Num, don = DoN}) ->
     pr_don(DoN) ++ " " ++ ?i2l(Num).
+
+print_phase_next(Ph = #phase{don = DoN}) when DoN == ?game_start ->
+    print_phase(Ph);
+print_phase_next(Ph) ->
+    "next " ++ print_phase(Ph) ++ " deadline".
 
 pr_don(?game_start) -> "Game Start";
 pr_don(?day) -> "Day";

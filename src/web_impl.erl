@@ -479,6 +479,20 @@ game_status2(Sid, _GameKey, _PQ, NotAllowed) when NotAllowed /= [] ->
 game_status2(Sid, {?error, _}, _PQ, _) ->
     error_resp(Sid, "Bad: g=value");
 game_status2(Sid, GameKey, PQ, []) ->
+    game_status3(Sid, GameKey, PQ, ?rgame(GameKey)).
+
+game_status3(Sid, GameKey, PQ, [G]) ->
+    {_G2, Es} = is_ready_to_go(G, {G, []}),
+    AnyError = lists:any(fun({error, _}) -> true; (_) -> false end, Es),
+    if AnyError ->
+            EStr = ["Game is missing some parameters to be displayed:<br>\r\n",
+                    [[Txt, "<br>\r\n"] || {error, Txt} <- Es]],
+            error_resp(Sid, EStr);
+       not AnyError ->
+            game_status4(Sid, GameKey, PQ)
+    end.
+
+game_status4(Sid, GameKey, PQ) ->
     PhaseStr = get_arg(PQ, "phase"),
     NumStr = get_arg(PQ, "num"),
     Html =
@@ -907,7 +921,7 @@ game_settings(Sid, _Env, In) ->
                     end,
                 {del_start(Sid, "M" ++ GNStr ++ " Settings", 0),
                  ["<tr><td>"
-                  "<form action=\"?submit=true\">"
+                  "<form action=\"/e/web/game_settings\" method=post>"
                   "<input name=game_num type=hidden value=", GNStr, ">"
                   "<textarea name=\"game_settings\" rows=13 cols=100 required>",
                   SettingsText,
@@ -1019,11 +1033,13 @@ maybe_update_game(GNStr, User, Pass, GameSett) when GNStr /= "" ->
                         end,
             {G3, Es3} = is_ready_to_go(G, {G2, Es2}),
             Es3 ++
-                [{info, if G3 /= G ->
-                                ?dwrite_game(G3),
-                                "The game was updated";
-                           true -> "The game was NOT updated"
-                        end}];
+                [{info,
+                  if G3 /= G ->
+                          %% remove generated deadlines
+                          ?dwrite_game(G3#mafia_game{deadlines = []}),
+                          "The game was updated";
+                     true -> "The game was NOT updated"
+                  end}];
        true ->
             [{info, "Game is running and cannot be edited"}]
     end;
@@ -1098,7 +1114,8 @@ mug2(G, GameSett, IsAllowed) when IsAllowed ->  % User is allowed
                                   || B <- lists:usort(Dubs)],
                                  ", "),
             {G2#mafia_game{gms = G#mafia_game.gms,
-                           players_orig = G#mafia_game.players_orig},
+                           players_orig = G#mafia_game.players_orig,
+                           players_rem = G#mafia_game.players_rem},
              Es ++
                  [{error,
                    "Users: " ++ DUsers ++ " exist(s) more than once in "
@@ -1190,7 +1207,8 @@ pr_user_list({Field, GmStr}, {G, Es}) ->
         "gms" ->
             {G#mafia_game{gms = Users2}, Es2};
         "players" ->
-            {G#mafia_game{players_orig = Users2}, Es2}
+            {G#mafia_game{players_orig = Users2,
+                          players_rem = Users2}, Es2}
     end.
 
 pr_int({Field, IntStr}, {G, Es}) ->
@@ -1255,7 +1273,7 @@ par_desc({F, Part, Str}) ->
 check_int(Par = {_, _, Str}, Es, Size, _Min, _Max) when length(Str) /= Size ->
     {error,
      Es ++ [{error,
-             par_desc(Par) ++ " should be " ++ ?i2l(Size) ++ " long."}]};
+             par_desc(Par) ++ " must be " ++ ?i2l(Size) ++ " long."}]};
 check_int(Par = {_, _, Str}, Es, _Size, Min, Max) ->
     case catch ?l2i(Str) of
         {'EXIT', _} ->
@@ -1306,8 +1324,8 @@ settings_info() ->
         "'time_zone' is the normal time offset to Greenwich. 1 for "
         "Sweden,  -5 for New York, -8 for California.<br>\r\n"
         "</li><li>"
-        "'start_time' is the local time in your time zone. There "
-        "should be a space between date and time.<br>\r\n"
+        "'start_time' is the local time in your time zone. "
+        "The correct format is: YYYY-MM-DD HH:MM:SS.<br>\r\n"
         "</li><li>"
         "'dst_zone' is either eu, usa, australia or new_zeeland. "
         "See <a href=dst_changes>DST Changes</a>\r\n"

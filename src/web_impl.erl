@@ -15,6 +15,10 @@
          show_msg/2
         ]).
 
+%% for other web modules
+-export([del_start/3, del_end/1, get_arg/2,
+         game_nums_rev_sort/0]).
+
 -include("mafia.hrl").
 
 %% -----------------------------------------------------------------------------
@@ -482,7 +486,8 @@ game_status2(Sid, GameKey, PQ, []) ->
     game_status3(Sid, GameKey, PQ, ?rgame(GameKey)).
 
 game_status3(Sid, GameKey, PQ, [G]) ->
-    {_G2, Es} = is_ready_to_go(G, {G, []}),
+    {_IsReady, _G2, Es} =
+        web_game_settings:is_ready_to_go(G, {G, []}),
     AnyError = lists:any(fun({error, _}) -> true; (_) -> false end, Es),
     if AnyError ->
             EStr = ["Game is missing some parameters to be displayed:<br>\r\n",
@@ -878,462 +883,8 @@ users(Sid, _Env, _In) ->
 
 %% -----------------------------------------------------------------------------
 
--define(UNSET, "(unset)").
-
-game_settings(Sid, _Env, In) ->
-    PQ = httpd:parse_query(In),
-    GNStr = get_arg(PQ, "game_num"),
-    GameSett = get_arg(PQ, "game_settings"),
-    User = get_arg(PQ, "user"),
-    Pass = get_arg(PQ, "password"),
-    ButtonValue = proplists:get_value("button", PQ),
-    ?dbg({'PQ', PQ}),
-    Responses = maybe_update_game(GNStr, User, Pass, GameSett),
-    {A, Body} =
-        case GNStr of
-            "" ->
-                GNums = game_nums_rev_sort(),
-                GNumTitles =
-                    [case ?rgame(GN) of
-                         [G] when G#mafia_game.name == ?undefined ->
-                             {GN, ""};
-                         [G] ->
-                             {GN, ?b2l(G#mafia_game.name)}
-                     end || GN <- GNums],
-                {del_start(Sid, "Game Settings", 0),
-                 [["<tr><td>",
-                   "<a href=\"?game_num=", ?i2l(GN), "\">",
-                   ?i2l(GN), " - ", Title, "</a>"
-                   "</td></tr>"]
-                  || {GN, Title} <- GNumTitles]
-                };
-            _ ->
-                GN = ?l2i(GNStr),
-                SettingsText =
-                    if ButtonValue == "Reload Game" ->
-                            get_game_settings(GN);
-                       GameSett /= "" ->
-                            GameSett;
-                       true ->
-                            get_game_settings(GN)
-                    end,
-                ServerKeeperInfo =
-                    case ?getv(?server_keeper) of
-                        ?undefined -> "";
-                        SK -> [" and the Server Keeper (", SK, ")"]
-                    end,
-                {del_start(Sid, "M" ++ GNStr ++ " Settings", 0),
-                 ["<tr><td>"
-                  "<form action=\"/e/web/game_settings\" method=post>"
-                  "<input name=game_num type=hidden value=", GNStr, ">"
-                  "<textarea name=\"game_settings\" rows=13 cols=100 required>",
-                  SettingsText,
-                  "</textarea>",
-                  settings_info(),
-                  "<br>"
-                  "<table align=center cellpadding=1 ", ?BG_TURQUOISE, ">"
-                  "<tr><td colspan=2 width=400>"
-                  "<font size=-1>"
-                  "Only GMs (listed in the unmodified settings above)",
-                  ServerKeeperInfo,
-                  " may change the settings of a game."
-                  "<br>"
-                  "To do so a user and password "
-                  "must be given. "
-                  "<br>"
-                  "It is the Server Keeper that PMs random passwords to "
-                  "the GMs."
-                  "</font>"
-                  "</td></tr>"
-                  "<tr><td>User"
-                  "</td><td>"
-                  "<input name=user type=text size=20 value=\"", User, "\">"
-                  "</td></tr>"
-                  "<tr><td>"
-                  "Password"
-                  "</td><td>"
-                  "<input name=password type=text size=20 value=\"", Pass, "\">"
-                  "</td></tr>"
-                  "<tr><td colspan=2>"
-                  "<input name=button value=\"Update Game Settings\""
-                  " type=submit>"
-                  "<input name=button value=\"Reload Game\""
-                  " type=submit>"
-                  "</td></tr></table>"
-                  "</form>"
-                  %% "<a href=\"?game_num=", GNStr, "&edit=true\">",
-                  %% "Edit Game setting</a>"
-                  "</td></tr>"]
-                }
-        end,
-    PrResp =
-        fun({info, ITxt}, Acc) ->
-                Acc ++ ["<tr><td>", ITxt, "</td></tr>"];
-           ({error, ETxt}, Acc) ->
-                Acc ++ ["<tr><td><font color=red>", ETxt, "</font></td></tr>"];
-           ({_, Txt}, Acc) ->
-                Acc ++ ["<tr><td bgcolor=blue>", Txt, "</td></tr>"]
-        end,
-    R = case ButtonValue of
-            ?undefined -> 0;
-            "Reload Game" -> 0;
-            _ ->
-                RBody = lists:foldl(PrResp, "", Responses),
-                web:deliver(Sid, RBody)
-        end,
-    B = web:deliver(Sid, Body),
-    C = del_end(Sid),
-    {A + R + B + C, ?none}.
-
-get_game_settings(GN) ->
-    As = [gms, name, day_hours, night_hours,
-          time_zone, start_time, dst_zone, players_orig],
-    G = hd(?rgame(GN)),
-    settings(G, As).
-
-settings(G, As) -> s(G, As).
-
-w(players_orig, Str) -> w(players, Str);
-w(A, Str) -> ?a2l(A) ++ "=" ++ Str ++ "\n".
-
-s(_G, []) -> "";
-s(G, [A = gms | As]) ->
-    w(A, game_users(G#mafia_game.gms)) ++ s(G, As);
-s(G, [A = name | As]) -> w(A, game_name(G)) ++ s(G, As);
-s(G, [A = day_hours | As]) -> w(A, ?i2l(G#mafia_game.day_hours)) ++ s(G, As);
-s(G, [A = night_hours | As]) ->
-    w(A, ?i2l(G#mafia_game.night_hours)) ++ s(G, As);
-s(G, [A = time_zone | As]) -> w(A, game_time_zone(G)) ++ s(G, As);
-s(G, [A = start_time | As]) ->
-    w(A, game_start_time(G)) ++ s(G, As);
-s(G, [A = dst_zone | As]) -> w(A, game_dst_zone(G)) ++ s(G, As);
-s(G, [A = players_orig | As]) ->
-    w(A, game_users(G#mafia_game.players_orig)) ++ s(G, As).
-
-game_users([]) -> ?UNSET;
-game_users(Users) -> string:join([?b2l(U) || U <- Users], ",").
-
-game_name(#mafia_game{name = ?undefined}) -> ?UNSET;
-game_name(#mafia_game{name = Name}) -> ?b2l(Name).
-
-game_start_time(#mafia_game{start_time = ?undefined}) -> ?UNSET;
-game_start_time(#mafia_game{start_time = Time}) ->
-    mafia_print:print_time(Time, ?local).
-
-game_time_zone(#mafia_game{time_zone = ?undefined}) -> ?UNSET;
-game_time_zone(#mafia_game{time_zone = TZ}) -> ?i2l(TZ).
-
-game_dst_zone(#mafia_game{dst_zone = ?undefined}) -> ?UNSET;
-game_dst_zone(#mafia_game{dst_zone = DstZone}) -> ?a2l(DstZone).
-
-maybe_update_game(GNStr, User, Pass, GameSett) when GNStr /= "" ->
-    GN = ?l2i(GNStr),
-    G = hd(?rgame(GN)),
-    if G#mafia_game.thread_id == ?undefined ->
-            {G2, Es2} = case mug0(G, User, Pass, GameSett) of
-                            Acc = {#mafia_game{}, _} -> Acc;
-                            Es -> {G, Es}
-                        end,
-            {G3, Es3} = is_ready_to_go(G, {G2, Es2}),
-            Es3 ++
-                [{info,
-                  if G3 /= G ->
-                          %% remove generated deadlines
-                          ?dwrite_game(G3#mafia_game{deadlines = []}),
-                          "The game was updated";
-                     true -> "The game was NOT updated"
-                  end}];
-       true ->
-            [{info, "Game is running and cannot be edited"}]
-    end;
-maybe_update_game(_, _, _, _) -> {true, []}.
-
-mug0(_G, User, Pass, _GameSett)
-  when User == ""; Pass == "" ->
-    Es = if User == "" -> [{error, "No user given."}];
-            true -> []
-         end,
-    if Pass == "" -> Es ++ [{error, "No password given."}];
-       true -> Es
-    end;
-mug0(G, User, Pass, GameSett) ->
-    ?dbg({user_pass, User, Pass}),
-    mug1(G, ?ruserUB(User), GameSett,
-         mafia_lib:check_password(User, Pass)).
-
-mug1(G, [#user{name = Name}], GameSett, ok) -> %% User/PW matches
-    ServerKeeper = case ?getv(?server_keeper) of
-                       ?undefined -> [];
-                       SK -> [?l2b(SK)]
-                   end,
-    Allowed = G#mafia_game.gms ++ ServerKeeper,
-    mug2(G, GameSett, lists:member(Name, Allowed));
-mug1(_, _, _, _) ->
-    [{error, "This combination of user and password does not exist."}].
-
-mug2(G, GameSett, IsAllowed) when IsAllowed ->  % User is allowed
-    ?dbg({sett, GameSett}),
-    NewConf = [list_to_tuple(string:tokens(P, "="))
-               || P <- string:tokens(GameSett, "\r\n")],
-    %% [{"gms","peterlund"},
-    %%  {"name","(unset)"},
-    %%  {"day_hours","48"},
-    %%  {"night_hours","24"},
-    %%  {"time_zone","(unset)"},
-    %%  {"start_time","888"},
-    %%  {"dst_zone","(unset)"},
-    %%  {"players","(unset)"}]
-    {Values, Unset} =
-        lists:partition(fun({_, ?UNSET}) -> false; (_) -> true end,
-                        NewConf),
-    ?dbg({unset, Unset}),
-    ?dbg({values, Values}),
-    Values2 = [{K, string:strip(V)} || {K, V} <- Values],
-    ?dbg({values2, Values2}),
-    {G2, Es} = pr(Values2, {G, []}),
-    ?dbg({1, G#mafia_game.name}),
-    ?dbg({2, G2#mafia_game.name}),
-    %% Es2 = Es ++ [{error, Par ++ " is not set."}
-    %%              || {Par, _} <- Unset],
-
-    %% check not same user in both gms and players_orig
-    %% if problem reset both fields to orignal before writing
-    #mafia_game{gms = GMs, players_orig = Ps} = G2,
-    All = GMs ++ Ps,
-    {_Uniqs, Dubs} =
-        lists:foldl(fun(E, {U, D}) ->
-                            case lists:member(E, U) of
-                                false -> {[E|U], D};
-                                true -> {U, [E|D]}
-                            end
-                    end,
-                    {[],[]},
-                    All),
-    IsDubsOk = [] == Dubs,
-    if IsDubsOk ->
-            {G2, Es};
-       true ->
-            DUsers = string:join([?b2l(B)
-                                  || B <- lists:usort(Dubs)],
-                                 ", "),
-            {G2#mafia_game{gms = G#mafia_game.gms,
-                           players_orig = G#mafia_game.players_orig,
-                           players_rem = G#mafia_game.players_rem},
-             Es ++
-                 [{error,
-                   "Users: " ++ DUsers ++ " exist(s) more than once in "
-                   "the group of GMs and players"}]}
-    end;
-mug2(_, _, _) ->
-    [{error, "You are not allowed to edit this game"}].
-
-is_ready_to_go(G, {G3, Es3}) ->
-    %% Check if ready to update and go
-    IsNameOk = ?undefined /= G3#mafia_game.name,
-    Es4 = if IsNameOk -> Es3;
-             true -> Es3 ++ [{error, "Parameter 'dst_zone' must be set."}]
-          end,
-    IsGmsOk = [] /= G3#mafia_game.gms,
-    {G4, Es5} =
-        if IsGmsOk -> {G3, Es4};
-           true ->
-                {G3#mafia_game{gms = G#mafia_game.gms},
-                 Es4 ++
-                     [{error,
-                       "There must be at least one GM left after update."}]}
-        end,
-    IsPsOk = [] /= G4#mafia_game.players_orig,
-    Es6 = if IsPsOk -> Es5;
-             true -> Es5 ++ [{error, "Parameter 'players' must be set."}]
-          end,
-
-    IsTimeOk = ?undefined /= G4#mafia_game.start_time,
-    Es7 = if IsTimeOk -> Es6;
-             true -> Es6 ++ [{error, "Parameter 'start_time' must be set."}]
-          end,
-    IsTzOk = ?undefined /= G4#mafia_game.time_zone,
-    Es8 = if IsTzOk -> Es7;
-             true -> Es7 ++ [{error, "Parameter 'time_zone' must be set."}]
-          end,
-    IsDstZoneOk = ?undefined /= G4#mafia_game.dst_zone,
-    Es9 = if IsDstZoneOk -> Es8;
-             true -> Es8 ++ [{error, "Parameter 'dst_zone' must be set"}]
-          end,
-    IsReadyToGo =
-        IsNameOk and IsGmsOk and IsPsOk and
-        IsTimeOk and IsTzOk and IsDstZoneOk,
-    {G4, Es9  ++
-         [{info,
-           if IsReadyToGo ->
-                   "The game MAY BE STARTED now (but please review the "
-                       "settings carefully before starting)";
-              true ->
-                   "The game CAN NOT BE started now."
-           end}]}.
-
-%% empty binary to undefined
--define(eb2ud(B), case B of
-                      <<>> -> ?undefined;
-                      _ -> B
-                  end).
-
-pr([F = {"gms", _} | T], Acc) -> pr(T, pr_user_list(F, Acc));
-pr([{"name", Name} | T], {G, Es}) ->
-    pr(T, {G#mafia_game{name = ?eb2ud(?l2b(Name))}, Es});
-pr([F={"day_hours", _} | T], Acc) -> pr(T, pr_int(F, Acc));
-pr([F={"night_hours", _} | T], Acc) ->  pr(T, pr_int(F, Acc));
-pr([F={"time_zone", _} | T], Acc) ->  pr(T, pr_int(F, Acc));
-pr([F={"start_time", _} | T], Acc) -> pr(T, pr_start_time(F, Acc));
-pr([F={"dst_zone", _} | T], Acc) -> pr(T, pr_dst_zone(F, Acc));
-pr([F={"players", _} | T], Acc) ->  pr(T, pr_user_list(F, Acc));
-pr([{Par, Value} | T], {G, Es}) ->
-    pr(T, {G, Es ++
-               [{error,
-                 "Unknown parameter: '" ++ Par ++ "' and value '" ++
-                     Value ++ "'"}]});
-pr([], Acc) -> Acc.
-
-pr_user_list({Field, GmStr}, {G, Es}) ->
-    ReadF = fun(U) -> case ?ruserUB(U) of
-                          [#user{name = Name}] ->
-                              {true, ?b2l(Name)};
-                          _ ->
-                              {false, U}
-                      end
-            end,
-    Users = [ReadF(string:strip(U)) || U <- string:tokens(GmStr, ",")],
-    {Good, Bad} = lists:partition(fun({Bool, _}) -> Bool end, Users),
-    Users2 = [?l2b(U) || {_, U} <- Good],
-    Es2 = Es ++ [{error, Field ++ ": User '" ++ U ++ "' does not exist" }
-                 || {_, U} <- Bad],
-    case Field of
-        "gms" ->
-            {G#mafia_game{gms = Users2}, Es2};
-        "players" ->
-            {G#mafia_game{players_orig = Users2,
-                          players_rem = Users2}, Es2}
-    end.
-
-pr_int({Field, IntStr}, {G, Es}) ->
-    case catch ?l2i(IntStr) of
-        {'EXIT', _} ->
-            {G, Es ++ [{error, Field ++ ": " ++ IntStr ++
-                            " is not and integer."}]};
-        Int when ((Field == "day_hours")
-                  or (Field == "night_hours")) and
-                 (Int < 1) ->
-            {G, Es ++ [{error, Field ++ ": " ++ IntStr ++
-                            " is zero or negative"}]};
-        Int when (Field == "time_zone") and
-                 ((Int < -12) or (Int > 12)) ->
-            {G, Es ++ [{error, Field ++ ": " ++ IntStr ++
-                            " must be an integer between -12 and +12"}]};
-        Int ->
-            G2 = case Field of
-                     "day_hours" -> G#mafia_game{day_hours = Int};
-                     "night_hours" -> G#mafia_game{night_hours = Int};
-                     "time_zone" -> G#mafia_game{time_zone = Int}
-                 end,
-            {G2, Es}
-    end.
-
-pr_start_time({F, TimeStr}, {G, Es}) ->
-    %% 2017-03-26 18:00:00
-    %% [["2017","03","26"],["18","00","00"]]
-    case string:tokens(TimeStr, " ") of
-        [Date, Time] ->
-            case [string:tokens(Date, "-"), string:tokens(Time, ":")] of
-                [[YeS, MoS, DaS], [HoS, MiS, SeS]] ->
-                    {Ye, Es2} = check_int({F, "Year", YeS}, Es, 4, 2017, 2100),
-                    {Mo, Es3} = check_int({F, "Month", MoS}, Es2, 2, 0, 12),
-                    {Da, Es4} = check_int({F, "Date", DaS}, Es3, 2, 0, 31),
-                    {Ho, Es5} = check_int({F, "Hours", HoS}, Es4, 2, 0, 23),
-                    {Mi, Es6} = check_int({F, "Minutes", MiS}, Es5, 2, 0, 59),
-                    {Se, Es7} = check_int({F, "Seconds", SeS}, Es6, 2, 0, 59),
-                    if Es7 == Es ->
-                            Time2 = {{Ye, Mo, Da}, {Ho, Mi, Se}},
-                            {G#mafia_game{start_time = Time2}, Es7};
-                       true ->
-                            {G, Es7}
-                    end;
-                _ ->
-                    pr_start_time_error(G, Es, F)
-            end;
-        _ ->
-            pr_start_time_error(G, Es, F)
-    end.
-
-pr_start_time_error(G, Es, F) ->
-    {G,
-     Es ++
-         [{error,
-           "Parameter '" ++ F ++ "' has wrong format. "
-           "The correct format is: YYYY-MM-DD HH:MM:SS."}]}.
-
-par_desc({F, Part, Str}) ->
-    Part ++ " ('" ++ Str ++ "') in '" ++ F ++ "'".
-
-check_int(Par = {_, _, Str}, Es, Size, _Min, _Max) when length(Str) /= Size ->
-    {error,
-     Es ++ [{error,
-             par_desc(Par) ++ " must be " ++ ?i2l(Size) ++ " long."}]};
-check_int(Par = {_, _, Str}, Es, _Size, Min, Max) ->
-    case catch ?l2i(Str) of
-        {'EXIT', _} ->
-            {error,
-             Es ++ [{error, par_desc(Par) ++ " should be an integer."}]};
-        Int when Int < Min ->
-            {error,
-             Es ++ [{error,
-                     par_desc(Par) ++ " should be minimum " ++ ?i2l(Min)}]};
-        Int when Int > Max ->
-            {error,
-             Es ++ [{error,
-                     par_desc(Par) ++ " should be maximum " ++ ?i2l(Max)}]};
-        Int ->
-            {Int, Es}
-    end.
-
-pr_dst_zone({Field, Zone}, {G, Es}) ->
-    ZoneStrs = [?a2l(DZ) || DZ <- mafia_time:dst_change_date()],
-    %% [?eu, ?usa, ?australia, ?new_zeeland].
-    case lists:member(Zone, ZoneStrs) of
-        true ->
-            {G#mafia_game{dst_zone = ?l2a(Zone)}, Es};
-        false ->
-            {G, Es ++ [{error, Field ++ ": Only the following DST zones are "
-                        "allowed: " ++ string:join(ZoneStrs, ", ")}]}
-    end.
-
-%% To be used...
-%% <form action="/action_page.php">
-%%   <textarea name=comment required></textarea>
-%%   <input name=user type=text size=20>
-%%   <input name=password type=text size=20>
-%%   <input type=submit>
-%% </form>
-
-settings_info() ->
-    "<ul>"
-        "<li>"
-        "Any values that are " ++ ?UNSET ++ " must be set before "
-        "the game starts. "
-        "</li><li>"
-        "Please check the settings for previous games for a format template\r\n"
-        "</li><li>"
-        "'gms' and 'players' are comma separated lists of users "
-        "found in the bot <a href=users>User DB</a> \r\n"
-        "</li><li>"
-        "'time_zone' is the normal time offset to Greenwich. 1 for "
-        "Sweden,  -5 for New York, -8 for California.<br>\r\n"
-        "</li><li>"
-        "'start_time' is the local time in your time zone. "
-        "The correct format is: YYYY-MM-DD HH:MM:SS.<br>\r\n"
-        "</li><li>"
-        "'dst_zone' is either eu, usa, australia or new_zeeland. "
-        "See <a href=dst_changes>DST Changes</a>\r\n"
-        "</li>"
-        "</ul>".
+game_settings(Sid, Env, In) ->
+    web_game_settings:game_settings(Sid, Env, In).
 
 %% -----------------------------------------------------------------------------
 
@@ -1427,10 +978,8 @@ show_msgI(GN, #message{user_name = MsgUserB,
          ]).
 
 %% ----------------------------------------------------------------------------
-%% INTERNAL FUNCTIONS
+%% API for other modules
 %% ----------------------------------------------------------------------------
-
-game_nums_rev_sort() -> ?lrev(lists:sort(mnesia:dirty_all_keys(mafia_game))).
 
 del_start(Sid, Title, 0) ->
     Border = "",
@@ -1445,6 +994,18 @@ del_start(Sid, Title, Border) ->
 del_end(Sid) ->
     web:deliver(Sid, ?HTML_TAB_END).
 
+get_arg(PQ, ArgStr) ->
+    case lists:keyfind(ArgStr, 1, PQ) of
+        false -> "";
+        {_, V} -> V
+    end.
+
+game_nums_rev_sort() -> ?lrev(lists:sort(mnesia:dirty_all_keys(mafia_game))).
+
+%% ----------------------------------------------------------------------------
+%% INTERNAL FUNCTIONS
+%% ----------------------------------------------------------------------------
+
 get_gnum("") -> ?getv(?game_key);
 get_gnum("m" ++ NumStr) -> ?l2i(NumStr);
 get_gnum(NumStr) -> ?l2i(NumStr).
@@ -1457,12 +1018,6 @@ error_resp(Sid, Specific) ->
     NumBytes = web:deliver(Sid, Html),
     Args = [],
     {NumBytes, Args}.
-
-get_arg(PQ, ArgStr) ->
-    case lists:keyfind(ArgStr, 1, PQ) of
-        false -> "";
-        {_, V} -> V
-    end.
 
 make_args(PQ, Keys) ->
     lists:foldl(fun({_K, ""}, Acc) -> Acc;

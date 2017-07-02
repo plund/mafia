@@ -114,7 +114,7 @@
          players_orig = [] :: [player()],
          players_rem = [] :: [player()],
          player_deaths = [] :: [#death{} | #replacement{}],
-         page_to_read :: ?undefined | integer(),
+         page_to_read = 1 :: integer(),
          game_end :: ?undefined | {seconds1970(), msg_id()},
          last_msg_id :: ?undefined | msg_id(),
          last_msg_time :: ?undefined | seconds1970()

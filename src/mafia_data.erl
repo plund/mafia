@@ -4,6 +4,7 @@
 -export([refresh_messages/0,
          refresh_messages/1,
          refresh_votes/0,
+         refresh_votes/1,
          refresh_stat/0,
          refresh_stat/1
         ]).
@@ -24,7 +25,10 @@
 -export([update_stat/2,
          compress_txt_files/0,
          grep/1, grep/2,
-         iterate_all_msgs/2
+         iterate_all_msgs/2,
+
+         delete_game_data_in_other_tabs/1,
+         reset_game/1
         ]).
 
 -include("mafia.hrl").
@@ -165,17 +169,29 @@ refresh_messages() -> refresh_messages(?game_key).
 -spec refresh_messages(GNum :: integer() | ?game_key) -> ok.
 refresh_messages(?game_key = K) -> refresh_messages(?getv(K));
 refresh_messages(GNum) ->
-    refresh_messagesI(GNum, ?rgame(GNum)).
+    refresh_messagesI(?rgame(GNum)).
 
-refresh_messagesI(GNum, [G = #mafia_game{thread_id = ThId}])
+refresh_messagesI([G = #mafia_game{thread_id = ThId}])
   when is_integer(ThId) ->
-    %% reset mafia_game to default values
-    mafia_db:reset_game(GNum), %% resets last_msg_id, last_msg_time...
+    %% reset mafia_game to initial values
+    G2 = reset_game(G),
+    delete_game_data_in_other_tabs(G2),
+    %% Populate tables message and page_rec again
+    case download(#s{game_rec = G2, thread_id = ThId, page_to_read = 1}) of
+        {ok, _S} -> ok;
+        {E = {error, _}, _S} -> E
+    end.
 
+delete_game_data_in_other_tabs(GNum) when is_integer(GNum) ->
+    delete_game_data_in_other_tabs(?rgame(GNum));
+delete_game_data_in_other_tabs([]) -> {error, no_game};
+delete_game_data_in_other_tabs([G]) ->
+    delete_game_data_in_other_tabs(G);
+delete_game_data_in_other_tabs(G = #mafia_game{thread_id = ThId}) ->
     %% Delete mafia_day
     _ = [mnesia:dirty_delete(mafia_day, K)
          || K = {GN, _} <- mnesia:dirty_all_keys(mafia_day),
-            GN == GNum],
+            GN == G#mafia_game.game_num],
 
     %% Delete messages for msg_ids found in page_rec of thread
     MsgIdFun = fun(MsgId) -> mnesia:dirty_delete(message, MsgId) end,
@@ -183,28 +199,37 @@ refresh_messagesI(GNum, [G = #mafia_game{thread_id = ThId}])
 
     %% Delete page_recs for thread
     [mnesia:dirty_delete(page_rec, K)
-     || K = {ThId2, _P} <- mnesia:dirty_all_keys(page_rec), ThId2 == ThId],
+     || K = {ThId2, _P}
+            <- mnesia:dirty_all_keys(page_rec),
+        ThId2 == ThId].
 
-    %% Populate tables message and page_rec again
-    case download(#s{game_rec = G, thread_id = ThId, page_to_read = 1}) of
-        {ok, _S} -> ok;
-        {E = {error, _}, _S} -> E
-    end.
+reset_game(G = #mafia_game{}) ->
+    G2 = G#mafia_game{
+           players_rem = G#mafia_game.players_orig,
+           player_deaths = [],
+           page_to_read = 1,
+           game_end = ?undefined,
+           last_msg_id = ?undefined,
+           last_msg_time = ?undefined},
+    ?dwrite_game(G2),
+    G2.
 
 %% -spec refresh_votes() -> ok.
 refresh_votes() ->
     GNum = ?getv(?game_key),
+    refresh_votes(GNum).
+
+refresh_votes(GNum) ->
     clear_mafia_day_and_stat(GNum),
-    ?dbg(hard_game_reset),
-    %% Reinitialize the game table
-    mafia_db:reset_game(GNum),
     refresh_votes(?rgame(GNum), all).
 
 refresh_votes([], _F) ->
     ok;
 refresh_votes([G], PageFilter) ->
     refresh_votes(G, PageFilter);
-refresh_votes(G = #mafia_game{}, PageFilter) ->
+refresh_votes(G0 = #mafia_game{}, PageFilter) ->
+    %% Reinitialize the game table
+    G = reset_game(G0),
     ThId = G#mafia_game.thread_id,
     {MsgIdFun, Acc} = checkvote_fun(G, false),
     case iter_msgids(ThId, MsgIdFun, Acc, PageFilter) of
@@ -613,16 +638,16 @@ make_url(S) ->
 -spec get_body2(#s{}, term()) -> {ok, Body::term()} | {error, term()}.
 get_body2(_S2, {error, _} = Error) -> Error;
 get_body2(S2, {ok, Body}) ->
-    Body2 = get_thread_section(Body),
+    Body2 = get_thread_section(S2#s.thread_id, Body),
     S3 = check_this_page(S2#s{body=Body2}),
-    if not S3#s.is_last_page -> % page complete > STORE IT!
+    if not S3#s.is_last_page ->
+            %% page complete > STORE IT on file!
             store_page(S3, Body2);
        true -> ok
     end,
     {ok, S3}.
 
-get_thread_section(Body) ->
-    ThId = ?getv(?thread_id),
+get_thread_section(ThId, Body) ->
     ThStartStr = "<div class=\"thread threadID" ++ ?i2l(ThId),
     B2 = rm_to_after(Body, ThStartStr),
     ThEndStr = "<div class=\"thread thread",
@@ -739,7 +764,8 @@ check_this_page(S) ->
 
 %% -----------------------------------------------------------------------------
 
-analyse_body(S = #s{body = ""}) -> S;
+analyse_body(S = #s{body = ""}) ->
+    S;
 analyse_body(S) ->
     Body = S#s.body,
     B3 = rm_to_after(Body, ["<div class=\"reply",
@@ -754,7 +780,6 @@ analyse_body(S) ->
     B5 = rm_to_after(B4c, ["<div class=\"message-contents\"", ">"]),
     {B6, MsgRaw} = read_to_before(B5, "</div>"),
     Msg = strip(MsgRaw),
-
     analyse_body(S#s{body = B6}, {UserStr, MsgIdStr, TimeStr, Msg}).
 
 analyse_body(S, {"", _MsgIdStr, _TimeStr, _Msg}) -> S;

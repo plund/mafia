@@ -40,7 +40,7 @@
          start/0,
          stop/0,
 
-         game_start/2,
+         game_start/2, % old
          end_phase/1,
          unend_phase/1,
          end_phase/2, %% deprecated
@@ -48,12 +48,12 @@
          end_game/1,
          unend_game/1,
          switch_to_game/1,
-         switch_to_game/2,
+         switch_thread_id/2,
          game_thread/1,
          initiate_game/2,
          remove_game/1,
-         pregame_create/1,
-         pregame_update/0,
+         pregame_create/1, % old
+         pregame_update/0, % old
 
          replace_player/3,
          kill_player/3,
@@ -252,38 +252,30 @@ pregame(Create) ->
     mafia_web:poll(). %% creates text file
 
 %% -----------------------------------------------------------------------------
-%% @doc Switch to other game and reread all info
+%% @doc Switch to other game
 %% @end
 %% -----------------------------------------------------------------------------
 -spec switch_to_game(GNum :: game_num()) -> term().
 switch_to_game(GNum) ->
-    switch_to_gameI(GNum, normal).
-
--spec switch_to_game(GNum :: game_num(),
-                     Method :: normal | refresh) -> term().
-switch_to_game(GNum, Method) ->
-    switch_to_gameI(GNum, Method).
+    ?set(game_key, GNum), %% Must have it set as default game when omitted
+    mafia_web:change_current_game(GNum).
 
 %% -----------------------------------------------------------------------------
-%% if all data for game already is in DB
-switch_to_gameI(GNum, normal) ->
-    ?set(game_key, GNum), %% Must have it set for gen_server and web_impl
-    ThId = game_thread(GNum),
-    ?set(thread_id, ThId),  %% not needed?
-    ?set(page_to_read, 1),  %% not needed?
-    mafia:stop(),  %% Set gen_server #state.game_key
-    mafia:start();
-
-%% if not data for game in DB
-switch_to_gameI(GNum, refresh) -> %% Should always work
-    mafia_db:reset_game(GNum), %% recreates the  game record
-    ?set(game_key, GNum),
-    ThId = game_thread(GNum),
-    ?set(thread_id, ThId),
-    ?set(page_to_read, 1),
-    mafia:stop(),  %% Set gen_server #state.game_key
-    mafia:start(),
-    mafia_data:refresh_messages().
+%% @doc Switch to other thread_id() and reread all info
+%% @end
+%% -----------------------------------------------------------------------------
+-spec switch_thread_id(GNum :: game_num(),
+                       thread_id()) -> term().
+switch_thread_id(GNum, NewThId) when is_integer(NewThId) ->
+    case ?rgame(GNum) of
+        [G] ->
+            ?dwrite_game(G#mafia_game{thread_id = NewThId}),
+            mafia_data:refresh_messages(GNum),
+            mafia_data:refresh_votes(GNum),
+            ok;
+        _ ->
+            {error, no_game}
+    end.
 
 game_thread(GNum) ->
     case ?rgame(GNum) of

@@ -85,11 +85,13 @@ CNT_DIR=$RUN_DIR/counters
 CMD_DIR=$RUN_DIR/command_files
 THREAD_DIR=$RUN_DIR/thread_pages
 PATCHES=$RUN_DIR/patches
+SETTINGS=$RUN_DIR/game_settings
 mkdir -p $LOG_DIR
 mkdir -p $CNT_DIR
 mkdir -p $CMD_DIR
 mkdir -p $THREAD_DIR
 mkdir -p $PATCHES
+mkdir -p $SETTINGS
 \rm $PATCHES/*beam
 
 NODE_NAME=$APP_NAME

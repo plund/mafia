@@ -25,6 +25,7 @@
          get_arg/1,
          my_string_substr/3,
          alpha_sort/1,
+         to_bin_sort/1,
          bgcolor/1,
          thid/1,
          gamename_to_thid/1,
@@ -307,6 +308,11 @@ my_string_substr([], _First, _Last, _Cur) -> [].
 alpha_sort(Strings) ->
     LE = fun(A, B) -> ?l2u(A) =< ?l2u(B) end,
     lists:sort(LE, Strings).
+
+to_bin_sort(LoL = [[_|_]|_]) ->
+    [?l2b(L) || L <- alpha_sort(LoL)];
+to_bin_sort(LoB = [Bin|_]) when is_binary(Bin) ->
+    to_bin_sort([?b2l(L) || L <- LoB]).
 
 %% -----------------------------------------------------------------------------
 

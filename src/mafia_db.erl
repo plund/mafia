@@ -120,8 +120,7 @@ start_mnesia(Op) ->
 %% List of lists
 to_bin(LoL = [[_|_]|_]) -> [?l2b(L) || L <- LoL].
 
-to_bin_sort(LoL = [[_|_]|_]) ->
-    [?l2b(L) || L <- mafia_lib:alpha_sort(LoL)].
+to_bin_sort(LoL) -> mafia_lib:to_bin_sort(LoL).
 
 write_default_user_table() ->
     [ ?dwrite_user(
@@ -190,9 +189,7 @@ make_game_rec(29 = GNum) ->
       dst_zone = ?usa,
       gms = to_bin(?M29_GMs),
       players_orig = to_bin_sort(?M29_players),
-      players_rem = to_bin_sort(?M29_players),
-      player_deaths = [],
-      page_to_read = 1
+      players_rem = to_bin_sort(?M29_players)
      };
 make_game_rec(28) ->
     _ = #mafia_game{
@@ -205,9 +202,7 @@ make_game_rec(28) ->
       dst_zone = ?usa,
       gms = to_bin(?M28_GMs),
       players_orig = to_bin_sort(?M28_players),
-      players_rem = to_bin_sort(?M28_players),
-      player_deaths = [],
-      page_to_read = 1
+      players_rem = to_bin_sort(?M28_players)
      };
 make_game_rec(27) ->
     %% M27 Game Thread 1447615
@@ -222,9 +217,7 @@ make_game_rec(27) ->
       dst_zone = ?usa,
       gms = to_bin(?M27_GMs),
       players_orig = to_bin_sort(?M27_players),
-      players_rem = to_bin_sort(?M27_players),
-      player_deaths = [],
-      page_to_read = 1
+      players_rem = to_bin_sort(?M27_players)
      };
 make_game_rec(26) ->
     %% Game Thread 1432756
@@ -239,9 +232,7 @@ make_game_rec(26) ->
       dst_zone = ?eu,
       gms = to_bin(?M26_GMs),
       players_orig = to_bin(?M26_players),
-      players_rem = to_bin(?M26_players),
-      player_deaths = [],
-      page_to_read = 1
+      players_rem = to_bin(?M26_players)
      };
 make_game_rec(25) ->
     %% M25 GOD QT https://www.quicktopic.com/52/H/gBqFhw3Bidb
@@ -257,9 +248,7 @@ make_game_rec(25) ->
       dst_zone = ?usa,
       gms = to_bin(?M25_GMs),
       players_orig = to_bin(?M25_players),
-      players_rem = to_bin(?M25_players),
-      player_deaths = [],
-      page_to_read = 1
+      players_rem = to_bin(?M25_players)
      };
 make_game_rec(24) ->
     _ = #mafia_game{
@@ -273,9 +262,7 @@ make_game_rec(24) ->
       dst_zone = ?usa,
       gms = to_bin(?M24_GMs),
       players_orig = to_bin(?M24_players),
-      players_rem = to_bin(?M24_players),
-      player_deaths = [],
-      page_to_read = 1
+      players_rem = to_bin(?M24_players)
      }.
 
 set(K=?server_keeper, U) ->

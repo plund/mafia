@@ -46,7 +46,8 @@
     players_vote :: ?undefined | [player()], %% for vote tracker
     game_key :: ?undefined | thread_id(),
     phase :: ?undefined | #phase{} | ?total_stats,
-    phase_type :: ?undefined | ?day | ?night | ?game_ended,
+    phase_type :: ?undefined | ?day | ?night | ?game_start
+                | ?game_ended | ?total_stats,
     day_num :: ?undefined | integer(),
     message :: ?undefined | #message{},
     msg_id :: ?undefined | msg_id(),
@@ -229,8 +230,10 @@ setup_pp(PP) when PP#pp.players_vote == ?undefined ->
     setup_pp(PP#pp{players_vote = AllPlayersB});
 setup_pp(PP) when PP#pp.phase_type == ?undefined ->
     PhaseType = case PP#pp.phase of
+                    #phase{don = ?game_start} -> ?game_start;
                     #phase{don = ?game_ended} -> ?game_ended;
-                    #phase{don = DoN} -> DoN
+                    #phase{don = DoN} -> DoN;
+                    ?total_stats -> ?total_stats
                 end,
     setup_pp(PP#pp{phase_type = PhaseType});
 setup_pp(PP) -> PP.

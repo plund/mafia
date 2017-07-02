@@ -14,10 +14,10 @@
 game_settings(Sid, _Env, In) ->
     PQ = httpd:parse_query(In),
     Button = proplists:get_value("button", PQ),
-    GN = proplists:get_value("game_num", PQ),
-    if Button == ?undefined, GN == ?undefined  ->
+    GNum = proplists:get_value("game_num", PQ),
+    if Button == ?undefined, GNum == ?undefined  ->
             game_settings_list(Sid);
-       Button == ?undefined, GN /= ?undefined  ->
+       Button == ?undefined, GNum /= ?undefined  ->
             game_settings_update(Sid, Button, PQ);
        Button == ?BUpdate;
        Button == ?BReload ->
@@ -30,19 +30,19 @@ game_settings(Sid, _Env, In) ->
 game_settings_list(Sid) ->
     GNums = web_impl:game_nums_rev_sort(),
     GNumTitles =
-        [case ?rgame(GN) of
+        [case ?rgame(GNum) of
              [G] when G#mafia_game.name == ?undefined ->
-                 {GN, ""};
+                 {GNum, ""};
              [G] ->
-                 {GN, ?b2l(G#mafia_game.name)}
-         end || GN <- GNums],
+                 {GNum, ?b2l(G#mafia_game.name)}
+         end || GNum <- GNums],
     {A, Body} =
         {web_impl:del_start(Sid, "Game Settings", 0),
          [["<tr><td>",
-           "<a href=\"?game_num=", ?i2l(GN), "\">",
-           ?i2l(GN), " - ", Title, "</a>"
+           "<a href=\"?game_num=", ?i2l(GNum), "\">",
+           ?i2l(GNum), " - ", Title, "</a>"
            "</td></tr>\r\n"]
-          || {GN, Title} <- GNumTitles]
+          || {GNum, Title} <- GNumTitles]
         },
     B = web:deliver(Sid, Body),
     C = web_impl:del_end(Sid),
@@ -54,17 +54,17 @@ game_settings_update(Sid, Button, PQ) ->
     User = web_impl:get_arg(PQ, "user"),
     Pass = web_impl:get_arg(PQ, "password"),
     ?dbg({'PQ', PQ}),
-    {StartAllowed, Responses} =
+    {IsRunning, StartAllowed, Responses} =
         maybe_update_game(Button, GNStr, User, Pass, GameSett),
     ?dbg({'StartAllowed', StartAllowed}),
-    GN = ?l2i(GNStr),
+    GNum = ?l2i(GNStr),
     SettingsText =
         if Button == ?BReload ->
-                get_game_settings(GN);
+                get_game_settings(GNum);
            GameSett /= "" ->
                 GameSett;
            true ->
-                get_game_settings(GN)
+                get_game_settings(GNum)
         end,
     ServerKeeperInfo =
         case ?getv(?server_keeper) of
@@ -108,25 +108,31 @@ game_settings_update(Sid, Button, PQ) ->
           "</textarea>\r\n",
           settings_info(),
           "<br>\r\n",
-          enter_user_pw_box(PwF),
+          if not IsRunning ->
+                  enter_user_pw_box(PwF);
+             true -> ""
+          end,
           "\r\n</form>\r\n"
           "</td></tr>"]
         },
-    PrResp = fun({Type, Txt}, Acc) ->
-                     TextColour =
-                         case Type of
-                             info -> "black";
-                             error -> "red";
-                             warning -> "blue"
-                         end,
-                     Acc ++ ["<tr><td><font color=", TextColour, ">", Txt,
-                             "</font></td></tr>\r\n"]
-             end,
-    RBody = lists:foldl(PrResp, "", Responses),
+    RBody = present_responses(Responses),
     R = web:deliver(Sid, RBody),
     B = web:deliver(Sid, Body),
     C = web_impl:del_end(Sid),
     {A + R + B + C, ?none}.
+
+present_responses(Responses) ->
+    lists:foldl(fun pres_resp/2, "", Responses).
+
+pres_resp({Type, Txt}, Acc) ->
+    TextColour =
+        case Type of
+            info -> "black";
+            error -> "red";
+            warning -> "blue"
+        end,
+    Acc ++ ["<tr><td><font color=", TextColour, ">", Txt,
+            "</font></td></tr>\r\n"].
 
 enter_user_pw_box(F) ->
     [
@@ -157,10 +163,18 @@ enter_user_pw_box(F) ->
      "</td></tr></table>"
     ].
 
-get_game_settings(GN) ->
-    As = [gms, name, day_hours, night_hours,
-          time_zone, start_time, dst_zone, players_orig],
-    G = hd(?rgame(GN)),
+-define(GAME_FIELDS, [gms, name, day_hours, night_hours,
+                      time_zone, start_time, dst_zone, players_orig]).
+
+get_game_settings(G = #mafia_game{}, AddFields) ->
+    As = ?GAME_FIELDS ++ AddFields,
+    gen_text_settings(G, As).
+
+get_game_settings(GNum) when is_integer(GNum) ->
+    G = hd(?rgame(GNum)),
+    get_game_settings(G);
+get_game_settings(G = #mafia_game{}) ->
+    As = ?GAME_FIELDS,
     gen_text_settings(G, As).
 
 gen_text_settings(G, As) -> gts(G, As).
@@ -169,6 +183,8 @@ gts(_G, []) -> "";
 gts(G, [A = gms | As]) ->
     tr_key(A, game_users(G#mafia_game.gms)) ++ gts(G, As);
 gts(G, [A = name | As]) -> tr_key(A, game_name(G)) ++ gts(G, As);
+gts(G, [A = thread_id | As]) ->
+    tr_key(A, ?i2l(G#mafia_game.thread_id)) ++ gts(G, As);
 gts(G, [A = day_hours | As]) ->
     tr_key(A, ?i2l(G#mafia_game.day_hours)) ++ gts(G, As);
 gts(G, [A = night_hours | As]) ->
@@ -201,8 +217,8 @@ game_dst_zone(#mafia_game{dst_zone = ?undefined}) -> ?UNSET;
 game_dst_zone(#mafia_game{dst_zone = DstZone}) -> ?a2l(DstZone).
 
 maybe_update_game(Button, GNStr, User, Pass, GameSett) ->
-    GN = ?l2i(GNStr),
-    G = hd(?rgame(GN)),
+    GNum = ?l2i(GNStr),
+    G = hd(?rgame(GNum)),
     if G#mafia_game.thread_id == ?undefined ->
             {G2, Es2} =
                 if Button == ?BUpdate ->
@@ -224,9 +240,9 @@ maybe_update_game(Button, GNStr, User, Pass, GameSett) ->
                    true -> []
                 end,
             Es4 = Es3 ++ UpdateInfo,
-            {IsReady, Es4};
+            {false, IsReady, Es4};
        true ->
-            {false,
+            {true, false,
              [{info, "Game is running and cannot be edited"}]}
     end.
 
@@ -495,13 +511,15 @@ settings_info() ->
         "'gms' and 'players' are comma separated lists of users "
         "found in the bot <a href=users>User DB</a> \r\n"
         "</li><li>"
-        "'time_zone' is the normal time offset to Greenwich. 1 for "
-        "Sweden,  -5 for New York, -8 for California.<br>\r\n"
+        "'name' is your game title."
+        "</li><li>"
+        "'time_zone' is the normal time offset to Greenwich (no DST). "
+        "1 for Sweden, -5 for New York and -8 for California.<br>\r\n"
         "</li><li>"
         "'start_time' is the local time in your time zone. "
         "The correct format is: YYYY-MM-DD HH:MM:SS.<br>\r\n"
         "</li><li>"
-        "'dst_zone' is either eu, usa, australia or new_zeeland. "
+        "'dst_zone' is either 'eu', 'usa', 'australia' or 'new_zeeland'. "
         "See <a href=dst_changes>DST Changes</a>\r\n"
         "</li>"
         "</ul>".
@@ -511,56 +529,118 @@ game_settings_start(Sid, Button, PQ) ->
     User = web_impl:get_arg(PQ, "user"),
     Pass = web_impl:get_arg(PQ, "password"),
     ThreadId = web_impl:get_arg(PQ, "thread_id"),
+    [G] = ?rgame(?l2i(GNStr)),
+    WasThreadSet = ?undefined /= G#mafia_game.thread_id,
+    {IsThreadSet, Responses} = maybe_set_thread_id(G, User, Pass, ThreadId),
     ?dbg({button, Button, ThreadId}),
-    F = fun(user) -> User;
-           (pass) -> Pass;
-           (info) ->
-                [
-                 "<tr><td colspan=2 width=400>"
-                 "<font size=-1>"
-                 "Make sure this thread id is correct.<br>\r\n"
-                 "Start cannot be undone!\r\n"
-                 "</font>\r\n"
-                 "</td></tr>"
-                ];
-           (buttons) ->
-                [?BStartNow];
-           (extra_fields) ->
-                [{"Thread Id", "thread_id", ThreadId, 20}]
-        end,
     Body =
-        ["<tr><td><table width=600>"
-         "<tr><td>After you have started the game thread on webdiplomacy.net "
-         "you need to tell the bot what thread id number your new thread "
-         "has.\r\n"
-         "<p>"
-         "Find out the game thread id this way: \r\n"
-         "<ol><li>"
-         "In a web browser, open the forum game thread so you can "
-         "read the game thread.<br>\r\n"
-         "</li><li>"
-         "In the location window in the top you find an URL that looks "
-         "like this:<br>\r\n"
-         "<pre>\r\n"
-         "   http://webdiplomacy.net/forum.php?threadID=1479977#1479977\r\n"
-         "</pre>\r\n"
-         "</li><li>"
-         "The thread id you are looking for is the first number you find "
-         "after \"?threadID=\"<br>\r\n"
-         "</li><li>"
-         "Insert this number in the below field, and press the Start "
-         "button. (Don't use the number shown in this example.)\r\n"
-         "</li></ol></td></tr>\r\n"
-         "</table></td></tr>\r\n"
-         "<tr><td>"
-         %% Form
-         "<form action=\"/e/web/game_settings\" method=post>\r\n"
-         "<input name=game_num type=hidden value=", GNStr, ">\r\n",
-         enter_user_pw_box(F),
-         "\r\n</form>\r\n"
-         "</td></tr>"
-        ],
+        if WasThreadSet;
+           IsThreadSet ->
+                ["<tr><td><center>"
+                 "GAME M", GNStr, " IS RUNNING NOW!"
+                 "</center></td></tr>\r\n"
+                ];
+           not IsThreadSet ->
+                F = fun(user) -> User;
+                       (pass) -> Pass;
+                       (info) ->
+                            [
+                             "<tr><td colspan=2 width=400>"
+                             "<font size=-1>"
+                             "Make sure this thread id is correct.<br>\r\n"
+                             "Start cannot be undone!\r\n"
+                             "</font>\r\n"
+                             "</td></tr>"
+                            ];
+                       (buttons) ->
+                            [?BStartNow];
+                       (extra_fields) ->
+                            [{"Thread Id", "thread_id", ThreadId, 20}]
+                    end,
+                [present_responses(Responses),
+                 "<tr><td><table width=600>"
+                 "<tr><td>After you have started the game thread on webdiplomacy.net "
+                 "you need to tell the bot what thread id number your new thread "
+                 "has.\r\n"
+                 "<p>"
+                 "Find out the game thread id this way: \r\n"
+                 "<ol><li>"
+                 "In a web browser, open the forum game thread so you can "
+                 "read the game thread.<br>\r\n"
+                 "</li><li>"
+                 "In the location window in the top you find an URL that looks "
+                 "like this:<br>\r\n"
+                 "<pre>\r\n"
+                 "   http://webdiplomacy.net/forum.php?threadID=1479977#1479977\r\n"
+                 "</pre>\r\n"
+                 "</li><li>"
+                 "The thread id you are looking for is the first number you find "
+                 "after \"?threadID=\"<br>\r\n"
+                 "</li><li>"
+                 "Insert this number in the below field, and press the Start "
+                 "button. (Don't use the number shown in this example.)\r\n"
+                 "</li></ol></td></tr>\r\n"
+                 "</table></td></tr>\r\n"
+                 "<tr><td>"
+                 %% Form
+                 "<form action=\"/e/web/game_settings\" method=post>\r\n"
+                 "<input name=game_num type=hidden value=", GNStr, ">\r\n",
+                 enter_user_pw_box(F),
+                 "\r\n</form>\r\n"
+                 "</td></tr>"
+                ]
+        end,
     A = web_impl:del_start(Sid, "Starting M" ++ GNStr, 0),
     B = web:deliver(Sid, Body),
     C = web_impl:del_end(Sid),
     {A + B + C, ?none}.
+
+maybe_set_thread_id(_, _, _, "") ->
+    {false, [{error, "No Thread Id Given."}]};
+maybe_set_thread_id(_, User, Pass, _)
+  when User == ""; Pass == "" ->
+    Es = if User == "" -> [{warning, "No User Given."}];
+            true -> []
+         end,
+    Es2 = if Pass == "" -> Es ++ [{warning, "No Password Given."}];
+             true -> Es
+          end,
+    {false, Es2};
+maybe_set_thread_id(G, User, Pass, ThreadId) ->
+    msti2(G,
+          mafia_lib:check_password(User, Pass),
+          catch ?l2i(ThreadId)).
+
+msti2(_G, {error, _}, _) ->
+    {false, [{error, "This combination of user and password does not exist."}]};
+msti2(_G, _PwRes, {'EXIT', _}) ->
+    {false, [{error, "Thread id is not an integer"}]};
+msti2(_G, _PwRes, ThId) when ThId =< 1479977 ->
+    {false, [{error, "Thread id has a too low value"}]};
+msti2(_G, _PwRes, ThId) when ThId >  3000000 ->
+    {false, [{error, "Thread id has a too high value"}]};
+msti2(G, _PwRes, ThId) ->
+    {IsReady, G2, Es} = is_ready_to_go(G, {G, []}),
+    if IsReady ->
+            %% START GAME!
+            G3 = G2#mafia_game{
+                   thread_id = ThId,
+                   players_orig = mafia_lib:to_bin_sort(
+                                    G2#mafia_game.players_orig),
+                   players_rem = mafia_lib:to_bin_sort(
+                                   G2#mafia_game.players_rem),
+                   page_to_read = 1
+                   %% Can be removed after M30 has started
+                   %% or I set it to 1 on the server
+                  },
+            G4 = mafia_time:initial_deadlines(G3),
+            ?dwrite_game(G4),
+            mafia:switch_to_game(G#mafia_game.game_num),
+            SettingsFN = mafia_file:settings_fn(G4#mafia_game.game_num),
+            Settings = get_game_settings(G4, [thread_id]),
+            file:write_file(SettingsFN, Settings),
+            {true, Es ++ [{info, "Thread Id was set"},
+                          {info, "GAME STARTED!"}]};
+       true ->
+            {false, Es}
+    end.

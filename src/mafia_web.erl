@@ -26,6 +26,7 @@
 
          get_state/0,
 
+         change_current_game/1,
          regen_history/2,
          update_current/0,
          get_html/2
@@ -123,6 +124,13 @@ update_current() ->
     gen_server:cast(?SERVER, update_current).
 
 %%--------------------------------------------------------------------
+%% @doc Change current game
+%% @end
+%%--------------------------------------------------------------------
+change_current_game(GNum) ->
+    gen_server:call(?SERVER, {change_current_game, GNum}).
+
+%%--------------------------------------------------------------------
 %% @doc Regenerate history text page
 %% @end
 %%--------------------------------------------------------------------
@@ -183,6 +191,19 @@ init([Arg]) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_call({change_current_game, GNum}, _From, State) ->
+    OldGNum = State#state.game_num,
+    {Reply, S4} =
+        if GNum /= OldGNum ->
+                S2 = State#state{game_num = GNum,
+                                 timer_minutes = ?undefined},
+                {TReply, S3} = maybe_change_timer(S2),
+                {{{game_num, OldGNum, GNum},
+                  {timer, TReply}},
+                 S3};
+           true -> {same_game_num, State}
+        end,
+    {reply, Reply, S4};
 handle_call(get_state, _From, State) ->
     {reply, state_as_kvs(State), State};
 handle_call({set_timer_interval, N}, _From, State) ->

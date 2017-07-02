@@ -3,6 +3,7 @@
 -export([manual_cmd_to_file/2,
          manual_cmd_from_file/2,
 
+         settings_fn/1,
          th_filenames/3, %% FN of thread file, relative run dir
 
          cmd_filename/1, %% FN of manual commands issued, relative run dir
@@ -54,6 +55,10 @@ manual_cmd_from_file(G, Cmd) ->
 
 %% -----------------------------------------------------------------------------
 
+settings_fn(GNum) ->
+    "game_settings/m" ++ ?i2l(GNum) ++ ".txt".
+
+%% -----------------------------------------------------------------------------
 %% Filename to thread store file, relative to run dir (src).
 th_filenames(Game, ThId, PageNum) ->
     FileName = th_filename(Game, ThId, PageNum),

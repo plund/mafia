@@ -137,7 +137,8 @@ write_default_user_table() ->
 reset_game(GNum) ->
     T = make_game_rec(GNum),
     G = get_game_rec(GNum),
-    G2 = G#mafia_game{?Cpy(T, players_rem),
+    G2 = G#mafia_game{?Cpy(T, players_orig),
+                      ?Cpy(T, players_rem),
                       ?Cpy(T, player_deaths),
                       ?Cpy(T, page_to_read),
                       ?Cpy(T, game_end),

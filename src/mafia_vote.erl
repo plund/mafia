@@ -2,9 +2,6 @@
 
 -export([get_regexs/0,
          check_cmds_votes/3,
-         verify_msg_user/1,
-         check_user/1,
-         print_verify_user/1,
 
          kill_player/4,
          set_death_msgid/5,
@@ -607,9 +604,8 @@ replace3(G, M, New, Old) ->
 
 -spec replace4(#mafia_game{}, term(), term()) -> {ok, #mafia_game{}}.
 replace4(G, OldUB, NewUB) ->
-    NewOrig = repl_user(OldUB, NewUB, G#mafia_game.players_orig),
     NewRem = repl_user(OldUB, NewUB, G#mafia_game.players_rem),
-    G2 = G#mafia_game{players_orig = NewOrig, players_rem = NewRem},
+    G2 = G#mafia_game{players_rem = NewRem},
     ?dwrite_game(G2),
     {ok, G2}.
 
@@ -678,7 +674,6 @@ check_for_votes(#regex{msg_text_u = MsgU}, M, G) ->
     end.
 
 check_VOTE(MsgUC, M, G) ->
-    Msg = ?b2l(M#message.message),
     Players = G#mafia_game.players_rem,
     Players2 = add_nolynch_and_aliases(Players),
     VoteStr = "##VOTE",
@@ -692,13 +687,13 @@ check_VOTE(MsgUC, M, G) ->
             reg_vote(M, G, Vote, Vote, true),
             check_VOTE(RestUC, M, G);
         {{Pos, RestUC}, _} ->
+            Msg = mafia_print:html2txt(?b2l(M#message.message)),
             RawVote =
                 ?l2b(string:strip(
-                      string:left(
-                        mafia_print:html2txt(
-                          mafia_data:get_after_pos(
-                            Pos, length(VoteStr), Msg)),
-                        60))),
+                       string:left(
+                         mafia_data:get_after_pos(
+                           Pos, length(VoteStr), Msg),
+                         60))),
             case rank_options(Players2, RestUC) of
                 [{NumV, TopP}] when NumV >= 2; NumV >= size(TopP) ->
                     reg_vote(M, G, TopP, RawVote, true);
@@ -716,103 +711,9 @@ check_VOTE(MsgUC, M, G) ->
 
 %% -----------------------------------------------------------------------------
 
-%% Called when reading messages and when check_cmds_votes
-%% Both the user record and the mafia_game record may be updated.
-verify_msg_user(M = #message{user_name = User}) ->
-    CheckRes = check_user(User),
-    case CheckRes of
-        ?dbuser_ok -> ok;
-        {?dbuser_none, UserRec} ->
-            io:format(
-              "~s Warning: created new user ~p\n",
-              [mafia_print:print_time(M#message.time, short), User]),
-            ?dwrite_user(UserRec#user{verification_status = ?verified});
-        {?dbuser_wrong_case, UserRec} ->
-            ?dwrite_user(UserRec),
-            auto_correct_case(?b2l(User), M#message.thread_id);
-        {?dbuser_unver, UserRec} ->
-            ?dwrite_user(UserRec#user{verification_status = ?verified})
-    end.
-
--spec print_verify_user(string()) -> ok.
-print_verify_user(User) ->
-    CheckRes = check_user(?l2b(User)),
-    io:format("User name \"~s\" ", [User]),
-    case CheckRes of
-        ?dbuser_ok -> io:format("is ok\n", []);
-        {?dbuser_unver, _} -> io:format("is unverified\n", []);
-        {?dbuser_wrong_case, _} -> io:format("has wrong case\n", []);
-        {?dbuser_none, _} -> io:format("does not exist\n", [])
-    end.
-
-%% checks the user name
--spec check_user(User :: user())
-                -> ?dbuser_ok |                    % found ok
-                   {?dbuser_unver, #user{}} |      % found unverified
-                   {?dbuser_wrong_case, #user{}} | % wrong case
-                   {?dbuser_none, #user{}}.        % did not find
-check_user(User) ->
-    check_user(User, first, ?ruser(User)).
-
-check_user(_User, _Attempt, [#user{verification_status = ?verified}]) ->
-    ?dbuser_ok;
-check_user(User, _Attempt, [#user{name = User} = U]) ->
-    %% found correct but unverified user
-    {?dbuser_unver, U};
-check_user(User, _Attempt, [#user{} = U]) ->
-    %% found user with wrong case
-    {?dbuser_wrong_case,
-     U#user{name = User,
-            verification_status = ?verified}};
-check_user(User, first, []) ->
-    %% user not found
-    %% make try find user in upper case
-    check_user(User, upper, ?ruserUB(User));
-check_user(User, upper, []) ->
-    {?dbuser_none, #user{name_upper = ?b2ub(User),
-                         name = User,
-                         aliases = []}}.
-
-%% -----------------------------------------------------------------------------
-
-auto_correct_case(CcUser, GId) when is_integer(GId) ->
-    auto_correct_case(CcUser, ?rgame(GId));
-auto_correct_case(_CcUser, []) -> ok;
-auto_correct_case(CcUser, [G]) ->
-    io:format("Correcting case for user ~p in game M~p\n",
-              [CcUser, G#mafia_game.game_num]),
-    CCF = ccf(CcUser),
-    PsOrigB = [CCF(P) || P <- G#mafia_game.players_orig],
-    PsRemB = [CCF(P) || P <- G#mafia_game.players_rem],
-    NewDeaths = lists:foldr(
-                  fun(R = #replacement{new_player = NP}, Acc) ->
-                          [R#replacement{new_player = CCF(NP)} | Acc];
-                     (D, Acc) -> [D|Acc]
-                  end,
-                  [],
-                  G#mafia_game.player_deaths),
-    ?dwrite_game(
-       G#mafia_game{players_orig = PsOrigB,
-                    players_rem = PsRemB,
-                    player_deaths = NewDeaths}),
-    mafia:refresh_votes().
-
-%% return a fun, that returns a binary with correct case
-ccf(CorrectCase) when is_list(CorrectCase) ->
-    CcUC = ?l2u(CorrectCase),
-    fun(ExistingB) ->
-            ExUC = ?b2ul(ExistingB),
-            if CcUC == ExUC -> ?l2b(CorrectCase);
-               true -> ExistingB
-            end
-    end.
-
-%% -----------------------------------------------------------------------------
-
 -spec player_type(#message{}, #mafia_game{})
                  -> ?gm | ?player | ?dead_player | ?other.
 player_type(M, G) ->
-    verify_msg_user(M),
     UserB = M#message.user_name,
     case is_user_in_list(UserB, G#mafia_game.gms) of
         true -> ?gm;

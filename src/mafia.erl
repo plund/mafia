@@ -6,7 +6,7 @@
 %% use quickcheck license
 %% vhosts in inets - no support - try patch inets :)
 %% LOW - list previous deadlines and times before game end
-%% Display time to game start in pregame mode.
+%% LOW - Add Last&more link also on game_end page
 %% Add "g=..." into copy/paste link when it is missing
 %% "important?" Requires "important*" - ? should be word boundary in searches
 %% balki vote on Jamie g29? d1 46:13 did not get the correct part in console due to unicode

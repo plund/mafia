@@ -203,6 +203,12 @@ delete_game_data_in_other_tabs(G = #mafia_game{thread_id = ThId}) ->
             <- mnesia:dirty_all_keys(page_rec),
         ThId2 == ThId].
 
+%% Old game reset (having destroyed players_orig AND
+%% having a mafia_db:make_game_rec/1 fun clause)
+reset_game(#mafia_game{game_num = GNum}) when GNum =< 29 ->
+    mafia_db:reset_game(GNum),
+    hd(?rgame(GNum));
+%% New game reset
 reset_game(G = #mafia_game{}) ->
     G2 = G#mafia_game{
            players_rem = G#mafia_game.players_orig,
@@ -800,7 +806,6 @@ analyse_body(S, User, MsgId, Time, Msg) ->
                  S;
              A when A == ?new_page; A == ?add_id ->
                  MsgR = write_message_rec(S, MsgId, User, Time, Msg),
-                 mafia_vote:verify_msg_user(MsgR),
                  if is_function(CheckVote) -> CheckVote(MsgR);
                     true -> ok
                  end,

@@ -56,7 +56,8 @@ manual_cmd_from_file(G, Cmd) ->
 %% -----------------------------------------------------------------------------
 
 settings_fn(GNum) ->
-    "game_settings/m" ++ ?i2l(GNum) ++ ".txt".
+    TimeStamp = filename_timestamp_suffix(),
+    "game_settings/m" ++ ?i2l(GNum) ++ "_" ++ TimeStamp ++ ".txt".
 
 %% -----------------------------------------------------------------------------
 %% Filename to thread store file, relative to run dir (src).

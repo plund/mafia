@@ -227,13 +227,17 @@ initial_deadlines(G) ->
 set_dst_changes(G) ->
     DstZone = G#mafia_game.dst_zone,
     {StartDate = {Year, _, _}, _} = G#mafia_game.start_time,
-    AllDstDates = lists:sort(
-                    [{dst_change_date(DstZone, Y, D), D}
-                     || Y <- [Year - 1, Year, Year + 1],
-                        D <- [?to_normal, ?to_dst]]),
-    DstDates = relevant_dst(StartDate, AllDstDates),
-    DstChanges = set_dst_time(G, DstDates),
-    G#mafia_game{dst_changes = DstChanges}.
+    if DstZone /= ?none ->
+            AllDstDates = lists:sort(
+                            [{dst_change_date(DstZone, Y, D), D}
+                             || Y <- [Year - 1, Year, Year + 1],
+                                D <- [?to_normal, ?to_dst]]),
+            DstDates = relevant_dst(StartDate, AllDstDates),
+            DstChanges = set_dst_time(G, DstDates),
+            G#mafia_game{dst_changes = DstChanges};
+       DstZone == ?none ->
+            G#mafia_game{dst_changes = []}
+    end.
 
 %% return 1 before and 2 after StartDate
 relevant_dst(SD, [_D1, D2 = {SD2, _} | T]) when SD2 < SD ->

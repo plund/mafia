@@ -166,8 +166,8 @@ enter_user_pw_box(F) ->
      "</td></tr></table>"
     ].
 
--define(GAME_FIELDS, [gms, name, day_hours, night_hours,
-                      time_zone, start_time, dst_zone, players_orig]).
+-define(GAME_FIELDS, [gms, name, start_time, time_zone, dst_zone,
+                      players_orig, day_hours, night_hours]).
 
 get_game_settings(G = #mafia_game{}, AddFields) ->
     As = ?GAME_FIELDS ++ AddFields,
@@ -286,51 +286,76 @@ mug2(G, GameSett, IsAllowed) when IsAllowed ->  % User is allowed
 mug2(_, _, _) ->
     [{warning, "You are not allowed to edit this game"}].
 
-is_ready_to_go(G, {G3, Es3}) ->
+is_ready_to_go(CurG, {G, Es}) ->
     %% Check if ready to update and go
-    IsNameOk = ?undefined /= G3#mafia_game.name,
-    Es4 = if IsNameOk -> Es3;
-             true -> Es3 ++ [{error, "Parameter 'name' must be set."}]
-          end,
-    {G4, Es5} =
-        if [] /= G3#mafia_game.gms ->
-                {G3, Es4};
+    AllChecks = ?GAME_FIELDS ++ [duplicates, start_info],
+    IsOk = fun(false, {_, Go, Eso}) ->
+                   {false, Go, Eso};
+              (WasOk, {IsOko, Go, Eso}) ->
+                   {WasOk andalso IsOko, Go, Eso}
+           end,
+    lists:foldl(
+      fun(Field, Acc = {WasOk, _, _}) ->
+              IsOk(WasOk, is_ready_to_go(Field, CurG, Acc))
+      end,
+      {true, G, Es},
+      AllChecks).
+
+is_ready_to_go(gms, CurG, {_, G, Es}) ->
+    {G3, Es2} =
+        if [] /= G#mafia_game.gms ->
+                {G, Es};
            true ->
-                {G3b, Type} =
+                {G2, Type} =
                     if [] /= G#mafia_game.gms ->
-                            {G3#mafia_game{gms = G#mafia_game.gms},
+                            {G#mafia_game{gms = CurG#mafia_game.gms},
                              warning};
                        true ->
-                            {G3, error}
+                            {G, error}
                     end,
-                {G3b,
-                 Es4 ++
+                {G2,
+                 Es ++
                      [{Type,
                        "There must be at least one GM left after update."}]}
         end,
-    IsGmsOk = [] /= G4#mafia_game.gms,
-
-    IsPsOk = [] /= G4#mafia_game.players_orig,
-    Es6 = if IsPsOk -> Es5;
-             true -> Es5 ++ [{error, "Parameter 'players' must be set."}]
+    IsOk = [] /= G3#mafia_game.gms,
+    {IsOk, G3, Es2};
+is_ready_to_go(name, _, {_, G, Es}) ->
+    IsOk = ?undefined /= G#mafia_game.name,
+    Es2 = if IsOk -> Es;
+             true -> Es ++ [{error, "Parameter 'name' must be set."}]
           end,
-
-    IsTimeOk = ?undefined /= G4#mafia_game.start_time,
-    Es7 = if IsTimeOk -> Es6;
-             true -> Es6 ++ [{error, "Parameter 'start_time' must be set."}]
+    {IsOk, G, Es2};
+is_ready_to_go(start_time, _, {_, G, Es}) ->
+    IsOk = ?undefined /= G#mafia_game.start_time,
+    Es2 = if IsOk -> Es;
+             true -> Es ++ [{error, "Parameter 'start_time' must be set."}]
           end,
-    IsTzOk = ?undefined /= G4#mafia_game.time_zone,
-    Es8 = if IsTzOk -> Es7;
-             true -> Es7 ++ [{error, "Parameter 'time_zone' must be set."}]
+    {IsOk, G, Es2};
+is_ready_to_go(time_zone, _, {_, G, Es}) ->
+    IsOk = ?undefined /= G#mafia_game.time_zone,
+    Es2 = if IsOk -> Es;
+             true -> Es ++ [{error, "Parameter 'time_zone' must be set."}]
           end,
-    IsDstZoneOk = ?undefined /= G4#mafia_game.dst_zone,
-    Es9 = if IsDstZoneOk -> Es8;
-             true -> Es8 ++ [{error, "Parameter 'dst_zone' must be set"}]
+    {IsOk, G, Es2};
+is_ready_to_go(dst_zone, _, {_, G, Es}) ->
+    IsOk = ?undefined /= G#mafia_game.dst_zone,
+    Es2 = if IsOk -> Es;
+             true -> Es ++ [{error, "Parameter 'dst_zone' must be set"}]
           end,
-
+    {IsOk, G, Es2};
+is_ready_to_go(players_orig, _, {_, G, Es}) ->
+    IsOk = [] /= G#mafia_game.players_orig,
+    Es2 = if IsOk -> Es;
+             true -> Es ++ [{error, "Parameter 'players' must be set."}]
+          end,
+    {IsOk, G, Es2};
+is_ready_to_go(day_hours, _, Acc) -> Acc;
+is_ready_to_go(night_hours, _, Acc) -> Acc;
+is_ready_to_go(duplicates, CurG, {_, G, Es}) ->
     %% check not same user in both gms and players_orig
     %% if problem reset both fields to orignal before writing
-    #mafia_game{gms = GMs, players_orig = Ps} = G4,
+    #mafia_game{gms = GMs, players_orig = Ps} = G,
     {_Uniqs, Dupls} =
         lists:foldl(fun(E, {U, D}) ->
                             case lists:member(E, U) of
@@ -340,32 +365,32 @@ is_ready_to_go(G, {G3, Es3}) ->
                     end,
                     {[],[]},
                     GMs ++ Ps),
-    IsDuplsOk = [] == Dupls,
-    {G5, Es10} =
-        if IsDuplsOk -> {G4, Es9};
+    IsOk = [] == Dupls,
+    {G2, Es2} =
+        if IsOk -> {G, Es};
            true ->
                 DUsers =
                     string:join([?b2l(B) || B <- lists:usort(Dupls)], ", "),
-                {G4#mafia_game{gms = G#mafia_game.gms,
-                               players_orig = G#mafia_game.players_orig,
-                               players_rem = G#mafia_game.players_rem},
-                 Es9 ++
+                {G#mafia_game{gms = CurG#mafia_game.gms,
+                              players_orig = CurG#mafia_game.players_orig,
+                              players_rem = CurG#mafia_game.players_rem},
+                 Es ++
                      [{error,
                        "Users: " ++ DUsers ++ " exist(s) more than once in "
                        "the group of GMs and players"}]}
-          end,
-    IsReadyToGo =
-        IsNameOk and IsGmsOk and IsPsOk and
-        IsTimeOk and IsTzOk and IsDstZoneOk and IsDuplsOk,
-    Es11 = Es10  ++
-        [{info,
-          if IsReadyToGo ->
-                  "The game MAY BE STARTED now (but please review the "
-                      "settings carefully before starting)";
-             true ->
-                  "The game CAN NOT BE started now."
-          end}],
-    {IsReadyToGo, G5, Es11}.
+        end,
+    {IsOk, G2, Es2};
+is_ready_to_go(start_info, _, {IsOk, G, Es}) ->
+    InfoStr =
+        if IsOk ->
+                "The game MAY BE STARTED now (but please review the "
+                    "settings carefully before starting)";
+           true ->
+                "The game CAN NOT BE started now."
+        end,
+    Es2 = Es  ++ [{info, InfoStr}],
+    {IsOk, G, Es2}.
+
 
 %% empty binary to undefined
 -define(eb2ud(B), case B of
@@ -493,8 +518,9 @@ check_int(Par = {_, _, Str}, Es, _Size, Min, Max) ->
     end.
 
 pr_dst_zone({Field, Zone}, {G, Es}) ->
-    ZoneStrs = [?a2l(DZ) || DZ <- mafia_time:dst_change_date()],
-    %% [?eu, ?usa, ?australia, ?new_zeeland].
+    DstZones = mafia_time:dst_change_date() ++ [?none],
+    ZoneStrs = [?a2l(DZ) || DZ <- DstZones],
+    %% [?none, ?eu, ?usa, ?australia, ?new_zeeland].
     case lists:member(Zone, ZoneStrs) of
         true ->
             {G#mafia_game{dst_zone = ?l2a(Zone)}, Es};
@@ -524,7 +550,8 @@ settings_info() ->
         "Some examples: Sweden 1, UK 0, New York -5, California -8, Sydney 10 "
         "and Wellington 12.<br>\r\n"
         "</li><li>"
-        "'dst_zone' is either 'eu', 'usa', 'australia' or 'new_zeeland'. "
+        "'dst_zone' is either 'eu', 'usa', 'australia', "
+        "'new_zeeland' or 'none'. "
         "See <a href=dst_changes>DST Changes</a>. "
         "Please make a request for other DST zones if you need it.\r\n"
         "</li><li>"

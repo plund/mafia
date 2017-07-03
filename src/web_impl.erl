@@ -801,11 +801,15 @@ dst_changes(Sid, _Env, In) ->
         case {CAbbr, IsCAbbrOk} of
             {"", false} ->
                 %% show form with list of countries (and year entry)
-                [["<tr><td align=center>",
-                  "<a href=\"?country=", ?a2l(C), "\">",
-                  mafia_time:dst_name(C), "</a>"
-                  "</td></tr>"]
-                 || C <- mafia_time:dst_change_date()];
+                ["<tr><td align=center>Daylight Saving Time Zones:"
+                 "</td></tr>",
+                 [["<tr><td align=center>",
+                   "<a href=\"?country=", ?a2l(C), "\">",
+                   mafia_time:dst_name(C), "</a>"
+                   "</td></tr>"]
+                  || C <- mafia_time:dst_change_date()],
+                 "<tr><td align=center>None"
+                 "</td></tr>"];
             {_, true} ->
                 CAtom = ?l2a(CAbbr),
                 Country = mafia_time:dst_name(CAtom),

@@ -100,19 +100,19 @@ game_settings_update(Sid, Button, PQ) ->
         end,
     {A, Body} =
         {web_impl:del_start(Sid, "M" ++ GNStr ++ " Settings", 0),
-         ["<tr><td>\r\n"
+         ["<tr><td><center>\r\n"
           "<form action=\"/e/web/game_settings\" method=post>\r\n"
           "<input name=game_num type=hidden value=", GNStr, ">\r\n"
-          "<textarea name=\"game_settings\" rows=13 cols=100 required>\r\n",
+          "<textarea name=\"game_settings\" rows=13 cols=60 required>\r\n",
           SettingsText,
           "</textarea>\r\n",
-          settings_info(),
-          "<br>\r\n",
           if not IsRunning ->
                   enter_user_pw_box(PwF);
              true -> ""
           end,
           "\r\n</form>\r\n"
+          "</center>",
+          settings_info(),
           "</td></tr>"]
         },
     RBody = present_responses(Responses),
@@ -122,7 +122,10 @@ game_settings_update(Sid, Button, PQ) ->
     {A + R + B + C, ?none}.
 
 present_responses(Responses) ->
-    lists:foldl(fun pres_resp/2, "", Responses).
+    ["<tr><td><table align=center>",
+     lists:foldl(fun pres_resp/2, "", Responses),
+     "</table></td></tr>"
+    ].
 
 pres_resp({Type, Txt}, Acc) ->
     TextColour =
@@ -287,7 +290,7 @@ is_ready_to_go(G, {G3, Es3}) ->
     %% Check if ready to update and go
     IsNameOk = ?undefined /= G3#mafia_game.name,
     Es4 = if IsNameOk -> Es3;
-             true -> Es3 ++ [{error, "Parameter 'dst_zone' must be set."}]
+             true -> Es3 ++ [{error, "Parameter 'name' must be set."}]
           end,
     {G4, Es5} =
         if [] /= G3#mafia_game.gms ->
@@ -513,14 +516,20 @@ settings_info() ->
         "</li><li>"
         "'name' is your game title."
         "</li><li>"
-        "'time_zone' is the normal time offset to Greenwich (no DST). "
-        "1 for Sweden, -5 for New York and -8 for California.<br>\r\n"
+        "'time_zone' is the <i>normal time (without DST) offset</i> to "
+        "Greenwich (UTC). "
+        "1 for Sweden, 0 for UK, -5 New York, -8 California, 10 Sydney and "
+        "12 Wellington.<br>\r\n"
         "</li><li>"
         "'start_time' is the local time in your time zone. "
         "The correct format is: YYYY-MM-DD HH:MM:SS.<br>\r\n"
         "</li><li>"
         "'dst_zone' is either 'eu', 'usa', 'australia' or 'new_zeeland'. "
         "See <a href=dst_changes>DST Changes</a>\r\n"
+        "</li><li>"
+        "When all these values are OK, you may set off the bot listen in "
+        "on the game thread (after starting it), by also giving the bot "
+        "the thread id of your webdiplomacy.net forum thread."
         "</li>"
         "</ul>".
 
@@ -538,6 +547,8 @@ game_settings_start(Sid, Button, PQ) ->
            IsThreadSet ->
                 ["<tr><td><center>"
                  "GAME M", GNStr, " IS RUNNING NOW!"
+                 "<p>"
+                 "<a href=/>Go back to the mafia front page</a>"
                  "</center></td></tr>\r\n"
                 ];
            not IsThreadSet ->
@@ -559,9 +570,9 @@ game_settings_start(Sid, Button, PQ) ->
                     end,
                 [present_responses(Responses),
                  "<tr><td><table width=600>"
-                 "<tr><td>After you have started the game thread on webdiplomacy.net "
-                 "you need to tell the bot what thread id number your new thread "
-                 "has.\r\n"
+                 "<tr><td>After you have started the game thread on "
+                 "webdiplomacy.net you need to tell the bot what thread id "
+                 "your new game thread has.\r\n"
                  "<p>"
                  "Find out the game thread id this way: \r\n"
                  "<ol><li>"
@@ -571,14 +582,16 @@ game_settings_start(Sid, Button, PQ) ->
                  "In the location window in the top you find an URL that looks "
                  "like this:<br>\r\n"
                  "<pre>\r\n"
-                 "   http://webdiplomacy.net/forum.php?threadID=1479977#1479977\r\n"
+                 "   http://webdiplomacy.net/forum.php?threadID=1479977"
+                 "#1479977\r\n"
                  "</pre>\r\n"
                  "</li><li>"
-                 "The thread id you are looking for is the first number you find "
-                 "after \"?threadID=\"<br>\r\n"
+                 "The thread id, that you are looking for, is the first "
+                 "number you find after <code>\"?threadID=\"</code><br>\r\n"
                  "</li><li>"
-                 "Insert this number in the below field, and press the Start "
-                 "button. (Don't use the number shown in this example.)\r\n"
+                 "Insert this number in the below field, and press the \"",
+                 ?BStartNow,
+                 "\" button. (Do NOT use the number shown in this example.)\r\n"
                  "</li></ol></td></tr>\r\n"
                  "</table></td></tr>\r\n"
                  "<tr><td>"

@@ -1,7 +1,6 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% GM web setup interface
 %% Mnesia overloaded fixes
 %% try autostart again
 %% use quickcheck license
@@ -10,7 +9,7 @@
 %% Display time to game start in pregame mode.
 %% Add "g=..." into copy/paste link when it is missing
 %% "important?" Requires "important*" - ? should be word boundary in searches
-%% balki vote on Jamie d1 46:13 did not get the correct part in console due to unicode
+%% balki vote on Jamie g29? d1 46:13 did not get the correct part in console due to unicode
 %% http://mafia_test.peterlund.se/e/web/msgs?part=p3-5#msg_id=1480166
 %% - try again to autostart this script when reboot
 %% Force split long lines in thread
@@ -51,7 +50,8 @@
          switch_thread_id/2,
          game_thread/1,
          initiate_game/2,
-         remove_game/1,
+         remove_not_running_game/1,
+         delete_game_and_all_data/1,
          pregame_create/1, % old
          pregame_update/0, % old
 
@@ -94,8 +94,8 @@
         ]).
 
 %% utilities
--export([check_pages/1,
-         check_game_data/1,
+-export([show_game_pages/1,
+         show_game_data/1,
 
          l/0,
 
@@ -151,60 +151,65 @@ refresh_votes() ->
 %%        <- element(2,file:consult("fprof.analysis.refresh_votes.5"))]))).
 %% 5. rm fprof.trace
 
-check_pages(GNum) when is_integer(GNum) ->
+show_game_pages(GNum) when is_integer(GNum) ->
     case ?rgame(GNum) of
         [] ->
             io:format("No game record exist for ~p\n", [GNum]);
         [#mafia_game{thread_id = ThId}] when is_integer(ThId) ->
             io:format("Game page keys and messages\n"),
-            check_pagesI(ThId);
+            show_game_pagesI(ThId);
         [_] ->
             io:format("Game has no thread id\n")
     end;
-check_pages(Id) when is_atom(Id) ->
+show_game_pages(Id) when is_atom(Id) ->
     ThId = ?thid(Id),
-    check_pagesI(ThId).
+    show_game_pagesI(ThId).
 
-check_pagesI(ThId) ->
+show_game_pagesI(ThId) ->
     [{P, length((hd(?rpage(T,P)))#page_rec.message_ids)}
      || {T,P} <- mafia_lib:all_page_keys(ThId)].
 
-check_game_data(GNum) ->
-    ThId = game_thread(GNum),
+show_game_data(GNum) ->
     case ?rgame(GNum) of
         [] ->
             io:format("No game record exist\n");
-        [_] ->
-            io:format("Game record exist\n")
+        [G] ->
+            io:format("Game record exist\n"),
+            ThId = G#mafia_game.thread_id,
+            io:format("Thread id ~p\n", [ThId]),
+            PageKeys = [K || K = {Th, _} <- all_keys(page_rec),
+                             Th == ThId],
+            io:format("Num Page records ~p\n", [length(PageKeys)]),
+            MsgIds = [MsgId || {_, MsgId} <- mafia_lib:all_msgids(ThId),
+                               [] /= ?rmess(MsgId)
+                     ],
+            io:format("There are ~p messages in mnesia for this game\n",
+                      [length(MsgIds)])
     end,
     DayKeys = [K || K = {GN, _} <- all_keys(mafia_day),
                     GN == GNum],
-    io:format("Num Day records ~p\n", [DayKeys]),
-    PageKeys = [K || K = {Th, _} <- all_keys(page_rec),
-                     Th == ThId],
-    io:format("Num Page records ~p\n", [length(PageKeys)]),
-    MsgIds = [MsgId || {_, MsgId} <- mafia_lib:all_msgids(ThId),
-                       [] /= ?rmess(MsgId)
-             ],
-    io:format("There are ~p messages in mnesia for this game\n",
-              [length(MsgIds)]).
+    io:format("Num Day records ~p\n", [length(DayKeys)]),
+    io:format("Day keys ~p\n", [DayKeys]).
 
 
 %% -----------------------------------------------------------------------------
 %% @doc Initiate game that has not started yet
-%% Do also set(game_key, GN) in the shell after!
 %% @end
 %% -----------------------------------------------------------------------------
-initiate_game(GN, GMs) ->
+initiate_game(GNum, GMs) ->
     DoFun = fun(G) ->
                     GMsB = get_user_list(GMs),
-                    ?dwrite_game(G#mafia_game{game_num = GN,
+                    ?dwrite_game(G#mafia_game{game_num = GNum,
                                               gms = GMsB}),
-                    {wrote, GN, GMsB}
+                    {wrote, GNum, GMsB}
             end,
-    do_if_not_running(GN, DoFun).
+    do_if_not_running(GNum, DoFun).
 
-remove_game(GN) ->
+%% -----------------------------------------------------------------------------
+%% @doc Remove an initiated game that has not started yet
+%% @end
+%% -----------------------------------------------------------------------------
+remove_not_running_game(GN) ->
     DoFun = fun(#mafia_game{game_num = ?undefined}) ->
                     {non_exist, GN};
                (#mafia_game{game_num = GNum}) ->
@@ -229,6 +234,36 @@ get_user_list([User | T]) ->
         [#user{name = NameB}] ->
             [NameB | get_user_list(T)];
         _ -> get_user_list(T)
+    end.
+
+%% -----------------------------------------------------------------------------
+%% @doc Delete a game and all game data in other tables
+%% @end
+%% -----------------------------------------------------------------------------
+delete_game_and_all_data(GNum) when is_integer(GNum) ->
+    case ?rgame(GNum) of
+        [G] ->
+            io:format("Deleting Game ~p - ~s\n",
+                      [GNum, ?b2l(G#mafia_game.name)]),
+            show_game_data(GNum),
+            CurrentGameNum = ?getv(game_key),
+            if GNum == CurrentGameNum ->
+                    io:format("WARNING: This is the current game. "
+                              "Consider switch_to_game first.\n");
+               true -> ok
+            end,
+            Answer = io:get_line(?l2a("Are you really sure you want to "
+                                      "delete this game (NO/yes)> ")),
+            case string:to_upper(Answer) of
+                "YES" ++ _ ->
+                    mafia_data:delete_game_data_in_other_tabs(GNum),
+                    mnesia:dirty_delete(mafia_game, GNum),
+                    {game_deleted, GNum};
+                _ ->
+                    game_not_deleted
+            end;
+        _ ->
+            {error, no_game}
     end.
 
 %% -----------------------------------------------------------------------------

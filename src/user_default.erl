@@ -108,6 +108,7 @@ Days before:
 mafia:pregame_create(99)  - create pregame
 mafia:pregame_update()    - rewrite pregame
 When game starts:
+THIS NEEDS UPDATES!
 mafia:game_start(99, 1460042).  - Assign thread id
 mafia:switch_to_game(99).       - Switch and create page_recs.
 mafia:refresh_votes().          - Count votes
@@ -150,8 +151,8 @@ mafia:import_user_data() - import from file 'user_data.txt'
 
 mafia_time:show_time_offset()   - Display offset
 mafia_time:set_time_offset(Off) - Change the time offset
-         do a refresh_votes() after changing offset
-         Offset = Secs | {msg_id, MsgId} | {days_hours, Days, Hours})
+    do a refresh_votes() after changing offset
+    Off = Secs | {msg_id, MsgId} | {move, Secs} | {days_hours, Days, Hours})
 
 mafia:show_all_users()          - List primary keys in User DB
 mafia:show_all_users(Search)    - List primary keys matching Search

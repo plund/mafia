@@ -101,6 +101,8 @@ set_time_offset(Offset) ->
     Off.
 
 set_time_offsetI(Offset) when is_integer(Offset) -> Offset;
+set_time_offsetI({move, DiffSecs}) when is_integer(DiffSecs) ->
+    get_time_offset() + DiffSecs;
 set_time_offsetI({msg_id, MsgId}) when is_integer(MsgId) ->
     case mafia_lib:rmessI(MsgId) of
         [] -> 0;

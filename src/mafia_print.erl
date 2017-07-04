@@ -604,8 +604,10 @@ print_votesI(PPin) ->
                                      comment = Com} ->
                                   ["<tr><td><table align=left><tr><td",
                                    bgcolor(DeadPl), ">", ?b2l(DeadPl), "</td>"
-                                   "<td><a href=\"/e/web/msg?id=",
-                                   ?i2l(MsgId), "&player=", ?b2l(DeadPl),
+                                   "<td><a href=\"/e/web/msg"
+                                   "?g=", ?i2l(G#mafia_game.game_num),
+                                   "&id=", ?i2l(MsgId),
+                                   "&player=", ?b2l(DeadPl),
                                    "&var=death\">",
                                    PrFun(IsEnd, Ph), "</a>",
                                    if Com == ?undefined ->
@@ -620,9 +622,10 @@ print_votesI(PPin) ->
                                            msg_id = MsgId} ->
                                   ["<tr><td><table align=left><tr><td",
                                    bgcolor(RepPl), ">", ?b2l(RepPl), "</td>"
-                                   "<td>",
-                                   "<a href=\"/e/web/msg?id=",
-                                   ?i2l(MsgId), "&player=", ?b2l(RepPl),
+                                   "<td><a href=\"/e/web/msg"
+                                   "?g=", ?i2l(G#mafia_game.game_num),
+                                   "&id=", ?i2l(MsgId),
+                                   "&player=", ?b2l(RepPl),
                                    "&var=replacement\">",
                                    PrRepFun(Ph), "</a></td>"
                                    "<td", bgcolor(NewPl), ">", ?b2l(NewPl),
@@ -1454,7 +1457,7 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                                 html =
                                     [RA#ra.html|
                                      ["<tr>",
-                                      pr_ivs_vote_html(PrIVs, User, V#vote.id),
+                                      pr_ivs_vote_html(PP#pp.game, PrIVs, User, V#vote.id),
                                       "<td>", TimeStr, "</td>",
                                       pr_stand_html(User, V#vote.id, VoteMove,
                                                     Abbrs, PrStand),
@@ -1593,10 +1596,12 @@ pr_ivs_user_html(IVs, A) ->
 pr_ivs_user(IVs, A) ->
     string:join([A(U) || #iv{u = U} <- IVs], " ").
 
-pr_ivs_vote_html(IVs, User, MsgId) ->
+pr_ivs_vote_html(G, IVs, User, MsgId) ->
     [if U == User ->
              ["<td", bgcolor(VF), ">",
-              "<b><a href=\"/e/web/msg?id=", ?i2l(MsgId),
+              "<b><a href=\"/e/web/msg"
+              "?g=", ?i2l(G#mafia_game.game_num),
+              "&id=", ?i2l(MsgId),
               "&player=", User, "&var=vote\">",
               V, "</a></b>"
               "</td>"];

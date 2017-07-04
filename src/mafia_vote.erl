@@ -214,7 +214,7 @@ kill_player(G, M, DeadB, DeathComment, true) ->
                       player_deaths = NewDeaths},
     ?dwrite_game(G2),
     {{ok, DeathPhase}, G2};
-%% Not remaining. Already dead?
+%% Not remaining. Do update if already dead
 kill_player(G, M, DeadB, DeathComment, false) ->
     %% check in death records (allow edit of text and msgid)
     Deaths = [D || D = #death{player = P} <- G#mafia_game.player_deaths,
@@ -286,10 +286,8 @@ set_death_msgid(G, M, DeadB, [DeathMsg], DeathComment) ->
 
 pre_to_nl(HStrU) ->
     RevStr = ?lrev(HStrU),
-    RevStr2 = case string:tokens(RevStr, ".\n") of
-                  [] -> "";
-                  [Head | _] -> Head
-              end,
+    RevStr2 = lists:takewhile(fun(C) -> not lists:member(C, ".\n") end,
+                              RevStr),
     ?lrev(RevStr2).
 
 get_line_at(Pos, Msg) ->

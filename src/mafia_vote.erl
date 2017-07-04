@@ -108,7 +108,7 @@ check_for_gm_cmds(Re, M, G, DoGenerate) ->
        G7 /= G6, %% someone died
        RelTimeSecs >= 0,
        RelTimeSecs =< ?MAX_GM_DL_MINS * ?MinuteSecs ->
-            mafia_web:regen_history(M, G);
+            mafia_web:regen_history(M, G7);
        true ->
             ok
     end,

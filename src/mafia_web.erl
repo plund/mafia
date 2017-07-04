@@ -29,6 +29,7 @@
          change_current_game/1,
          regen_history/2,
          update_current/0,
+         update_current/2,
          get_html/2
         ]).
 
@@ -123,6 +124,9 @@ get_state()  ->
 update_current() ->
     gen_server:cast(?SERVER, update_current).
 
+update_current(Time, G) ->
+    update_current2(Time, G).
+
 %%--------------------------------------------------------------------
 %% @doc Change current game
 %% @end
@@ -138,8 +142,8 @@ regen_history(M, {G = #mafia_game{}, Phase}) ->
     regen_history(M, {G#mafia_game.game_num, Phase}); %key
 regen_history(M = #message{}, G) ->
     regen_history(M#message.time, G);
-regen_history(M, G = #mafia_game{}) ->
-    regen_history(M, G#mafia_game.game_num); %key
+regen_history(Time, G = #mafia_game{}) ->
+    regen_history(Time, G#mafia_game.game_num); %key
 regen_history(Time, GNum) ->
     regen_historyI(Time, GNum).
 
@@ -322,6 +326,18 @@ update_current(#state{game_num = GameNum,
     update_current_html(GameNum, Phase, Opts),
     ok.
 
+update_current2(Time, GNum) when is_integer(GNum) ->
+    update_current2(Time, hd(?rgame(GNum)));
+update_current2(Time, G = #mafia_game{game_num = GNum}) ->
+    Phase = mafia_time:calculate_phase(G, Time),
+    ?dbg({update_current2, GNum, Phase}),
+    Opts = [{?game_key, GNum},
+            {?phase, Phase}
+           ],
+    update_current_txt(GNum, Opts),
+    update_current_html(GNum, Phase, Opts),
+    ok.
+
 update_current_txt(GameNum, Opts) when is_integer(GameNum) ->
     update_current_txt(?rgame(GameNum), Opts);
 update_current_txt([G], Opts) ->
@@ -350,22 +366,33 @@ regen_historyI(Time, {GKey, Phase = #phase{}}) ->
     regen_historyI(Time, GKey, Phase, ?rgame(GKey)).
 
 regen_historyI(_, _, #phase{don = ?game_start}, _) -> ok;
-regen_historyI(Time, GKey, Phase = #phase{}, [G]) ->
+regen_historyI(Time, GNum, Phase = #phase{}, [G]) ->
     ?dbg(Time, {"DO REGENERATE_HISTORY 3", Phase, Time}),
-    Opts = [{?game_key, GKey},
+    Opts = [{?game_key, GNum},
             {?phase, Phase}],
-    regen_hist_txt(G, Phase, Opts),
-    regen_hist_html(G, Phase, Opts),
+    FNTxt = mafia_file:game_phase_full_fn(G, Phase),
+    FNHtml= mafia_file:game_phase_full_fn(?html, G, Phase),
+    regen_hist_txt(FNTxt, Opts),
+    regen_hist_html(FNHtml, Phase, Opts),
+    case G#mafia_game.game_end of
+        ?undefined -> ok;
+        _ ->
+            ?dbg(Time, {"REGENERATE GAME_STATUS"}),
+            Opts2 = [{?game_key, GNum},
+                     {?phase, #phase{don = ?game_ended}}],
+            FNTxt2 = mafia_file:game_phase_full_fn(G, ?current),
+            FNHtml2 = mafia_file:game_phase_full_fn(?html, G, ?current),
+            regen_hist_txt(FNTxt2, Opts2),
+            regen_hist_html(FNHtml2, Phase, Opts2)
+    end,
     ok.
 
-regen_hist_txt(G = #mafia_game{}, Phase = #phase{}, Opts) ->
-    FileName = mafia_file:game_phase_full_fn(G, Phase),
-    write_text(FileName, Opts).
+regen_hist_txt(FNTxt, Opts) ->
+    write_text(FNTxt, Opts).
 
-regen_hist_html(G = #mafia_game{}, Phase = #phase{}, Opts) ->
-    FileName = mafia_file:game_phase_full_fn(?html, G, Phase),
+regen_hist_html(FNHtml, Phase = #phase{}, Opts) ->
     Title = ["History ", mafia_print:print_phase(Phase)],
-    write_html(FileName, Title, Opts).
+    write_html(FNHtml, Title, Opts).
 
 %%--------------------------------------------------------------------
 
@@ -384,7 +411,6 @@ write_html(FileName, Title, Opts) ->
 
 get_html(Title, Opts) ->
     Body = mafia_print:print_votes(Opts),
-    %%io:format(lists:flatten(Body)),
     [?HTML_TAB_START(Title, " border=\"0\""),
      Body,
      ?HTML_TAB_END].

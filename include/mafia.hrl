@@ -12,8 +12,9 @@
 -type time() :: {hour(), minute(), second()}.
 -type date() :: {year(), month(), day()}.
 -type datetime() :: {date(), time()}.
--type dst_zone() :: ?eu | ?usa | ?australia | ?new_zeeland.
+-type dst_zone() :: ?eu | ?usa | ?australia | ?new_zeeland | ?none.
 -type dst_direction() :: ?to_dst | ?to_normal.
+-type dst_change() :: {datetime(), dst_direction()}.
 
 -type game_num() :: integer().
 -type thread_id() :: integer().
@@ -108,7 +109,7 @@
          time_zone :: ?undefined | integer(), %% (EST=-5, UK = 0, CET=1)
          start_time :: ?undefined | datetime(),
          dst_zone :: ?undefined | dst_zone(),
-         dst_changes = [] :: [{datetime(), dst_direction()}],
+         dst_changes = [] :: [dst_change()],
          deadlines = [] :: [#dl{}],
          gms = [] :: [user()],
          players_orig = [] :: [player()],

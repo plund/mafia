@@ -70,7 +70,9 @@
          rm_thread/1,
          show_settings/0,
          refresh_messages/0,
+         refresh_messages/1,
          refresh_votes/0,
+         refresh_votes/1,
 
          show_all_users/0,
          show_all_users/1,
@@ -137,12 +139,14 @@ upgrade() -> mafia_upgrade:upgrade().
 upgrade(Tab) -> mafia_upgrade:upgrade(Tab).
 
 refresh_messages() -> mafia_data:refresh_messages().
+refresh_messages(GNum) -> mafia_data:refresh_messages(GNum).
 
 refresh_votes() ->
     %% fprof:trace(start),
     mafia_data:refresh_votes(),
     %% fprof:trace(stop),
     ok.
+refresh_votes(GNum) -> mafia_data:refresh_votes(GNum).
 
 %% 1. run refresh_votes()
 %% 2. fprof:profile().

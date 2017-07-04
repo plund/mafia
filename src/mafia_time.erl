@@ -336,7 +336,7 @@ inc_deadline(G, DL = #dl{time = Time}) ->
 
 -spec dst_change(Start :: seconds1970(),
                  End :: seconds1970(),
-                 DstChanges :: [{datetime(), boolean()}],
+                 DstChanges :: [dst_change()],
                  TZ :: integer())
                 -> ?same | ?to_normal | ?to_dst.
 dst_change(Start, End, DstChanges, TZ) ->
@@ -346,14 +346,10 @@ dst_change(Start, End, DstChanges, TZ) ->
     EndDT   = secs1970_to_local_datetime(End,   TZ, false),
     do_dst_change(DstChanges, StartDT, EndDT).
 
-do_dst_change([{DT, _IsDst} | _T], _StartDT, EndDT) when EndDT =< DT ->
-    ?same;
-do_dst_change([{DT, _IsDst} | T], StartDT, EndDT) when DT =< StartDT ->
+do_dst_change([{DT, _} | _], _, EndDT) when EndDT =< DT -> ?same;
+do_dst_change([{DT, _} | T], StartDT, EndDT) when DT =< StartDT ->
     do_dst_change(T, StartDT, EndDT);
-do_dst_change([{_DT, IsDst} | _DstChanges], _StartDT, _EndDT) ->
-    if IsDst == false -> ?to_normal;
-       IsDst == true  -> ?to_dst
-    end;
+do_dst_change([{_DT, DstDirection} | _], _, _) -> DstDirection;
 do_dst_change([], _, _) -> ?same.
 
 is_dst(DateTime, G) ->
@@ -493,7 +489,9 @@ get_nxt_deadline(Game = #mafia_game{}, Time) ->
 get_prev_deadline(Game = #mafia_game{}, Time) when is_integer(Time) ->
     GetPrev =
         fun({_Take, Drop}) ->
-                case Drop of [DL|_] -> DL; _ -> ?undefined
+                case Drop of
+                    [DL|_] -> DL;
+                    _ -> ?undefined
                 end
         end,
     GetPrev(split_dls(Game, Time)).
@@ -721,8 +719,7 @@ end_game(M, G) when G#mafia_game.game_end == ?undefined ->
     G2 = G#mafia_game{deadlines = DLs3,
                       game_end = {EndTime, MsgId}},
     ?dwrite_game(G2),
-    mafia_web:regen_history(EndTime, G), %% change to G2?
-    mafia_web:update_current(),
+    mafia_web:regen_history(EndTime, G2),
     {?game_ended, G2};
 end_game(_M, G) ->
     {{error, already_game_ended}, G}.
@@ -757,12 +754,12 @@ get_some_extra_dls(G, DLs = [DL | _], Target) ->
 -define(D1, {{2016,12,21},{18,0,0}}).
 -define(D2, {{2016,12,22},{18,0,0}}).
 
--define(DST0, {{{2016,11,22},{2,0,0}}, false}).
--define(DST1, {{{2016,11,30},{2,0,0}}, false}).
--define(DST2, {{{2016,12,22},{2,0,0}}, true}).
--define(DST3, {{{2016,12,22},{2,0,0}}, false}).
--define(DST4, {{{2016,12,25},{2,0,0}}, true}).
--define(DST5, {{{2016,12,28},{2,0,0}}, false}).
+-define(DST0, {{{2016,11,22},{2,0,0}}, ?to_normal}).
+-define(DST1, {{{2016,11,30},{2,0,0}}, ?to_normal}).
+-define(DST2, {{{2016,12,22},{2,0,0}}, ?to_dst}).
+-define(DST3, {{{2016,12,22},{2,0,0}}, ?to_normal}).
+-define(DST4, {{{2016,12,25},{2,0,0}}, ?to_dst}).
+-define(DST5, {{{2016,12,28},{2,0,0}}, ?to_normal}).
 
 do_dst_change_test_() ->
     [?_assert(?same == do_dst_change([?DST0, ?DST1], ?D1, ?D2)),
@@ -778,8 +775,8 @@ do_dst_change_test_() ->
 -define(Time0, ?Time1 + ?DaySecs). % ca 2000 CET 161212
 -define(Time2, ?Time1 + ?DaySecs). % ca 2000 CET 161214
 -define(Time3, ?Time1 + 2*?DaySecs). % ca 2000 CET 161215
--define(DST6, {{{2016,12,14},{2,0,0}}, true}).
--define(DST7, {{{2016,12,14},{2,0,0}}, false}).
+-define(DST6, {{{2016,12,14},{2,0,0}}, ?to_dst}).
+-define(DST7, {{{2016,12,14},{2,0,0}}, ?to_normal}).
 
 dst_change_test_() ->
     [

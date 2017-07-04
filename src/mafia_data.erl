@@ -252,9 +252,9 @@ refresh_votes(G0 = #mafia_game{}, PageFilter) ->
             update_page_to_read(G#mafia_game.game_num,
                                 PageNum,
                                 MsgId,
-                                MsgTime)
+                                MsgTime),
+            mafia_web:update_current(MsgTime, G#mafia_game.game_num)
     end,
-    mafia_web:update_current(),
     ok.
 
 -record(acc, {game_num,
@@ -316,7 +316,7 @@ checkvote_fun(G, DoPrint) ->
                                  DL = hd(Acc#acc.dls),
                                  DeadT = DL#dl.time,
                                  if PrevMsgT < DeadT, DeadT =< MsgTime ->
-                                         %% dl passed generate
+                                         %% dl reached => generate
                                          gen_hist_and_get_dls(MsgTime, Acc);
                                     MsgTime < DeadT -> Acc#acc.dls
                                  end

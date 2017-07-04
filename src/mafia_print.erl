@@ -268,6 +268,9 @@ print_votesI(PPin) ->
 
     %% Part - Page heading - Print Game Name
     DoDispTime2DL = PhaseType /= ?game_ended andalso is_integer(PP#pp.use_time),
+    ModMsgV = ?getv(?mod_msg),
+    DoDispModMsg = is_integer(PP#pp.use_time)
+        andalso is_list(ModMsgV) andalso ModMsgV /= "",
     GName = ?b2l(G#mafia_game.name),
     HTitle =
         if PP#pp.mode == ?text ->
@@ -287,9 +290,8 @@ print_votesI(PPin) ->
                 LinkPhase = if is_integer(PP#pp.use_time) -> ?current;
                                true -> PP#pp.phase
                             end,
-                ModMsgV = ?getv(?mod_msg),
                 ModMsg =
-                    if DoDispTime2DL, is_list(ModMsgV), ModMsgV /= "" ->
+                    if DoDispModMsg ->
                             ["<tr><td align=center width=600>"
                              "<i>", ModMsgV, "</i>"
                              "</td></tr>\r\n"];

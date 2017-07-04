@@ -1144,7 +1144,7 @@ do_print_stats(PP, PrStats) ->
                         end
                end,
     PrFn = fun(tr, S) -> UserF(S);
-              (link, S) -> ["<a href=\"msgs?g=",
+              (link, S) -> ["<a href=\"/e/web/msgs?g=",
                             ?i2l(GNum),
                             PhaseRef(), "&user=",
                             UserF(S), "\">", UserF(S), "</a>"

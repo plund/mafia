@@ -249,8 +249,12 @@ get_user_list([User | T]) ->
 delete_game_and_all_data(GNum) when is_integer(GNum) ->
     case ?rgame(GNum) of
         [G] ->
+            GName = if is_binary(G#mafia_game.name) ->
+                            ?b2l(G#mafia_game.name);
+                       true -> "(no name)"
+                    end,
             io:format("Deleting Game ~p - ~s\n",
-                      [GNum, ?b2l(G#mafia_game.name)]),
+                      [GNum, GName]),
             show_game_data(GNum),
             CurrentGameNum = ?getv(game_key),
             if GNum == CurrentGameNum ->
@@ -299,7 +303,16 @@ pregame(Create) ->
 -spec switch_to_game(GNum :: game_num()) -> term().
 switch_to_game(GNum) ->
     ?set(game_key, GNum), %% Must have it set as default game when omitted
-    mafia_web:change_current_game(GNum).
+    case ?rgame(GNum) of
+        [#mafia_game{deadlines = DLs}] when DLs /= [] ->
+            mafia_web:change_current_game(GNum);
+        [G = #mafia_game{deadlines = DLs}] when DLs == [] ->
+            G2 = mafia_time:initial_deadlines(G),
+            ?dwrite_game(G2),
+            mafia_web:change_current_game(GNum);
+        [] ->
+            {error, game_noexist}
+    end.
 
 %% -----------------------------------------------------------------------------
 %% @doc Switch to other thread_id() and reread all info

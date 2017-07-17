@@ -70,7 +70,11 @@ th_filename(?undefined, ThId, Page) ->
     th_filename2("", ThId, Page);
 th_filename(G, _ThId, Page) ->
     GamePrefix = game_file_prefix(G),
-    th_filename2(GamePrefix, G#mafia_game.thread_id, Page).
+    #mafia_game{thread_id = GThId, signup_thid = SuThId} = G,
+    ThId = if is_integer(GThId) -> GThId;
+              is_integer(SuThId) -> SuThId
+           end,
+    th_filename2(GamePrefix, ThId, Page).
 
 th_filename2(GamePrefix, ThId, Page) ->
     DirName = "thread_pages",

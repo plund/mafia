@@ -11,6 +11,9 @@
 -define(BStart, "Start Game").
 -define(BStartNow, "Start Game Now").
 
+-define(MinThId, 1479977).
+-define(MaxThId, 3000000).
+
 game_settings(Sid, _Env, In) ->
     PQ = httpd:parse_query(In),
     Button = proplists:get_value("button", PQ),
@@ -166,7 +169,7 @@ enter_user_pw_box(F) ->
      "</td></tr></table>"
     ].
 
--define(GAME_FIELDS, [gms, name, start_time, time_zone, dst_zone,
+-define(GAME_FIELDS, [gms, name, signup_thid, start_time, time_zone, dst_zone,
                       players_orig, day_hours, night_hours]).
 
 get_game_settings(G = #mafia_game{}, AddFields) ->
@@ -187,7 +190,9 @@ gts(G, [A = gms | As]) ->
     tr_key(A, game_users(G#mafia_game.gms)) ++ gts(G, As);
 gts(G, [A = name | As]) -> tr_key(A, game_name(G)) ++ gts(G, As);
 gts(G, [A = thread_id | As]) ->
-    tr_key(A, ?i2l(G#mafia_game.thread_id)) ++ gts(G, As);
+    tr_key(A, game_thread(G#mafia_game.thread_id)) ++ gts(G, As);
+gts(G, [A = signup_thid | As]) ->
+    tr_key(A, game_thread(G#mafia_game.signup_thid)) ++ gts(G, As);
 gts(G, [A = day_hours | As]) ->
     tr_key(A, ?i2l(G#mafia_game.day_hours)) ++ gts(G, As);
 gts(G, [A = night_hours | As]) ->
@@ -205,6 +210,9 @@ tr_key(A, Str) -> ?a2l(A) ++ "=" ++ Str ++ "\n".
 
 game_users([]) -> ?UNSET;
 game_users(Users) -> string:join([?b2l(U) || U <- Users], ",").
+
+game_thread(?undefined) -> ?UNSET;
+game_thread(Id) -> ?i2l(Id).
 
 game_name(#mafia_game{name = ?undefined}) -> ?UNSET;
 game_name(#mafia_game{name = Name}) -> ?b2l(Name).
@@ -235,8 +243,14 @@ maybe_update_game(Button, GNStr, User, Pass, GameSett) ->
 
             UpdateInfo =
                 if G3 /= G ->
-                        %% remove generated deadlines
-                        ?dwrite_game(G3#mafia_game{deadlines = []}),
+                        G4 = if G#mafia_game.signup_thid /=
+                                G3#mafia_game.signup_thid ->
+                                     G3#mafia_game{page_to_read = 1};
+                                true -> G3
+                             end,
+                        %% generate new deadlines
+                        G5 = mafia_time:initial_deadlines(G4),
+                        ?dwrite_game(G5),
                         [{info, "The game was updated"}];
                    Button == ?BUpdate ->
                         [{info, "The game was NOT updated"}];
@@ -320,6 +334,8 @@ is_ready_to_go(gms, CurG, {_, G, Es}) ->
         end,
     IsOk = [] /= G3#mafia_game.gms,
     {IsOk, G3, Es2};
+is_ready_to_go(signup_thid, _, {_, G, Es}) ->
+    {true, G, Es};
 is_ready_to_go(name, _, {_, G, Es}) ->
     IsOk = ?undefined /= G#mafia_game.name,
     Es2 = if IsOk -> Es;
@@ -383,8 +399,10 @@ is_ready_to_go(duplicates, CurG, {_, G, Es}) ->
 is_ready_to_go(start_info, _, {IsOk, G, Es}) ->
     InfoStr =
         if IsOk ->
-                "The game MAY BE STARTED now (but please review the "
-                    "settings carefully before starting)";
+                ["The game has currently ",
+                 ?i2l(length(G#mafia_game.players_orig)),
+                 " players and MAY BE STARTED now. "
+                 "Please review the settings carefully before starting."];
            true ->
                 "The game CAN NOT BE started now."
         end,
@@ -401,6 +419,7 @@ is_ready_to_go(start_info, _, {IsOk, G, Es}) ->
 process_input(KeyValues, Acc) -> pri(KeyValues, Acc).
 
 pri([F = {"gms", _} | T], Acc) -> pri(T, pr_user_list(F, Acc));
+pri([F = {"signup_thid", _} | T], Acc) -> pri(T, pr_int(F, Acc));
 pri([{"name", Name} | T], {G, Es}) ->
     pri(T, {G#mafia_game{name = ?eb2ud(?l2b(Name))}, Es});
 pri([F={"day_hours", _} | T], Acc) -> pri(T, pr_int(F, Acc));
@@ -433,8 +452,9 @@ pr_user_list({Field, GmStr}, {G, Es}) ->
         "gms" ->
             {G#mafia_game{gms = Users2}, Es2};
         "players" ->
-            {G#mafia_game{players_orig = Users2,
-                          players_rem = Users2}, Es2}
+            Players = mafia_lib:to_bin_sort(Users2),
+            {G#mafia_game{players_orig = Players,
+                          players_rem = Players}, Es2}
     end.
 
 pr_int({Field, IntStr}, {G, Es}) ->
@@ -442,6 +462,14 @@ pr_int({Field, IntStr}, {G, Es}) ->
         {'EXIT', _} ->
             {G, Es ++ [{error, Field ++ ": " ++ IntStr ++
                             " is not and integer."}]};
+        Int when (Field == "signup_thid") and
+                 (Int < ?MinThId) ->
+            {G, Es ++ [{error, Field ++ ": " ++ IntStr ++
+                            " is too low."}]};
+        Int when (Field == "signup_thid") and
+                 (Int > ?MaxThId) ->
+            {G, Es ++ [{error, Field ++ ": " ++ IntStr ++
+                            " is too high."}]};
         Int when ((Field == "day_hours")
                   or (Field == "night_hours")) and
                  (Int < 1) ->
@@ -453,6 +481,7 @@ pr_int({Field, IntStr}, {G, Es}) ->
                             " must be an integer between -12 and +12"}]};
         Int ->
             G2 = case Field of
+                     "signup_thid" -> G#mafia_game{signup_thid = Int};
                      "day_hours" -> G#mafia_game{day_hours = Int};
                      "night_hours" -> G#mafia_game{night_hours = Int};
                      "time_zone" -> G#mafia_game{time_zone = Int}
@@ -656,9 +685,9 @@ msti2(_G, {error, _}, _) ->
     {false, [{error, "This combination of user and password does not exist."}]};
 msti2(_G, _PwRes, {'EXIT', _}) ->
     {false, [{error, "Thread id is not an integer"}]};
-msti2(_G, _PwRes, ThId) when ThId =< 1479977 ->
+msti2(_G, _PwRes, ThId) when ThId =< ?MinThId ->
     {false, [{error, "Thread id has a too low value"}]};
-msti2(_G, _PwRes, ThId) when ThId >  3000000 ->
+msti2(_G, _PwRes, ThId) when ThId >  ?MaxThId ->
     {false, [{error, "Thread id has a too high value"}]};
 msti2(G, _PwRes, ThId) ->
     {IsReady, G2, Es} = is_ready_to_go(G, {G, []}),
@@ -666,10 +695,6 @@ msti2(G, _PwRes, ThId) ->
             %% START GAME!
             G3 = G2#mafia_game{
                    thread_id = ThId,
-                   players_orig = mafia_lib:to_bin_sort(
-                                    G2#mafia_game.players_orig),
-                   players_rem = mafia_lib:to_bin_sort(
-                                   G2#mafia_game.players_rem),
                    page_to_read = 1
                    %% Can be removed after M30 has started
                    %% or I set it to 1 on the server

@@ -39,7 +39,7 @@
          start/0,
          stop/0,
 
-         game_start/2, % old
+         game_start/2, %% old
          end_phase/1,
          unend_phase/1,
          end_phase/2, %% deprecated
@@ -47,8 +47,10 @@
          end_game/1,
          unend_game/1,
          switch_to_game/1,
+         set_signup_thid/2,
          switch_thread_id/2,
          game_thread/1,
+         initiate_game/1,
          initiate_game/2,
          remove_not_running_game/1,
          delete_game_and_all_data/1,
@@ -209,7 +211,10 @@ show_game_data(GNum) ->
 %% @doc Initiate game that has not started yet
 %% @end
 %% -----------------------------------------------------------------------------
-initiate_game(GNum, GMs) ->
+initiate_game(GNum) when is_integer(GNum) ->
+    initiate_game(GNum, []).
+
+initiate_game(GNum, GMs) when is_integer(GNum) ->
     DoFun = fun(G) ->
                     GMsB = get_user_list(GMs),
                     ?dwrite_game(G#mafia_game{game_num = GNum,
@@ -319,6 +324,20 @@ switch_to_game(GNum) ->
             mafia_web:change_current_game(GNum);
         [] ->
             {error, game_noexist}
+    end.
+
+-spec set_signup_thid(GNum :: game_num(),
+                      thread_id()) -> ok | {error, atom()}.
+set_signup_thid(GNum, SuThId) when is_integer(SuThId) ->
+    case ?rgame(GNum) of
+        [G] when G#mafia_game.thread_id == ?undefined ->
+            ?dwrite_game(G#mafia_game{signup_thid = SuThId,
+                                      page_to_read = 1}),
+            ok;
+        [_] ->
+            {error, game_running};
+        _ ->
+            {error, no_game}
     end.
 
 %% -----------------------------------------------------------------------------
@@ -718,9 +737,11 @@ show_aliasesI(User) ->
                        [?b2l(AlB) || AlB <- U#user.aliases]])
     end.
 
--spec add_user(Name :: string())
+-spec add_user(Name :: (string() | binary()))
               -> ok | {error, eexists}.
-add_user(Name) ->
+add_user(NameB) when is_binary(NameB) ->
+    add_user(?b2l(NameB));
+add_user(Name) when is_list(Name) ->
     case ?ruser(Name) of
         [] ->
             NameU = string:to_upper(Name),

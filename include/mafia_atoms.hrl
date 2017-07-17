@@ -24,11 +24,6 @@
 -define(words, words).
 -define(words_per_post, words_per_post).
 
--define(dbuser_ok, dbuser_ok).
--define(dbuser_unver, dbuser_unver).
--define(dbuser_wrong_case, dbuser_wrong_case).
--define(dbuser_none, dbuser_none).
-
 -define(kv_store, kv_store).
 -define(day, day).
 -define(night, night).

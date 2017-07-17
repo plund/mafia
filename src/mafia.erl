@@ -78,6 +78,8 @@
          show_all_users/1,
          show_all_aliases/0,
          show_aliases/1,
+         add_user/1,
+         remove_user/1,
          add_alias/2,
          remove_alias/2,
          export_user_data/0,
@@ -628,25 +630,6 @@ show_all_users(Search) ->
     UserKeys = match_user_keys(Search),
     show_usersI(?standard_io, UserKeys, all).
 
-all_keys(Tab) -> lists:sort(mnesia:dirty_all_keys(Tab)).
-
-match_user_keys(Search) ->
-    [UserUB || UserUB <- all_keys(user),
-               0 /= string:str(?b2l(UserUB), ?l2u(Search))].
-
-show_all_aliases() ->
-    show_aliases(all).
-
--spec show_aliases(UserSearch :: string()) -> ok | {error, Reason :: term()}.
-show_aliases(all) ->
-    Keys = all_keys(user),
-    show_users(Keys, alias);
-show_aliases(Search) ->
-    io:format("Search: ~s\n", [Search]),
-    UserKeys = match_user_keys(Search),
-    [show_aliasesI(UKey) || UKey <- UserKeys],
-    ok.
-
 show_users(UserKeys, M) ->
     show_usersI(?standard_io, UserKeys, M).
 
@@ -674,16 +657,32 @@ show_usersI(Mode, UserKeys, M) when M == alias; M == all ->
         ?standard_io -> ok
     end.
 
+all_keys(Tab) -> lists:sort(mnesia:dirty_all_keys(Tab)).
+
+match_user_keys(Search) ->
+    [UserUB || UserUB <- all_keys(user),
+               0 /= string:str(?b2l(UserUB), ?l2u(Search))].
+
+show_all_aliases() ->
+    show_aliases(all).
+
+-spec show_aliases(UserSearch :: string()) -> ok | {error, Reason :: term()}.
+show_aliases(all) ->
+    Keys = all_keys(user),
+    show_users(Keys, alias);
+show_aliases(Search) ->
+    io:format("Search: ~s\n", [Search]),
+    UserKeys = match_user_keys(Search),
+    [show_aliasesI(UKey) || UKey <- UserKeys],
+    ok.
 
 print(Mode, Args) ->
-    Fmt = case Mode of
-              ?return_text ->
-                  NumArgs = length(Args),
-                  case NumArgs of
-                      1 -> "~s\n";
-                      2 -> "~s <=> ~s\n"
-                  end;
-              ?standard_io -> "~-15s ~s\n"
+    Fmt =
+        case {Mode, length(Args)} of
+            {?return_text, 1} -> "~s\n";
+            {?return_text, 2} -> "~s <=> ~s\n";
+            {?standard_io, 1} -> "~-20s\n";
+            {?standard_io, 2} -> "~-20s ~s\n"
           end,
     do_print(Mode, Fmt, Args).
 
@@ -697,6 +696,37 @@ show_aliasesI(User) ->
             io:format("Found: ~s\nAliases: ~p\n",
                       [?b2l(U#user.name),
                        [?b2l(AlB) || AlB <- U#user.aliases]])
+    end.
+
+-spec add_user(Name :: string())
+              -> ok | {error, eexists}.
+add_user(Name) ->
+    case ?ruser(Name) of
+        [] ->
+            NameU = string:to_upper(Name),
+            User = #user{name_upper = ?l2b(NameU),
+                         name = ?l2b(Name),
+                         verification_status = verified},
+            ?dwrite_user(User);
+        [#user{}] ->
+            {error, eexists}
+    end.
+
+remove_user(Name) ->
+    case ?ruser(Name) of
+        [] ->
+            {error, enoexists};
+        [#user{} = U] ->
+            io:format("User = ~p\n", [U]),
+            Answer = io:get_line(?l2a("Are you really sure you want to "
+                                      "delete this user (NO/yes)> ")),
+            case string:to_upper(Answer) of
+                "YES" ++ _ ->
+                    mnesia:dirty_delete(?user, U#user.name_upper),
+                    {user_deleted, Name};
+                _ ->
+                    user_not_deleted
+            end
     end.
 
 -spec add_alias(User :: string(), Alias :: string())

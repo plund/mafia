@@ -39,6 +39,24 @@ upgrade(user) ->
             record_info(fields, user)).
 
 upgrade(Tab = user,
+        As = [name_upper, name, aliases, verification_status, pw_hash],
+        Fs = [name_upper, name, aliases, verification_status, pw_hash,
+              logins %% added
+             ]) ->
+    upgrade_tab_user_170717(Tab, As, Fs);
+upgrade(Tab = mafia_game,
+        As = [game_num,thread_id,name,day_hours,night_hours,time_zone,
+              start_time,dst_zone,dst_changes,deadlines,gms,players_orig,
+              players_rem,player_deaths,page_to_read,game_end,
+              last_msg_id,last_msg_time],
+        Fs = [game_num,thread_id,
+              signup_thid, %% added
+              name,day_hours,night_hours,time_zone,
+              start_time,dst_zone,dst_changes,deadlines,gms,players_orig,
+              players_rem,player_deaths,page_to_read,game_end,
+              last_msg_id,last_msg_time]) ->
+    upgrade_tab_game_170717(Tab, As, Fs);
+upgrade(Tab = user,
         As = [name_upper, name, aliases, verification_status],
         Fs = [name_upper, name, aliases, verification_status, pw_hash]) ->
     upgrade_tab_user_170628(Tab, As, Fs);
@@ -78,8 +96,24 @@ upgrade(Tab, As, Fs) ->
               [Tab, As, Fs]).
 
 %% -----------------------------------------------------------------------------
-%% Upgrade mnesia_table using new keys
-%% 1. copy objects with new value order, 2. transform attribute list in mnesia
+%% insert ?undefined for signup_thid
+%% -----------------------------------------------------------------------------
+upgrade_tab_game_170717(Tab, As, Fs) ->
+    io:format("Upgrade table '~p' 170717 from:\n~999p\nto\n~999p\n",
+              [Tab, As, Fs]),
+    Trans =
+        fun(RecOld) ->
+                ValuesOldList = tl(tuple_to_list(RecOld)),
+                OldAsVals = lists:zip(As, ValuesOldList),
+
+                %% Pick values for new rec
+                NewValues = [proplists:get_value(F, OldAsVals) || F <- Fs],
+                list_to_tuple([Tab | NewValues])
+        end,
+    mnesia:transform_table(Tab, Trans, Fs).
+
+%% -----------------------------------------------------------------------------
+%% start_time, dst_zone, dst_changes
 %% -----------------------------------------------------------------------------
 upgrade_tab_game_170627(Tab, As, Fs) ->
     %% day1_dl_time, is_init_dst, %% renamed
@@ -122,6 +156,10 @@ upgrade_tab_game_170627(Tab, As, Fs) ->
         end,
     mnesia:transform_table(Tab, Trans, Fs).
 
+%% -----------------------------------------------------------------------------
+%% Upgrade mnesia_table using new keys
+%% 1. copy objects with new value order, 2. transform attribute list in mnesia
+%% -----------------------------------------------------------------------------
 upgrade_tab_game_170412(Tab, As, Fs) ->
     io:format("Upgrade table '~p' from:\n~999p\nto\n~999p\n",
               [Tab, As, Fs]),
@@ -194,13 +232,23 @@ update_db_attributes(mafia_day) ->
                   {"No-Lynch", ["No Lynch"]}
                  ]).
 
-upgrade_tab_user_170628(Tab, As, Fs) ->
-    io:format("Upgrading table '~p' 170628 from:\n~999p\nto\n~999p\n", [Tab, As, Fs]),
-    Trans = fun(RecOld) ->
-                    NewList = tuple_to_list(RecOld) ++ [?undefined],
-                    list_to_tuple(NewList)
-            end,
+upgrade_tab_user_170717(Tab, As, Fs) ->
+    io:format("Upgrading table '~p' 170717 from:\n~999p\nto\n~999p\n",
+              [Tab, As, Fs]),
+    Trans = append_last([]),
     mnesia:transform_table(Tab, Trans, Fs).
+
+upgrade_tab_user_170628(Tab, As, Fs) ->
+    io:format("Upgrading table '~p' 170628 from:\n~999p\nto\n~999p\n",
+              [Tab, As, Fs]),
+    Trans = append_last(?undefined),
+    mnesia:transform_table(Tab, Trans, Fs).
+
+append_last(LastValue) ->
+    fun(RecOld) ->
+            NewList = tuple_to_list(RecOld) ++ [LastValue],
+            list_to_tuple(NewList)
+    end.
 
 upgrade_tab_user_161210(Tab, As, Fs) ->
     io:format("Upgrading table '~p' from:\n~999p\nto\n~999p\n", [Tab, As, Fs]),

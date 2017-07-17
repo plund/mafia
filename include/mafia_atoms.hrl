@@ -1,9 +1,12 @@
 %% atom macros to avoid misspelling
+-define(undefined, undefined).
 -define(true, true).
 -define(false, false).
--define(undefined, undefined).
+-define(success, success).
+-define(failure, failure).
 -define(ok, ok).
 -define(error, error).
+
 -define(stop, stop).
 -define(none, none).
 -define(match, match).

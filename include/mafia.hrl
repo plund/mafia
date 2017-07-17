@@ -29,6 +29,7 @@
 -type message() :: binary().
 -type day_night() :: ?day | ?night | ?game_start | ?game_ended.
 -type mfargs() :: {atom(), atom(), list()}.
+-type login_attempt() :: {seconds1970(), ?success | ?failure}.
 
 -record(kv_store,
         {key,
@@ -103,6 +104,7 @@
 -record(mafia_game,
         {game_num :: ?undefined | integer(),
          thread_id :: '$1' | ?undefined | thread_id(),
+         signup_thid :: ?undefined | thread_id(),
          name :: ?undefined | binary(),
          day_hours = 48 :: integer(),
          night_hours = 24 :: integer(),
@@ -126,7 +128,8 @@
          name :: ?undefined | user(),
          aliases = [] :: [alias()],
          verification_status :: ?undefined | ?verified | ?unverified,
-         pw_hash :: ?undefined | integer()
+         pw_hash :: ?undefined | integer(),
+         logins = [] :: [login_attempt()]
         }).
 
 -record(stat,

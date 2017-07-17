@@ -10,6 +10,7 @@
          rpage/2,
          rday/2,
          rgame/1,
+         ruser/1,
 
          set/2,
          unset/1,
@@ -33,9 +34,8 @@ grep(Str, Mode) -> mafia_data:grep(Str, Mode).
 rmess(MsgId) -> ?rmess(MsgId).
 rpage(ThId, Page) -> ?rpage(?thid(ThId), Page).
 rday(ThId, DayNum) -> ?rday(?thid(ThId), DayNum).
-rgame(?game_key = K) -> ?rgame(?getv(K));
-rgame(?thread_id = K) -> ?rgame(?getv(K));
-rgame(Id) -> ?rgame(?thid(Id)).
+rgame(GNum) when is_integer(GNum) -> ?rgame(GNum).
+ruser(Name) -> ?ruser(Name).
 
 show() -> mafia:show_settings().
 set(K, V) -> mafia_db:set(K, V).

@@ -187,11 +187,11 @@ delete_game_data_in_other_tabs(GNum) when is_integer(GNum) ->
 delete_game_data_in_other_tabs([]) -> {error, no_game};
 delete_game_data_in_other_tabs([G]) ->
     delete_game_data_in_other_tabs(G);
-delete_game_data_in_other_tabs(G = #mafia_game{thread_id = ThId}) ->
+delete_game_data_in_other_tabs(#mafia_game{game_num = GNum,
+                                           thread_id = ThId}) ->
     %% Delete mafia_day
     _ = [mnesia:dirty_delete(mafia_day, K)
-         || K = {GN, _} <- mnesia:dirty_all_keys(mafia_day),
-            GN == G#mafia_game.game_num],
+         || K = {GN, _} <- mnesia:dirty_all_keys(mafia_day), GN == GNum],
 
     %% Delete messages for msg_ids found in page_rec of thread
     MsgIdFun = fun(MsgId) -> mnesia:dirty_delete(message, MsgId) end,
@@ -201,7 +201,10 @@ delete_game_data_in_other_tabs(G = #mafia_game{thread_id = ThId}) ->
     [mnesia:dirty_delete(page_rec, K)
      || K = {ThId2, _P}
             <- mnesia:dirty_all_keys(page_rec),
-        ThId2 == ThId].
+        ThId2 == ThId],
+
+    %% Delete all stat data
+    clear_stat(GNum).
 
 %% Old game reset (having destroyed players_orig AND
 %% having a mafia_db:make_game_rec/1 fun clause)
@@ -388,7 +391,7 @@ clear_mafia_day(GNum) ->
               GNum2 == GNum],
     ?dbg({clear_mafia_day, GNum, deleted, length(Res)}).
 
-%% Remove stats for thread.
+%% Remove stats for game.
 clear_stat(GNum) ->
     StatKeyCheck = fun(Id, K) -> case K of
                                      {_, Id} -> true;

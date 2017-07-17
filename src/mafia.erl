@@ -195,7 +195,14 @@ show_game_data(GNum) ->
     DayKeys = [K || K = {GN, _} <- all_keys(mafia_day),
                     GN == GNum],
     io:format("Num Day records ~p\n", [length(DayKeys)]),
-    io:format("Day keys ~p\n", [DayKeys]).
+    io:format("Day keys ~p\n", [DayKeys]),
+
+    IsStatKey = fun(Id, {_, Id}) -> true;
+                   (Id, {_, Id, _}) -> true;
+                   (_, _) -> false
+                end,
+    StatKeys = [K || K <- mnesia:dirty_all_keys(stat), IsStatKey(GNum, K)],
+    io:format("Num Stat records ~p\n", [length(StatKeys)]).
 
 
 %% -----------------------------------------------------------------------------

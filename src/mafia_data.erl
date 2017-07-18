@@ -232,8 +232,9 @@ reset_game(G = #mafia_game{}) ->
            game_end = ?undefined,
            last_msg_id = ?undefined,
            last_msg_time = ?undefined},
-    ?dwrite_game(G2),
-    G2.
+    G3 = mafia_time:initial_deadlines(G2),
+    ?dwrite_game(G3),
+    G3.
 
 %% -spec refresh_votes() -> ok.
 refresh_votes() ->

@@ -169,8 +169,9 @@ enter_user_pw_box(F) ->
      "</td></tr></table>"
     ].
 
--define(GAME_FIELDS, [gms, name, signup_thid, start_time, time_zone, dst_zone,
-                      players_orig, day_hours, night_hours]).
+-define(GAME_FIELDS,
+        [gms, name, thread_id, signup_thid, start_time, time_zone, dst_zone,
+         players_orig, day_hours, night_hours]).
 
 get_game_settings(G = #mafia_game{}, AddFields) ->
     As = ?GAME_FIELDS ++ AddFields,
@@ -190,7 +191,7 @@ gts(G, [A = gms | As]) ->
     tr_key(A, game_users(G#mafia_game.gms)) ++ gts(G, As);
 gts(G, [A = name | As]) -> tr_key(A, game_name(G)) ++ gts(G, As);
 gts(G, [A = thread_id | As]) ->
-    tr_key(A, game_thread(G#mafia_game.thread_id)) ++ gts(G, As);
+    tr_key_val(A, G#mafia_game.thread_id) ++ gts(G, As);
 gts(G, [A = signup_thid | As]) ->
     tr_key(A, game_thread(G#mafia_game.signup_thid)) ++ gts(G, As);
 gts(G, [A = day_hours | As]) ->
@@ -207,6 +208,9 @@ gts(G, [A = players_orig | As]) ->
 %% translate key
 tr_key(players_orig, Str) -> tr_key(players, Str);
 tr_key(A, Str) -> ?a2l(A) ++ "=" ++ Str ++ "\n".
+
+tr_key_val(thread_id, ?undefined) -> "";
+tr_key_val(thread_id, Id) -> tr_key(thread_id, game_thread(Id)).
 
 game_users([]) -> ?UNSET;
 game_users(Users) -> string:join([?b2l(U) || U <- Users], ",").
@@ -334,6 +338,8 @@ is_ready_to_go(gms, CurG, {_, G, Es}) ->
         end,
     IsOk = [] /= G3#mafia_game.gms,
     {IsOk, G3, Es2};
+is_ready_to_go(thread_id, _, {_, G, Es}) ->
+    {true, G, Es};
 is_ready_to_go(signup_thid, _, {_, G, Es}) ->
     {true, G, Es};
 is_ready_to_go(name, _, {_, G, Es}) ->

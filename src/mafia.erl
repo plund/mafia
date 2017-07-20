@@ -1,6 +1,8 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% Add signup_thread info to all games.
+%%   - Make signup searchable?
 %% Mnesia overloaded fixes
 %% try autostart again
 %% use quickcheck license

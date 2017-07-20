@@ -20,9 +20,10 @@
 -define(take_import, take_import).
 
 -define(sort, sort).
--define(normal, normal).
--define(words, words).
--define(words_per_post, words_per_post).
+-define(sort_normal, sort_normal).
+-define(sort_words, sort_words).
+-define(sort_words_per_post, sort_words_per_post).
+-define(sort_last_msg_time, sort_last_msg_time).
 
 -define(kv_store, kv_store).
 -define(day, day).

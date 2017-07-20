@@ -59,10 +59,12 @@
     period :: ?undefined | integer(),   %% Poll period
     use_time :: ?undefined | seconds1970(),
     %% use_time = time to next DL (current game status)
-    %%time :: seconds1970(),
     time_zone = 0 :: integer(),
     dst = false :: boolean(),
-    sort = ?normal :: ?normal | ?words | ?words_per_post
+    sort = ?sort_normal :: ?sort_normal
+                         | ?sort_words
+                         | ?sort_words_per_post
+                         | ?sort_last_msg_time
    }).
 
 po(P, [{?game_key, K} | T]) -> po(P#pp{game_key = K}, T);
@@ -1053,7 +1055,7 @@ print_stats_opts(Opts) ->
     DefOpts = [{?game_key, ?getv(?game_key)},
                {?phase, #phase{num = 1, don = ?day}},
                {?dev, ?standard_io},
-               {?sort, ?normal}],
+               {?sort, ?sort_normal}],
     PP = po(#pp{}, DefOpts),
     PP2 = po(PP, Opts),
     print_statsI(PP2).
@@ -1105,18 +1107,21 @@ do_print_stats(PP) ->
 
 -spec mk_prstat(#stat{}) -> #prstat{}.
 mk_prstat(S = #stat{}) ->
+    LastMsgId = lists:max(S#stat.msg_ids),
+    M = hd(?rmess(LastMsgId)),
     #prstat{key = S#stat.key,
             msg_ids = S#stat.msg_ids,
             num_chars = S#stat.num_chars,
             num_words = S#stat.num_words,
             num_postings = S#stat.num_postings,
-            words_per_post = S#stat.num_words / S#stat.num_postings
+            words_per_post = S#stat.num_words / S#stat.num_postings,
+            last_msg = {M#message.time, LastMsgId}
            }.
 
 do_print_stats(PP, PrStats) ->
     SortFun =
         case PP#pp.sort of
-            ?normal ->
+            ?sort_normal ->
                 fun(#prstat{num_postings = PA, num_words = WA},
                     #prstat{num_postings = PB, num_words = WB}) ->
                         if PA < PB -> true;
@@ -1125,37 +1130,70 @@ do_print_stats(PP, PrStats) ->
                            true -> false
                         end
                 end;
-            ?words ->
+            ?sort_words ->
                 fun(#prstat{num_words = WA},
                     #prstat{num_words = WB}) ->
                         WA =< WB
                 end;
-            ?words_per_post ->
+            ?sort_words_per_post ->
                 fun(#prstat{words_per_post = WA},
                     #prstat{words_per_post = WB}) ->
                         WA =< WB
+                end;
+            ?sort_last_msg_time ->
+                fun(#prstat{last_msg = MA},
+                    #prstat{last_msg = MB}) ->
+                        MA =< MB
                 end
         end,
     StatsSorted = lists:sort(SortFun, PrStats),
     UserF = fun(S) -> element(1, S#prstat.key) end,
     Phase = PP#pp.phase,
-    GNum = (PP#pp.game)#mafia_game.game_num,
-    PhaseRef = fun() -> case Phase of
-                            ?total_stats -> "";
-                            _ -> ["&part=", pr_phase_long(Phase)]
-                        end
-               end,
+    G = PP#pp.game,
+    GNum = G#mafia_game.game_num,
+    PhaseRef =
+        fun() ->
+                case Phase of
+                    ?total_stats -> "";
+                    _ -> ["&part=", pr_phase_long(Phase)]
+                end
+        end,
+    PhaseName =
+        fun() ->
+                case Phase of
+                    ?total_stats -> "Global";
+                    _ -> pr_phase_long(Phase)
+                end
+        end,
+    TimeF =
+        fun(MsgTime) ->
+                case Phase of
+                    ?total_stats ->
+                        #dl{time = DlTime} = mafia_time:get_nxt_deadline(G),
+                        print_time_5d_str(
+                          mafia_time:hh_mm_to_time(MsgTime, DlTime));
+                    _ ->
+                        print_time_5d(G, MsgTime)
+                end
+        end,
     PrFn = fun(tr, S) -> UserF(S);
               (link, S) -> ["<a href=\"/e/web/msgs?g=",
                             ?i2l(GNum),
                             PhaseRef(), "&user=",
                             UserF(S), "\">", UserF(S), "</a>"
                            ];
-              %% transl(element(1, S#prstat.key));
               (cell, _) -> "td";
-              (bgcolor, S) -> bgcolor(element(1, S#prstat.key)
-                                      %% transl(element(1, S#prstat.key))
-                                     );
+              (bgcolor, S) -> bgcolor(element(1, S#prstat.key));
+              (lastmsg, S) ->
+                   {MsgTime, MsgId} = S#prstat.last_msg,
+                   ["<a href=\"/e/web/msg"
+                    "?g=", ?i2l(GNum),
+                    "&id=", ?i2l(MsgId),
+                    "&var=last_msg",
+                    "&user=", UserF(S),
+                    "&phase=", PhaseName(),
+                    "\">", TimeF(MsgTime), "</a>"
+                   ];
               (_, _) -> []
            end,
     PlayersRem = PP#pp.players_rem,
@@ -1176,22 +1214,32 @@ do_print_stats(PP, PrStats) ->
                 PostLn = ArgBeg ++ "normal",
                 WordLn = ArgBeg ++ "words",
                 WPostLn = ArgBeg ++ "words_per_post",
-                {PostTitle, WordTitle, WPostTitle} =
+                LMsgLn = ArgBeg ++ "last_msg_time",
+                {PostTitle, WordTitle, WPostTitle, LMsgTitle} =
                     case PP#pp.sort of
-                        ?normal ->
+                        ?sort_normal ->
                             {"Posts",
                              ["<a href=\"", WordLn, "\">Words</a>"],
-                             ["<a href=\"", WPostLn, "\">W/Post</a>"]
+                             ["<a href=\"", WPostLn, "\">W/Post</a>"],
+                             ["<a href=\"", LMsgLn, "\">Last</a>"]
                             };
-                        ?words ->
+                        ?sort_words ->
                             {["<a href=\"", PostLn, "\">Posts</a>"],
                              "Words",
-                             ["<a href=\"", WPostLn, "\">W/Post</a>"]
+                             ["<a href=\"", WPostLn, "\">W/Post</a>"],
+                             ["<a href=\"", LMsgLn, "\">Last</a>"]
                             };
-                        ?words_per_post ->
+                        ?sort_words_per_post ->
                             {["<a href=\"", PostLn, "\">Posts</a>"],
                              ["<a href=\"", WordLn, "\">Words</a>"],
-                             "W/Post"
+                             "W/Post",
+                             ["<a href=\"", LMsgLn, "\">Last</a>"]
+                            };
+                        ?sort_last_msg_time ->
+                            {["<a href=\"", PostLn, "\">Posts</a>"],
+                             ["<a href=\"", WordLn, "\">Words</a>"],
+                             ["<a href=\"", WPostLn, "\">W/Post</a>"],
+                             "Last"
                             }
                     end,
                 ["<tr><th colspan=\"5\">",
@@ -1203,7 +1251,9 @@ do_print_stats(PP, PrStats) ->
                  "<th align=\"right\">", WordTitle, "</th>"
                  "<th align=\"right\">Chars</th>"
                  "<th align=\"right\">", WPostTitle, "</th>"
-                 "<th align=\"left\">Player</th></tr>"
+                 "<th align=\"left\">Player</th>"
+                 "<th align=\"left\">", LMsgTitle, "</th>"
+                 "</tr>"
                 ]
         end,
     print_stat_div(PP),
@@ -1297,12 +1347,8 @@ print_stat_row(PP, S, PrFn) when PP#pp.mode == ?html ->
      CEnd, CBegR, ?i2l(S#prstat.num_chars),
      CEnd, CBegR, io_lib:format("~.2f", [S#prstat.words_per_post]),
      CEnd, CBegL, PrFn(link, S),
+     CEnd, CBegL, PrFn(lastmsg, S),
      CEnd, "</tr>\r\n"].
-
-%% Get user name as stored normal case string
-%% transl(UserUB) ->
-%%     UInfo = hd(?ruserUB(UserUB)),
-%%     ?b2l(UInfo#user.name).
 
 %% [{Vote, Num, [{Time, User, Raw}]}]
 add_vote(V, User, Acc) ->
@@ -1532,7 +1578,10 @@ nbsp(Str) ->
       || C <- Str].
 
 print_time_5d(G, Time) ->
-    {HH, MM} = mafia_time:hh_mm_to_deadline(G, Time),
+    print_time_5d_str(
+      mafia_time:hh_mm_to_deadline(G, Time)).
+
+print_time_5d_str({HH, MM}) ->
     p(HH) ++ ":" ++ p(MM).
 
 %% Flatten a bit sort of plus time sort...

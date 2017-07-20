@@ -143,6 +143,7 @@
          num_postings :: integer()
         }).
 
+%% prstat is not stored in DB
 -record(prstat,
         {key :: {player(), game_num()}
               | {player(), game_num(),
@@ -152,7 +153,8 @@
          num_chars :: integer(),
          num_words :: integer(),
          num_postings :: integer(),
-         words_per_post :: float()
+         words_per_post :: float(),
+         last_msg :: {seconds1970(), msg_id()}
         }).
 
 -record(cnt,

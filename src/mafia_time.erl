@@ -26,6 +26,7 @@
          decr_phase/1,
 
          hh_mm_to_deadline/2,  %% These are similar
+         hh_mm_to_time/2,
          get_next_deadline/1,
          get_next_deadline/2,
          next_deadlines/3,
@@ -381,17 +382,23 @@ hh_mm_to_deadline(G, Time) ->
     {{Days, {HH, MM, _SS}}, _} = get_next_deadline(G, Time),
     {Days * 24 + HH, MM}.
 
+hh_mm_to_time(TimeA, TimeB) ->
+    TimeDiff = abs(TimeA - TimeB),
+    Days = TimeDiff div ?DaySecs,
+    {HH, MM, _SS} = calendar:seconds_to_time(TimeDiff rem ?DaySecs),
+    {Days * 24 + HH, MM}.
+
 %% -----------------------------------------------------------------------------
 
--spec get_next_deadline(ThId::integer())
+-spec get_next_deadline(GNum :: integer())
                        -> {Remain :: {Days :: integer(), time()},
                            ?game_ended | #dl{}}.
-get_next_deadline(ThId) when is_integer(ThId) ->
+get_next_deadline(GNum) when is_integer(GNum) ->
     NowTime = utc_secs1970(),
-    get_next_deadline(ThId, NowTime).
+    get_next_deadline(GNum, NowTime).
 
-get_next_deadline(ThId, Time) when is_integer(ThId); is_atom(ThId) ->
-    get_next_deadline(?rgame(ThId), Time);
+get_next_deadline(GNum, Time) when is_integer(GNum); is_atom(GNum) ->
+    get_next_deadline(?rgame(GNum), Time);
 get_next_deadline([], _Time) -> false;
 get_next_deadline([#mafia_game{} = G], Time) ->
     get_next_deadline(G, Time);

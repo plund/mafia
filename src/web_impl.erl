@@ -662,34 +662,42 @@ msg(Sid, _Env, In) ->
     GNum = get_gnum(GNumStr),
     MsgIdText = get_arg(PQ, "id"),
     Variant = get_arg(PQ, "var"),
-    Player = get_arg(PQ, "player"),
     Ms = case catch ?l2i(MsgIdText) of
              {'EXIT', _} -> [];
              MsgId -> ?rmess(MsgId)
          end,
-    {HStart, Html} = msg2(?rgame(GNum), Ms, Variant, Player),
+    {HStart, Html} = msg2(?rgame(GNum), Ms, Variant, PQ),
     A = del_start(Sid, HStart, 0),
     B = web:deliver(Sid, Html),
     C = del_end(Sid),
     Args = make_args(PQ, ["var"]),
     {A + B + C, Args}.
 
-msg2([], _, _Variant, _Player) ->
+msg2([], _, _Variant, _PQ) ->
     "Game not found";
-msg2(_, [], _Variant, _Player) ->
+msg2(_, [], _Variant, _PQ) ->
     "No message found with this id";
-msg2([G], [M], Variant, Player) ->
+msg2([G], [M], Variant, PQ) ->
     case Variant of
         "death" ->
+            Player = get_arg(PQ, "player"),
             {"Death Announcement - " ++ Player,
              show_message(G, M, death)};
         "replacement" ->
+            Player = get_arg(PQ, "player"),
             {"Replacement - " ++ Player,
              show_message(G, M, replacement)};
         "vote" ->
+            Player = get_arg(PQ, "player"),
             {"Vote - " ++ Player,
              show_message(G, M, vote)};
+        "last_msg" ->
+            Phase = get_arg(PQ, "phase"),
+            User = get_arg(PQ, "user"),
+            {"Last Message - " ++ Phase ++ " - " ++ User,
+             show_message(G, M, msg)};
         _ ->
+            Player = get_arg(PQ, "player"),
             {"Message - " ++ Player,
              show_message(G, M, msg)}
     end.
@@ -704,10 +712,12 @@ stats(Sid, _Env, In) ->
     GameKey = get_gnum(get_arg(PQ, "g")),
 
     Sort = case get_arg(PQ, "sort") of
-               "words_per_post" ->
-                   [{?sort, ?words_per_post}];
                "words" ->
-                   [{?sort, ?words}];
+                   [{?sort, ?sort_words}];
+               "words_per_post" ->
+                   [{?sort, ?sort_words_per_post}];
+               "last_msg_time" ->
+                   [{?sort, ?sort_last_msg_time}];
                _ -> []
            end,
     Html =

@@ -212,7 +212,7 @@ msgs2(Sid, GNum, In, PQ, []) ->
                                 #phase{don = ?game_ended} ->
                                     "Game End "
                             end,
-                        MsgBoldMarked = bold_mark_words(Msg, WordsU),
+                        ModifiedMsg = modify_message(Msg, WordsU),
                         BgColor = mafia_lib:bgcolor(MsgUserB),
                         {HH, MM} = mafia_time:hh_mm_to_deadline(GNum, Time),
                         %% Add context link when doing User/Word search
@@ -236,7 +236,7 @@ msgs2(Sid, GNum, In, PQ, []) ->
                                 p(HH), ":", p(MM), "<br>",
                                 HPage,
                                 "</td><td valign=\"top\">",
-                                MsgBoldMarked,
+                                ModifiedMsg,
                                 "</td></tr>\r\n"]),
                         SizeOut = web:deliver(Sid, OutB),
                         MI#miter{bytes = MI#miter.bytes + SizeDiv + SizeOut,
@@ -321,28 +321,39 @@ add_cond(QStrs, Acc) ->
        true -> QStrs
     end.
 
+%% 1) fixes http links
+%% 2) bold marks search words
+modify_message(Msg, WordsU) ->
+    lists:foldl(
+      fun({no_url, SubMsg}, Acc) ->
+              Acc ++ bold_mark_words(SubMsg, WordsU);
+         ({url, Url}, Acc) ->
+              Acc ++ ["<a href=\"", Url, "\">", Url, "</a>"]
+      end,
+      "",
+      split_msg_on_urls(remove_links(Msg))).
+
 bold_mark_words(Msg, WordsU) ->
     MsgU = ?l2u(Msg),
     LenMsg = length(MsgU),
     WordsU2 = get_all_words_to_mark(WordsU),
-    Intervals =
-        mafia_lib:merge_intervals(
-          lists:sort(
-            lists:foldl(
-              fun(SearchU, Acc) ->
-                      case check_edges_for_wildcard(SearchU) of
-                          {"", _IsWcAtBeg, _IsWcAtEnd} -> Acc;
-                          {SearchU2, IsWcAtBeg, IsWcAtEnd} ->
-                              Len = length(SearchU2),
-                              Acc ++ [{P, P + Len - 1}
-                                      || P <- allpos(MsgU, SearchU2),
-                                         is_word(MsgU, P, LenMsg, Len,
-                                                 {IsWcAtBeg, IsWcAtEnd})
-                                     ]
-                      end
-              end,
-              [],
-              WordsU2))),
+    RawIntervals =
+        lists:foldl(
+          fun(SearchU, Acc) ->
+                  case check_edges_for_wildcard(SearchU) of
+                      {"", _IsWcAtBeg, _IsWcAtEnd} -> Acc;
+                      {SearchU2, IsWcAtBeg, IsWcAtEnd} ->
+                          Len = length(SearchU2),
+                          Acc ++ [{P, P + Len - 1}
+                                  || P <- allpos(MsgU, SearchU2),
+                                     is_word(MsgU, P, LenMsg, Len,
+                                             {IsWcAtBeg, IsWcAtEnd})
+                                 ]
+                  end
+          end,
+          [],
+          WordsU2),
+    Intervals = mafia_lib:merge_intervals(lists:sort(RawIntervals)),
     Start = "<b><font size=\"+1\">",
     Stop = "</font></b>",
     {_P, In2, Out2} =
@@ -356,6 +367,53 @@ bold_mark_words(Msg, WordsU) ->
                     {1, Msg, ""},
                     Intervals),
     Out2 ++ In2.
+
+%% removes <a> tags
+remove_links(Msg) -> remove_links(Msg, out).
+
+remove_links("<a" ++ Msg, out) -> remove_links(Msg, in);
+remove_links(">" ++ Msg, in) -> remove_links(Msg, out);
+remove_links("</a>" ++ Msg, out) -> remove_links(Msg, out);
+remove_links([H|T], out) -> [H | remove_links(T, out)];
+remove_links([_|T], in) -> remove_links(T, in);
+remove_links([], _) -> [].
+
+-define(UrlBoundaryChars, " ()[]{}<>").
+
+-spec split_msg_on_urls(Msg :: string())
+                       -> [{url | no_url, SubMsg :: string()}].
+split_msg_on_urls(Msg) ->
+    split_msg_on_urls(Msg, []).
+
+split_msg_on_urls(Msg, Acc) ->
+    %% find "http://" or "https://"
+    S1 = "http://",
+    S2 = "https://",
+    Res =
+        case {string:str(Msg, S1), string:str(Msg, S2)} of
+            {0, 0} -> ?nomatch;
+            {P1, 0} -> {P1, S1};
+            {0, P2} -> {P2, S2};
+            {P1, P2} when P1 < P2 -> {P1, S1};
+            {_, P2} -> {P2, S2}
+        end,
+    case Res of
+        ?nomatch ->
+            ?lrev([{no_url, Msg}|Acc]);
+        {HPos, Search} ->
+            HLen = length(Search),
+            Pre = string:substr(Msg, 1, HPos - 1),
+            A2 = [{no_url, Pre} | Acc],
+            Rest1 = string:substr(Msg, HPos + HLen),
+            case string:tokens(Rest1, ?UrlBoundaryChars) of
+                [] ->
+                    ?lrev([{url, Search} | A2]);
+                [T1|_] ->
+                    A3 = [{url, Search ++ T1} | A2],
+                    Msg2 = string:substr(Rest1, 1 + length(T1)),
+                    split_msg_on_urls(Msg2, A3)
+            end
+    end.
 
 %% What to mark in bold in out text.
 get_all_words_to_mark(WordsU) ->
@@ -381,6 +439,7 @@ is_word(MsgU, Search1) ->
                       AllPos)
     end.
 
+%% does search start or end with *
 check_edges_for_wildcard(Search1) ->
     {IsWcAtBeg, Search2} =
         case Search1 of
@@ -395,6 +454,8 @@ check_edges_for_wildcard(Search1) ->
     {Search, IsWcAtBeg, IsWcAtEnd}.
 
 %% Return all positions in Msg where Search can be found
+-spec allpos(MsgU :: string(), Search :: string())
+            -> [pos_integer()].
 allpos(MsgU, Search) -> allpos(MsgU, Search, 0, []).
 
 allpos(MsgU, Search, Offset, Acc) ->
@@ -409,6 +470,7 @@ allpos(MsgU, Search, Offset, Acc) ->
 
 -define(BoundaryChars, " !\"@#€$%&/\\|()[]{}=≈≠´`^*'™’-_.:…·,;‚„<>≥≤").
 
+%% returns boolean()
 is_word(MsgU, Pos, LenMsg, LenSea, {IsWcAtBeg, IsWcAtEnd}) ->
     IsWordAtBeg = Pos == 1,
     NextPosAfterSearch = Pos + LenSea,

@@ -154,7 +154,7 @@
          num_words :: integer(),
          num_postings :: integer(),
          words_per_post :: float(),
-         last_msg :: {seconds1970(), msg_id()}
+         last_msg :: ?undefined | {seconds1970(), msg_id()}
         }).
 
 -record(cnt,

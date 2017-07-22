@@ -371,10 +371,14 @@ bold_mark_words(Msg, WordsU) ->
 %% removes <a> tags
 remove_links(Msg) -> remove_links(Msg, out).
 
+remove_links("<a href=\"forum.php?" ++ Msg, out) ->
+    "<a href=\"forum.php?" ++ remove_links(Msg, keep);
 remove_links("<a" ++ Msg, out) -> remove_links(Msg, in);
 remove_links(">" ++ Msg, in) -> remove_links(Msg, out);
 remove_links("</a>" ++ Msg, out) -> remove_links(Msg, out);
-remove_links([H|T], out) -> [H | remove_links(T, out)];
+remove_links("</a>" ++ Msg, keep) -> "</a>" ++ remove_links(Msg, out);
+remove_links([H|T], S) when S == out; S == keep ->
+    [H | remove_links(T, S)];
 remove_links([_|T], in) -> remove_links(T, in);
 remove_links([], _) -> [].
 

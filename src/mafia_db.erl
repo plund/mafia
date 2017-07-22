@@ -182,7 +182,8 @@ make_game_rec(29 = GNum) ->
     _ = #mafia_game{
       game_num = GNum,
       name = <<"Mafia XXIX: Revenge of the Aliens!">>,
-      thread_id = 1479977,
+      thread_id   = 1479977,
+      signup_thid = 1478635,
       day_hours = 48,
       night_hours = 24,
       time_zone = -6,
@@ -196,6 +197,8 @@ make_game_rec(28) ->
     _ = #mafia_game{
       game_num = 28,
       name = <<"Mafia 28: -JEBEDIAH'S WRATH-">>, %% Item Madness
+      thread_id   = 1465173,
+      signup_thid = 1460042,
       day_hours = 48,
       night_hours = 24,
       time_zone = -5,
@@ -206,11 +209,11 @@ make_game_rec(28) ->
       players_rem = to_bin_sort(?M28_players)
      };
 make_game_rec(27) ->
-    %% M27 Game Thread 1447615
-    %% M27 signup threadid = 1442470
     _ = #mafia_game{
       game_num = 27,
       name = <<"Mafia 27: Welcome to Westworld">>,
+      thread_id   = 1447615,
+      signup_thid = 1442470,
       day_hours = 48,
       night_hours = 24,
       time_zone = -5,
@@ -221,11 +224,11 @@ make_game_rec(27) ->
       players_rem = to_bin_sort(?M27_players)
      };
 make_game_rec(26) ->
-    %% Game Thread 1432756
-    %% M26 signup threadid = 1429158
     _ = #mafia_game{
       game_num = 26,
       name = <<"MAFIA XXVI: W. Jessop Asylum for the Chronically Insane">>,
+      thread_id   = 1432756,
+      signup_thid = 1429158,
       day_hours = 48,
       night_hours = 24,
       time_zone = 0,

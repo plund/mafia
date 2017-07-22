@@ -11,6 +11,7 @@
 
 %% interface
 -export([man_downl/0, % Human
+         man_downl/1, % Human
          downl_web/1  % from web
         ]).
 
@@ -64,12 +65,28 @@
 %% MANUAL
 %% Download any thread
 -spec man_downl() -> {ok | {error, Reason :: term()}, #s{}}.
-man_downl() -> download(new_s()).
+man_downl() ->
+    ThId = ?getv(?thread_id),
+    Page = ?getv(?page_to_read),
+    do_man_downl(ThId, Page).
 
-new_s() ->
-    #s{thread_id = ?getv(?thread_id),
-       page_to_read = ?getv(?page_to_read)
-      }.
+man_downl(ThId) ->
+    do_man_downl(ThId, 1).
+
+do_man_downl(ThId, Page)
+  when is_integer(ThId), is_integer(Page) ->
+    Question =
+        ?l2a("Do you want to download thread " ++ ?i2l(ThId) ++
+                 " starting from page " ++ ?i2l(Page) ++ " (NO/yes)> "),
+    Answer = io:get_line(Question),
+    case string:to_upper(Answer) of
+        "YES" ++ _ ->
+            download(#s{thread_id = ThId,
+                        page_to_read = Page
+                       });
+        _ ->
+            no_download
+    end.
 
 %% -----------------------------------------------------------------------------
 

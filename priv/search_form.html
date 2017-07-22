@@ -7,17 +7,17 @@
   <body bgcolor="#cfffaf">
     <center>
       <h1>Mafia Search</h1>
-      <p><b>Search for Message in Current Game</b>
+      <p><b>Search for Messages in Game</b>
       </p>
       <form method="post" action="/e/web/msgs">
         <table cellspan="10" cellspacing=5 cellpadding=5 width="700">
           <tr bgcolor="#afefaf">
-            <td>User Names</td>
+            <td>Users</td>
             <td><input name="user" type="text" size="30"></td>
             <td>User names or parts e g "brain*"</td>
           </tr>
           <tr bgcolor="#afefaf">
-            <td>Words in Message</td>
+            <td>Words</td>
             <td><input name="word" type="text" size="30"></td>
             <td>Zero, one or more words, separated either by space or "|".
             </td>
@@ -46,11 +46,17 @@
             <td>Leave this normally at current game.</td>
           </tr>
           <tr bgcolor="#afefaf">
-            <td></td>
+            <td>User or Word</td>
             <td><input type="checkbox" name="UorW" value="true">
-              One true: User or Word<br>
-            <td>Checking this, if only one of User or Word conditions needs to
+              Enough if one true?<br>
+            <td>Check this, if only one of User or Word conditions needs to
               be true. Otherwise both need to be true if given.
+            </td>
+          </tr>
+          <tr bgcolor="#afefaf">
+            <td>Search signup</td>
+            <td><input type="checkbox" name="signup" value="true">Yes<br>
+            <td>Check this, if you also would like to search the signup thread.
             </td>
           </tr>
           <tr>
@@ -67,6 +73,9 @@
               <br>
               <br>
               <b>Notes:</b>
+              <p>
+                The word search "*##CALL*|*##VOTE*|*##END*|*##UNEND*" is
+                useful for GMs.
               <p>
                 The <b>MAX output</b> of any search is <b>400k byte</b>!
                 You need to modify your search conditions if you reach this limit.

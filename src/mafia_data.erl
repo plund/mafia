@@ -26,7 +26,7 @@
 -export([update_stat/2,
          compress_txt_files/0,
          grep/1, grep/2,
-         iterate_all_msgs/2,
+         iterate_all_game_msgs/3,
 
          delete_game_data_in_other_tabs/1,
          reset_game/1
@@ -569,32 +569,49 @@ grepI(Str, PrintF)  ->
     iterate_all_msgs(ThId, GrepF),
     ok.
 
+iterate_all_game_msgs(GNum, DoSignup, MsgFun) ->
+    case ?rgame(GNum) of
+        [#mafia_game{thread_id = ThId,
+                     signup_thid = SuThId}] ->
+            Pks1 = if DoSignup, is_integer(SuThId) ->
+                           mafia_lib:all_page_keys(SuThId);
+                      true -> []
+                   end,
+            Pks2 = if is_integer(ThId) ->
+                           mafia_lib:all_page_keys(ThId);
+                      true -> []
+                   end,
+            PageKeys = Pks1 ++ Pks2,
+            iterate_all_msgs(MsgFun, PageKeys, erlang:fun_info(MsgFun, arity));
+        _ ->
+            []
+    end.
+
 -spec iterate_all_msgs(ThId :: integer(),
                        MsgFun :: function())
                       -> term().
 iterate_all_msgs(ThId, MsgFun) ->
-    iterate_all_msgs(ThId, MsgFun, erlang:fun_info(MsgFun, arity)).
+    PageKeys = mafia_lib:all_page_keys(ThId),
+    iterate_all_msgs(MsgFun, PageKeys, erlang:fun_info(MsgFun, arity)).
 
-iterate_all_msgs(ThId, MsgFun, {arity,1}) ->
-    Pages = mafia:pages_for_thread(ThId),
-    F = fun(Page) ->
-                [PR] = ?rpage(ThId, Page),
+iterate_all_msgs(MsgFun, PageKeys, {arity,1}) ->
+    F = fun(PageKey) ->
+                [PR] = ?rpage(PageKey),
                 Msgs = [hd(?rmess(MsgId)) || MsgId <- PR#page_rec.message_ids],
                 lists:foreach(MsgFun, Msgs),
-                {ThId, Page}
+                PageKey
         end,
-    [F(P) || P <- Pages],
+    [F(PK) || PK <- PageKeys],
     ok;
-iterate_all_msgs(ThId, MsgFun, {arity,2}) ->
-    Pages = mafia:pages_for_thread(ThId),
+iterate_all_msgs(MsgFun, PageKeys, {arity,2}) ->
     MsgIds = lists:foldl(
-               fun(P, Acc) ->
+               fun(PKey, Acc) ->
                        [#page_rec{message_ids = MsgIds}] =
-                           ?rpage(ThId, P),
+                           ?rpage(PKey),
                        Acc ++ MsgIds
                end,
                [],
-               Pages),
+               PageKeys),
     lists:foldl(fun(MsgId, Acc2) ->
                         MsgFun(hd(?rmess(MsgId)), Acc2)
                 end,

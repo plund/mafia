@@ -63,14 +63,14 @@ search(Sid, _Env, _In) ->
          limit = init,
          phase = phase,
          page = page,
-         last = false
+         last = ?false
         }).
 
 %% http://mafia.peterlund.se/e/web/msgs
 msgs(Sid, _Env, In) ->
     PQ = httpd:parse_query(In) -- [{[],[]}],
     NotAllowed = [Key || {Key, _} <- PQ]
-        -- ["g", "user", "word", "part", "UorW", "button"],
+        -- ["g", "user", "word", "part", "UorW", "signup", "button"],
     GNum = get_gnum(get_arg(PQ, "g")),
     msgs2(Sid, GNum, In, PQ, NotAllowed).
 
@@ -80,25 +80,33 @@ msgs2(Sid, _GNum, _In, _PQ, NotAllowed) when NotAllowed /= [] ->
 msgs2(Sid, {?error, _}, _In, _PQ, _)  ->
     error_resp(Sid, "Bad: g=value");
 msgs2(Sid, GNum, In, PQ, []) ->
-    ThId = mafia:game_thread(GNum),
-    Url1 = ?BotUrl,
+    GThId = mafia:game_thread(GNum),
     Url2 = "e/web/msgs?",
     In3 = [string:tokens(I, "=") || I <- string:tokens(In, "&")],
     Url3 = string:join(
             [[K, "=", V] || [K, V] <- In3, K /= "button", V /= ""], "&"),
     SearchLink = ["<a href=\"", "/", Url2, Url3, "\">", Url3, "</a>"],
-    IsUserOrWord = case lists:keyfind("UorW", 1, PQ) of
-                       false -> false;
-                       _ -> true
-                   end,
+    GnumText = "M" ++ ?i2l(GNum),
     UsersText = get_arg(PQ, "user"),
     WordsText = get_arg(PQ, "word"),
     PartsText = get_arg(PQ, "part"),
+    IsUserOrWord = case proplists:get_value("UorW", PQ) of
+                       ?undefined -> ?false;
+                       "true" -> ?true;
+                       "false" -> ?false
+                   end,
+    DoSignup = case proplists:get_value("signup", PQ) of
+                   ?undefined -> ?false;
+                   "true" -> ?true;
+                   "false" -> ?false
+               end,
+    SignupText = if DoSignup -> "+signup"; true -> "" end,
     Title = "Thread " ++
-        string:join([Arg
-                     || Arg <- [UsersText, WordsText, PartsText],
-                        Arg /= ""],
-                    ", "),
+        string:join(
+          [Arg
+           || Arg <- [GnumText, UsersText, WordsText, PartsText, SignupText],
+              Arg /= ""],
+          ", "),
     DayCond = find_part(PartsText),
     UsersU = find_word_searches(UsersText),
     WordsU = find_word_searches(WordsText),
@@ -109,6 +117,7 @@ msgs2(Sid, GNum, In, PQ, []) ->
     Fun =
         fun(acc, init) -> #miter{};
            (#message{msg_id = MsgId,
+                     thread_id = MThId,
                      user_name = MsgUserB,
                      page_num = Page,
                      time = Time,
@@ -145,7 +154,7 @@ msgs2(Sid, GNum, In, PQ, []) ->
                      end,
 
                      %% 3. Test Day
-                     fun() when not IsDayCond -> true;
+                     fun() when not IsDayCond -> ?true;
                         %% need DayNum, DoN, Page, find_part
                         () ->
                              case DayCond of
@@ -154,7 +163,7 @@ msgs2(Sid, GNum, In, PQ, []) ->
                                  {Ua, Na, Ub, Nb} ->
                                      IsAok =
                                          case {Ua, Na} of
-                                             {_, ?undefined} -> true;
+                                             {_, ?undefined} -> ?true;
                                              {page, _} -> Page >= Na;
                                              _ ->
                                                  SPhaseA = #phase{num = Na,
@@ -163,14 +172,14 @@ msgs2(Sid, GNum, In, PQ, []) ->
                                          end,
                                      IsBok =
                                          case {Ub, Nb} of
-                                             {_, ?undefined} -> true;
+                                             {_, ?undefined} -> ?true;
                                              {page, _} -> Page =< Nb;
                                              _ ->
                                                  SPhaseB = #phase{num = Nb,
                                                                   don = Ub},
                                                  MsgPhase =< SPhaseB
                                          end,
-                                     IsAok and IsBok
+                                     (MThId /= GThId) or (IsAok and IsBok)
                              end
                      end],
                 AllTestsOk =
@@ -187,17 +196,17 @@ msgs2(Sid, GNum, In, PQ, []) ->
                         DS1 = if MsgPhase /= MI#miter.phase ->
                                       mafia_print:print_phase(
                                         MsgPhase);
-                                 true -> ""
+                                 ?true -> ""
                               end,
                         DS2 = if Page /= MI#miter.page ->
                                       ["Page ", ?i2l(Page)];
-                                 true -> ""
+                                 ?true -> ""
                               end,
                         DivStr = if DS1 == "", DS2 == "" ->
                                          "";
                                     DS1 /= "", DS2 /= "" ->
                                          [DS1, ", ", DS2, " : ", SearchLink];
-                                    true ->
+                                    ?true ->
                                          [DS1 ++ DS2, " : ", SearchLink]
                                  end,
                         SizeDiv = deliver_div(Sid, DivStr),
@@ -242,9 +251,9 @@ msgs2(Sid, GNum, In, PQ, []) ->
                         MI#miter{bytes = MI#miter.bytes + SizeDiv + SizeOut,
                                  phase = MsgPhase,
                                  page = Page,
-                                 last = true};
-                   true ->
-                        MI#miter{last = false}
+                                 last = ?true};
+                   ?true ->
+                        MI#miter{last = ?false}
                 end;
 
            (_, MI) when MI#miter.limit == init,
@@ -254,27 +263,27 @@ msgs2(Sid, GNum, In, PQ, []) ->
                 SizeDiv = deliver_div(Sid, DivStr, "#ff8888"),
                 MI#miter{bytes = MI#miter.bytes + SizeDiv,
                          limit = limit,
-                         last = false};
+                         last = ?false};
            (_, MI)  ->
-                MI#miter{last = false}
+                MI#miter{last = ?false}
         end,
     A = del_start(Sid, Title, 0),
     B = if DoCont ->
                 TabStart = "<tr><td><table cellpadding=6 cellspacing=3>",
                 Row1 = ["<tr><td colspan=\"2\" align=center>"
-                        "Copy/paste URL: ", Url1, Url2, Url3,
+                        "Copy/paste URL: ", ?BotUrl, Url2, Url3,
                         "<br><br></td></tr>"],
                 TabEnd = "</table></td></tr>",
                 B1 = web:deliver(Sid, [TabStart, Row1]),
                 #miter{bytes = B2, last = DidLast} =
-                    mafia_data:iterate_all_msgs(ThId, Fun),
+                    mafia_data:iterate_all_game_msgs(GNum, DoSignup, Fun),
                 SizeDiv = if DidLast ->
                                   deliver_div(Sid, "Last Message Reached");
-                             true -> 0
+                             ?true -> 0
                           end,
                 B3 = web:deliver(Sid, TabEnd),
                 B1 + B2 + SizeDiv + B3;
-           true ->
+           ?true ->
                 MsgB = ?l2b(["<tr><td valign=\"top\">",
                             "Error: Minimum one condition needs to be "
                             "specified: User name, Word or a "
@@ -318,7 +327,7 @@ fws([H|T], IsInQ, QStrs, Acc) ->
 
 add_cond(QStrs, Acc) ->
     if Acc /= "" -> [?lrev(Acc)|QStrs];
-       true -> QStrs
+       ?true -> QStrs
     end.
 
 %% 1) fixes http links
@@ -431,7 +440,7 @@ get_all_words_to_mark(WordsU) ->
 is_word(MsgU, Search1) ->
     %% check if "*" at first or last char or both in Search
     case check_edges_for_wildcard(Search1) of
-        {"", _IsWcAtBeg, _IsWcAtEnd} -> false;
+        {"", _IsWcAtBeg, _IsWcAtEnd} -> ?false;
         {Search, IsWcAtBeg, IsWcAtEnd} ->
             AllPos = allpos(MsgU, Search),
             LenMsg = length(MsgU),
@@ -447,13 +456,13 @@ is_word(MsgU, Search1) ->
 check_edges_for_wildcard(Search1) ->
     {IsWcAtBeg, Search2} =
         case Search1 of
-            [$* | Tb] -> {true, Tb};
-            _ -> {false, Search1}
+            [$* | Tb] -> {?true, Tb};
+            _ -> {?false, Search1}
         end,
     {IsWcAtEnd, Search} =
         case ?lrev(Search2) of
-            [$* | Te] -> {true, ?lrev(Te)};
-            _ -> {false, Search2}
+            [$* | Te] -> {?true, ?lrev(Te)};
+            _ -> {?false, Search2}
         end,
     {Search, IsWcAtBeg, IsWcAtEnd}.
 
@@ -509,7 +518,7 @@ find_part2(TextU) ->
                             ?undefined;
                        Nb == ?undefined, Dash == "-1" -> % dash missing
                             {Ua, Na, Ua, Na};
-                       true ->
+                       ?true ->
                             {Ua, Na, Ub, Nb}
                     end
             end
@@ -554,7 +563,7 @@ game_status2(Sid, GameKey, PQ, []) ->
 game_status3(Sid, GameKey, PQ, [G]) ->
     {_IsReady, _G2, Es} =
         web_game_settings:is_ready_to_go(G, {G, []}),
-    AnyError = lists:any(fun({error, _}) -> true; (_) -> false end, Es),
+    AnyError = lists:any(fun({error, _}) -> ?true; (_) -> ?false end, Es),
     if AnyError ->
             EStr = ["Game is missing some parameters to be displayed:<br>\r\n",
                     [[Txt, "<br>\r\n"] || {error, Txt} <- Es]],
@@ -875,7 +884,7 @@ dst_changes(Sid, _Env, In) ->
     IsCAbbrOk = lists:member(CAbbr, CAbbrevs),
     Body =
         case {CAbbr, IsCAbbrOk} of
-            {"", false} ->
+            {"", ?false} ->
                 %% show form with list of countries (and year entry)
                 ["<tr><td align=center>Daylight Saving Time Zones:"
                  "</td></tr>",
@@ -886,7 +895,7 @@ dst_changes(Sid, _Env, In) ->
                   || C <- mafia_time:dst_change_date()],
                  "<tr><td align=center>None"
                  "</td></tr>"];
-            {_, true} ->
+            {_, ?true} ->
                 CAtom = ?l2a(CAbbr),
                 Country = mafia_time:dst_name(CAtom),
                 P2 = fun(I) -> string:right(?i2l(I), 2, $0) end,
@@ -937,7 +946,7 @@ dst_changes(Sid, _Env, In) ->
                          ["<tr><td align=center><a href=\"?country=", CAbbr,
                           "&year=", ?i2l(NextYear), "\">More</a>"
                           "</td></tr>"];
-                    true -> []
+                    ?true -> []
                  end
                  ]
         end,
@@ -1069,7 +1078,7 @@ del_end(Sid) ->
 
 get_arg(PQ, ArgStr) ->
     case lists:keyfind(ArgStr, 1, PQ) of
-        false -> "";
+        ?false -> "";
         {_, V} -> V
     end.
 
@@ -1096,9 +1105,9 @@ make_args(PQ, Keys) ->
     lists:foldl(fun({_K, ""}, Acc) -> Acc;
                    ({K, V}, Acc) ->
                         case lists:member(K, Keys) of
-                            true ->
+                            ?true ->
                                 Acc ++ [?l2b(K), ?l2b(V)];
-                            false  -> Acc
+                            ?false  -> Acc
                         end
                 end,
                 [],

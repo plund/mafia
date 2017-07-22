@@ -485,7 +485,7 @@ merge_overlap(L) ->
 %% -----------------------------------------------------------------------------
 
 all_msgids(ThId) ->
-    AllPages = mafia:pages_for_thread(ThId),
+    AllPages = pages_for_thread(ThId),
     all_msgids(ThId, AllPages).
 
 all_msgids(_ThId, []) -> [];

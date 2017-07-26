@@ -10,9 +10,10 @@
 -define(GDAYS_1970, 719528).
 %% calendar:date_to_gregorian_days({1970,1,1}) -> 719528.
 
+-define(DayHours, 24).
 -define(MinuteSecs, 60).
 -define(HourSecs, 3600).
--define(DaySecs, (24*3600)).
+-define(DaySecs, (?DayHours * ?HourSecs)).
 
 -define(MAX_GM_DL_MINS, 20).
 

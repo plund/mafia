@@ -101,12 +101,11 @@ msgs2(Sid, GNum, In, PQ, []) ->
                    "false" -> ?false
                end,
     SignupText = if DoSignup -> "+signup"; true -> "" end,
-    Title = "Thread " ++
-        string:join(
-          [Arg
-           || Arg <- [GnumText, UsersText, WordsText, PartsText, SignupText],
-              Arg /= ""],
-          ", "),
+    Title = string:join([Arg
+                         || Arg <- [GnumText, UsersText, WordsText,
+                                    PartsText, SignupText],
+                            Arg /= ""],
+                        ", "),
     DayCond = find_part(PartsText),
     UsersU = find_word_searches(UsersText),
     WordsU = find_word_searches(WordsText),
@@ -784,8 +783,14 @@ msg2([G], [M], Variant, PQ) ->
 %% http://mafia.peterlund.se/e/web/stats?phase=total
 stats(Sid, _Env, In) ->
     PQ = httpd:parse_query(In) -- [{[],[]}],
-    GameKey = get_gnum(get_arg(PQ, "g")),
-
+    GNum = get_gnum(get_arg(PQ, "g")),
+    PhType = get_arg(PQ, "phase"),
+    Num = get_arg(PQ, "num"),
+    GnumText = "M" ++ ?i2l(GNum),
+    Title = string:join([Arg
+                         || Arg <- ["Stats", GnumText, PhType, Num],
+                            Arg /= ""],
+                        ", "),
     Sort = case get_arg(PQ, "sort") of
                "words" ->
                    [{?sort, ?sort_words}];
@@ -800,21 +805,21 @@ stats(Sid, _Env, In) ->
                     lists:keyfind("num", 1,  PQ)) of
             {ok, Phase} ->
                 ["<tr><td>",
-                 mafia_print:print_stats([{?game_key, GameKey},
+                 mafia_print:print_stats([{?game_key, GNum},
                                           {?phase, Phase},
                                           {?mode, ?html}
                                          ] ++ Sort),
                  "</td></tr>"];
             {error, ErrorHtml} -> ErrorHtml
         end,
-    A = del_start(Sid, "Posting Stats", 0),
+    A = del_start(Sid, Title, 0),
     B = web:deliver(Sid, Html),
     C = del_end(Sid),
     Args = make_args(PQ, ["sort", "phase", "num"]),
     {A + B + C, Args}.
 
-stats2({"phase", "total"},
-       _) ->
+stats2({"phase", PhType},
+       _) when PhType == "total"; PhType == "global" ->
     {ok, ?total_stats};
 stats2({"phase", "end"},
        _) ->
@@ -834,7 +839,7 @@ stats2({"phase", "night"},
 stats2(_, _) ->
     {error, "<tr><td>"
      "You need to end url with .../stats?phase=day&num=1, "
-     "?phase=night&num=2, ?phase=end or  ?phase=total"
+     "?phase=night&num=2, ?phase=end or  ?phase=global"
      "</td></tr>"}.
 
 conv_to_num(Str) ->

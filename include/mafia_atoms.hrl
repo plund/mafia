@@ -33,6 +33,8 @@
 -define(game_ended, game_ended).
 -define(current, current).
 -define(history, history).
+-define(normal, normal).
+-define(stats, stats).
 -define(total_stats, total_stats).
 -define(global, global).
 -define(bytes, bytes).

@@ -1171,9 +1171,10 @@ do_print_stats(PP, PrStats) ->
                     ?total_stats ->
                         #dl{time = DlTime} = mafia_time:get_nxt_deadline(G),
                         print_time_5d_str(
+                          ?stats,
                           mafia_time:hh_mm_to_time(MsgTime, DlTime));
                     _ ->
-                        print_time_5d(G, MsgTime)
+                        print_time_5d_stat(G, MsgTime)
                 end
         end,
     PrFn = fun(tr, S) -> UserF(S);
@@ -1210,7 +1211,11 @@ do_print_stats(PP, PrStats) ->
                            "Posts", " Words", "  Chars", "Word/P", "Player"]),
                 [];
            PP#pp.mode == ?html ->
-                ArgBeg = "stats?" ++ phase_args(PP#pp.phase) ++ "&sort=",
+                ArgBeg =
+                    "stats" ++
+                    "?g=" ++ ?i2l(GNum) ++
+                    "&" ++ phase_args(PP#pp.phase) ++
+                    "&sort=",
                 PostLn = ArgBeg ++ "normal",
                 WordLn = ArgBeg ++ "words",
                 WPostLn = ArgBeg ++ "words_per_post",
@@ -1308,7 +1313,7 @@ do_print_stats(PP, PrStats) ->
             [HtmlStats, HtmlNonPosters]
     end.
 
-phase_args(?total_stats) -> "phase=total";
+phase_args(?total_stats) -> "phase=global";
 phase_args(#phase{don = ?game_ended}) -> "phase=end";
 phase_args(#phase{don = DoN, num = DNum}) ->
     Ph = "phase=" ++ if DoN == ?game_start -> "Game Start";
@@ -1579,9 +1584,23 @@ nbsp(Str) ->
 
 print_time_5d(G, Time) ->
     print_time_5d_str(
+      ?normal,
       mafia_time:hh_mm_to_deadline(G, Time)).
 
-print_time_5d_str({HH, MM}) ->
+print_time_5d_stat(G, Time) ->
+    print_time_5d_str(
+      ?stats,
+      mafia_time:hh_mm_to_deadline(G, Time)).
+
+print_time_5d_str(?stats, {HH, MM}) when HH > ?DayHours ->
+    Days = HH div ?DayHours,
+    HHRem = HH rem ?DayHours,
+    if Days < 30 ->
+            ?i2l(Days) ++ "d " ++ ?i2l(HHRem) ++ "h " ++ ?i2l(MM) ++ "m";
+       true ->
+            ?i2l(Days) ++ "days, " ++ ?i2l(HHRem) ++ "hours"
+    end;
+print_time_5d_str(_, {HH, MM}) ->
     p(HH) ++ ":" ++ p(MM).
 
 %% Flatten a bit sort of plus time sort...

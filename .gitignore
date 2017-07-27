@@ -12,3 +12,4 @@ src/game_info.txt
 /rebar.lock
 /.DS_Store
 /src/my_discord_data.txt
+/priv/ssl_cert/server.*

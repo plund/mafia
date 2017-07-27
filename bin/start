@@ -102,8 +102,10 @@ PIPE=$PIPE_DIR/$NODE_NAME
 # create directories for the inets application
 DOC_ROOT=$SERVER_ROOT/html
 LOG_ROOT=$SERVER_ROOT/logs
+SSL_DIR=$SERVER_ROOT/ssl_cert
 mkdir -p $DOC_ROOT
 mkdir -p $LOG_ROOT
+mkdir -p $SSL_DIR
 
 if [ $silent = off ] ; then
     cat << EOF
@@ -147,6 +149,10 @@ mkdir -p $APP_RUN/include
 \cp $APP_REPO/ebin/* $APP_RUN/ebin/
 \cp $APP_REPO/include/* $APP_RUN/include/
 
+SSL_REPO_DIR=$REPO_DIR/priv/ssl_cert
+\cp $SSL_REPO_DIR/server.crt $SSL_DIR/
+\cp $SSL_REPO_DIR/server.key $SSL_DIR/
+
 WS_REPO=$REPO_DIR/_build/default/lib/websocket_client
 WS_RUN=$RUN_DIR/lib/websocket_client
 mkdir -p $WS_RUN/ebin
@@ -167,6 +173,7 @@ export RUN_ERL_LOG_GENERATIONS=20
 
 run_erl -daemon $PIPE $LOG_DIR "exec erl -pa $ERLPATH $PATCHES \
 -h_srv_root $SERVER_ROOT -h_doc_root $DOC_ROOT -h_log_root $LOG_ROOT \
+-h_ssl_dir $SSL_DIR \
 -repo_dir $REPO_DIR $EXTRA -sname $NODE_NAME -s mafia"
 
 echo "Connect to system with:"

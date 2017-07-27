@@ -49,6 +49,7 @@
          dl_timer :: ?undefined | timer:tref(),
          dl_time :: ?undefined | seconds1970(),
          web_pid :: ?undefined | pid(),
+         ssl_pid :: ?undefined | pid(),
          game_num :: ?undefined | integer()
         }).
 
@@ -450,6 +451,7 @@ start_web(S) ->
     inets:start(),
     DocRoot = mafia_file:get_path(h_doc_root),
     SrvRoot = mafia_file:get_path(h_srv_root),
+    CertDir = mafia_file:get_path(h_ssl_dir),
     RepoDir = mafia_file:get_path(repo_dir),
     SearchForm = RepoDir ++ "/priv/search_form.html ",
     Index = RepoDir ++ "/priv/index.html ",
@@ -463,49 +465,67 @@ start_web(S) ->
     os:cmd("cp " ++ PlVote ++ DocRoot),
     S2 = stop_web(S),
     IpAddr = bind_address(),
-    Params = [{port, ?WEBPORT},
-              {server_name, "mafia.peterlund.se"},
-              {server_root, SrvRoot},
-              {document_root, DocRoot},
-              {directory_index, ["index.html"]},
-              {bind_address, IpAddr},
-%%% specifying modules removes the default list in where
-%%% mod_esi and mod_dir already are included by default
-%%                       {modules, [
-%%                                  %% mod_alias,
-%%                                  %% mod_auth,
-%% %%% mod_esi - http://mafia.peterlund.se/esi/mafia_web/msg_search_result
-%%                                  mod_esi,
-%%                                  %% mod_actions,
-%%                                  %% mod_cgi, %mod_include,
-%% %%% mod_dir - browse directories
-%%                                  mod_dir
-%%                                  %% mod_get,
-%%                                  %% mod_head, mod_log, mod_disk_log
-%%                                 ]},
-              {erl_script_alias, {"/e", [web]}},
-              {error_log, "logs/error_log.txt"},
-              {security_log, "logs/security_log.txt"},
-              {transfer_log, "logs/transfer_log.txt"}
-             ],
-    io:format("Starting up a webserver listening on ~s port ~p\n",
-              [IpAddr, ?WEBPORT]),
-    case inets:start(httpd, Params) of
+    CommonParams =
+        [{server_name, "mafia.peterlund.se"},
+         {server_root, SrvRoot},
+         {document_root, DocRoot},
+         {directory_index, ["index.html"]},
+         {bind_address, any},
+         %%{bind_address, IpAddr},
+         {erl_script_alias, {"/e", [web]}},
+         {error_log, "logs/error_log.txt"},
+         {security_log, "logs/security_log.txt"},
+         {transfer_log, "logs/transfer_log.txt"}],
+    WebParams =
+        [{port, ?WEBPORT}] ++ CommonParams,
+    CertFN = filename:join(CertDir, "server.crt"),
+    KeyFN = filename:join(CertDir, "server.key"),
+    case inets:start(httpd, WebParams) of
         {ok, Pid} ->
-            S2#state{web_pid = Pid};
+            io:format("Started web server on ~s port ~p\n",
+                      [IpAddr, ?WEBPORT]),
+            case {file:read_file_info(CertFN),
+                  file:read_file_info(KeyFN)} of
+                {{ok, _}, {ok, _}} ->
+                    SecureParams =
+                        [{port, ?SECUREPORT},
+                         {socket_type, {ssl, [{certfile, CertFN},
+                                              {keyfile, KeyFN}]}}
+                        ] ++ CommonParams,
+                    case inets:start(httpd, SecureParams) of
+                        {ok, SslPid} ->
+                            io:format("Started ssl server on ~s "
+                                      "port ~p\n",
+                                      [IpAddr, ?SECUREPORT]),
+                            S2#state{web_pid = Pid,
+                                     ssl_pid = SslPid};
+                        _ ->
+                            S2#state{web_pid = Pid}
+                    end;
+                _ ->
+                    S2#state{web_pid = Pid}
+            end;
         Else ->
             io:format("Else ~p\n", [Else]),
             S2
     end.
 
 stop_web(State) ->
-    ?dbg("Stop web server"),
-    if State#state.web_pid /= undefined ->
-            inets:stop(httpd, State#state.web_pid),
-            State#state{web_pid = ?undefined};
+    S2 = if State#state.web_pid /= undefined ->
+                 ?dbg("Stop web server"),
+                 inets:stop(httpd, State#state.web_pid),
+                 State#state{web_pid = ?undefined};
+            true ->
+                 stop_httpd(),
+                 State
+         end,
+    if S2#state.ssl_pid /= undefined ->
+            ?dbg("Stop ssl server"),
+            inets:stop(httpd, S2#state.ssl_pid),
+            S2#state{ssl_pid = ?undefined};
        true ->
             stop_httpd(),
-            State
+            S2
     end.
 
 -spec maybe_change_timer(#state{}) -> {Reply::term(), #state{}}.

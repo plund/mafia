@@ -1,4 +1,6 @@
-How to generate a ssl server cert
+How to generate a tls server cert
+
+Hint: Use script ./priv/tls_cert/gen_cert.sh
 
 1. Create server.pass.key
 
@@ -34,9 +36,9 @@ A challenge password []:
 An optional company name []:
 
 
-4. Create server.crt
+4. Create server.crt (10 years)
 
-$ openssl x509 -req -days 365 -in server.csr -signkey server.key -out server.crt
+$ openssl x509 -req -days 3650 -in server.csr -signkey server.key -out server.crt
 Signature ok
 subject=/C=SE/ST=Stockholm/L=Stockholm/O=Peter Lund/CN=mafia.peterlund.se
 Getting Private key

@@ -258,7 +258,7 @@ prev_msg(Msg) ->
 get_path(P) when P == h_srv_root;
                  P == h_doc_root;
                  P == h_log_root;
-                 P == h_ssl_dir;
+                 P == h_tls_dir;
                  P == repo_dir ->
     {ok, [[Path]]} = init:get_argument(P),
     Path.

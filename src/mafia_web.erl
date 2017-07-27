@@ -49,7 +49,7 @@
          dl_timer :: ?undefined | timer:tref(),
          dl_time :: ?undefined | seconds1970(),
          web_pid :: ?undefined | pid(),
-         ssl_pid :: ?undefined | pid(),
+         tls_pid :: ?undefined | pid(),
          game_num :: ?undefined | integer()
         }).
 
@@ -451,7 +451,7 @@ start_web(S) ->
     inets:start(),
     DocRoot = mafia_file:get_path(h_doc_root),
     SrvRoot = mafia_file:get_path(h_srv_root),
-    CertDir = mafia_file:get_path(h_ssl_dir),
+    CertDir = mafia_file:get_path(h_tls_dir),
     RepoDir = mafia_file:get_path(repo_dir),
     SearchForm = RepoDir ++ "/priv/search_form.html ",
     Index = RepoDir ++ "/priv/index.html ",
@@ -493,12 +493,12 @@ start_web(S) ->
                                               {keyfile, KeyFN}]}}
                         ] ++ CommonParams,
                     case inets:start(httpd, SecureParams) of
-                        {ok, SslPid} ->
-                            io:format("Started ssl server on ~s "
+                        {ok, TlsPid} ->
+                            io:format("Started tls server on ~s "
                                       "port ~p\n",
                                       [IpAddr, ?SECUREPORT]),
                             S2#state{web_pid = Pid,
-                                     ssl_pid = SslPid};
+                                     tls_pid = TlsPid};
                         _ ->
                             S2#state{web_pid = Pid}
                     end;
@@ -519,10 +519,10 @@ stop_web(State) ->
                  stop_httpd(),
                  State
          end,
-    if S2#state.ssl_pid /= undefined ->
-            ?dbg("Stop ssl server"),
-            inets:stop(httpd, S2#state.ssl_pid),
-            S2#state{ssl_pid = ?undefined};
+    if S2#state.tls_pid /= undefined ->
+            ?dbg("Stop tls server"),
+            inets:stop(httpd, S2#state.tls_pid),
+            S2#state{tls_pid = ?undefined};
        true ->
             stop_httpd(),
             S2

@@ -84,13 +84,20 @@ is_secure(Env) ->
       Host :: string(),
       ScriptName :: string().
 host_info(Env) ->
-    HttpHost = proplists:get_value(http_host, Env),
-    ScriptName = proplists:get_value(script_name, Env),
-    Host = case string:tokens(HttpHost, ":") of
-               [H, _P] -> H;
-               [H] -> H
-           end,
+    %% The following is present when forwarded from apache2
+    %% {http_x_forwarded_server,"mafia.peterlund.se"}
+    Host =
+        case proplists:get_value(http_x_forwarded_server, Env) of
+            ?undefined ->
+                HttpHost = proplists:get_value(http_host, Env),
+                case string:tokens(HttpHost, ":") of
+                    [H, _P] -> H;
+                    [H] -> H
+                end;
+            H -> H
+        end,
     Tokens = string:tokens(Host, "."),
+    ScriptName = proplists:get_value(script_name, Env),
     IsNum = fun(Str) ->
                     case catch ?l2i(Str) of
                         {'EXIT', _} -> ?false;

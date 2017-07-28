@@ -708,7 +708,7 @@ move_dls2(G, M, TimeDiff, _Phase) ->
 
 %% -----------------------------------------------------------------------------
 
-end_game(M, G) when G#mafia_game.game_end == ?undefined ->
+end_game(M, G) ->
     EndTime = M#message.time,
     MsgId = M#message.msg_id,
 
@@ -729,9 +729,7 @@ end_game(M, G) when G#mafia_game.game_end == ?undefined ->
                       game_end = {EndTime, MsgId}},
     ?dwrite_game(G2),
     mafia_web:regen_history(EndTime, G2),
-    {?game_ended, G2};
-end_game(_M, G) ->
-    {{error, already_game_ended}, G}.
+    {?game_ended, G2}.
 
 %% -----------------------------------------------------------------------------
 

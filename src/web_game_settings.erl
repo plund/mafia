@@ -14,20 +14,20 @@
 -define(MinThId, 1479977).
 -define(MaxThId, 3000000).
 
-game_settings(Sid, _Env, In) ->
+game_settings(Sid, Env, In) ->
     PQ = httpd:parse_query(In),
     Button = proplists:get_value("button", PQ),
     GNum = proplists:get_value("game_num", PQ),
     if Button == ?undefined, GNum == ?undefined  ->
             game_settings_list(Sid);
        Button == ?undefined, GNum /= ?undefined  ->
-            game_settings_update(Sid, Button, PQ);
+            game_settings_update(Sid, Env, Button, PQ);
        Button == ?BUpdate;
        Button == ?BReload ->
-            game_settings_update(Sid, Button, PQ);
+            game_settings_update(Sid, Env, Button, PQ);
        Button == ?BStart;
        Button == ?BStartNow ->
-            game_settings_start(Sid, Button, PQ)
+            game_settings_start(Sid, Env, Button, PQ)
     end.
 
 game_settings_list(Sid) ->
@@ -51,7 +51,8 @@ game_settings_list(Sid) ->
     C = web_impl:del_end(Sid),
     {A + B + C, ?none}.
 
-game_settings_update(Sid, Button, PQ) ->
+game_settings_update(Sid, Env, Button, PQ) ->
+    IsSecure = web:is_secure(Env),
     GNStr = web_impl:get_arg(PQ, "game_num"),
     GameSett = web_impl:get_arg(PQ, "game_settings"),
     User = web_impl:get_arg(PQ, "user"),
@@ -109,7 +110,9 @@ game_settings_update(Sid, Button, PQ) ->
           "<textarea name=\"game_settings\" rows=13 cols=60 required>\r\n",
           SettingsText,
           "</textarea>\r\n",
-          if not IsRunning ->
+          if not IsRunning, not IsSecure ->
+                  display_tls_info(Env);
+             not IsRunning ->
                   enter_user_pw_box(PwF);
              true -> ""
           end,
@@ -139,6 +142,28 @@ pres_resp({Type, Txt}, Acc) ->
         end,
     Acc ++ ["<tr><td><font color=", TextColour, ">", Txt,
             "</font></td></tr>\r\n"].
+
+display_tls_info(Env) ->
+    {IsNumeric, Host, ScriptName} = web:host_info(Env),
+    SecureUrl = "https://" ++ Host ++
+        if IsNumeric ->
+                ":" ++ ?i2l(?SECUREPORT);
+           true -> ""
+        end ++
+        ScriptName,
+    ["<table align=center cellpadding=1 ", ?BG_TURQUOISE, ">\r\n",
+     "<tr><td><center>"
+     "Warning: Your connection is not encrypted! <p>"
+     "If you want to change the game settings you will need to "
+     "reload this page by clicking <br>"
+     "<a href=\"" ++ SecureUrl ++ "\">",
+     SecureUrl, "</a>, <br>"
+     "<p>"
+     "When accessing this site using an encrypted connection "
+     "the first time with a new web browser, "
+     "you will need to <b>accept the self-signed server certificate</b> "
+     "(and make a security exception)"
+     "</center></td></tr></table>"].
 
 enter_user_pw_box(F) ->
     [
@@ -596,7 +621,8 @@ settings_info() ->
         "</li>"
         "</ul>".
 
-game_settings_start(Sid, Button, PQ) ->
+game_settings_start(Sid, Env, Button, PQ) ->
+    IsSecure = web:is_secure(Env),
     GNStr = web_impl:get_arg(PQ, "game_num"),
     User = web_impl:get_arg(PQ, "user"),
     Pass = web_impl:get_arg(PQ, "password"),
@@ -661,7 +687,11 @@ game_settings_start(Sid, Button, PQ) ->
                  %% Form
                  "<form action=\"/e/web/game_settings\" method=post>\r\n"
                  "<input name=game_num type=hidden value=", GNStr, ">\r\n",
-                 enter_user_pw_box(F),
+                 if not IsSecure ->
+                         display_tls_info(Env);
+                    true ->
+                         enter_user_pw_box(F)
+                 end,
                  "\r\n</form>\r\n"
                  "</td></tr>"
                 ]

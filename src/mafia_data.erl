@@ -237,7 +237,7 @@ delete_game_data_in_other_tabs(#mafia_game{game_num = GNum,
 
 %% Old game reset (having destroyed players_orig AND
 %% having a mafia_db:make_game_rec/1 fun clause)
-reset_game(#mafia_game{game_num = GNum}) when GNum =< 29 ->
+reset_game(#mafia_game{game_num = GNum}) when 24 =< GNum, GNum =< 29 ->
     mafia_db:reset_game(GNum),
     hd(?rgame(GNum));
 %% New game reset

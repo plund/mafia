@@ -84,10 +84,10 @@ is_secure(Env) ->
       Host :: string(),
       ScriptName :: string().
 host_info(Env) ->
-    %% The following is present when forwarded from apache2
-    %% {http_x_forwarded_server,"mafia.peterlund.se"}
+    %% The following is present when forwarded from apache2 vhosts config
+    %% {http_x_forwarded_host,"mafia.peterlund.se"} host used by client
     Host =
-        case proplists:get_value(http_x_forwarded_server, Env) of
+        case proplists:get_value(http_x_forwarded_host, Env) of
             ?undefined ->
                 HttpHost = proplists:get_value(http_host, Env),
                 case string:tokens(HttpHost, ":") of

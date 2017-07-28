@@ -11,7 +11,7 @@
 -define(BStart, "Start Game").
 -define(BStartNow, "Start Game Now").
 
--define(MinThId, 1479977).
+-define(MinThId, 1000111).
 -define(MaxThId, 3000000).
 
 game_settings(Sid, Env, In) ->
@@ -153,16 +153,20 @@ display_tls_info(Env) ->
         ScriptName,
     ["<table align=center cellpadding=1 ", ?BG_TURQUOISE, ">\r\n",
      "<tr><td><center>"
-     "Warning: Your connection is not encrypted! <p>"
-     "If you want to change the game settings you will need to "
-     "reload this page by clicking <br>"
+     "Warning: Your connection is <b>not encrypted!</b><br>"
+     "(User and password must be encrypted)"
+     "<p>"
+     "If you are a GM and have a password and a want to change the "
+     "game settings of this game you need to reload this page by clicking <br>"
      "<a href=\"" ++ SecureUrl ++ "\">",
      SecureUrl, "</a>, <br>"
      "<p>"
      "When accessing this site using an encrypted connection "
      "the first time with a new web browser, "
      "you will need to <b>accept the self-signed server certificate</b> "
-     "(and make a security exception)"
+     "(and make a security exception). "
+     "The certificate is self-signed since the server keeper does not want "
+     "to pay money to a CA or learn how it is done. :)"
      "</center></td></tr></table>"].
 
 enter_user_pw_box(F) ->
@@ -277,8 +281,13 @@ maybe_update_game(Button, GNStr, User, Pass, GameSett) ->
                                      G3#mafia_game{page_to_read = 1};
                                 true -> G3
                              end,
-                        %% generate new deadlines
-                        G5 = mafia_time:initial_deadlines(G4),
+                        %% generate new deadlines if possible
+                        G5 = if G4#mafia_game.start_time /= ?undefined,
+                                G4#mafia_game.time_zone /= ?undefined,
+                                G4#mafia_game.dst_zone /= ?undefined ->
+                                     mafia_time:initial_deadlines(G4);
+                                true -> G4
+                             end,
                         ?dwrite_game(G5),
                         [{info, "The game was updated"}];
                    Button == ?BUpdate ->
@@ -527,7 +536,7 @@ pr_start_time({F, TimeStr}, {G, Es}) ->
         [Date, Time] ->
             case [string:tokens(Date, "-"), string:tokens(Time, ":")] of
                 [[YeS, MoS, DaS], [HoS, MiS, SeS]] ->
-                    {Ye, Es2} = check_int({F, "Year", YeS}, Es, 4, 2017, 2100),
+                    {Ye, Es2} = check_int({F, "Year", YeS}, Es, 4, 2012, 2100),
                     {Mo, Es3} = check_int({F, "Month", MoS}, Es2, 2, 0, 12),
                     {Da, Es4} = check_int({F, "Date", DaS}, Es3, 2, 0, 31),
                     {Ho, Es5} = check_int({F, "Hours", HoS}, Es4, 2, 0, 23),

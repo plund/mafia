@@ -266,6 +266,8 @@ refresh_votes([], _F) ->
     ok;
 refresh_votes([G], PageFilter) ->
     refresh_votes(G, PageFilter);
+refresh_votes(#mafia_game{thread_id = ?undefined}, _) ->
+    {error, game_not_running};
 refresh_votes(G0 = #mafia_game{}, PageFilter) ->
     %% Reinitialize the game table
     G = reset_game(G0),
@@ -311,11 +313,11 @@ checkvote_fun(G, DoPrint) ->
                 MsgId = Msg#message.msg_id,
                 mafia:add_user(Msg#message.user_name),
                 G2 = hd(?rgame(GNum)),
-                Resp = mafia_vote:check_cmds_votes(G2, REs, Msg),
-                [erlang:apply(M, F, A) || #cmd{msg_id = MId,
-                                               mfa = {M, F, A}} <- Cmds,
-                                          MId == MsgId],
-                Resp
+                mafia_vote:check_cmds_votes(G2, REs, Msg),
+                MFAs = [MFA || #cmd{msg_id = MId, mfa = MFA} <- Cmds,
+                               MId == MsgId],
+                [erlang:apply(M, F, A) || {M, F, A} <- MFAs],
+                ok
         end,
     LMI = G#mafia_game.last_msg_id,
     LMT = G#mafia_game.last_msg_time,
@@ -662,7 +664,8 @@ iterate_all_msg_idsI(ThId, MsgIdFun, PageNums, Acc, {arity, Ar}) ->
                           fun({_, MId}, Acc2) ->
                                   R = MsgIdFun(MId),
                                   if is_integer(R) -> R;
-                                     true -> Acc2 end
+                                     true -> Acc2
+                                  end
                           end,
                           none,
                           PageMsgIds),

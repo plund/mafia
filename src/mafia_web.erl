@@ -140,11 +140,11 @@ change_current_game(GNum) ->
 %% @end
 %%--------------------------------------------------------------------
 regen_history(M, {G = #mafia_game{}, Phase}) ->
-    regen_history(M, {G#mafia_game.game_num, Phase}); %key
+    regen_history(M, {G#mafia_game.game_num, Phase});
 regen_history(M = #message{}, G) ->
     regen_history(M#message.time, G);
 regen_history(Time, G = #mafia_game{}) ->
-    regen_history(Time, G#mafia_game.game_num); %key
+    regen_history(Time, G#mafia_game.game_num);
 regen_history(Time, GNum) ->
     regen_historyI(Time, GNum).
 

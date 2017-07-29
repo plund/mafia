@@ -1169,7 +1169,8 @@ do_print_stats(PP, PrStats) ->
         fun(MsgTime) ->
                 case Phase of
                     ?total_stats ->
-                        #dl{time = DlTime} = mafia_time:get_nxt_deadline(G),
+                        #dl{time = DlTime} =
+                            mafia_time:get_nxt_deadline(G, MsgTime),
                         print_time_5d_str(
                           ?stats,
                           mafia_time:hh_mm_to_time(MsgTime, DlTime));
@@ -1840,6 +1841,7 @@ print_phase_next(Ph) ->
     "next " ++ print_phase(Ph) ++ " deadline".
 
 pr_don(?game_start) -> "Game Start";
+%% pr_don(?game_ended) -> "Game End";
 pr_don(?day) -> "Day";
 pr_don(?night) -> "Night".
 

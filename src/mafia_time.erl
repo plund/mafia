@@ -277,7 +277,8 @@ expand_deadlines(G) ->
                         time = first_deadline_secs1970(G)}];
               true -> DLs
            end,
-    TargetTime = utc_secs1970() + 11 * ?DaySecs,
+    LastDL = hd(DLs2),
+    TargetTime = LastDL#dl.time + 11 * ?DaySecs,
     get_some_extra_dls(G, DLs2, TargetTime).
 
 first_phase() -> #phase{num = 0, don = ?game_start}.
@@ -478,6 +479,9 @@ get_nxt_deadline(Game) ->
 %% @doc Get next deadline *after* Time
 %% @end
 -spec get_nxt_deadline(#mafia_game{}, seconds1970()) -> #dl{}.
+get_nxt_deadline(#mafia_game{game_end = {EndTime, _},
+                             deadlines = DLs}, _) ->
+    lists:keyfind(EndTime, #dl.time, DLs);
 get_nxt_deadline(Game = #mafia_game{}, Time) ->
     {ComingDLs, _} = split_dls(Game, Time),
     Game2 = if length(ComingDLs) < 4 -> add_deadlines(Game);

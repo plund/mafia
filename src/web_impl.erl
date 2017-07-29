@@ -27,17 +27,36 @@
 -define(CUR_START_MARK, "<!-- START CURRENT GAME SECTION -->").
 -define(CUR_END_MARK, "<!-- END CURRENT GAME SECTION -->").
 
-front_page(Sid, _Env, _In) ->
+front_page(Sid, _Env, In) ->
+    PQ = httpd:parse_query(In),
+    CurGameNum = mafia_db:getv(game_key),
+    GameNum = get_gnum(get_arg(PQ, "g")),
     DocRoot = mafia_file:get_path(h_doc_root),
     FN = filename:join(DocRoot, "index.html"),
     {ok, Bin} = file:read_file(FN),
     Page = ?b2l(Bin),
     {_, Pre, Post1} = mafia_vote:find_parts(Page, ?CUR_START_MARK),
     {_, _Middle, Post} = mafia_vote:find_parts(Post1, ?CUR_END_MARK),
-    CurGameNum = mafia_db:getv(game_key),
-    CurDays = ?lrev(mafia_lib:all_day_keys(CurGameNum)),
-    GNStr = ?i2l(CurGameNum),
+    CurDays = ?lrev(mafia_lib:all_day_keys(GameNum)),
+    GNStr = ?i2l(GameNum),
     GameNums = ?lrev(mafia_lib:all_keys(mafia_game)),
+    Txt = fun(GN) when GN == CurGameNum -> " Current";
+             (_) -> ""
+          end,
+    Attr = fun(GN) when GN == GameNum -> " selected";
+              (_) -> ""
+           end,
+    POpt = fun(GN) -> ["<option value=\"", ?i2l(GN), "\"", Attr(GN),
+                       ">M", ?i2l(GN), Txt(GN), "</option>\r\n"]
+           end,
+    Opts = ["<select name=\"g\" onchange='this.form.submit()'>>\r\n",
+            [POpt(GN) || GN <- GameNums],
+            "</select>"],
+    Form =
+        ["<form method=get>\r\n",
+         "Select Game ", Opts,
+         "</form>"
+         "<p>\r\n"],
     TrDarkGreen = ["<tr ", ?BG_MED_GREEN, ">"],
     CurGameLinks =
         ["<table cellspacing=4>",
@@ -103,6 +122,7 @@ front_page(Sid, _Env, _In) ->
          string:join(HLinks, "<br>")
         ],
     Size = web:deliver(Sid, [Pre,
+                             Form,
                              CurGameLinks,
                              OldGamesHistoryLinks,
                              Post]),

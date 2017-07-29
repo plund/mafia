@@ -8,6 +8,8 @@
          pages_for_thread/1,
          all_page_keys/0,
          all_page_keys/1,
+         all_day_keys/1,
+         all_keys/1,
 
          rday/2,
          rgame/1,
@@ -115,6 +117,9 @@ all_page_keys(Id) ->
 all_page_keys() ->
     lists:sort([ K || K <- mnesia:dirty_all_keys(page_rec), [] /= rpage(K)]).
 
+all_day_keys(GNum) -> [K || K = {GN, _} <- all_keys(mafia_day), GN == GNum].
+
+all_keys(Tab) -> lists:sort(mnesia:dirty_all_keys(Tab)).
 
 %% -----------------------------------------------------------------------------
 

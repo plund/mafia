@@ -196,8 +196,7 @@ show_game_data(GNum) ->
             io:format("There are ~p messages in mnesia for this game\n",
                       [length(MsgIds)])
     end,
-    DayKeys = [K || K = {GN, _} <- all_keys(mafia_day),
-                    GN == GNum],
+    DayKeys = mafia_lib:all_day_keys(GNum),
     io:format("Num Day records ~p\n", [length(DayKeys)]),
     io:format("Day keys ~p\n", [DayKeys]),
 
@@ -698,7 +697,7 @@ show_usersI(Mode, UserKeys, M) when M == alias; M == all ->
         ?standard_io -> ok
     end.
 
-all_keys(Tab) -> lists:sort(mnesia:dirty_all_keys(Tab)).
+all_keys(Tab) -> mafia_lib:all_keys(Tab).
 
 match_user_keys(Search) ->
     [UserUB || UserUB <- all_keys(user),

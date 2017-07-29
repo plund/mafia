@@ -2,8 +2,9 @@
 
 -include("mafia.hrl").
 
--export([search/3,
+-export([front_page/3,
          game_status/3,
+         search/3,
          msgs/3,
          msg/3,
          vote_tracker/3,
@@ -28,6 +29,7 @@ PageFun(Sid, Env, In) ->
 ).
 
 %% forwards to web_impl module.
+?page(front_page).
 ?page(game_status).
 ?page(search).
 ?page(msgs).

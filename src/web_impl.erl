@@ -767,7 +767,12 @@ do_game_status_out(GameKey, Phase, Title, ExtraOpts) ->
                        {history | current, #phase{}} | {error, term()}.
 get_phase(GameKey, "", "") ->
     Phase = mafia_time:calculate_phase(GameKey),
-    {current, Phase};
+    CurGameNum = mafia_db:getv(game_key),
+    if GameKey == CurGameNum ->
+            {?current, Phase};
+       ?true ->
+            {?history, Phase}
+    end;
 get_phase(_GameKey, PhaseStr, NumStr) ->
     gs_phase(PhaseStr, NumStr).
 

@@ -258,6 +258,15 @@ refresh_votes() ->
     GNum = ?getv(?game_key),
     refresh_votes(GNum).
 
+refresh_votes(all_games) ->
+    AllGNums = mafia_lib:all_keys(mafia_game),
+    T = fun() -> erlang:monotonic_time(millisecond) end,
+    Start = T(),
+    [refresh_votes(GNum) || GNum <- AllGNums],
+    Stop = T(),
+    {refresh_votes, [{milliseconds_used, Stop - Start},
+                     {num_games, length(AllGNums)},
+                     {games, AllGNums}]};
 refresh_votes(GNum) ->
     clear_mafia_day_and_stat(GNum),
     refresh_votes(?rgame(GNum), all).

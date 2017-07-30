@@ -1,40 +1,32 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% Add signup_thread info to all games.
-%%   - Make signup searchable?
+%% do LATE read of signup thread
+%% ok - Generate game_setting files from db
+%% > mafia:set_signup_thid(24, 1400168).
+%% > mafia:set_signup_thid(25, 1416848).
+%% > mafia:set_signup_thid(26, 1429158).
+%% Add signup_thid info to all games.
 %% Mnesia overloaded fixes
 %% try autostart again
-%% use quickcheck license
 %% vhosts in inets - no support - try patch inets :)
-%% LOW - list previous deadlines and times before game end
 %% LOW - Add Last&more link also on game_end page
-%% Add "g=..." into copy/paste link when it is missing
-%% "important?" Requires "important*" - ? should be word boundary in searches
 %% balki vote on Jamie g29? d1 46:13 did not get the correct part in console due to unicode
 %% http://mafia_test.peterlund.se/e/web/msgs?part=p3-5#msg_id=1480166
-%% - try again to autostart this script when reboot
 %% Force split long lines in thread
-%% - Stats page needs the game number in title
 %% - split mafia_print. stats and tracker into separate modules?
-%% ?add user "peterlund" to GMs? - NO
 %% Instead add ServerKeeper/GM commands:
 %% ##bot endgame <msgid> | unendgame
 %% ##bot endphase|unendphase <msgid>
 %% ##bot replaceplayer <msgid> <old> <new>
 %% ##bot deadline <msgid> earlier|later <time>
 %% ##bot assistant add|remove <msgid> <player>
-%% ?- Add timestamp for each entry in message_ids to use when time_offset /= 0
-%%     Motivation: simplify time offset?
-%% - Verify stored files (when refresh_messages) that all messages come in
-%%   msg_id and in time order.
-%%     Motivation: test if there is a problem webdiplomacy.net
-
 %%   - define how and when to use a smarter vote reader!! ??
 %% - Display msgs since last login with a browser (cookie)
 %% - fix a better player name recognition in votes and deaths?
 %%    - check if abbrev code can loop forever
 %%    - add unit tests for abbreviations
+%%    - use quickcheck license
 
 %% interface
 -export([
@@ -55,6 +47,7 @@
          game_thread/1,
          initiate_game/1,
          initiate_game/2,
+         write_settings_file/1,
          remove_not_running_game/1,
          delete_game_and_all_data/1,
          pregame_create/1, % old
@@ -225,6 +218,11 @@ initiate_game(GNum, GMs) when is_integer(GNum) ->
             end,
     do_if_not_running(GNum, DoFun).
 
+-spec write_settings_file(game_num() | #mafia_game{})
+                         -> ok | {error, atom()}.
+write_settings_file(GNum) ->
+    web_game_settings:write_settings_file(GNum).
+
 %% -----------------------------------------------------------------------------
 %% @doc Remove an initiated game that has not started yet
 %% @end
@@ -336,8 +334,9 @@ set_signup_thid(GNum, SuThId) when is_integer(SuThId) ->
             ?dwrite_game(G#mafia_game{signup_thid = SuThId,
                                       page_to_read = 1}),
             ok;
-        [_] ->
-            {error, game_running};
+        [G] when is_integer(G#mafia_game.thread_id) ->
+            ?dwrite_game(G#mafia_game{signup_thid = SuThId}),
+            ok;
         _ ->
             {error, no_game}
     end.

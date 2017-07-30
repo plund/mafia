@@ -1,7 +1,8 @@
 -module(web_game_settings).
 
 -export([game_settings/3,
-         is_ready_to_go/2]).
+         is_ready_to_go/2,
+         write_settings_file/1]).
 
 -include("mafia.hrl").
 
@@ -201,10 +202,6 @@ enter_user_pw_box(F) ->
 -define(GAME_FIELDS,
         [gms, name, thread_id, signup_thid, start_time, time_zone, dst_zone,
          players_orig, day_hours, night_hours, role_pm]).
-
-get_game_settings(G = #mafia_game{}, AddFields) ->
-    As = ?GAME_FIELDS ++ AddFields,
-    gen_text_settings(G, As).
 
 get_game_settings(GNum) when is_integer(GNum) ->
     G = hd(?rgame(GNum)),
@@ -754,11 +751,19 @@ msti2(G, _PwRes, ThId) ->
             G4 = mafia_time:initial_deadlines(G3),
             ?dwrite_game(G4),
             mafia:switch_to_game(G#mafia_game.game_num),
-            SettingsFN = mafia_file:settings_fn(G4#mafia_game.game_num),
-            Settings = get_game_settings(G4, [thread_id]),
-            file:write_file(SettingsFN, Settings),
+            write_settings_file(G4),
             {true, Es ++ [{info, "Thread Id was set"},
                           {info, "GAME STARTED!"}]};
        true ->
             {false, Es}
     end.
+
+write_settings_file(GNum) when is_integer(GNum) ->
+    write_settings_file(?rgame(GNum));
+write_settings_file([]) -> {error, game_not_found};
+write_settings_file([G]) ->
+    write_settings_file(G);
+write_settings_file(G = #mafia_game{}) ->
+    SettingsFN = mafia_file:settings_fn(G#mafia_game.game_num),
+    Settings = get_game_settings(G),
+    file:write_file(SettingsFN, Settings).

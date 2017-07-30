@@ -54,10 +54,13 @@ front_page(Sid, _Env, In) ->
             [POpt(GN) || GN <- GameNums],
             "</select>"],
     Form =
-        ["<form method=get>\r\n",
+        ["<table>"
+         "<tr><td>",
+         "<form method=get>\r\n",
          "Select Game ", Opts,
          "</form>"
-         "<p>\r\n"],
+         "</td></tr>"
+         "</table>"],
     RolePmLink =
         if G#mafia_game.role_pm /= ?undefined ->
                 [" href=\"", ?b2l(G#mafia_game.role_pm), "\""];
@@ -72,12 +75,16 @@ front_page(Sid, _Env, In) ->
            true -> ""
         end,
     RolePmSignUp =
-        ["<p>"
+        ["<br>"
+         "<table>"
+         "<tr><td>"
          "<a", RolePmLink, ">M", GNStr, " Role PM</a> | "
          "<a", SignupLink, ">M", GNStr, " Signup-thread</a>"
-        ],
+         "</td></tr>"
+         "</table>"],
     CurGameLinks =
-        ["<table cellspacing=4>",
+        ["<br>"
+         "<table cellspacing=4>",
          ["<tr ", ?BG_MED_GREEN, ">"],
          "<th colspan=3>"
          "<a href=\"game_status?g=", GNStr, "\">M",
@@ -90,6 +97,18 @@ front_page(Sid, _Env, In) ->
          "</th><th>Vote Tracker"
          "</th></tr>",
          [game_day_links(GNStr, DayNum) || {_, DayNum} <- CurDays],
+         ["<tr ", ?BG_MED_GREEN, ">"],
+         "<td>"
+         "<a href=\"game_status?g=", GNStr, "&phase=end\">Game End</a>"
+         "</td><td>"
+         "<a href=\"stats?g=", GNStr, "&phase=end\">Game End</a>"
+         "</td><td>"
+         "</td></tr>",
+         ["<tr ", ?BG_MED_GREEN, ">"],
+         "<td colspan=3 align=center>"
+         "<a href=\"stats?g=", GNStr, "&phase=global\">"
+         "Game Global Statistics</a>"
+         "</td></tr>"
          "</table>"],
     HLinks = [["<a href=\"/m",
                ?i2l(GNum),
@@ -98,10 +117,13 @@ front_page(Sid, _Env, In) ->
                "</a>"
               ] || GNum <- GameNums],
     OldGamesHistoryLinks =
-        ["<p>"
+        ["<table>"
+         "<tr><td align=center>",
+         "<br>"
          "<b>Game History for All Games</b><br>",
-         string:join(HLinks, ", ")
-        ],
+         string:join(HLinks, ", "),
+         "</td></tr>"
+         "</table>"],
     Size = web:deliver(Sid, [Pre,
                              Form,
                              RolePmSignUp,

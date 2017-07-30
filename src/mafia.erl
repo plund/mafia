@@ -2,10 +2,6 @@
 
 -include("mafia.hrl").
 %% do LATE read of signup thread
-%% ok - Generate game_setting files from db
-%% > mafia:set_signup_thid(24, 1400168).
-%% > mafia:set_signup_thid(25, 1416848).
-%% > mafia:set_signup_thid(26, 1429158).
 %% Add signup_thid info to all games.
 %% Mnesia overloaded fixes
 %% try autostart again

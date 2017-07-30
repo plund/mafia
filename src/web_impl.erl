@@ -75,27 +75,27 @@ front_page(Sid, _Env, In) ->
            true -> ""
         end,
     RolePmSignUp =
-        ["<br>"
+        ["<br>\r\n"
          "<table>"
          "<tr><td>"
-         "<a", RolePmLink, ">M", GNStr, " Role PM</a> | "
+         "<a", RolePmLink, ">M", GNStr, " Role PM</a> | \r\n"
          "<a", SignupLink, ">M", GNStr, " Signup-thread</a>"
          "</td></tr>"
          "</table>"],
     CurGameLinks =
-        ["<br>"
+        ["<br>\r\n"
          "<table cellspacing=4>",
          ["<tr ", ?BG_MED_GREEN, ">"],
-         "<th colspan=3>"
+         "<th colspan=3>\r\n"
          "<a href=\"game_status?g=", GNStr, "\">M",
          GNStr,
          " Game Status </a>"
-         "</th></tr>",
+         "</th></tr>\r\n",
          ["<tr ", ?BG_MED_GREEN, ">"],
          "<th>History"
          "</th><th>Statistics"
          "</th><th>Vote Tracker"
-         "</th></tr>",
+         "</th></tr>\r\n",
          [game_day_links(GNStr, DayNum) || {_, DayNum} <- CurDays],
          ["<tr ", ?BG_MED_GREEN, ">"],
          "<td>"
@@ -103,12 +103,12 @@ front_page(Sid, _Env, In) ->
          "</td><td>"
          "<a href=\"stats?g=", GNStr, "&phase=end\">Game End</a>"
          "</td><td>"
-         "</td></tr>",
+         "</td></tr>\r\n",
          ["<tr ", ?BG_MED_GREEN, ">"],
          "<td colspan=3 align=center>"
          "<a href=\"stats?g=", GNStr, "&phase=global\">"
          "Game Global Statistics</a>"
-         "</td></tr>"
+         "</td></tr>\r\n"
          "</table>"],
     HLinks = [["<a href=\"/m",
                ?i2l(GNum),
@@ -121,8 +121,8 @@ front_page(Sid, _Env, In) ->
          "<tr><td align=center>",
          "<br>"
          "<b>Game History for All Games</b><br>",
-         string:join(HLinks, ", "),
-         "</td></tr>"
+         string:join(HLinks, ", \r\n"),
+         "</td></tr>\r\n"
          "</table>"],
     Size = web:deliver(Sid, [Pre,
                              Form,
@@ -134,7 +134,7 @@ front_page(Sid, _Env, In) ->
 
 game_day_links(GNStr, DayNum) ->
     DStr = ?i2l(DayNum),
-    [["<tr ", ?BG_MED_GREEN, ">"],
+    [["<tr ", ?BG_MED_GREEN, ">\r\n"],
      "<td>"
      "<a href=\"game_status?g=", GNStr, "&phase=night&num=", DStr,
      "\">Night ", DStr,
@@ -144,7 +144,7 @@ game_day_links(GNStr, DayNum) ->
      "\">Night ", DStr,
      "</a>"
      "</td><td>"
-     "</td></tr>",
+     "</td></tr>\r\n",
 
      ["<tr ", ?BG_MED_GREEN, ">"],
      "<td>"
@@ -155,11 +155,11 @@ game_day_links(GNStr, DayNum) ->
      "<a href=\"stats?g=", GNStr, "&phase=day&num=", DStr,
      "\">Day ", DStr,
      "</a>"
-     "</td><td>"
+     "</td><td>\r\n"
      "<a href=\"vote_tracker?g=", GNStr, "&day=", DStr,
      "\">Day ", DStr,
      "</a>"
-     "</td></tr>"
+     "</td></tr>\r\n"
     ].
 
 %% -----------------------------------------------------------------------------

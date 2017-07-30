@@ -453,13 +453,14 @@ print_votesI(PPin) ->
                           [RPStr]),
                 ok;
            PP#pp.mode == ?html ->
-                ["<td><tr>"
+                ["<tr><td>"
                  "<table align=center cellpadding=2 cellspacing=2><tr>"
                  "<tr><th colspan=", ?i2l(?NumColsInGrp),
                  ">Remaining players"
                  "</th></tr>",
                  object_rows(RPRows),
-                 "</table></td></tr>"]
+                 "</table>"
+                 "</td></tr>"]
         end,
 
     %% Part - Voting texts
@@ -596,9 +597,9 @@ print_votesI(PPin) ->
             HtmlDeaths =
                 ["<table align=center>",
                  "<tr><th colspan=2 align=left><br>Dead or replaced players"
-                 "</th></tr>",
+                 "</th></tr>\r\n",
                  if IsZeroDeaths, IsZeroReplacements ->
-                         "<tr><th>(none)</th></tr>";
+                         "<tr><th>(none)</th></tr>\r\n";
                     true ->
                          [case DoR of
                               #death{player = DeadPl,
@@ -619,7 +620,7 @@ print_votesI(PPin) ->
                                       is_binary(Com) ->
                                            " - " ++ ?b2l(Com)
                                    end,
-                                   "</td></tr></table></td></tr>"];
+                                   "</td></tr></table></td></tr>\r\n"];
                               #replacement{new_player = NewPl,
                                            replaced_player = RepPl,
                                            phase = Ph,
@@ -633,7 +634,7 @@ print_votesI(PPin) ->
                                    "&var=replacement\">",
                                    PrRepFun(Ph), "</a></td>"
                                    "<td", bgcolor(NewPl), ">", ?b2l(NewPl),
-                                   "</td></tr></table></td></tr>"]
+                                   "</td></tr></table></td></tr>\r\n"]
                           end
                           || DoR <- DeathsToReport]
                  end,
@@ -690,7 +691,6 @@ print_votesI(PPin) ->
              HVoteCount, "\r\n",
              EndVotes, "\r\n",
              NonVotes, "\r\n",
-             "<br>",
              HRemPlayers, "\r\n",
              ["<tr><td>\r\n", HTrackKey, "</td><tr>\r\n"],
              ["<tr><td>\r\n", HVoteTrack, "</td><tr>\r\n"],
@@ -1582,7 +1582,9 @@ pr_head_html(IterVotes, PrAbbrF) ->
 nbsp(Bin) when is_binary(Bin) ->
     nbsp(?b2l(Bin));
 nbsp(Str) ->
-    [ if C ==$\s -> "&nbsp;"; true -> C end
+    [ if C ==$\s -> "&nbsp;";
+         C ==$- -> "&#x2011;";
+         true -> C end
       || C <- Str].
 
 print_time_5d(G, Time) ->
@@ -1658,7 +1660,7 @@ prk_html(PP, Abbrs) ->
     NumPrint = if NumAbbr >= ?ReadKeyCols -> ?ReadKeyCols; true -> NumAbbr end,
     AbbrsPrint = mafia_lib:my_string_substr(Abbrs, 1, NumPrint),
     AbbrsRem = lists:nthtail(NumPrint, Abbrs),
-    [["<tr>", [["<td", bgcolor(Pl), ">",A, " = ", Pl,"</td>"]
+    [["<tr>", [["<td", bgcolor(Pl), ">", nbsp(A), nbsp(" = "), nbsp(Pl),"</td>"]
                || {_, Pl, A, _} <- AbbrsPrint],
       "</tr>\r\n"]
      | prk_html(PP, AbbrsRem)].
@@ -1711,6 +1713,8 @@ pr_stand_html(User, MsgId, {OldVote, NewVote}, Abbrs, PrStand) ->
               end,
               "</td>"]
              || #iv{n = N, v = Vote, vlong = VLong} <- PrStand],
+    %% 1 elem in Stand get very wide, but adding empty cells did not fix it
+    %% Stand2 = Stand ++ ["<td></td>" || _ <- lists:seq(1, 4 - length(Stand))],
     [Voter|Stand].
 
 bgcolor(V) -> mafia_lib:bgcolor(V).

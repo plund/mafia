@@ -1,7 +1,5 @@
 -module(mafia_upgrade).
 
-%% pds upgrade is complex/advanced -> too much at the moment
-
 -export([
          recreate_game_table/0,
          upgrade/0,
@@ -13,6 +11,12 @@
          get_aliases/1,
          save_copy_on_file/2,
          read_file_copy/1
+        ]).
+
+%% temp exports during development
+-export([
+         role_pm_bin/1,
+         signup/1
         ]).
 
 -include("mafia.hrl").
@@ -38,6 +42,16 @@ upgrade(user) ->
             mnesia:table_info(user, attributes),
             record_info(fields, user)).
 
+upgrade(Tab = mafia_game,
+        As = [game_num,thread_id,signup_thid,name,day_hours,night_hours,
+              time_zone,start_time,dst_zone,dst_changes,deadlines,gms,
+              players_orig,players_rem,player_deaths,page_to_read,game_end,
+              last_msg_id,last_msg_time],
+        Fs = [game_num,thread_id,signup_thid,name,day_hours,night_hours,
+              time_zone,start_time,dst_zone,dst_changes,deadlines,gms,
+              players_orig,players_rem,player_deaths,page_to_read,game_end,
+              last_msg_id,last_msg_time, role_pm]) ->
+    upgrade_tab_game_170729(Tab, As, Fs);
 upgrade(Tab = user,
         As = [name_upper, name, aliases, verification_status, pw_hash],
         Fs = [name_upper, name, aliases, verification_status, pw_hash,
@@ -94,6 +108,65 @@ upgrade(Tab, As, Fs) when As == Fs ->
 upgrade(Tab, As, Fs) ->
     io:format("No upgrade for table '~p' from:\n~999p\nto\n~999p\n",
               [Tab, As, Fs]).
+
+%% -----------------------------------------------------------------------------
+%% add role_pm and set some signup_thid with values found in index.html
+%% -----------------------------------------------------------------------------
+upgrade_tab_game_170729(Tab, As, Fs) ->
+    io:format("Upgrade table '~p' 170729 from:\n~999p\nto\n~999p\n",
+              [Tab, As, Fs]),
+    Trans =
+        fun(RecOld) ->
+                ValuesOldList = tl(tuple_to_list(RecOld)),
+                OldAsVals = lists:zip(As, ValuesOldList),
+                GNum = proplists:get_value(game_num, OldAsVals),
+                Val = fun(role_pm) -> role_pm_bin(GNum);
+                         (F = signup_thid) ->
+                              case signup(GNum) of
+                                  ?undefined ->
+                                      proplists:get_value(F, OldAsVals);
+                                  SuThid -> SuThid
+                              end;
+                         (F) -> proplists:get_value(F, OldAsVals)
+                      end,
+                %% Pick values for new rec
+                NewValues = [Val(F) || F <- Fs],
+                list_to_tuple([Tab | NewValues])
+        end,
+    mnesia:transform_table(Tab, Trans, Fs).
+
+role_pm_bin(N) ->
+    case role_pm(N) of
+        ?undefined -> ?undefined;
+        Str -> ?l2b(Str)
+    end.
+
+%% From index.html
+role_pm(30) -> "https://docs.google.com/document/d/"
+                   "1KKPL7Lfpq99w9D1nMMm9dmeJ5uQcSnXYwR452ghAnH4/edit";
+role_pm(29) -> "msgs?g=29&user=bo_sox48&part=1";
+role_pm(28) ->
+    "https://docs.google.com/document/d/"
+        "1qwQXijL-wxmPJ1VrDYq5cMQmlFxmTb668bWW-lpO7nw/edit?usp=sharing";
+role_pm(27) ->
+    "https://docs.google.com/document/d/"
+        "1szNjvCVOmuEbCJwLJgDU1wQHwyjdd4cN_x2M1d0EYfE/edit?usp=sharing";
+role_pm(26) -> "https://docs.google.com/document/d/"
+                   "1R_l0giAp0DwocZ4Koz1PEJJgIBbbsCPRvBWJXUsQmfs/pub";
+role_pm(25) -> "msgs?g=25&user=VashtaNeurotic&part=p1";
+role_pm(24) ->
+    "https://docs.google.com/document/d/"
+        "1n13cK_Zqo9WIsvIkWck0HtN8JwAhSpT0gwUOM-KVKYY/edit?usp=sharing";
+role_pm(23) ->
+    "https://docs.google.com/document/d/"
+        "1DuNXadUns-6HxSlpHG5BwvS8Kkelfn3PJcH0FLTaxDI/edit?usp=sharing";
+role_pm(22) -> "msgs?g=22&user=ghug&part=p1";
+role_pm(_) -> ?undefined.
+
+signup(29) -> 1478635;
+signup(28) -> 1460042;
+signup(27) -> 1442470;
+signup(_) -> ?undefined.
 
 %% -----------------------------------------------------------------------------
 %% insert ?undefined for signup_thid

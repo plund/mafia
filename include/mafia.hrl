@@ -108,7 +108,7 @@
          name :: ?undefined | binary(),
          day_hours = 48 :: integer(),
          night_hours = 24 :: integer(),
-         time_zone :: ?undefined | integer(), %% (EST=-5, UK = 0, CET=1)
+         time_zone :: ?undefined | integer(),
          start_time :: ?undefined | datetime(),
          dst_zone :: ?undefined | dst_zone(),
          dst_changes = [] :: [dst_change()],
@@ -120,7 +120,8 @@
          page_to_read = 1 :: integer(),
          game_end :: ?undefined | {seconds1970(), msg_id()},
          last_msg_id :: ?undefined | msg_id(),
-         last_msg_time :: ?undefined | seconds1970()
+         last_msg_time :: ?undefined | seconds1970(),
+         role_pm :: ?undefined | binary()
         }).
 
 -record(user,

@@ -143,6 +143,10 @@ get_tz_dst(G = #mafia_game{}, Time) ->
     IsDst = is_dst(DateTime, G),
     {TZ, IsDst}.
 
+-spec secs1970_to_local_datetime(
+        Time :: seconds1970(),
+        TzH :: -12..13,
+        Dst :: boolean()) -> datetime().
 secs1970_to_local_datetime(Time, TzH, Dst) ->
     Time2 = adjust_secs1970_to_tz_dst(Time, TzH, Dst),
     {Days1970, {HH,MM,SS}} = calendar:seconds_to_daystime(Time2),
@@ -480,7 +484,8 @@ get_nxt_deadline(Game) ->
 %% @end
 -spec get_nxt_deadline(#mafia_game{}, seconds1970()) -> #dl{}.
 get_nxt_deadline(#mafia_game{game_end = {EndTime, _},
-                             deadlines = DLs}, _) ->
+                             deadlines = DLs},
+                 Time) when Time >= EndTime ->
     lists:keyfind(EndTime, #dl.time, DLs);
 get_nxt_deadline(Game = #mafia_game{}, Time) ->
     {ComingDLs, _} = split_dls(Game, Time),

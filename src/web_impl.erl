@@ -39,6 +39,7 @@ front_page(Sid, _Env, In) ->
     {_, _Middle, Post} = mafia_vote:find_parts(Post1, ?CUR_END_MARK),
     CurDays = ?lrev(mafia_lib:all_day_keys(GameNum)),
     GNStr = ?i2l(GameNum),
+    G = hd(?rgame(GameNum)),
     GameNums = ?lrev(mafia_lib:all_keys(mafia_game)),
     Txt = fun(GN) when GN == CurGameNum -> " Current";
              (_) -> ""
@@ -57,76 +58,87 @@ front_page(Sid, _Env, In) ->
          "Select Game ", Opts,
          "</form>"
          "<p>\r\n"],
-    TrDarkGreen = ["<tr ", ?BG_MED_GREEN, ">"],
+    RolePmLink =
+        if G#mafia_game.role_pm /= ?undefined ->
+                [" href=\"", ?b2l(G#mafia_game.role_pm), "\""];
+           true -> ""
+        end,
+    SignupLink =
+        if G#mafia_game.signup_thid /= ?undefined ->
+                [" href=\"http://webdiplomacy.net/forum.php?threadID=",
+                 ?i2l(G#mafia_game.signup_thid),
+                 "\""
+                ];
+           true -> ""
+        end,
+    RolePmSignUp =
+        ["<p>"
+         "<a", RolePmLink, ">M", GNStr, " Role PM</a> | "
+         "<a", SignupLink, ">M", GNStr, " Signup-thread</a>"
+        ],
     CurGameLinks =
         ["<table cellspacing=4>",
-         TrDarkGreen,
+         ["<tr ", ?BG_MED_GREEN, ">"],
          "<th colspan=3>"
-         "<a href=\"game_status?g=", GNStr, "\">Current Game Status (M",
+         "<a href=\"game_status?g=", GNStr, "\">M",
          GNStr,
-         ")</a>"
+         " Game Status </a>"
          "</th></tr>",
-         TrDarkGreen,
+         ["<tr ", ?BG_MED_GREEN, ">"],
          "<th>History"
          "</th><th>Statistics"
          "</th><th>Vote Tracker"
          "</th></tr>",
-         [begin
-              DStr = ?i2l(DayNum),
-              [TrDarkGreen,
-               "<td>"
-               "<a href=\"game_status?g=", GNStr, "&phase=day&num=",
-               DStr,
-               "\">Day ",
-               DStr,
-               "</a>"
-               "</td><td>"
-               "<a href=\"stats?g=", GNStr, "&phase=day&num=",
-               DStr,
-               "\">Day ",
-               DStr,
-               "</a>"
-               "</td><td>"
-               "<a href=\"vote_tracker?g=", GNStr, "&day=",
-               DStr,
-               "\">Day ",
-               DStr,
-               "</a>"
-               "</td></tr>",
-               TrDarkGreen,
-               "<td>"
-               "<a href=\"game_status?g=", GNStr, "&phase=night&num=",
-               DStr,
-               "\">Night ",
-               DStr,
-               "</a>"
-               "</td><td>"
-               "<a href=\"stats?g=", GNStr, "&phase=night&num=",
-               DStr,
-               "\">Night ",
-               DStr,
-               "</a>"
-               "</td><td>"
-               "</td></tr>"
-              ]
-          end || {_, DayNum} <- CurDays],
+         [game_day_links(GNStr, DayNum) || {_, DayNum} <- CurDays],
          "</table>"],
     HLinks = [["<a href=\"/m",
                ?i2l(GNum),
                "/\">M",
                ?i2l(GNum),
-               " History files</a>"
+               "</a>"
               ] || GNum <- GameNums],
     OldGamesHistoryLinks =
-        ["<p>",
-         string:join(HLinks, "<br>")
+        ["<p>"
+         "<b>Game History for All Games</b><br>",
+         string:join(HLinks, ", ")
         ],
     Size = web:deliver(Sid, [Pre,
                              Form,
+                             RolePmSignUp,
                              CurGameLinks,
                              OldGamesHistoryLinks,
                              Post]),
     {Size, ?none}.
+
+game_day_links(GNStr, DayNum) ->
+    DStr = ?i2l(DayNum),
+    [["<tr ", ?BG_MED_GREEN, ">"],
+     "<td>"
+     "<a href=\"game_status?g=", GNStr, "&phase=night&num=", DStr,
+     "\">Night ", DStr,
+     "</a>"
+     "</td><td>"
+     "<a href=\"stats?g=", GNStr, "&phase=night&num=", DStr,
+     "\">Night ", DStr,
+     "</a>"
+     "</td><td>"
+     "</td></tr>",
+
+     ["<tr ", ?BG_MED_GREEN, ">"],
+     "<td>"
+     "<a href=\"game_status?g=", GNStr, "&phase=day&num=", DStr,
+     "\">Day ", DStr,
+     "</a>"
+     "</td><td>"
+     "<a href=\"stats?g=", GNStr, "&phase=day&num=", DStr,
+     "\">Day ", DStr,
+     "</a>"
+     "</td><td>"
+     "<a href=\"vote_tracker?g=", GNStr, "&day=", DStr,
+     "\">Day ", DStr,
+     "</a>"
+     "</td></tr>"
+    ].
 
 %% -----------------------------------------------------------------------------
 %% replace game selection section in file.

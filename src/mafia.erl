@@ -50,6 +50,7 @@
          unend_game/1,
          switch_to_game/1,
          set_signup_thid/2,
+         set_role_pm/2,
          switch_thread_id/2,
          game_thread/1,
          initiate_game/1,
@@ -340,6 +341,19 @@ set_signup_thid(GNum, SuThId) when is_integer(SuThId) ->
         _ ->
             {error, no_game}
     end.
+
+set_role_pm(GNum, Url) when is_integer(GNum) ->
+    UrlVal =
+        case Url of
+            ?undefined -> ?undefined;
+            Url when is_list(Url) -> ?l2b(Url)
+        end,
+    set_role_pmI(?rgame(GNum), UrlVal).
+
+set_role_pmI([G], UrlVal) ->
+    ?dwrite_game(G#mafia_game{role_pm = UrlVal}),
+    ok;
+set_role_pmI(_, _) -> {error, no_game_found}.
 
 %% -----------------------------------------------------------------------------
 %% @doc Switch to other thread_id() and reread all info

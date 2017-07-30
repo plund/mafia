@@ -107,7 +107,7 @@ game_settings_update(Sid, Env, Button, PQ) ->
          ["<tr><td><center>\r\n"
           "<form action=\"/e/web/game_settings\" method=post>\r\n"
           "<input name=game_num type=hidden value=", GNStr, ">\r\n"
-          "<textarea name=\"game_settings\" rows=13 cols=60 required>\r\n",
+          "<textarea name=\"game_settings\" rows=15 cols=70 required>\r\n",
           SettingsText,
           "</textarea>\r\n",
           if not IsRunning, not IsSecure ->
@@ -200,7 +200,7 @@ enter_user_pw_box(F) ->
 
 -define(GAME_FIELDS,
         [gms, name, thread_id, signup_thid, start_time, time_zone, dst_zone,
-         players_orig, day_hours, night_hours]).
+         players_orig, day_hours, night_hours, role_pm]).
 
 get_game_settings(G = #mafia_game{}, AddFields) ->
     As = ?GAME_FIELDS ++ AddFields,
@@ -227,6 +227,7 @@ gts(G, [A = day_hours | As]) ->
     tr_key(A, ?i2l(G#mafia_game.day_hours)) ++ gts(G, As);
 gts(G, [A = night_hours | As]) ->
     tr_key(A, ?i2l(G#mafia_game.night_hours)) ++ gts(G, As);
+gts(G, [A = role_pm | As]) -> tr_key(A, role_pm(G)) ++ gts(G, As);
 gts(G, [A = time_zone | As]) -> tr_key(A, game_time_zone(G)) ++ gts(G, As);
 gts(G, [A = start_time | As]) ->
     tr_key(A, game_start_time(G)) ++ gts(G, As);
@@ -249,6 +250,9 @@ game_thread(Id) -> ?i2l(Id).
 
 game_name(#mafia_game{name = ?undefined}) -> ?UNSET;
 game_name(#mafia_game{name = Name}) -> ?b2l(Name).
+
+role_pm(#mafia_game{role_pm = ?undefined}) -> ?UNSET;
+role_pm(#mafia_game{role_pm = Url}) -> ?b2l(Url).
 
 game_start_time(#mafia_game{start_time = ?undefined}) -> ?UNSET;
 game_start_time(#mafia_game{start_time = Time}) ->
@@ -408,6 +412,7 @@ is_ready_to_go(players_orig, _, {_, G, Es}) ->
     {IsOk, G, Es2};
 is_ready_to_go(day_hours, _, Acc) -> Acc;
 is_ready_to_go(night_hours, _, Acc) -> Acc;
+is_ready_to_go(role_pm, _, Acc) -> Acc;
 is_ready_to_go(duplicates, CurG, {_, G, Es}) ->
     %% check not same user in both gms and players_orig
     %% if problem reset both fields to orignal before writing
@@ -464,6 +469,8 @@ pri([{"name", Name} | T], {G, Es}) ->
     pri(T, {G#mafia_game{name = ?eb2ud(?l2b(Name))}, Es});
 pri([F={"day_hours", _} | T], Acc) -> pri(T, pr_int(F, Acc));
 pri([F={"night_hours", _} | T], Acc) ->  pri(T, pr_int(F, Acc));
+pri([{"role_pm", Url} | T], {G, Es}) ->
+    pri(T, {G#mafia_game{role_pm = ?eb2ud(?l2b(Url))}, Es});
 pri([F={"time_zone", _} | T], Acc) ->  pri(T, pr_int(F, Acc));
 pri([F={"start_time", _} | T], Acc) -> pri(T, pr_start_time(F, Acc));
 pri([F={"dst_zone", _} | T], Acc) -> pri(T, pr_dst_zone(F, Acc));

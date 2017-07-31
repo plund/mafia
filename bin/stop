@@ -4,10 +4,19 @@ PID=$(ps aux | grep -vE "(grep|to_erl|run_erl|bin/stop)" | grep mafia \
           | awk '{print $2}')
 
 if [ "$PID" != "" ] ; then
-    echo "Stopping Mafia server on PID=${PID}"
+    echo "Stopping Mafia server on PID ${PID}"
     kill -9 $PID
 else
-    echo No PID
+    echo "No PID for mafia"
 fi
 
-exit 0
+# Kill also epmd since this can lock the ports on MacOS
+EPMD_PID=$(ps aux | grep -vE "(grep|to_erl|run_erl|bin/stop)" | grep epmd \
+               | awk '{print $2}')
+
+if [ "$EPMD_PID" != "" ] ; then
+    echo "Stopping epmd on PID ${EPMD_PID}"
+    kill -9 $EPMD_PID
+else
+    echo "No PID for epmd"
+fi

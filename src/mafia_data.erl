@@ -363,7 +363,10 @@ checkvote_fun(G, DoPrint) ->
                                  if PrevMsgT < DeadT, DeadT =< MsgTime ->
                                          %% dl reached => generate
                                          gen_hist_and_get_dls(MsgTime, Acc);
-                                    MsgTime < DeadT -> Acc#acc.dls
+                                    MsgTime < DeadT ->
+                                         Acc#acc.dls;
+                                    true -> %% after game end
+                                         Acc#acc.dls
                                  end
                          end,
                      Acc#acc{last_page = Msg#message.page_num,

@@ -62,10 +62,12 @@
 %% @end
 %%--------------------------------------------------------------------
 start_link() ->
+    io:format(": start_link\n"),
     mafia:setup_mnesia(),
     gen_server:start_link({local, ?SERVER}, ?MODULE, [polling], []).
 
 start() ->  %% to be removed?
+    io:format(": start\n"),
     mafia:setup_mnesia(),
     gen_server:start({local, ?SERVER}, ?MODULE, [polling], []).
 
@@ -555,10 +557,13 @@ set_dl_timer(S, Time, G) ->
         #dl{phase = #phase{don = ?game_ended}} -> S2;
         DL = #dl{} ->
             SecsRem = DL#dl.time - Time,
-            {ok, TRef} =
-                timer:send_after(SecsRem * 1000, {?deadline, DL}),
-            S2#state{dl_timer = TRef,
-                     dl_time = DL#dl.time}
+            if SecsRem >= 0 ->
+                    {ok, TRef} =
+                        timer:send_after(SecsRem * 1000, {?deadline, DL}),
+                    S2#state{dl_timer = TRef,
+                             dl_time = DL#dl.time};
+               true -> S2
+            end
     end.
 
 cancel_dl_timer(S) ->

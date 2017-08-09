@@ -1030,10 +1030,8 @@ user_vote(UserVotes) ->
     end.
 
 
-pr_eodon(true, Phase = #phase{}) ->
-    pr_eodon(Phase);
-pr_eodon(false, #phase{num = Num, don = DoN}) ->
-    pr_don(DoN) ++ " " ++ ?i2l(Num).
+pr_eodon(true, Phase = #phase{}) -> pr_eodon(Phase);
+pr_eodon(false, Ph = #phase{}) -> print_phase(Ph).
 
 pr_eodon(#phase{num = Num, don = ?day}) -> "EoD"++ ?i2l(Num);
 pr_eodon(#phase{num = Num, don = ?night}) -> "EoN"++ ?i2l(Num);
@@ -1847,7 +1845,7 @@ print_phase_next(Ph) ->
     "next " ++ print_phase(Ph) ++ " deadline".
 
 pr_don(?game_start) -> "Game Start";
-%% pr_don(?game_ended) -> "Game End";
+pr_don(?game_ended) -> "Game End";
 pr_don(?day) -> "Day";
 pr_don(?night) -> "Night".
 

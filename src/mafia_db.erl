@@ -104,6 +104,7 @@ remove_mnesia() ->
                   -> mnesia_start_ok |
                      {error, Reason::term()}.
 start_mnesia(Op) ->
+    io:format(": start_mnesia ~p\n", [Op]),
     case mnesia:start() of
         ok ->
             if Op == do_create ->
@@ -112,8 +113,10 @@ start_mnesia(Op) ->
                     ok
             end,
             timer:sleep(500),
+            ?dbg({start_mnesia, ok}),
             mnesia_start_ok;
         Other ->
+            io:format("start_mnesia, other"),
             Other
     end.
 

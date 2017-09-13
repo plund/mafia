@@ -938,7 +938,7 @@ pr_votes(PP) ->
                           "------------\n",
                           [pr_phase_long(PP#pp.phase)]),
                 [begin
-                     io:format(PP#pp.dev, "~p ~s - ", [N, ?b2l(Vote)]),
+                     io:format(PP#pp.dev, "~s (~p): ", [?b2l(Vote), N]),
                      VoterNames = [?b2l(Voter)
                                    || {_Time, Voter, _Raw3} <- VoteInfos],
                      io:format(PP#pp.dev, "~s\n",

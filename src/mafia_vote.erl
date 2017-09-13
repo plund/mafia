@@ -284,9 +284,10 @@ set_death_msgid(G, M, DeadB, [DeathMsg], DeathComment) ->
             {?error, player_not_dead}
     end.
 
+%% return previous part of line stopping early at ".:;!"
 pre_to_nl(HStrU) ->
     RevStr = ?lrev(HStrU),
-    RevStr2 = lists:takewhile(fun(C) -> not lists:member(C, ".\n") end,
+    RevStr2 = lists:takewhile(fun(C) -> not lists:member(C, ".;:!\n") end,
                               RevStr),
     ?lrev(RevStr2).
 

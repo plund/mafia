@@ -273,7 +273,9 @@ print_votesI(PPin) ->
     ModMsgV = ?getv(?mod_msg),
     DoDispModMsg = is_integer(PP#pp.use_time)
         andalso is_list(ModMsgV) andalso ModMsgV /= "",
-    GName = ?b2l(G#mafia_game.name),
+    GName = if G#mafia_game.name == ?undefined -> "(No Name)";
+               true -> ?b2l(G#mafia_game.name)
+            end,
     HTitle =
         if PP#pp.mode == ?text ->
                 io:format(PP#pp.dev,

@@ -209,7 +209,7 @@ kill_player(G, M, DeadB, DeathComment, true) ->
                    is_deleted = false
                   },
     NewDeaths = add_modify_deaths(Death, G),
-    update_day_rec(G, Death),
+    update_day_rec(G, M, Death),
     G2 = G#mafia_game{players_rem = NewRems,
                       player_deaths = NewDeaths},
     ?dwrite_game(G2),
@@ -240,7 +240,7 @@ kill_player(G, M, DeadB, DeathComment, false) ->
                          "WARNING: Death moved between day records "
                          "Not fixed! Do refresh_votes()");
                true ->
-                    update_day_rec(G2, Death),
+                    update_day_rec(G2, M, Death),
                     mafia_web:regen_history(M, {G2, DeathPhase})
             end,
             {{ok, DeathPhase}, G2};
@@ -276,7 +276,7 @@ set_death_msgid(G, M, DeadB, [DeathMsg], DeathComment) ->
                          "WARNING: Death moved between day records "
                          "Not fixed! Do refresh_votes()");
                true ->
-                    update_day_rec(G2, Death),
+                    update_day_rec(G2, M, Death),
                     mafia_web:regen_history(DeathMsg, {G2, DeathPhase})
             end,
             ok;
@@ -348,15 +348,19 @@ is_end_of_phase(M, G) ->
 
 %% In case someone votes before GM annouce dead, the day record
 %% will have too many remaining players
-update_day_rec(G, Death) ->
-    case Death#death.phase of
+update_day_rec(G, M, Death) ->
+    TimeMsg = M#message.time,
+    PhaseMsg = mafia_time:calculate_phase(G, TimeMsg),
+    case PhaseMsg of
         Phase = #phase{don = ?day} ->
             D = ?rday(G, Phase),
-            NewDeaths = add_modify_deaths(Death, D),
+            %% NewDeaths = add_modify_deaths(Death, D),
             NewRems = D#mafia_day.players_rem -- [Death#death.player],
             ?dwrite_day(
-               D#mafia_day{players_rem = NewRems,
-                           player_deaths = NewDeaths});
+               D#mafia_day{players_rem = NewRems
+                           %% ,
+                           %% player_deaths = NewDeaths
+                          });
         _ -> ok
     end.
 

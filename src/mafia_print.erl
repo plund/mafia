@@ -668,22 +668,31 @@ print_votesI(PPin) ->
                 end;
            PP#pp.mode == ?html ->
                 GameThId = (PP#pp.game)#mafia_game.thread_id,
-                if is_integer(GameThId) ->
-                        GameLink = [?UrlBeg, ?i2l(GameThId)],
-                        ["<tr><td align=center><br>",
-                         if is_integer(PP#pp.period) ->
-                                 ["Updates currently every ",
-                                  ?i2l(PP#pp.period),
-                                  " minutes (more often near deadlines)."
-                                  "<br>"];
-                            true -> []
-                         end,
-                         ["Mafia game thread at: "
-                          "<a href=\"", GameLink, "\">",
-                          GameLink, "</a>"],
-                         "</td></tr>"];
-                   true -> ""
-                end
+                [if is_integer(GameThId) ->
+                         GameLink = [?UrlBeg, ?i2l(GameThId)],
+                         ["<tr><td align=center><br>",
+                          if is_integer(PP#pp.period) ->
+                                  ["Updates currently every ",
+                                   ?i2l(PP#pp.period),
+                                   " minutes (more often near deadlines)."
+                                   "<br>"];
+                             true -> []
+                          end,
+                          ["Mafia game thread at: "
+                           "<a href=\"", GameLink, "\">",
+                           GameLink, "</a>"],
+                          "</td></tr>"];
+                    true -> ""
+                 end,
+                 if DoDispTime2DL ->
+                         ["<tr><td align=center><br>",
+                          "Server time offset: ",
+                          mafia_web:get_ntp_offset(),
+                          "</td></tr>"
+                         ];
+                    true -> ""
+                 end
+                ]
         end,
     if PP#pp.mode == ?text -> ok;
        PP#pp.mode == ?html ->

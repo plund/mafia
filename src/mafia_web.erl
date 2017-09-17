@@ -25,6 +25,7 @@
          stop_httpd/1,
 
          get_state/0,
+         get_ntp_offset/0,
 
          change_current_game/1,
          regen_history/2,
@@ -50,7 +51,9 @@
          dl_time :: ?undefined | seconds1970(),
          web_pid :: ?undefined | pid(),
          tls_pid :: ?undefined | pid(),
-         game_num :: ?undefined | integer()
+         game_num :: ?undefined | integer(),
+         offset_timer :: ?undefined | timer:tref(),
+         ntp_offset_secs = 0.0 :: float()
         }).
 
 %%%===================================================================
@@ -120,6 +123,15 @@ stop_httpd(b) ->
 get_state()  ->
     gen_server:call(?SERVER, get_state).
 
+get_ntp_offset()  ->
+    case catch gen_server:call(?SERVER, get_ntp_offset, 200) of
+        {'EXIT', _} -> "Unknown NTP offset";
+        OffsetSecs when is_float(OffsetSecs) ->
+            OffsMilliStr = float_to_list(OffsetSecs * 1000,
+                                         [{decimals, 3}]),
+            OffsMilliStr ++ " millisecs"
+    end.
+
 %%--------------------------------------------------------------------
 %% @doc Update current text page
 %% @end
@@ -168,7 +180,10 @@ regen_history(Time, GNum) ->
 init([Arg]) ->
     mafia:setup_mnesia(),
     GameKey = ?getv(?game_key),
-    State = start_web(#state{game_num = GameKey}),
+    {ok, OffsetTimer} = init_ntp_offset(),
+    State0 = #state{game_num = GameKey,
+                    offset_timer = OffsetTimer},
+    State = start_web(State0),
     S2 = set_dl_timer(State),
     TimerMins = case ?getv(?timer_minutes) of
                     ?undefined -> 10;
@@ -183,6 +198,10 @@ init([Arg]) ->
             ?dbg(start_no_polling),
             {ok, S2}
     end.
+
+init_ntp_offset() ->
+    ?SERVER ! check_ntp_offset,
+    timer:send_interval(10 * ?MINUTE_MS, check_ntp_offset).
 
 %%--------------------------------------------------------------------
 %% @private
@@ -213,6 +232,8 @@ handle_call({change_current_game, GNum}, _From, State) ->
     {reply, Reply, S4};
 handle_call(get_state, _From, State) ->
     {reply, state_as_kvs(State), State};
+handle_call(get_ntp_offset, _From, State) ->
+    {reply, State#state.ntp_offset_secs, State};
 handle_call({set_timer_interval, N}, _From, State) ->
     {Reply, S2} = set_timer_interval(State, N),
     self() ! do_polling,
@@ -282,6 +303,25 @@ handle_info(do_polling, State) ->
     end,
     update_current(S2),
     {noreply, S2};
+handle_info(check_ntp_offset, State) ->
+    ?dbg({check_ntp_offset, time()}),
+    %% should be called once every 10 min
+    %% server 17.253.38.125, stratum 1, offset -0.015001, delay 0.02968
+    spawn(fun() ->
+                  NtpStr = os:cmd("ntpdate -q time.euro.apple.com"),
+                  ?SERVER ! {ntp_offset_cmd_out, NtpStr}
+          end),
+    {noreply, State};
+handle_info({ntp_offset_cmd_out, NtpStr}, State) ->
+    %% ?dbg({ntp_offset_cmd_out, NtpStr}),
+    Lines = string:tokens(NtpStr, "\n"),
+    Ms = [re:run(L, ".*offset ([-.0-9]*).*", [{capture, [1], list}])
+          || L <- Lines],
+    Offs = [list_to_float(FloatStr) || {match, [FloatStr]} <- Ms],
+    NumOffVals = length(Offs),
+    AvgOffset = lists:sum(Offs) / NumOffVals,
+    ?dbg({ntp_offset_avg, NumOffVals, AvgOffset}),
+    {noreply, State#state{ntp_offset_secs = AvgOffset}};
 handle_info(_Info, State) ->
     {noreply, State}.
 

@@ -69,6 +69,7 @@ front_page(Sid, _Env, In) ->
     SignupLink =
         if G#mafia_game.signup_thid /= ?undefined ->
                 [" href=\"http://webdiplomacy.net/forum.php?threadID=",
+                 ?i2l(G#mafia_game.signup_thid), "#",
                  ?i2l(G#mafia_game.signup_thid),
                  "\""
                 ];

@@ -12,7 +12,8 @@
 %% interface
 -export([man_downl/0, % Human
          man_downl/1, % Human
-         downl_web/1  % from web
+         downl_web/1, % from web
+         downl_web/2  % from web
         ]).
 
 %% library
@@ -126,14 +127,20 @@ do_download(S) ->
 %% -----------------------------------------------------------------------------
 %% Automatic triggered downloads
 
--spec downl_web(integer() | #mafia_game{} | [#mafia_game{}]) -> ok.
-downl_web(GNum) when is_integer(GNum) ->
-    downl_web(?rgame(GNum));
-downl_web([]) -> ok;
-downl_web([G]) -> downl_web(G);
+-spec downl_web(integer()) -> ok.
+downl_web(GNum) ->
+    downl_web(GNum, ?undefined).
+
+downl_web(GNum, DL) when is_integer(GNum) ->
+    downl_web(?rgame(GNum), DL);
+downl_web([], _) -> ok;
+downl_web([G], DL) -> downl_web(G, DL);
+
 downl_web(G = #mafia_game{thread_id = GThId,
-                          signup_thid = SuThId})
+                          signup_thid = SuThId},
+          DL)
   when is_integer(GThId); is_integer(SuThId) ->
+    SystemTime1 = system_time_millisec(),
     {ThId, IsPregame} =
         if is_integer(GThId) -> {GThId, false};
            is_integer(SuThId) -> {SuThId, true}
@@ -164,9 +171,42 @@ downl_web(G = #mafia_game{thread_id = GThId,
                                 S3#s.last_msg_id,
                                 S3#s.last_msg_time)
     end,
+    maybe_log_dl(DL, G#mafia_game.game_num, S3, SystemTime1),
     ok;
-downl_web(#mafia_game{}) -> %% pre-game
+downl_web(#mafia_game{}, _) -> %% pre-game
     ok.
+
+%% Fix me!
+maybe_log_dl(?undefined, _, _, _) -> ok;
+maybe_log_dl(#dl{phase = #phase{don = DoN, num = Num},
+                 time = DlTime},
+             GNum,
+             S,
+             SystemTime1) ->
+    FN = mafia_file:deadline_fn(GNum),
+    SystemTime2 = system_time_millisec(),
+    DeadlineInfo =
+        "{" ++
+        string:join([?i2l(GNum),
+                     string:left(atom_to_list(DoN), 1),
+                     ?i2l(Num),
+                     ?i2l(S#s.page_to_read),
+                     ?i2l(S#s.last_msg_id),
+                     ?i2l(S#s.last_msg_time),
+                     ?i2l(DlTime),
+                     ?i2l(SystemTime1),
+                     ?i2l(SystemTime2)
+                    ],
+                    ", ") ++
+        "}.\n",
+    file:write_file(FN, DeadlineInfo, [append]).
+
+%% for mafia_time
+system_time_millisec() ->
+    erlang:convert_time_unit(
+      os:system_time(),
+      native,
+      millisecond).
 
 check_db(S) ->
     InitPage = S#s.page_to_read,
@@ -360,6 +400,11 @@ checkvote_fun(G, DoPrint) ->
                                  PrevMsgT = Acc#acc.last_msg_time,
                                  DL = hd(Acc#acc.dls),
                                  DeadT = DL#dl.time,
+%%% Here the logic for when reaching the deadline needs to be modified.
+%%% 1 find out if the deadline is a day deadline (DDL)
+%%% 2 for a DDL, do we have a msgid stored as the last one (DDL_LMI)
+%%% 3 If DDL_LMI, check MsgId == DDL_LMI
+%%%   else use DeadT as below/before
                                  if PrevMsgT < DeadT, DeadT =< MsgTime ->
                                          %% dl reached => generate
                                          gen_hist_and_get_dls(MsgTime, Acc);

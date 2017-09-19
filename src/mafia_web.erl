@@ -285,10 +285,13 @@ handle_cast(Msg, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_info({?deadline3min, DL}, State) ->
+    ?dbg({?deadline3min, DL}),
+    S2 = set_dl_timer(State, DL#dl.time),
+    {noreply, S2};
 handle_info({?deadline, DL}, State) ->
-    %% THIS work well when not refreshing!! Should start after...
-    %% While refreshing we need to look at message timestamps in
-    %% order to see when we have reached/passed the next deadline
+    ?dbg({?deadline, DL}),
+    mafia_data:downl_web(State#state.game_num, DL),
     regen_historyI(DL#dl.time, State#state.game_num),
     S2 = set_dl_timer(State, DL#dl.time),
     {noreply, S2};
@@ -315,6 +318,7 @@ handle_info(check_ntp_offset, State) ->
 handle_info({ntp_offset_cmd_out, NtpStr}, State) ->
     %% ?dbg({ntp_offset_cmd_out, NtpStr}),
     Lines = string:tokens(NtpStr, "\n"),
+    %% negative offset value means that the local clock is lagging behind
     Ms = [re:run(L, ".*offset ([-.0-9]*).*", [{capture, [1], list}])
           || L <- Lines],
     Offs = [list_to_float(FloatStr) || {match, [FloatStr]} <- Ms],
@@ -583,6 +587,9 @@ maybe_change_timer(S = #state{timer = TRef,
        true -> {no_change, S}
     end.
 
+-define(_10minMs, 10 * 60 * 1000).
+-define(_3minMs, 3 * 60 * 1000).
+
 set_dl_timer(S) -> set_dl_timer(S, mafia_time:utc_secs1970()).
 
 set_dl_timer(S, Time) ->
@@ -596,15 +603,27 @@ set_dl_timer(S, Time, G) ->
     case mafia_time:get_nxt_deadline(G, Time) of
         #dl{phase = #phase{don = ?game_ended}} -> S2;
         DL = #dl{} ->
-            SecsRem = DL#dl.time - Time,
-            if SecsRem >= 0 ->
-                    {ok, TRef} =
-                        timer:send_after(SecsRem * 1000, {?deadline, DL}),
-                    S2#state{dl_timer = TRef,
-                             dl_time = DL#dl.time};
-               true -> S2
-            end
+            %% os:system_time() is "unixtime" with high precision
+            NtpOffsetMilliSecs = round(S#state.ntp_offset_secs * 1000),
+            RemMs = DL#dl.time * 1000
+                - erlang:convert_time_unit(os:system_time(),
+                                           native,
+                                           millisecond)
+                + NtpOffsetMilliSecs,
+            set_dl_timer2(S2, DL, RemMs)
     end.
+
+set_dl_timer2(S, DL, RemMs) when RemMs > ?_10minMs ->
+    DelayMs = RemMs - ?_3minMs,
+    set_dl_timer3(S, ?deadline3min, DL, DelayMs);
+set_dl_timer2(S, DL, RemMs) when RemMs > 0 ->
+    set_dl_timer3(S, ?deadline, DL, RemMs);
+set_dl_timer2(S, _, _) -> S.
+
+set_dl_timer3(S, DeadlineType, DL, DelayMs) ->
+    {ok, TRef} = timer:send_after(DelayMs, {DeadlineType, DL}),
+    S#state{dl_timer = TRef,
+            dl_time = DL#dl.time}.
 
 cancel_dl_timer(S) ->
     if S#state.dl_timer /= ?undefined ->

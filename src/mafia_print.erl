@@ -669,7 +669,8 @@ print_votesI(PPin) ->
            PP#pp.mode == ?html ->
                 GameThId = (PP#pp.game)#mafia_game.thread_id,
                 [if is_integer(GameThId) ->
-                         GameLink = [?UrlBeg, ?i2l(GameThId)],
+                         ThStr = ?i2l(GameThId),
+                         GameLink = [?UrlBeg, ThStr, "#", ThStr],
                          ["<tr><td align=center><br>",
                           if is_integer(PP#pp.period) ->
                                   ["Updates currently every ",

@@ -96,6 +96,7 @@
 -define(start_polling, start_polling).
 -define(stop_polling, stop_polling).
 -define(stopped, stopped).
+-define(deadline3min, deadline3min).
 -define(deadline, deadline).
 
 %% KV keys

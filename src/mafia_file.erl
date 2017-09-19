@@ -15,6 +15,7 @@
          %%                       (for web page)
          game_link_and_text/3,
          cnt_filename/0,
+         deadline_fn/1,
 
          get_path/1
         ]).
@@ -99,6 +100,14 @@ cnt_filename() ->
     Suffix = filename_timestamp_suffix(),
     FN = "counters_" ++ Suffix ++ ".txt",
     filename:join(DirName, FN).
+
+%% "game_data/m31/deadline_info.txt".
+deadline_fn(GNum) ->
+    Dir1 = "game_data",
+    verify_exist(Dir1),
+    Dir2 = filename:join(Dir1, "m" ++ ?i2l(GNum)),
+    verify_exist(Dir2),
+    filename:join(Dir2, "deadline_info.txt").
 
 filename_timestamp_suffix() ->
     %% down to secs, utc

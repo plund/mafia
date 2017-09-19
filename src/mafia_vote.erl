@@ -299,14 +299,16 @@ get_line_at(Pos, Msg) ->
     RightLine = lists:takewhile(NotNlF, Right),
     LeftLine ++ RightLine.
 
--spec add_modify_deaths(#death{}, #mafia_game{} | #mafia_day{})
-               -> NewDeaths :: [#death{} | #replacement{}].
-add_modify_deaths(D, G=#mafia_game{})->
+-spec add_modify_deaths(#death{},
+                        #mafia_game{}%% | #mafia_day{}
+                       )
+                       -> NewDeaths :: [#death{} | #replacement{}].
+add_modify_deaths(D, G = #mafia_game{}) ->
     Deaths = G#mafia_game.player_deaths,
-    add_deathI(D, Deaths);
-add_modify_deaths(D, Day=#mafia_day{})->
-    Deaths = Day#mafia_day.player_deaths,
     add_deathI(D, Deaths).
+%% add_modify_deaths(D, Day = #mafia_day{})->
+%%     Deaths = Day#mafia_day.player_deaths,
+%%     add_deathI(D, Deaths).
 
 add_deathI(D, Deaths) ->
     Match = fun(#death{player = P}) -> P == D#death.player;
@@ -354,6 +356,8 @@ update_day_rec(G, M, Death) ->
     case PhaseMsg of
         Phase = #phase{don = ?day} ->
             D = ?rday(G, Phase),
+            %% Should we fix death lists in what mafia_day records OR
+            %% remove then totally?
             %% NewDeaths = add_modify_deaths(Death, D),
             NewRems = D#mafia_day.players_rem -- [Death#death.player],
             ?dwrite_day(

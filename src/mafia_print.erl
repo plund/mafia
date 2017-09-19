@@ -56,7 +56,7 @@
     mode = ?text :: ?text | ?html,
     t_mode = ?long :: ?short | ?long | ?local | ?human | ?extensive
                     | ?file_suffix,
-    period :: ?undefined | integer(),   %% Poll period
+    period :: ?undefined | number(),   %% Poll period
     use_time :: ?undefined | seconds1970(),
     %% use_time = time to next DL (current game status)
     time_zone = 0 :: integer(),
@@ -652,12 +652,18 @@ print_votesI(PPin) ->
                 GameThId = (PP#pp.game)#mafia_game.thread_id,
                 if is_integer(GameThId) ->
                         io:format(PP#pp.dev, "\n", []),
-                        if is_integer(PP#pp.period) ->
+                        Per = PP#pp.period,
+                        if is_number(Per) ->
                                 io:format(
                                   PP#pp.dev,
-                                  "Updates currently every ~p minutes "
+                                  "Updates currently every ~s minutes "
                                   "(more often near deadlines).\n",
-                                  [PP#pp.period]);
+                                  [if is_integer(Per) -> ?i2l(Per);
+                                      is_float(Per) ->
+                                           float_to_list(
+                                             Per,
+                                             [{decimals, 2}])
+                                   end]);
                            true -> ok
                         end,
                         io:format(
@@ -671,10 +677,16 @@ print_votesI(PPin) ->
                 [if is_integer(GameThId) ->
                          ThStr = ?i2l(GameThId),
                          GameLink = [?UrlBeg, ThStr, "#", ThStr],
+                         Per = PP#pp.period,
                          ["<tr><td align=center><br>",
-                          if is_integer(PP#pp.period) ->
+                          if is_number(Per) ->
                                   ["Updates currently every ",
-                                   ?i2l(PP#pp.period),
+                                   if is_integer(Per) -> ?i2l(Per);
+                                      is_float(Per) ->
+                                           float_to_list(
+                                             Per,
+                                             [{decimals, 2}])
+                                   end,
                                    " minutes (more often near deadlines)."
                                    "<br>"];
                              true -> []

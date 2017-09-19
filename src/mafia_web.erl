@@ -46,7 +46,7 @@
 
 -record(state,
         {timer :: ?undefined | timer:tref(),
-         timer_minutes :: ?undefined | ?stopped | integer(),
+         timer_minutes :: ?undefined | ?stopped | number(),
          dl_timer :: ?undefined | timer:tref(),
          dl_time :: ?undefined | seconds1970(),
          web_pid :: ?undefined | pid(),
@@ -633,15 +633,15 @@ cancel_dl_timer(S) ->
     flush({?deadline, any}),
     S#state{dl_timer = ?undefined}.
 
--spec set_timer_interval(#state{}, integer()) -> {Reply :: term(), #state{}}.
-set_timer_interval(S, N) when is_integer(N), N >= 1 ->
+-spec set_timer_interval(#state{}, number()) -> {Reply :: term(), #state{}}.
+set_timer_interval(S, TMins) when is_number(TMins), TMins > 0 ->
     S2 = cancel_timer_interval(S),
-    {ok, TRef} = timer:send_interval(N * ?MINUTE_MS, do_polling),
+    {ok, TRef} = timer:send_interval(trunc(TMins * ?MINUTE_MS), do_polling),
     Reply = {interval_changed,
              {old, S2#state.timer_minutes},
-             {new, N}},
+             {new, TMins}},
     {Reply, S2#state{timer = TRef,
-                     timer_minutes = N}}.
+                     timer_minutes = TMins}}.
 
 cancel_timer_interval(S) ->
     if S#state.timer /= ?undefined ->

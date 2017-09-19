@@ -577,7 +577,7 @@ nearest_deadline(G = #mafia_game{}, Time) ->
 
 %% -----------------------------------------------------------------------------
 
--spec timer_minutes(GNum :: thread_id()) -> none | integer().
+-spec timer_minutes(GNum :: thread_id()) -> none | number().
 timer_minutes(GNum) ->
     case ?getv(?timer_minutes) of
         Mins when is_integer(Mins), Mins > 0 ->
@@ -593,9 +593,13 @@ timer_minutes(GNum) ->
     end.
 
 -define(m2s(Min), (Min * ?MinuteSecs)).
+
+-spec t_mins(atom(), integer()) -> number().
 %%   Day nearest
 t_mins(?day, T) when T < ?m2s(-90) -> 3;
 t_mins(?day, T) when T < ?m2s(-30) -> 2;
+t_mins(?day, T) when T < ?m2s(-5) -> 0.88; % experimental
+t_mins(?day, T) when T < ?m2s(5) -> 0.334;
 t_mins(?day, T) when T < ?m2s(30) -> 1;
 t_mins(?day, T) when T < ?m2s(90) -> 2;
 t_mins(?day, T) when T >= ?m2s(90) -> 3;

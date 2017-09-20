@@ -1241,8 +1241,15 @@ game_nums_rev_sort() -> ?lrev(lists:sort(mnesia:dirty_all_keys(mafia_game))).
 %% ----------------------------------------------------------------------------
 
 get_gnum("") -> ?getv(?game_key);
-get_gnum("m" ++ NumStr) -> ?l2i(NumStr);
-get_gnum(NumStr) -> ?l2i(NumStr).
+get_gnum("m" ++ NumStr) ->
+    get_gnum(NumStr);
+get_gnum(NumStr) ->
+    case catch ?l2i(NumStr) of
+        Int when is_integer(Int) ->
+            Int;
+        _ ->
+            ?dbg({illegal_game_number, NumStr})
+    end.
 
 error_resp(Sid, Specific) ->
     Html = [?HTML_TAB_START("Game Status", " border=\"0\""),

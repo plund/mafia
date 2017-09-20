@@ -54,7 +54,6 @@
 -define(inc_cnt(CntName), mafia_lib:inc_cnt(CntName)).
 -define(inc_cnt(CntName, Inc), mafia_lib:inc_cnt(CntName, Inc)).
 -define(inc_cnt(CntName, Args, Inc), mafia_lib:inc_cnt(CntName, Args, Inc)).
--define(thid(Id), mafia_lib:thid(Id)).
 -define(set(K, V), mafia_db:set(K, V)).
 -define(getv(K), mafia_db:getv(K)).
 

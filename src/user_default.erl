@@ -32,8 +32,8 @@
 grep(Str) -> mafia_data:grep(Str).
 grep(Str, Mode) -> mafia_data:grep(Str, Mode).
 rmess(MsgId) -> ?rmess(MsgId).
-rpage(ThId, Page) -> ?rpage(?thid(ThId), Page).
-rday(ThId, DayNum) -> ?rday(?thid(ThId), DayNum).
+rpage(GNum, Page) -> ?rpage(GNum, Page).
+rday(GNum, DayNum) -> ?rday(GNum, DayNum).
 rgame(GNum) when is_integer(GNum) -> ?rgame(GNum).
 ruser(Name) -> ?ruser(Name).
 
@@ -160,9 +160,6 @@ mafia:show_all_aliases()        - Display all defined
 mafia:show_aliases(Search)      - User search string.
 mafia:add_alias(User, Alias)    - Add one alias
 mafia:remove_alias(User, Alias) - Remove one alias
-
-mafia:add_thread(atom(), integer()) - add thread name
-mafia:rm_thread(atom() | integer()) - remove thread name
 ").
 
 help() ->

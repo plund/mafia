@@ -29,9 +29,6 @@
          alpha_sort/1,
          to_bin_sort/1,
          bgcolor/1,
-         thid/1,
-         gamename_to_thid/1,
-         game_name/1,
 
          re_matches/2,
          merge_intervals/1,
@@ -110,9 +107,8 @@ dwrite_page(P) ->
 pages_for_thread(ThId) ->
     [P || {_, P} <- all_page_keys(ThId)].
 
-all_page_keys(Id) ->
-    ThId = ?thid(Id),
-    [K || K = {T,_} <- all_page_keys(), T == ThId].
+all_page_keys(GNum) ->
+    [K || K = {N, _} <- all_page_keys(), N == GNum].
 
 all_page_keys() ->
     lists:sort([ K || K <- mnesia:dirty_all_keys(page_rec), [] /= rpage(K)]).
@@ -377,54 +373,6 @@ brightness2(R, G, B) -> 0.299 * R * R + 0.587 * G * G + 0.114 * B * B.
 
 bgcolorI(ColorStr) ->
     [" bgcolor=\"#", ColorStr, "\""].
-
-%% -----------------------------------------------------------------------------
-
-thid(ThId) when is_integer(ThId) ->
-    ThId;
-thid(GN) when is_atom(GN) ->
-    case gamename_to_thid(GN) of
-        ThId when is_integer(ThId) ->
-            ThId;
-        ?undefined ->
-            {?error, {?undefined, GN}}
-    end.
-
-gamename_to_thid(GN) when is_atom(GN) ->
-    case ?getv(?reg_threads) of
-        ?undefined -> ?undefined;
-        Regs ->
-            case lists:keyfind(GN, 1, Regs) of
-                {_, ThId} ->
-                    io:format("Translating ~p to ~p\n", [GN, ThId]),
-                    ThId;
-                false -> ?undefined
-            end
-    end.
-
-%% -----------------------------------------------------------------------------
-
-game_name(GN) when is_atom(GN) ->
-    GN;
-game_name(ThId) when is_integer(ThId) ->
-    case thid_to_gamename(ThId) of
-        ?undefined ->
-            {?error, {?undefined, ThId}};
-        GN when is_atom(GN) ->
-            GN
-    end.
-
-thid_to_gamename(ThId) when is_integer(ThId) ->
-    case ?getv(?reg_threads) of
-        ?undefined -> ?undefined;
-        Regs ->
-            case lists:keyfind(ThId, 2, Regs) of
-                {GN, _} ->
-                    io:format("Translating ~p to ~p\n", [ThId, GN]),
-                    GN;
-                false -> ?undefined
-            end
-    end.
 
 %% -----------------------------------------------------------------------------
 

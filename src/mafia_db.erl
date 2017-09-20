@@ -10,8 +10,6 @@
          unset/1,
          getv/1,
          getv/2,
-         add_thread/2,
-         rm_thread/1,
 
          setup_mnesia/0,
          remove_mnesia/0,
@@ -278,9 +276,7 @@ set(K=?server_keeper, U) ->
         [] -> {error, user_not_in_db}
     end;
 set(K=?thread_id, V) when is_integer(V), V > 0 -> set_kv(K, V);
-set(K=?thread_id, V) when is_atom(V) -> set_kv(K, ?thid(V));
 set(K=?game_key, V) when is_integer(V), V > 0 -> set_kv(K, V);
-set(K=?game_key, V) when is_atom(V) -> set_kv(K, ?thid(V));
 set(K=?page_to_read, V) when is_integer(V), V > 0 -> set_kv(K, V);
 set(K=?timer_minutes, V) when is_integer(V)-> set_kv(K, V);
 set(K=?timezone_user, V) when is_integer(V), -12 =< V, V =< 12 -> set_kv(K, V);
@@ -299,51 +295,8 @@ unset(K=?timer_minutes) -> remk(K).
 
 remk(Key) -> mnesia:dirty_delete(kv_store, Key).
 
-set_kv(?game_key, {?error, {?undefined, GName}}) ->
-    set_kv(?game_key, GName);
 set_kv(Key, Value) ->
     ?dwrite_kv(#kv_store{key = Key, value = Value}).
-
--spec add_thread(atom(), thread_id())
-                -> {reg_add | reg_exists_already | reg_thid_changes,
-                    Details :: term()}.
-add_thread(ThName, ThId) ->
-    Regs = case ?getv(?reg_threads) of ?undefined -> []; L -> L end,
-    New = {ThName, ThId},
-    case lists:keyfind(ThName, 1, Regs) of
-        false ->
-            set_kv(?reg_threads, [New | Regs]),
-            {reg_add, New};
-        {_, ThId} ->
-            {reg_exists_already, New};
-        {_, OldThId} ->
-            Regs2 = lists:keyreplace(ThName, 1, Regs, New),
-            set_kv(?reg_threads, Regs2),
-            {reg_thid_changes, {ThName, {OldThId, ThId}}}
-    end.
-
--spec rm_thread(atom() | thread_id())
-               ->  {reg_rm_ok | reg_rm_error, Details :: term()}.
-rm_thread(ThName) when is_atom(ThName) ->
-    Regs = case getv(?reg_threads) of ?undefined -> []; L -> L end,
-    case lists:keyfind(ThName, 1, Regs) of
-        false ->
-            {reg_rm_error, thread_name_not_found};
-        Item ->
-            Regs2 = Regs -- [Item],
-            set_kv(?reg_threads, Regs2),
-            {reg_rm_ok, {item, Item}}
-    end;
-rm_thread(ThId) when is_integer(ThId) ->
-    Regs = case getv(?reg_threads) of ?undefined -> []; L -> L end,
-    case lists:keyfind(ThId, 2, Regs) of
-        false ->
-            {reg_rm_error, thread_id_not_found};
-        Item ->
-            Regs2 = Regs -- [Item],
-            set_kv(?reg_threads, Regs2),
-            {reg_rm_ok, {item, Item}}
-    end.
 
 create_tables() ->
     create_table(kv_store),

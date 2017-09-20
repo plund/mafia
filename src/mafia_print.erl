@@ -96,8 +96,8 @@ pp(Page) ->
     ThId = ?getv(?thread_id),
     pp(ThId, Page).
 
-pp(Id, Page) ->
-    ppI(?thid(Id), Page).
+pp(GNum, Page) ->
+    ppI(GNum, Page).
 
 ppI(E = {?error, _}, _Page) -> E;
 ppI(ThId, Page) ->
@@ -121,8 +121,8 @@ pps(Page) when is_integer(Page) ->
     ThId = ?getv(?thread_id),
     pps(ThId, Page).
 
-pps(Id, Page) ->
-    ppsI(?thid(Id), Page).
+pps(GNum, Page) ->
+    ppsI(GNum, Page).
 
 ppsI(E = {?error, _}, _Page) -> E;
 ppsI(ThId, Page) ->

@@ -106,7 +106,6 @@
 -define(game_key, game_key).
 -define(mod_msg, mod_msg).
 -define(page_to_read, page_to_read).
--define(reg_threads, reg_threads).
 -define(server_keeper, server_keeper).
 -define(thread_id, thread_id).
 -define(time_offset, time_offset). %% integer in seconds

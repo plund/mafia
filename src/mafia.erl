@@ -1,7 +1,8 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% remove game_info.txt
+%% On server: mnesia:dirty_delete(kv_store, reg_threads).
+%%            move "game_info.txt" to "old/"
 %% clean up deaths in mafia_day records
 %% coordinate poll_timer and dl_timer. "No poll at dl"
 %% Make use of deadline_info.txt when generating history pages at deadline and at player death at End of Day/Night
@@ -64,8 +65,6 @@
          print_messages/1,
 
          man_downl/0,
-         add_thread/2,
-         rm_thread/1,
          show_settings/0,
          refresh_messages/0,
          refresh_messages/1,
@@ -121,23 +120,11 @@ print_votes() -> mafia_print:print_votes().
 print_votes(DayNum) -> mafia_print:print_votes(DayNum).
 print_votes(DayNum, DoN) -> mafia_print:print_votes(DayNum, DoN).
 print_messages(User) -> mafia_print:print_messages(User).
-
 man_downl() -> mafia_data:man_downl().
-
--spec add_thread(atom(), thread_id())
-                -> {reg_add | reg_exists_already | reg_thid_changes,
-                    Details :: term()}.
-add_thread(ThName, ThId) -> mafia_db:add_thread(ThName, ThId).
-
--spec rm_thread(atom() | thread_id())
-               ->  {reg_rm_ok | reg_rm_error, Details :: term()}.
-rm_thread(ThNameOrId) -> mafia_db:rm_thread(ThNameOrId).
-
 setup_mnesia() -> mafia_db:setup_mnesia().
 remove_mnesia() -> mafia_db:remove_mnesia().
 upgrade() -> mafia_upgrade:upgrade().
 upgrade(Tab) -> mafia_upgrade:upgrade(Tab).
-
 refresh_messages() -> mafia_data:refresh_messages().
 refresh_messages(GNum) -> mafia_data:refresh_messages(GNum).
 
@@ -164,10 +151,7 @@ show_game_pages(GNum) when is_integer(GNum) ->
             show_game_pagesI(ThId);
         [_] ->
             io:format("Game has no thread id\n")
-    end;
-show_game_pages(Id) when is_atom(Id) ->
-    ThId = ?thid(Id),
-    show_game_pagesI(ThId).
+    end.
 
 show_game_pagesI(ThId) ->
     [{P, length((hd(?rpage(T,P)))#page_rec.message_ids)}

@@ -693,6 +693,8 @@ game_status(Sid, _Env, In) ->
     GameKey = get_gnum(get_arg(PQ, "g")),
     game_status2(Sid, GameKey, PQ, NotAllowed).
 
+game_status2(Sid, GNum, _PQ, _) when not is_integer(GNum) ->
+    error_resp(Sid, "Invalid game number");
 game_status2(Sid, _GameKey, _PQ, NotAllowed) when NotAllowed /= [] ->
     error_resp(Sid, ["Params not allowed: ",
                 string:join(NotAllowed, ", ")]);

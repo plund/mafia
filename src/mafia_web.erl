@@ -287,7 +287,7 @@ handle_cast(Msg, State) ->
 %%--------------------------------------------------------------------
 handle_info({?deadline3min, DL}, State) ->
     ?dbg({?deadline3min, DL}),
-    S2 = set_dl_timer(State, DL#dl.time),
+    S2 = set_dl_timer(State),
     {noreply, S2};
 handle_info({?deadline, DL}, State) ->
     ?dbg({?deadline, DL}),
@@ -593,12 +593,14 @@ maybe_change_timer(S = #state{timer = TRef,
 set_dl_timer(S) -> set_dl_timer(S, mafia_time:utc_secs1970()).
 
 set_dl_timer(S, Time) ->
+    ?dbg({set_dl_timer, 2}),
     set_dl_timer(S, Time, ?rgame(S#state.game_num)).
 
 set_dl_timer(S, _Time, []) -> S;
 set_dl_timer(S, Time, [G]) ->
     set_dl_timer(S, Time, G);
 set_dl_timer(S, Time, G) ->
+    ?dbg({set_dl_timer, 3}),
     S2 = cancel_dl_timer(S),
     case mafia_time:get_nxt_deadline(G, Time) of
         #dl{phase = #phase{don = ?game_ended}} -> S2;
@@ -621,6 +623,7 @@ set_dl_timer2(S, DL, RemMs) when RemMs > 0 ->
 set_dl_timer2(S, _, _) -> S.
 
 set_dl_timer3(S, DeadlineType, DL, DelayMs) ->
+    ?dbg({set_dl_timer3, DeadlineType, DL, DelayMs}),
     {ok, TRef} = timer:send_after(DelayMs, {DeadlineType, DL}),
     S#state{dl_timer = TRef,
             dl_time = DL#dl.time}.

@@ -2,6 +2,7 @@
 
 -export([manual_cmd_to_file/2,
          manual_cmd_from_file/2,
+         dl_info_to_file/1,
 
          settings_fn/1,
          th_filenames/3, %% FN of thread file, relative run dir
@@ -54,6 +55,11 @@ manual_cmd_from_file(G, Cmd) ->
             end
     end.
 
+dl_info_to_file(PollInfo) ->
+    FN = deadline_fn(PollInfo#dl_poll_info.game_num),
+    DeadlineInfo = lists:flatten(io_lib:format("~999p.\n", [PollInfo])),
+    file:write_file(FN, DeadlineInfo, [append]).
+
 %% -----------------------------------------------------------------------------
 
 settings_fn(GNum) ->
@@ -101,13 +107,13 @@ cnt_filename() ->
     FN = "counters_" ++ Suffix ++ ".txt",
     filename:join(DirName, FN).
 
-%% "game_data/m31/deadline_info.txt".
+%% "game_data/m31/dl_poll_info.txt".
 deadline_fn(GNum) ->
     Dir1 = "game_data",
     verify_exist(Dir1),
     Dir2 = filename:join(Dir1, "m" ++ ?i2l(GNum)),
     verify_exist(Dir2),
-    filename:join(Dir2, "deadline_info.txt").
+    filename:join(Dir2, "dl_poll_info.txt").
 
 filename_timestamp_suffix() ->
     %% down to secs, utc

@@ -1,6 +1,10 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% remove game_info.txt
+%% clean up deaths in mafia_day records
+%% coordinate poll_timer and dl_timer. "No poll at dl"
+%% Make use of deadline_info.txt when generating history pages at deadline and at player death at End of Day/Night
 %% do LATE read of signup thread
 %% Add signup_thid info to all games.
 %% Mnesia overloaded fixes

@@ -598,8 +598,8 @@ timer_minutes(GNum) ->
 %%   Day nearest
 t_mins(?day, T) when T < ?m2s(-90) -> 3;
 t_mins(?day, T) when T < ?m2s(-30) -> 2;
-t_mins(?day, T) when T < ?m2s(-5) -> 0.88; % experimental
-t_mins(?day, T) when T < ?m2s(5) -> 0.334;
+t_mins(?day, T) when T < ?m2s(-5) -> 1;
+t_mins(?day, T) when T < ?m2s(2) -> 0.25;
 t_mins(?day, T) when T < ?m2s(30) -> 1;
 t_mins(?day, T) when T < ?m2s(90) -> 2;
 t_mins(?day, T) when T >= ?m2s(90) -> 3;

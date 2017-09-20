@@ -166,7 +166,17 @@
         }).
 
 -record(cmd,
-        { time :: ?undefined | seconds1970(),
-          msg_id :: ?undefined |  msg_id(),
-          mfa :: ?undefined | mfargs()
+        {time :: ?undefined | seconds1970(),
+         msg_id :: ?undefined |  msg_id(),
+         mfa :: ?undefined | mfargs()
+        }).
+
+-record(dl_poll_info,
+        {game_num,
+         page_to_read,
+         last_msg_id,
+         last_msg_time,
+         dl,
+         time1,
+         time2
         }).

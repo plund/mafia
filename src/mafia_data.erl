@@ -176,32 +176,24 @@ downl_web(G = #mafia_game{thread_id = GThId,
 downl_web(#mafia_game{}, _) -> %% pre-game
     ok.
 
-%% Fix me!
+%% Fix  me!
 maybe_log_dl(?undefined, _, _, _) -> ok;
-maybe_log_dl(#dl{phase = #phase{don = DoN, num = Num},
-                 time = DlTime},
+maybe_log_dl(DL = #dl{phase = #phase{}},
              GNum,
              S,
              SystemTime1) ->
-    FN = mafia_file:deadline_fn(GNum),
     SystemTime2 = system_time_millisec(),
-    DeadlineInfo =
-        "{" ++
-        string:join([?i2l(GNum),
-                     string:left(atom_to_list(DoN), 1),
-                     ?i2l(Num),
-                     ?i2l(S#s.page_to_read),
-                     ?i2l(S#s.last_msg_id),
-                     ?i2l(S#s.last_msg_time),
-                     ?i2l(DlTime),
-                     ?i2l(SystemTime1),
-                     ?i2l(SystemTime2)
-                    ],
-                    ", ") ++
-        "}.\n",
-    file:write_file(FN, DeadlineInfo, [append]).
+    DlInfo = #dl_poll_info{game_num = GNum,
+                           page_to_read = S#s.page_to_read,
+                           last_msg_id = S#s.last_msg_id,
+                           last_msg_time = S#s.last_msg_time,
+                           dl = DL,
+                           time1 = SystemTime1,
+                           time2 = SystemTime2
+                          },
+    mafia_file:dl_info_to_file(DlInfo).
 
-%% for mafia_time
+%% for mafia_time AND add debug time offset.
 system_time_millisec() ->
     erlang:convert_time_unit(
       os:system_time(),

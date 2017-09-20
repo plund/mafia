@@ -318,7 +318,7 @@ handle_info(check_ntp_offset, State) ->
 handle_info({ntp_offset_cmd_out, NtpStr}, State) ->
     %% ?dbg({ntp_offset_cmd_out, NtpStr}),
     Lines = string:tokens(NtpStr, "\n"),
-    %% negative offset value means that the local clock is lagging behind
+    %% negative offset value means that the local clock is ahead
     Ms = [re:run(L, ".*offset ([-.0-9]*).*", [{capture, [1], list}])
           || L <- Lines],
     Offs = [list_to_float(FloatStr) || {match, [FloatStr]} <- Ms],
@@ -611,7 +611,7 @@ set_dl_timer(S, Time, G) ->
                 - erlang:convert_time_unit(os:system_time(),
                                            native,
                                            millisecond)
-                + NtpOffsetMilliSecs,
+                - NtpOffsetMilliSecs,
             set_dl_timer2(S2, DL, RemMs)
     end.
 

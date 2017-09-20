@@ -5,7 +5,10 @@
 %%            move "game_info.txt" to "old/"
 %% clean up deaths in mafia_day records
 %% coordinate poll_timer and dl_timer. "No poll at dl"
-%% Make use of deadline_info.txt when generating history pages at deadline and at player death at End of Day/Night
+%% Make use of dl_poll_info.txt when generating history pages at:
+%%    1) deadline 2) player death at End of Day/Night
+%% Add link game_status > prev_history
+%% Add links on history back and forth in history and to game_status
 %% do LATE read of signup thread
 %% Add signup_thid info to all games.
 %% Mnesia overloaded fixes

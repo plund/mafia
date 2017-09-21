@@ -300,15 +300,15 @@ get_line_at(Pos, Msg) ->
     LeftLine ++ RightLine.
 
 -spec add_modify_deaths(#death{},
-                        #mafia_game{}%% | #mafia_day{}
+                        #mafia_game{} | #mafia_day{}
                        )
                        -> NewDeaths :: [#death{} | #replacement{}].
 add_modify_deaths(D, G = #mafia_game{}) ->
     Deaths = G#mafia_game.player_deaths,
+    add_deathI(D, Deaths);
+add_modify_deaths(D, Day = #mafia_day{})->
+    Deaths = Day#mafia_day.player_deaths,
     add_deathI(D, Deaths).
-%% add_modify_deaths(D, Day = #mafia_day{})->
-%%     Deaths = Day#mafia_day.player_deaths,
-%%     add_deathI(D, Deaths).
 
 add_deathI(D, Deaths) ->
     Match = fun(#death{player = P}) -> P == D#death.player;
@@ -351,21 +351,29 @@ is_end_of_phase(M, G) ->
 %% In case someone votes before GM annouce dead, the day record
 %% will have too many remaining players
 update_day_rec(G, M, Death) ->
-    TimeMsg = M#message.time,
-    PhaseMsg = mafia_time:calculate_phase(G, TimeMsg),
-    case PhaseMsg of
-        Phase = #phase{don = ?day} ->
-            D = ?rday(G, Phase),
-            %% Should we fix death lists in what mafia_day records OR
-            %% remove then totally?
-            %% NewDeaths = add_modify_deaths(Death, D),
-            NewRems = D#mafia_day.players_rem -- [Death#death.player],
-            ?dwrite_day(
-               D#mafia_day{players_rem = NewRems
-                           %% ,
-                           %% player_deaths = NewDeaths
-                          });
-        _ -> ok
+    MsgPhase = mafia_time:calculate_phase(G, M#message.time),
+    DeathPhase = Death#death.phase,
+    IsSamePhase = MsgPhase == DeathPhase,
+    Player = Death#death.player,
+    RemPlayer =
+        fun(D) ->
+                NewRems = D#mafia_day.players_rem -- [Player],
+                D#mafia_day{players_rem = NewRems}
+        end,
+    AddDeath =
+        fun(D) ->
+                NewDeaths = add_modify_deaths(Death, D),
+                D#mafia_day{player_deaths = NewDeaths}
+        end,
+    MDay = ?rday(G, MsgPhase),
+    if IsSamePhase ->
+            MDay2 = RemPlayer(MDay),
+            ?dwrite_day(AddDeath(MDay2));
+       not IsSamePhase ->
+            ?dwrite_day(RemPlayer(MDay)),
+            DDay = ?rday(G, DeathPhase),
+            DDay2 = RemPlayer(DDay),
+            ?dwrite_day(AddDeath(DDay2))
     end.
 
 is_last_non_letter(HStr) ->

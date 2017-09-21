@@ -1,7 +1,6 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% clean up deaths in mafia_day records
 %% coordinate poll_timer and dl_timer. "No poll at dl"
 %% Make use of dl_poll_info.txt when generating history pages at:
 %%    1) deadline 2) player death at End of Day/Night

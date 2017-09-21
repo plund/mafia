@@ -37,9 +37,17 @@ front_page(Sid, _Env, In) ->
     Page = ?b2l(Bin),
     {_, Pre, Post1} = mafia_vote:find_parts(Page, ?CUR_START_MARK),
     {_, _Middle, Post} = mafia_vote:find_parts(Post1, ?CUR_END_MARK),
-    CurDays = ?lrev(mafia_lib:all_day_keys(GameNum)),
     GNStr = ?i2l(GameNum),
     G = hd(?rgame(GameNum)),
+    CurPhase = mafia_time:calculate_phase(G),
+    RevPhases =
+        case G#mafia_game.game_end of
+            ?undefined ->
+                ?lrev(mafia_time:phases_upto(CurPhase));
+            {EndTime, _} ->
+                LastPhase = mafia_time:calculate_phase(G, EndTime - 1),
+                [LastPhase | ?lrev(mafia_time:phases_upto(LastPhase))]
+        end,
     GameNums = ?lrev(mafia_lib:all_keys(mafia_game)),
     Txt = fun(GN) when GN == CurGameNum -> " Current";
              (_) -> ""
@@ -97,14 +105,18 @@ front_page(Sid, _Env, In) ->
          "</th><th>Statistics"
          "</th><th>Vote Tracker"
          "</th></tr>\r\n",
-         [game_day_links(GNStr, DayNum) || {_, DayNum} <- CurDays],
-         ["<tr ", ?BG_MED_GREEN, ">"],
-         "<td>"
-         "<a href=\"game_status?g=", GNStr, "&phase=end\">Game End</a>"
-         "</td><td>"
-         "<a href=\"stats?g=", GNStr, "&phase=end\">Game End</a>"
-         "</td><td>"
-         "</td></tr>\r\n",
+         if CurPhase#phase.don == ?game_ended ->
+                 [["<tr ", ?BG_MED_GREEN, ">"],
+                  "<td>"
+                  "<a href=\"game_status?g=", GNStr, "&phase=end\">Game End</a>"
+                  "</td><td>"
+                  "<a href=\"stats?g=", GNStr, "&phase=end\">Game End</a>"
+                  "</td><td>"
+                  "</td></tr>\r\n"];
+            true -> []
+         end,
+         [game_day_links(DoN, GameNum, DayNum)
+          || #phase{num = DayNum, don = DoN} <- RevPhases],
          ["<tr ", ?BG_MED_GREEN, ">"],
          "<td colspan=3 align=center>"
          "<a href=\"stats?g=", GNStr, "&phase=global\">"
@@ -133,35 +145,34 @@ front_page(Sid, _Env, In) ->
                              Post]),
     {Size, ?none}.
 
-game_day_links(GNStr, DayNum) ->
-    DStr = ?i2l(DayNum),
+game_day_links(?night, GNum, DayNum) ->
     [["<tr ", ?BG_MED_GREEN, ">\r\n"],
-     "<td>"
-     "<a href=\"game_status?g=", GNStr, "&phase=night&num=", DStr,
-     "\">Night ", DStr,
-     "</a>"
+     "<td>",
+     hist_link("game_status", GNum, ?night, DayNum),
+     "</td><td>",
+     hist_link("stats", GNum, ?night, DayNum),
      "</td><td>"
-     "<a href=\"stats?g=", GNStr, "&phase=night&num=", DStr,
-     "\">Night ", DStr,
-     "</a>"
-     "</td><td>"
-     "</td></tr>\r\n",
-
-     ["<tr ", ?BG_MED_GREEN, ">"],
-     "<td>"
-     "<a href=\"game_status?g=", GNStr, "&phase=day&num=", DStr,
-     "\">Day ", DStr,
-     "</a>"
-     "</td><td>"
-     "<a href=\"stats?g=", GNStr, "&phase=day&num=", DStr,
-     "\">Day ", DStr,
-     "</a>"
-     "</td><td>\r\n"
-     "<a href=\"vote_tracker?g=", GNStr, "&day=", DStr,
-     "\">Day ", DStr,
-     "</a>"
+     "</td></tr>\r\n"];
+game_day_links(?day, GNum, DayNum) ->
+     [["<tr ", ?BG_MED_GREEN, ">"],
+     "<td>",
+     hist_link("game_status", GNum, ?day, DayNum),
+     "</td><td>",
+     hist_link("stats", GNum, ?day, DayNum),
+     "</td><td>\r\n",
+     hist_link("vote_tracker", GNum, ?day, DayNum),
      "</td></tr>\r\n"
     ].
+
+hist_link(Page, GNum, DoN, DNum) ->
+    ["<a href=\"", Page, "?g=", ?i2l(GNum), "&phase=", donstr(DoN),
+     "&num=", ?i2l(DNum), "\">", ddonstr(DoN), " ", ?i2l(DNum), "</a>"].
+
+donstr(?night) -> "night";
+donstr(?day) -> "day".
+
+ddonstr(?night) -> "Night";
+ddonstr(?day) -> "Day".
 
 %% -----------------------------------------------------------------------------
 %% replace game selection section in file.

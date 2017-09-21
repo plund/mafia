@@ -32,6 +32,7 @@
          next_deadlines/3,
          calculate_phase/1,
          calculate_phase/2,
+         phases_upto/1,
          find_phase_with_time/2,
          get_nxt_deadline/1,
          get_nxt_deadline/2,
@@ -448,6 +449,9 @@ return_time_left(TimeLeft, DL, ?seconds) ->
 
 %% -----------------------------------------------------------------------------
 
+
+%% -type phase() :: #phase{num = day_num(), don = (?day | ?night)} |
+%%                  #phase{num = ?undefined, don = (?game_ended | ?game_start)}.
 -spec calculate_phase(G :: integer() | #mafia_game{})
                      -> #phase{}.
 calculate_phase(G) ->
@@ -468,6 +472,14 @@ calculate_phase(#mafia_game{game_end = {EndTime, _}}, Time)
 calculate_phase(Game, Time) ->
     DL = get_nxt_deadline(Game, Time),
     DL#dl.phase.
+
+phases_upto(EndPhase) ->
+    phases_upto(EndPhase, #phase{num = 1, don = ?day}, []).
+
+phases_upto(EndPhase, Ph, Acc) when EndPhase > Ph ->
+    phases_upto(EndPhase, inc_phase(Ph), [Ph | Acc]);
+phases_upto(_, _, Acc) ->
+    ?lrev(Acc).
 
 -spec find_phase_with_time(#mafia_game{}, seconds1970()) -> false | #phase{}.
 find_phase_with_time(G, Time) ->

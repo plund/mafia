@@ -13,7 +13,7 @@
 -export([man_downl/0, % Human
          man_downl/1, % Human
          downl_web/1, % from web
-         downl_web/2  % from web
+         downl_web/3  % from web
         ]).
 
 %% library
@@ -129,18 +129,18 @@ do_download(S) ->
 
 -spec downl_web(integer()) -> ok.
 downl_web(GNum) ->
-    downl_web(GNum, ?undefined).
+    downl_web(GNum, ?undefined, ?undefined).
 
-downl_web(GNum, DL) when is_integer(GNum) ->
-    downl_web(?rgame(GNum), DL);
-downl_web([], _) -> ok;
-downl_web([G], DL) -> downl_web(G, DL);
+downl_web(GNum, DL, Offset) when is_integer(GNum) ->
+    downl_web(?rgame(GNum), DL, Offset);
+downl_web([], _, _) -> ok;
+downl_web([G], DL, Offset) -> downl_web(G, DL, Offset);
 
 downl_web(G = #mafia_game{thread_id = GThId,
                           signup_thid = SuThId},
-          DL)
+          DL, Offset)
   when is_integer(GThId); is_integer(SuThId) ->
-    SystemTime1 = system_time_millisec(),
+    SystemTime1 = mafia_time:system_time_ms(),
     {ThId, IsPregame} =
         if is_integer(GThId) -> {GThId, false};
            is_integer(SuThId) -> {SuThId, true}
@@ -171,34 +171,29 @@ downl_web(G = #mafia_game{thread_id = GThId,
                                 S3#s.last_msg_id,
                                 S3#s.last_msg_time)
     end,
-    maybe_log_dl(DL, G#mafia_game.game_num, S3, SystemTime1),
+    maybe_log_dl(DL, G#mafia_game.game_num, S3, SystemTime1, Offset),
     ok;
-downl_web(#mafia_game{}, _) -> %% pre-game
+downl_web(#mafia_game{}, _, _) -> %% pre-game
     ok.
 
-%% Fix  me!
-maybe_log_dl(?undefined, _, _, _) -> ok;
+maybe_log_dl(?undefined, _, _, _, _) -> ok;
 maybe_log_dl(DL = #dl{phase = #phase{}},
              GNum,
              S,
-             SystemTime1) ->
-    SystemTime2 = system_time_millisec(),
+             SystemTime1,
+             NtpOffsetSec) ->
+    SystemTime2 = mafia_time:system_time_ms(),
+    OffsetMicro = trunc(NtpOffsetSec * 1000000),
     DlInfo = #dl_poll_info{game_num = GNum,
                            page_to_read = S#s.page_to_read,
                            last_msg_id = S#s.last_msg_id,
                            last_msg_time = S#s.last_msg_time,
                            dl = DL,
+                           offset = OffsetMicro,
                            time1 = SystemTime1,
                            time2 = SystemTime2
                           },
     mafia_file:dl_info_to_file(DlInfo).
-
-%% for mafia_time AND add debug time offset.
-system_time_millisec() ->
-    erlang:convert_time_unit(
-      os:system_time(),
-      native,
-      millisecond).
 
 check_db(S) ->
     InitPage = S#s.page_to_read,

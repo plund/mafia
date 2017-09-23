@@ -1,6 +1,7 @@
 -module(mafia_time).
 
--export([utc_secs1970/0,
+-export([system_time_ms/0,
+         utc_secs1970/0,
          utc_day1970/0,
          utc_day2date/1,
          date2utc_day/1,
@@ -55,7 +56,14 @@
 -include("mafia.hrl").
 
 %% -----------------------------------------------------------------------------
+-spec system_time_ms() -> milliseconds1970().
+system_time_ms() ->
+    %% os:system_time() is "unixtime" with high precision
+    STime = os:system_time(),
+    erlang:convert_time_unit(STime, native, millisecond)
+        - get_time_offset() * 1000.
 
+-spec utc_secs1970() -> seconds1970().
 utc_secs1970() ->
     utc_secs1970I() - get_time_offset().
 

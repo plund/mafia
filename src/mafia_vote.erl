@@ -13,10 +13,10 @@
 -include("mafia.hrl").
 
 -record(regex,
-        {msg_text_u,
+        {pos,
+         msg_text_u,
          msg_text,
          match,
-         pos,
          pre_match,
          pre_match_u,
          play_repl,
@@ -124,12 +124,11 @@ check_for_deaths(Reg = #regex{}, M, G) ->
           regex_find(SearchU3, Reg)} of
         {{?nomatch, _}, {?nomatch, _}, {?nomatch, _}} -> %% no-one has died
             G;
-        {Pos1, Pos2, Pos3} ->
-            {?match, Reg2} =
-                if element(1, Pos1) == ?match -> Pos1;
-                   element(1, Pos2) == ?match -> Pos2;
-                   true -> Pos3
-                end,
+        Matches ->
+            Rs = [ReRes || {MRes, ReRes} <- tuple_to_list(Matches),
+                           MRes == ?match],
+            Reg2 = lists:min(Rs),
+            ?dbg(M#message.time, {msgid_pos, M#message.msg_id, Reg2#regex.pos}),
             {KilledUserB, DeathComment} =
                 read_death_line(G, Reg#regex.msg_text, Reg2),
             case KilledUserB of

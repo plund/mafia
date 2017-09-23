@@ -186,7 +186,7 @@ init([Arg]) ->
     State = start_web(State0),
     S2 = set_dl_timer(State),
     TimerMins = case ?getv(?timer_minutes) of
-                    ?undefined -> 10;
+                    ?undefined -> 3;
                     V -> V
                 end,
     if Arg == polling ->
@@ -291,7 +291,9 @@ handle_info({?deadline3min, DL}, State) ->
     {noreply, S2};
 handle_info({?deadline, DL}, State) ->
     ?dbg({?deadline, DL}),
-    mafia_data:downl_web(State#state.game_num, DL),
+    mafia_data:downl_web(State#state.game_num,
+                         DL,
+                         State#state.ntp_offset_secs),
     regen_historyI(DL#dl.time, State#state.game_num),
     S2 = set_dl_timer(State, DL#dl.time),
     {noreply, S2};
@@ -581,7 +583,7 @@ maybe_change_timer(S = #state{timer = TRef,
                               game_num = GNum}) ->
     Mins = mafia_time:timer_minutes(GNum),
     if TMins == ?stopped -> {no_change, S};
-       Mins == none -> {cancelled, cancel_timer_interval(S)};
+       Mins == ?none -> {cancelled, cancel_timer_interval(S)};
        TRef == ?undefined; Mins /= TMins ->
             set_timer_interval(S, Mins);
        true -> {no_change, S}
@@ -600,18 +602,16 @@ set_dl_timer(S, _Time, []) -> S;
 set_dl_timer(S, Time, [G]) ->
     set_dl_timer(S, Time, G);
 set_dl_timer(S, Time, G) ->
-    ?dbg({set_dl_timer, 3}),
     S2 = cancel_dl_timer(S),
     case mafia_time:get_nxt_deadline(G, Time) of
         #dl{phase = #phase{don = ?game_ended}} -> S2;
         DL = #dl{} ->
-            %% os:system_time() is "unixtime" with high precision
             NtpOffsetMilliSecs = round(S#state.ntp_offset_secs * 1000),
+            SysTimeMs = mafia_time:system_time_ms(),
             RemMs = DL#dl.time * 1000
-                - erlang:convert_time_unit(os:system_time(),
-                                           native,
-                                           millisecond)
+                - SysTimeMs
                 - NtpOffsetMilliSecs,
+            ?dbg({set_dl_timer, SysTimeMs, NtpOffsetMilliSecs, RemMs}),
             set_dl_timer2(S2, DL, RemMs)
     end.
 

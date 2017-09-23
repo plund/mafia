@@ -24,6 +24,7 @@
 -type alias() :: binary().
 -type user() :: binary().
 -type player() :: user().
+-type milliseconds1970() :: integer().
 -type seconds1970() :: integer().
 -type greg_secs() :: integer().
 -type message() :: binary().
@@ -177,6 +178,7 @@
          last_msg_id,
          last_msg_time,
          dl,
+         offset,
          time1,
          time2
         }).

@@ -181,9 +181,9 @@ maybe_log_dl(DL = #dl{phase = #phase{}},
              GNum,
              S,
              SystemTime1,
-             NtpOffsetSec) ->
+             NtpOffsetSecs) ->
     SystemTime2 = mafia_time:system_time_ms(),
-    OffsetMicro = trunc(NtpOffsetSec * 1000000),
+    OffsetMicro = trunc(NtpOffsetSecs * 1000000),
     DlInfo = #dl_poll_info{game_num = GNum,
                            page_to_read = S#s.page_to_read,
                            last_msg_id = S#s.last_msg_id,

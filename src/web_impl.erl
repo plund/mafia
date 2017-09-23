@@ -164,6 +164,9 @@ game_day_links(?day, GNum, DayNum) ->
      "</td></tr>\r\n"
     ].
 
+hist_link("vote_tracker" = Page, GNum, ?day, DNum) ->
+    ["<a href=\"", Page, "?g=", ?i2l(GNum), "&day=", ?i2l(DNum), "\">Day ",
+     ?i2l(DNum), "</a>"];
 hist_link(Page, GNum, DoN, DNum) ->
     ["<a href=\"", Page, "?g=", ?i2l(GNum), "&phase=", donstr(DoN),
      "&num=", ?i2l(DNum), "\">", ddonstr(DoN), " ", ?i2l(DNum), "</a>"].

@@ -318,7 +318,7 @@ print_votesI(PPin) ->
                  "Text version of this page is found at "
                  "<a href=\"", Href, "\">",
                  Link, "</a>",
-                 "</td></tr>\r\n"]
+                 "</td></tr>"]
         end,
 
     %% Part - Display time Left to Deadline or display End of Game message

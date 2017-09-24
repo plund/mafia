@@ -596,6 +596,8 @@ nearest_deadline(G = #mafia_game{}, Time) ->
     {TDiff, NearestDL}.
 
 %% -----------------------------------------------------------------------------
+%% End refactoring section
+%% -----------------------------------------------------------------------------
 
 -spec timer_minutes(GNum :: thread_id()) -> none | number().
 timer_minutes(GNum) ->
@@ -615,7 +617,7 @@ timer_minutes(GNum) ->
 -define(m2s(Min), (Min * ?MinuteSecs)).
 
 -spec t_mins(atom(), integer()) -> number().
-%%   Day nearest
+%% Day nearest
 t_mins(?day, T) when T < ?m2s(-90) -> 3;
 t_mins(?day, T) when T < ?m2s(-30) -> 2;
 t_mins(?day, T) when T < ?m2s(-5) -> 1;
@@ -623,24 +625,29 @@ t_mins(?day, T) when T < ?m2s(2) -> 0.25;
 t_mins(?day, T) when T < ?m2s(30) -> 1;
 t_mins(?day, T) when T < ?m2s(90) -> 2;
 t_mins(?day, T) when T >= ?m2s(90) -> 3;
-%%  Night nearest
+%% Night nearest
 t_mins(?night, T) when T < ?m2s(-90) -> 3;
 t_mins(?night, T) when T < ?m2s(-30) -> 2;
 t_mins(?night, T) when T < ?m2s(30) -> 1;
 t_mins(?night, T) when T < ?m2s(90) -> 2;
 t_mins(?night, T) when T >= ?m2s(90) -> 3;
-%%  Game starting
+%% Game starting
 t_mins(?game_start, T) when T < ?m2s(-12*60) -> 6;
 t_mins(?game_start, _T) -> 2;
-%%  Game has ended
+%% Game has ended
 t_mins(?game_ended, T) when T < ?m2s(60) -> 2;
 t_mins(?game_ended, T) when T < ?m2s(180) -> 4;
 t_mins(?game_ended, T) when T < ?m2s(360) -> 10;
 t_mins(?game_ended, T) when T < ?m2s(24*60) -> 20;
 t_mins(?game_ended, T) when T >= ?m2s(24*60) -> 120.
 
-%% -----------------------------------------------------------------------------
-%% End refactoring section
+%% fun(PhType, time) -> next timer time + action
+%% day =< 15 s -> DL time + DL action
+%% day =< 5 min -> even 15 sec + poll
+%% day =< 30 min -> even 1 min + poll
+%% day =< 90 min -> even 2 min + poll
+%% day > 90 -> even 3 min + poll
+
 %% -----------------------------------------------------------------------------
 
 end_phase([], _Phase, _Time) -> [];

@@ -13,7 +13,9 @@
          users/3,
          game_settings/3,
 
-         show_msg/2
+         show_msg/2,
+
+         hist_link/5
         ]).
 
 %% for other web modules
@@ -164,12 +166,17 @@ game_day_links(?day, GNum, DayNum) ->
      "</td></tr>\r\n"
     ].
 
-hist_link("vote_tracker" = Page, GNum, ?day, DNum) ->
+%% new module web_lib for the below?
+hist_link(Page, GNum, DoN, DNum) ->
+    LinkF = fun(DoN2, DNum2) -> [ddonstr(DoN2), " ", ?i2l(DNum2)] end,
+    hist_link(Page, GNum, DoN, DNum, LinkF).
+
+hist_link("vote_tracker" = Page, GNum, ?day, DNum, _LinkF) ->
     ["<a href=\"", Page, "?g=", ?i2l(GNum), "&day=", ?i2l(DNum), "\">Day ",
      ?i2l(DNum), "</a>"];
-hist_link(Page, GNum, DoN, DNum) ->
+hist_link(Page, GNum, DoN, DNum, LinkF) ->
     ["<a href=\"", Page, "?g=", ?i2l(GNum), "&phase=", donstr(DoN),
-     "&num=", ?i2l(DNum), "\">", ddonstr(DoN), " ", ?i2l(DNum), "</a>"].
+     "&num=", ?i2l(DNum), "\">", LinkF(DoN, DNum), "</a>"].
 
 donstr(?night) -> "night";
 donstr(?day) -> "day".
@@ -790,9 +797,15 @@ game_status_out_hist(GameKey, Phase, FileName, _) ->
                     do_game_status_out(GameKey, Phase, Title, [])
             end;
         _ ->
-            [?HTML_TAB_START(Title, " border=\"0\""),
-             "<tr><td>Phase has not concluded yet.</td></tr>"
-             ?HTML_TAB_END]
+            CurPhase = mafia_time:calculate_phase(GameKey),
+            if Phase == CurPhase ->
+                    CurTitle = ["Game Status ", mafia_print:print_phase(Phase)],
+                    game_status_out_current(GameKey, Phase, CurTitle);
+               true ->
+                    [?HTML_TAB_START(Title, " border=\"0\""),
+                     "<tr><td align=center>Phase has not begun yet.</td></tr>",
+                     ?HTML_TAB_END]
+            end
     end.
 
 do_game_status_out(GameKey, Phase, Title, ExtraOpts) ->

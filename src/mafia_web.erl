@@ -459,10 +459,39 @@ write_html(FileName, Title, Opts) ->
     ok.
 
 get_html(Title, Opts) ->
+    {PrevLink, NextLink} = get_links(Opts),
     Body = mafia_print:print_votes(Opts),
-    [?HTML_TAB_START(Title, " border=\"0\""),
+    [?HTML_TAB_START_LINKS(Title, " border=0", PrevLink, NextLink),
      Body,
      ?HTML_TAB_END].
+
+get_links(Opts) ->
+    GNum = proplists:get_value(?game_key, Opts),
+    Phase = proplists:get_value(?phase, Opts),
+    PrevPhase = mafia_time:decr_phase(Phase),
+    PLinkF = fun(DoN, Num) ->
+                     ["&lt;&lt; ",
+                      ddonstr(DoN),
+                      " ", ?i2l(Num)]
+             end,
+    NLinkF = fun(DoN, Num) ->
+                     [ddonstr(DoN),
+                      " ", ?i2l(Num),
+                      " &gt;&gt;"]
+             end,
+    PrevLink =
+        case PrevPhase of
+            #phase{num = 0} -> "";
+            #phase{num = PDayNum, don = PDoN} ->
+                web_impl:hist_link("game_status", GNum, PDoN, PDayNum, PLinkF)
+        end,
+    %% CurPhase = mafia_time:calculate_phase(GNum),
+    #phase{num = NDayNum, don = NDoN} = mafia_time:inc_phase(Phase),
+    NextLink = web_impl:hist_link("game_status", GNum, NDoN, NDayNum, NLinkF),
+    {PrevLink, NextLink}.
+
+ddonstr(?night) -> "Night";
+ddonstr(?day) -> "Day".
 
 %%--------------------------------------------------------------------
 

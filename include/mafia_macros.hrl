@@ -92,7 +92,7 @@
                   [mafia_print:print_time(?console, Time),
                    Cmd])).
 
--define(HTML_TAB_START(Title, TabAttrStr),
+-define(HTML_TAB_START_LINKS(Title, TabAttrStr, PrevL, NextL),
  "<!DOCTYPE html>
 <html>
   <head>
@@ -102,10 +102,22 @@
   <body bgcolor=\"#cfffaf\">
     <center>
       <table" ++ TabAttrStr ++ ">
-      <tr><td align=\"center\"><h2>" ++ Title ++ "</h2></td>\r\n</tr>").
+        <tr><td align=center>
+           <table" ++ TabAttrStr ++ ">
+              <tr><td align=left width=100><font size=-1>" ++ PrevL ++
+            "</font></td>
+                  <td align=center><h2>" ++ Title ++ "</h2></td>
+                  <td align=right width=100><font size=-1>"++ NextL ++
+            "</font></td>
+              </tr>
+           </table>
+        </td></tr>\r\n").
 
 -define(HTML_TAB_END, "
       </table>
     </center>
   </body>
 </html>").
+
+-define(HTML_TAB_START(Title, TabAttrStr),
+        ?HTML_TAB_START_LINKS(Title, TabAttrStr, "", "")).

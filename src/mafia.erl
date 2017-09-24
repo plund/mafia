@@ -4,15 +4,14 @@
 %% coordinate poll_timer and dl_timer. "No poll at dl"
 %% Make use of dl_poll_info.txt when generating history pages at:
 %%    1) deadline 2) player death at End of Day/Night
-%% Add link game_status > prev_history
-%% Add links on history back and forth in history and to game_status
 %% do LATE read of signup thread
 %% Add signup_thid info to all games.
 %% Mnesia overloaded fixes
 %% try autostart again
 %% vhosts in inets - no support - try patch inets :)
 %% LOW - Add Last&more link also on game_end page
-%% balki vote on Jamie g29? d1 46:13 did not get the correct part in console due to unicode
+%% - balki vote on Jamie g29? d1 46:13 did not get the correct part in console
+%%   due to unicode
 %% http://mafia_test.peterlund.se/e/web/msgs?part=p3-5#msg_id=1480166
 %% Force split long lines in thread
 %% - split mafia_print. stats and tracker into separate modules?

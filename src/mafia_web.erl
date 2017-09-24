@@ -481,13 +481,18 @@ get_links(Opts) ->
              end,
     PrevLink =
         case PrevPhase of
+            ?undefined -> "";
             #phase{num = 0} -> "";
             #phase{num = PDayNum, don = PDoN} ->
                 web_impl:hist_link("game_status", GNum, PDoN, PDayNum, PLinkF)
         end,
-    %% CurPhase = mafia_time:calculate_phase(GNum),
-    #phase{num = NDayNum, don = NDoN} = mafia_time:inc_phase(Phase),
-    NextLink = web_impl:hist_link("game_status", GNum, NDoN, NDayNum, NLinkF),
+    NextPhase = mafia_time:inc_phase(Phase),
+    NextLink =
+        case NextPhase of
+            ?undefined -> "";
+            #phase{num = NDayNum, don = NDoN} ->
+                web_impl:hist_link("game_status", GNum, NDoN, NDayNum, NLinkF)
+        end,
     {PrevLink, NextLink}.
 
 ddonstr(?night) -> "Night";

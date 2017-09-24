@@ -711,20 +711,20 @@ s_unit("NIGHT") -> ?night.
 game_status(Sid, _Env, In) ->
     PQ = httpd:parse_query(In) -- [{[],[]}],
     NotAllowed = [Key || {Key, _} <- PQ] -- ["g", "phase", "num"],
-    GameKey = get_gnum(get_arg(PQ, "g")),
-    game_status2(Sid, GameKey, PQ, NotAllowed).
+    GNum = get_gnum(get_arg(PQ, "g")),
+    game_status2(Sid, GNum, PQ, NotAllowed).
 
 game_status2(Sid, GNum, _PQ, _) when not is_integer(GNum) ->
     error_resp(Sid, "Invalid game number");
-game_status2(Sid, _GameKey, _PQ, NotAllowed) when NotAllowed /= [] ->
+game_status2(Sid, _GNum, _PQ, NotAllowed) when NotAllowed /= [] ->
     error_resp(Sid, ["Params not allowed: ",
                 string:join(NotAllowed, ", ")]);
 game_status2(Sid, {?error, _}, _PQ, _) ->
     error_resp(Sid, "Bad: g=value");
-game_status2(Sid, GameKey, PQ, []) ->
-    game_status3(Sid, GameKey, PQ, ?rgame(GameKey)).
+game_status2(Sid, GNum, PQ, []) ->
+    game_status3(Sid, GNum, PQ, ?rgame(GNum)).
 
-game_status3(Sid, GameKey, PQ, [G]) ->
+game_status3(Sid, GNum, PQ, [G]) ->
     {_IsReady, _G2, Es} =
         web_game_settings:is_ready_to_go(G, {G, []}),
     AnyError = lists:any(fun({error, _}) -> ?true; (_) -> ?false end, Es),
@@ -733,18 +733,18 @@ game_status3(Sid, GameKey, PQ, [G]) ->
                     [[Txt, "<br>\r\n"] || {error, Txt} <- Es]],
             error_resp(Sid, EStr);
        not AnyError ->
-            game_status4(Sid, GameKey, PQ)
+            game_status4(Sid, GNum, PQ)
     end.
 
-game_status4(Sid, GameKey, PQ) ->
+game_status4(Sid, GNum, PQ) ->
     PhaseStr = get_arg(PQ, "phase"),
     NumStr = get_arg(PQ, "num"),
     Html =
-        case get_phase(GameKey, PhaseStr, NumStr) of
+        case get_phase(GNum, PhaseStr, NumStr) of
             {?current, Phase} ->
-                game_status_out(?current, GameKey, Phase);
+                game_status_out(?current, GNum, Phase);
             {?history, Phase} ->
-                game_status_out(?history, GameKey, Phase);
+                game_status_out(?history, GNum, Phase);
             {?error, ErrorHtml} ->
                 [?HTML_TAB_START("Game Status", " border=\"0\""),
                  ErrorHtml,
@@ -757,14 +757,14 @@ game_status4(Sid, GameKey, PQ) ->
 
 -spec game_status_out(?history | ?current, integer(), #phase{})
                      -> [ok | string()].
-game_status_out(?current, GameKey, Phase) ->
+game_status_out(?current, GNum, Phase) ->
     Title = ["Game Status ", mafia_print:print_phase(Phase)],
-    game_status_out_current(GameKey, Phase, Title);
-game_status_out(?history, GameKey, Phase) ->
+    game_status_out_current(GNum, Phase, Title);
+game_status_out(?history, GNum, Phase) ->
     %% Check that phase is not in the future
-    %% GameKey = ?getv(?game_key),
-    FileName = mafia_file:game_phase_full_fn(?html, GameKey, Phase),
-    game_status_out_hist(GameKey, Phase, FileName, read_file(FileName)).
+    %% GNum = ?getv(?game_key),
+    FileName = mafia_file:game_phase_full_fn(?html, GNum, Phase),
+    game_status_out_hist(GNum, Phase, FileName, read_file(FileName)).
 
 read_file(FileName) ->
     case file:read_file_info(FileName) of
@@ -774,33 +774,33 @@ read_file(FileName) ->
             not_on_file
     end.
 
-game_status_out_current(GameKey, Phase, Title) ->
+game_status_out_current(GNum, Phase, Title) ->
     Opts = [{?use_time, mafia_time:utc_secs1970()},
-            {?period, mafia_time:timer_minutes(GameKey)}],
-    do_game_status_out(GameKey, Phase, Title, Opts).
+            {?period, mafia_time:timer_minutes(GNum)}],
+    do_game_status_out(GNum, Phase, Title, Opts).
 
-game_status_out_hist(_GameKey, _Phase, _FileName, {ok, Bin}) ->
+game_status_out_hist(_GNum, _Phase, _FileName, {ok, Bin}) ->
     Bin;
-game_status_out_hist(GameKey, Phase, FileName, _) ->
+game_status_out_hist(GNum, Phase, FileName, _) ->
     Title = ["History ", mafia_print:print_phase(Phase)],
     Time = mafia_time:utc_secs1970(),
-    case mafia_time:get_time_for_phase(GameKey, Phase) of
+    case mafia_time:get_time_for_phase(GNum, Phase) of
         PhaseTime when PhaseTime =< Time, is_integer(PhaseTime) ->
             %% Normally there should be a file and this generate should not run
-            mafia_web:regen_history(PhaseTime, {GameKey, Phase}),
+            mafia_web:regen_history(PhaseTime, {GNum, Phase}),
             case read_file(FileName) of
                 {ok, Bin} ->
                     Bin;
                 _ ->
                     %% Should not happen!
                     io:format("Still not Found ~p\n", [FileName]),
-                    do_game_status_out(GameKey, Phase, Title, [])
+                    do_game_status_out(GNum, Phase, Title, [])
             end;
         _ ->
-            CurPhase = mafia_time:calculate_phase(GameKey),
+            CurPhase = mafia_time:calculate_phase(GNum),
             if Phase == CurPhase ->
                     CurTitle = ["Game Status ", mafia_print:print_phase(Phase)],
-                    game_status_out_current(GameKey, Phase, CurTitle);
+                    game_status_out_current(GNum, Phase, CurTitle);
                true ->
                     [?HTML_TAB_START(Title, " border=\"0\""),
                      "<tr><td align=center>Phase has not begun yet.</td></tr>",
@@ -808,24 +808,63 @@ game_status_out_hist(GameKey, Phase, FileName, _) ->
             end
     end.
 
-do_game_status_out(GameKey, Phase, Title, ExtraOpts) ->
-    Opts = [{?game_key, GameKey},
+do_game_status_out(GNum, Phase, Title, ExtraOpts) ->
+    Opts = [{?game_key, GNum},
             {?phase, Phase},
             {?mode, ?html}
            ] ++ ExtraOpts,
     mafia_web:get_html(Title, Opts).
 
--spec get_phase(integer(), string(), string) ->
+-spec validate_phase(game_num(), #phase{}) -> error | show_phase | show_end.
+validate_phase(GNum, Phase) ->
+    case ?rgame(GNum) of
+        [] ->
+            error;
+        [G] when Phase#phase.don == ?game_ended ->
+            case G#mafia_game.game_end of
+                ?undefined -> error;
+                _ -> show_phase
+            end;
+        [#mafia_game{deadlines = DLs} = G] ->
+            %% 1 does phase exist in DLs == yes
+            case lists:keyfind(Phase, #dl.phase, DLs) of
+                false -> error;
+                #dl{time = DTime} ->
+                    case G#mafia_game.game_end of
+                        {EndTime, _} when DTime > EndTime ->
+                            error;
+                        _ ->
+                            show_phase
+                    end
+            end
+    end.
+
+-spec get_phase(integer(), string(), string()) ->
                        {history | current, #phase{}} | {error, term()}.
-get_phase(GameKey, "", "") ->
-    Phase = mafia_time:calculate_phase(GameKey),
+get_phase(GNum, PhaseStr, NumStr) ->
+    case get_phase2(GNum, PhaseStr, NumStr) of
+        {error, _} = Err -> Err;
+        Res = {_, Phase = #phase{}} ->
+            case validate_phase(GNum, Phase) of
+                show_phase ->
+                    Res;
+                _ ->
+                    {error,
+                     "<tr><td align=center>Phase does not exist</td></tr>"}
+            end
+    end.
+
+-spec get_phase2(integer(), string(), string()) ->
+                        {history | current, #phase{}} | {error, term()}.
+get_phase2(GNum, "", "") ->
+    Phase = mafia_time:calculate_phase(GNum),
     CurGameNum = mafia_db:getv(game_key),
-    if GameKey == CurGameNum ->
+    if GNum == CurGameNum ->
             {?current, Phase};
        ?true ->
             {?history, Phase}
     end;
-get_phase(_GameKey, PhaseStr, NumStr) ->
+get_phase2(_GNum, PhaseStr, NumStr) ->
     gs_phase(PhaseStr, NumStr).
 
 gs_phase("end", _) ->
@@ -875,10 +914,10 @@ vote_tracker(Sid, _Env, In) ->
     Args = make_args(PQ, ["day"]),
     {A + B + C, Args}.
 
-vote_tracker2(GameKey, DayStr, _) when DayStr /= "" ->
+vote_tracker2(GNum, DayStr, _) when DayStr /= "" ->
     try
         DayNum = list_to_integer(DayStr),
-        [RK, VT] = mafia_print:web_vote_tracker([{?game_key, GameKey},
+        [RK, VT] = mafia_print:web_vote_tracker([{?game_key, GNum},
                                                  {?day, DayNum}]),
         {tracker, ?l2b(["<tr><td>", RK, "</td></tr>",
                         "<tr><td>", VT, "</td></tr>"

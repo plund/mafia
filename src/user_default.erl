@@ -138,8 +138,9 @@ mafia:replace_player(MsgId, OldPlayer, NewPlayer)
     New player is created if missing in DB
 
 mafia:refresh_messages() - Reread all messages from disk, use 'game_key'
-mafia:refresh_votes()  - Clear mafia_day and mafia_game and reread all"
-" messages.
+mafia:refresh_votes()           - refresh current game
+mafia:refresh_votes(game_num()) - refresh one selected game
+mafia:refresh_votes(all)        - refresh all games
 mafia:print_votes()  - Current status
 ").
 

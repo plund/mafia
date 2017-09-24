@@ -309,18 +309,22 @@ first_deadline_greg_secs(G) ->
 
 %% -----------------------------------------------------------------------------
 
--spec inc_phase(#phase{} | #dl{}) -> #phase{}.
+-spec inc_phase(#phase{} | #dl{}) -> ?undefined | #phase{}.
 inc_phase(#dl{phase = Phase}) -> inc_phase(Phase);
 inc_phase(Ph = #phase{don = ?game_start}) ->
     Ph#phase{num = 1, don = ?day};
+inc_phase(#phase{don = ?game_ended}) ->
+    ?undefined;
 inc_phase(Ph = #phase{don = ?day}) ->
     Ph#phase{don = ?night};
 inc_phase(#phase{num = Num, don = ?night}) ->
     #phase{num = Num + 1, don = ?day}.
 
--spec decr_phase(#phase{} | #dl{}) -> #phase{}.
+-spec decr_phase(#phase{} | #dl{}) -> ?undefined | #phase{}.
 decr_phase(#dl{phase = Phase}) -> decr_phase(Phase);
 decr_phase(#phase{don = ?game_start}) ->
+    ?undefined;
+decr_phase(#phase{don = ?game_ended}) ->
     ?undefined;
 decr_phase(#phase{num = 1, don = ?day}) ->
     #phase{num = 0, don = ?game_start};

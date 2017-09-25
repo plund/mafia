@@ -131,6 +131,7 @@ do_print_stats(PP, PrStats) ->
     UserF = fun(S) -> element(1, S#prstat.key) end,
     Phase = PP#pp.phase,
     G = PP#pp.game,
+    CurrPhase = mafia_time:calculate_phase(G),
     GNum = G#mafia_game.game_num,
     PhaseRef =
         fun() ->
@@ -146,17 +147,33 @@ do_print_stats(PP, PrStats) ->
                     _ -> pr_phase_long(Phase)
                 end
         end,
+    TimeNow = mafia_time:utc_secs1970(),
+    IsGameEnded = ?undefined /= G#mafia_game.game_end,
+    EndTime = case G#mafia_game.game_end of
+                  ?undefined -> ?undefined;
+                  {ET, _} -> ET
+              end,
     TimeF =
         fun(MsgTime) ->
-                case Phase of
-                    ?total_stats ->
-                        #dl{time = DlTime} =
-                            mafia_time:get_nxt_deadline(G, MsgTime),
+                if Phase == ?total_stats,
+                   IsGameEnded ->
+                        %% time relative game EndTime
+                        Suffix = if MsgTime < EndTime -> "*";
+                                    true -> ""
+                                 end,
                         print_time_5d_str(
                           ?stats,
-                          mafia_time:hh_mm_to_time(MsgTime, DlTime));
-                    _ ->
-                        print_time_5d_stat(G, MsgTime)
+                          mafia_time:hh_mm_to_time(MsgTime, EndTime))
+                            ++ Suffix;
+                   Phase /= ?total_stats,
+                   Phase /= CurrPhase ->
+                        %% time relative historical deadline
+                        print_time_5d_stat(G, MsgTime);
+                   true ->
+                        %% time relative now
+                        print_time_5d_str(
+                          ?stats,
+                          mafia_time:hh_mm_to_time(MsgTime, TimeNow))
                 end
         end,
     PrFn = fun(tr, S) -> UserF(S);
@@ -229,7 +246,7 @@ do_print_stats(PP, PrStats) ->
                              "Last"
                             }
                     end,
-                ["<tr><th colspan=\"5\">",
+                ["<tr><th colspan=6>",
                  "Posting statistics (",
                  pr_phase_long(Phase),
                  ")\n",

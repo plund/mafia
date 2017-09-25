@@ -46,10 +46,20 @@
 
 -include("mafia.hrl").
 
+dirty_write(Obj) ->
+    Tab = element(1, Obj),
+    dirty_update_counter(cnt, {dirty_write, ?global}, 1),
+    dirty_update_counter(cnt, {dirty_write, ?global, Tab}, 1),
+    mnesia:dirty_write(Obj).
+
+dirty_update_counter(cnt, Key, Inc) ->
+    mnesia:dirty_update_counter(cnt, {dirty_update_counter, ?global}, 1),
+    mnesia:dirty_update_counter(cnt, Key, Inc).
+
 dwrite(page, Obj) ->
     dwrite_page(Obj);
 dwrite(_Tag, Obj) ->
-    mnesia:dirty_write(Obj).
+    dirty_write(Obj).
 
 rmess(MsgId) ->
     OffsetNow = mafia_time:utc_secs1970(),
@@ -88,7 +98,7 @@ rpageI(Key) -> mnesia:dirty_read(page_rec, Key).
 dwrite_page(P) ->
     case rpageI(P#page_rec.key) of
         [] ->
-            mnesia:dirty_write(P);
+            dirty_write(P);
         [Db] ->
             NumDb = length(Db#page_rec.message_ids),
             NumNew = length(P#page_rec.message_ids),
@@ -101,7 +111,7 @@ dwrite_page(P) ->
                           Db2#page_rec{complete = true};
                      true -> Db2
                   end,
-            mnesia:dirty_write(Db3)
+            dirty_write(Db3)
     end.
 
 pages_for_thread(ThId) ->
@@ -480,16 +490,21 @@ inc_cnt(CntNameB, Args, Inc) ->
                 [{CntNameB, ?global, Args},
                  {CntNameB, DayNum, Args}]
         end,
-    mnesia:dirty_update_counter(cnt, KeyGlobal, Inc),
-    mnesia:dirty_update_counter(cnt, KeyDay, Inc).
+    dirty_update_counter(cnt, KeyGlobal, Inc),
+    dirty_update_counter(cnt, KeyDay, Inc).
 
 print_all_cnts() ->
     Guard = [],
     print_all_cntsI(standard_io, Guard).
 
-print_all_cnts(NumLastDays) ->
+print_all_cnts(Types) when is_list(Types) ->
+    _ = [ print_all_cnts(Type) || Type <- Types];
+print_all_cnts(NumLastDays) when is_integer(NumLastDays) ->
     DayNum = mafia_time:utc_day1970() - NumLastDays,
     Guard = [{'or', {'>=', '$2', DayNum}, {'==', '$2', ?global}}],
+    print_all_cntsI(standard_io, Guard);
+print_all_cnts(Type) when is_atom(Type) ->
+    Guard = [{'==', '$1', Type}],
     print_all_cntsI(standard_io, Guard).
 
 save_cnts_to_file() ->

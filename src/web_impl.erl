@@ -917,8 +917,8 @@ vote_tracker(Sid, _Env, In) ->
 vote_tracker2(GNum, DayStr, _) when DayStr /= "" ->
     try
         DayNum = list_to_integer(DayStr),
-        [RK, VT] = mafia_print:web_vote_tracker([{?game_key, GNum},
-                                                 {?day, DayNum}]),
+        [RK, VT] = mafia_tracker:web_vote_tracker([{?game_key, GNum},
+                                                   {?day, DayNum}]),
         {tracker, ?l2b(["<tr><td>", RK, "</td></tr>",
                         "<tr><td>", VT, "</td></tr>"
                        ])}

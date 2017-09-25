@@ -11,13 +11,14 @@
          setup_pp/1,
          pr_phase_long/1,
          print_time_5d_str/2,
-         don_arg/1,
-         bgcolor/1,
-         ul/2,
          split_into_groups/2,
          object_rows/1,
-         object_rows_text/2
+         object_rows_text/2,
+         don_arg/1,
+         ul/2
         ]).
+
+-import(mafia_lib, [bgcolor/1]).
 
 -include("mafia.hrl").
 -include("mafia_print.hrl").

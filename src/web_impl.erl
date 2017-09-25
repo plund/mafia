@@ -1020,7 +1020,7 @@ stats(Sid, _Env, In) ->
                     lists:keyfind("num", 1,  PQ)) of
             {ok, Phase} ->
                 ["<tr><td>",
-                 mafia_print:print_stats([{?game_key, GNum},
+                 mafia_stats:print_stats([{?game_key, GNum},
                                           {?phase, Phase},
                                           {?mode, ?html}
                                          ] ++ Sort),

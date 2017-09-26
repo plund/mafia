@@ -14,6 +14,7 @@
 -define(dummy, dummy).
 -define(new_page, new_page).
 -define(add_id, add_id).
+-define(changed, changed).
 -define(unchanged, unchanged).
 
 -define(continue, continue).

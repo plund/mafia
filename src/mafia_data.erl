@@ -906,7 +906,7 @@ analyse_body(S, User, MsgId, Time, Msg) ->
     S2 = case update_page_rec(S, MsgId) of
              ?unchanged ->
                  S;
-             A when A == ?new_page; A == ?add_id ->
+             ?changed ->
                  MsgR = write_message_rec(S, MsgId, User, Time, Msg),
                  mafia:add_user(User),
                  if is_function(CheckVote) -> CheckVote(MsgR);
@@ -953,26 +953,34 @@ read_to_before(Str, Search) ->
 
 %% -----------------------------------------------------------------------------
 
--spec update_page_rec(#s{}, msg_id()) -> ?new_page | ?add_id | ?unchanged.
+-spec update_page_rec(#s{}, msg_id()) -> ?changed | ?unchanged.
 update_page_rec(S, MsgIdInt) ->
     {Action, PageRec} =
         case ?rpage(S#s.thread_id, S#s.page_last_read) of
-            [] -> {?new_page,
+            [] -> {?changed,
                    #page_rec{key = {S#s.thread_id, S#s.page_last_read},
                              message_ids = [MsgIdInt],
                              thread_id = S#s.thread_id,
                              complete = false}};
             [P = #page_rec{message_ids = MsgIds, complete = Comp}] ->
-                {Act, MsgIds2} =
+                MsgIds2 =
                     case lists:member(MsgIdInt, MsgIds) of
-                        false -> {?add_id, MsgIds ++ [MsgIdInt]};
-                        true -> {?unchanged, MsgIds}
+                        false -> MsgIds ++ [MsgIdInt];
+                        true -> MsgIds
                     end,
                 Comp2 = Comp orelse not S#s.is_last_page,
-                {Act, P#page_rec{message_ids = MsgIds2,
-                                 complete = Comp2}}
+                P2 = P#page_rec{message_ids = MsgIds2,
+                                complete = Comp2},
+                Act = case P2 of
+                          P -> ?unchanged;
+                          _ -> ?changed
+                      end,
+                {Act, P2}
         end,
-    ?dwrite_page(PageRec),
+    if Action == ?changed ->
+            ?dwrite_page(PageRec);
+       true -> ok
+    end,
     remove_duplicate_msgid(S, Action, MsgIdInt),
     Action.
 
@@ -980,8 +988,7 @@ update_page_rec(S, MsgIdInt) ->
 %% (webdiplomacy.net can have upto 48 messages on page 1 before
 %% splitting them into the 2 first pages)
 remove_duplicate_msgid(S = #s{page_last_read = 2}, Action, MsgId)
-  when Action == ?add_id;
-       Action == ?new_page ->
+  when Action == ?changed ->
     case ?rpage(S#s.thread_id, 1) of
         [P = #page_rec{message_ids = MsgIds}] ->
             case lists:member(MsgId, MsgIds) of

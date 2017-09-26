@@ -145,7 +145,7 @@ reset_game(GNum) ->
                       ?Cpy(T, game_end),
                       ?Cpy(T, last_msg_id),
                       ?Cpy(T, last_msg_time)},
-    ?dwrite_game(G2).
+    ?dwrite_game(game_db1, G2).
 
 %% Write game record to DB
 write_game(GNum, ThId) when is_integer(GNum), is_integer(ThId) ->
@@ -153,15 +153,15 @@ write_game(GNum, ThId) when is_integer(GNum), is_integer(ThId) ->
     io:format("Setting thread id for Mafia Game\n  ~p: ~s\n",
               [GNum, ?b2l(G#mafia_game.name)]),
     G2 = G#mafia_game{thread_id = ThId},
-    ?dwrite_game(G2).
+    ?dwrite_game(game_db2, G2).
 
 write_game(GNum) when is_integer(GNum) ->
     G = get_game_rec(GNum),
-    ?dwrite_game(G).
+    ?dwrite_game(game_db3, G).
 
 rewrite_game(GNum) when is_integer(GNum) ->
     G = make_game_and_deadlines(GNum),
-    ?dwrite_game(G).
+    ?dwrite_game(game_db4, G).
 
 get_game_rec(GNum) when is_integer(GNum) ->
     case ?rgame(GNum) of

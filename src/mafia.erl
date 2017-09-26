@@ -195,7 +195,8 @@ initiate_game(GNum) when is_integer(GNum) ->
 initiate_game(GNum, GMs) when is_integer(GNum) ->
     DoFun = fun(G) ->
                     GMsB = get_user_list(GMs),
-                    ?dwrite_game(G#mafia_game{game_num = GNum,
+                    ?dwrite_game(game_m1,
+                                 G#mafia_game{game_num = GNum,
                                               gms = GMsB}),
                     {wrote, GNum, GMsB}
             end,
@@ -303,7 +304,7 @@ switch_to_game(GNum) ->
             mafia_web:change_current_game(GNum);
         [G = #mafia_game{deadlines = DLs}] when DLs == [] ->
             G2 = mafia_time:initial_deadlines(G),
-            ?dwrite_game(G2),
+            ?dwrite_game(game_m2, G2),
             mafia_web:change_current_game(GNum);
         [] ->
             {error, game_noexist}
@@ -314,11 +315,12 @@ switch_to_game(GNum) ->
 set_signup_thid(GNum, SuThId) when is_integer(SuThId) ->
     case ?rgame(GNum) of
         [G] when G#mafia_game.thread_id == ?undefined ->
-            ?dwrite_game(G#mafia_game{signup_thid = SuThId,
+            ?dwrite_game(game_m3,
+                         G#mafia_game{signup_thid = SuThId,
                                       page_to_read = 1}),
             ok;
         [G] when is_integer(G#mafia_game.thread_id) ->
-            ?dwrite_game(G#mafia_game{signup_thid = SuThId}),
+            ?dwrite_game(game_m4, G#mafia_game{signup_thid = SuThId}),
             ok;
         _ ->
             {error, no_game}
@@ -333,7 +335,7 @@ set_role_pm(GNum, Url) when is_integer(GNum) ->
     set_role_pmI(?rgame(GNum), UrlVal).
 
 set_role_pmI([G], UrlVal) ->
-    ?dwrite_game(G#mafia_game{role_pm = UrlVal}),
+    ?dwrite_game(game_m5, G#mafia_game{role_pm = UrlVal}),
     ok;
 set_role_pmI(_, _) -> {error, no_game_found}.
 
@@ -346,7 +348,7 @@ set_role_pmI(_, _) -> {error, no_game_found}.
 switch_thread_id(GNum, NewThId) when is_integer(NewThId) ->
     case ?rgame(GNum) of
         [G] ->
-            ?dwrite_game(G#mafia_game{thread_id = NewThId}),
+            ?dwrite_game(game_m6, G#mafia_game{thread_id = NewThId}),
             mafia_data:refresh_messages(GNum),
             mafia_data:refresh_votes(GNum),
             ok;

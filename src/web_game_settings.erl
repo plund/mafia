@@ -289,7 +289,7 @@ maybe_update_game(Button, GNStr, User, Pass, GameSett) ->
                                      mafia_time:initial_deadlines(G4);
                                 true -> G4
                              end,
-                        ?dwrite_game(G5),
+                        ?dwrite_game(game_w1, G5),
                         [{info, "The game was updated"}];
                    Button == ?BUpdate ->
                         [{info, "The game was NOT updated"}];
@@ -749,7 +749,7 @@ msti2(G, _PwRes, ThId) ->
                    %% or I set it to 1 on the server
                   },
             G4 = mafia_time:initial_deadlines(G3),
-            ?dwrite_game(G4),
+            ?dwrite_game(game_w2, G4),
             mafia:switch_to_game(G#mafia_game.game_num),
             write_settings_file(G4),
             {true, Es ++ [{info, "Thread Id was set"},

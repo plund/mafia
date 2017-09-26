@@ -47,9 +47,7 @@
 -include("mafia.hrl").
 
 dirty_write(Obj) ->
-    Tab = element(1, Obj),
     dirty_update_counter(cnt, {dirty_write, ?global}, 1),
-    dirty_update_counter(cnt, {dirty_write, ?global, Tab}, 1),
     mnesia:dirty_write(Obj).
 
 dirty_update_counter(cnt, Key, Inc) ->
@@ -57,8 +55,10 @@ dirty_update_counter(cnt, Key, Inc) ->
     mnesia:dirty_update_counter(cnt, Key, Inc).
 
 dwrite(page, Obj) ->
+    dirty_update_counter(cnt, {dirty_write, ?global, page}, 1),
     dwrite_page(Obj);
-dwrite(_Tag, Obj) ->
+dwrite(Tag, Obj) ->
+    dirty_update_counter(cnt, {dirty_write, ?global, Tag}, 1),
     dirty_write(Obj).
 
 rmess(MsgId) ->

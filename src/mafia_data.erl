@@ -212,7 +212,8 @@ update_page_to_read(GNum, PageToRead, LastMsgId, LastMsgTime)
     G = hd(?rgame(GNum)),
     if PageToRead /= G#mafia_game.page_to_read;
        LastMsgId /= G#mafia_game.last_msg_id ->
-            ?dwrite_game(G#mafia_game{page_to_read = PageToRead,
+            ?dwrite_game(game_l1,
+                         G#mafia_game{page_to_read = PageToRead,
                                       last_msg_id = LastMsgId,
                                       last_msg_time = LastMsgTime});
        true -> ok
@@ -277,7 +278,7 @@ reset_game(G = #mafia_game{}) ->
            last_msg_id = ?undefined,
            last_msg_time = ?undefined},
     G3 = mafia_time:initial_deadlines(G2),
-    ?dwrite_game(G3),
+    ?dwrite_game(game_l2, G3),
     G3.
 
 %% -spec refresh_votes() -> ok.

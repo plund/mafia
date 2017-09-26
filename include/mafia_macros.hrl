@@ -66,6 +66,8 @@
 -define(dwrite_day(Obj), mafia_lib:dwrite(day, Obj)).
 -define(dwrite_game(Obj), mafia_lib:dwrite(game, Obj)).
 
+-define(dwrite_game(Tag, Obj), mafia_lib:dwrite(Tag, Obj)).
+
 -define(rmess(MsgId), mafia_lib:rmess(MsgId)).
 -define(rpage(ThId, Page), mafia_lib:rpage(ThId, Page)).
 -define(rpage(Key), mafia_lib:rpage(Key)).

@@ -211,7 +211,7 @@ kill_player(G, M, DeadB, DeathComment, true) ->
     update_day_rec(G, M, Death),
     G2 = G#mafia_game{players_rem = NewRems,
                       player_deaths = NewDeaths},
-    ?dwrite_game(G2),
+    ?dwrite_game(game_v1, G2),
     {{ok, DeathPhase}, G2};
 %% Not remaining. Do update if already dead
 kill_player(G, M, DeadB, DeathComment, false) ->
@@ -232,7 +232,7 @@ kill_player(G, M, DeadB, DeathComment, false) ->
                             comment = ?l2b(DeathComment)},
             NewDeaths = add_modify_deaths(Death, G),
             G2 = G#mafia_game{player_deaths = NewDeaths},
-            ?dwrite_game(G2),
+            ?dwrite_game(game_v2, G2),
             if DeathPhase#phase.num /= OldPhase#phase.num ->
                     %% TODO / FIXME
                     ?dbg(M#message.time,
@@ -268,7 +268,7 @@ set_death_msgid(G, M, DeadB, [DeathMsg], DeathComment) ->
                            },
             NewDeaths = add_modify_deaths(Death, G),
             G2 = G#mafia_game{player_deaths = NewDeaths},
-            ?dwrite_game(G2),
+            ?dwrite_game(game_v3, G2),
             if DeathPhase#phase.num /= OldPhase#phase.num ->
                     %% TODO / FIXME
                     ?dbg(M#message.time,
@@ -620,7 +620,7 @@ replace3(G, M, New, Old) ->
 replace4(G, OldUB, NewUB) ->
     NewRem = repl_user(OldUB, NewUB, G#mafia_game.players_rem),
     G2 = G#mafia_game{players_rem = NewRem},
-    ?dwrite_game(G2),
+    ?dwrite_game(game_v4, G2),
     {ok, G2}.
 
 repl_user(OldUB, NewUB, Users) ->

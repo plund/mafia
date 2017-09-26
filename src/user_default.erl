@@ -16,6 +16,9 @@
          unset/1,
          getv/1,
          show/0,
+         show_cnts/0,
+         show_cnts/1,
+         clr_cnts/0,
 
          stop_poll/0,
          start_poll/0,
@@ -38,6 +41,9 @@ rgame(GNum) when is_integer(GNum) -> ?rgame(GNum).
 ruser(Name) -> ?ruser(Name).
 
 show() -> mafia:show_settings().
+show_cnts() -> mafia_lib:print_all_cnts().
+show_cnts(Cnt) -> mafia_lib:print_all_cnts(Cnt).
+clr_cnts() -> mnesia:clear_table(cnt).
 set(K, V) -> mafia_db:set(K, V).
 unset(K) -> mafia_db:unset(K).
 getv(K) -> mafia_db:getv(K).
@@ -73,6 +79,9 @@ DBG: grep/1, grep/2, rmess/1, rpage/2, rday/2, rgame/1
 
 COMMANDS:
 show()         - Show server settings
+show_cnts()    - Show all counters
+show_cnts(M)   - Show counters M is int, atom or list
+clr_cnts()     - Clear all counters
 set(K, V)      - Set a key value pair
 unset(K)       - Remove a key value pair
 getv(K)        - Get a value for a key

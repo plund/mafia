@@ -274,7 +274,7 @@ update_deadlines(ThId) ->
         [] -> [];
         [#mafia_game{} = G] ->
             NewDLs = expand_deadlines(G),
-            ?dwrite_game(G#mafia_game{deadlines = NewDLs}),
+            ?dwrite_game(game_t1, G#mafia_game{deadlines = NewDLs}),
             NewDLs
     end.
 
@@ -513,10 +513,12 @@ get_nxt_deadline(#mafia_game{game_end = {EndTime, _},
     lists:keyfind(EndTime, #dl.time, DLs);
 get_nxt_deadline(Game = #mafia_game{}, Time) ->
     {ComingDLs, _} = split_dls(Game, Time),
-    Game2 = if length(ComingDLs) < 4 -> add_deadlines(Game);
+    Game2 = if length(ComingDLs) < 4 ->
+                    G2 = add_deadlines(Game),
+                    ?dwrite_game(game_t2, G2),
+                    G2;
                true -> Game
             end,
-    ?dwrite_game(Game2),
     GetNext =
         fun({Take, _Drop}) ->
                 case Take of
@@ -663,7 +665,7 @@ end_phase(G = #mafia_game{}, Phase = #phase{}, Time) ->
 end_phase(G, Phase = #phase{}, Time, false) ->
     NewDLs = change_dl_time(G#mafia_game.deadlines, Phase, Time),
     G2 = G#mafia_game{deadlines = NewDLs},
-    ?dwrite_game(G2),
+    ?dwrite_game(game_t3, G2),
     mafia_web:regen_history(Time, G), %% Change to G2?
     G2;
 end_phase(G, _Phase, _Time, _DL) ->
@@ -685,7 +687,7 @@ unend_phase(G, M) ->
                 get_some_extra_dls(G, DLs2, TargetTime)
         end,
     G2 = G#mafia_game{deadlines = NewDLs},
-    ?dwrite_game(G2),
+    ?dwrite_game(game_t4, G2),
     ok.
 
 change_dl_time(OldDLs, Phase = #phase{}, Time) ->
@@ -746,7 +748,7 @@ move_dls2(G, M, TimeDiff, _Phase) ->
             OldDLs = G#mafia_game.deadlines,
             NewDLs = modify_deadlines(OldDLs, ModF),
             G2 = G#mafia_game{deadlines = NewDLs},
-            ?dwrite_game(G2),
+            ?dwrite_game(game_t5, G2),
             {ok, G2}
     end.
 
@@ -771,7 +773,7 @@ end_game(M, G) ->
     DLs3 = [LastDL | DLs2],
     G2 = G#mafia_game{deadlines = DLs3,
                       game_end = {EndTime, MsgId}},
-    ?dwrite_game(G2),
+    ?dwrite_game(game_t6, G2),
     mafia_web:regen_history(EndTime, G2),
     {?game_ended, G2}.
 
@@ -783,7 +785,7 @@ unend_game(G = #mafia_game{game_end = {_EndTime, _MsgId}}) ->
     NewDLs = get_some_extra_dls(G, DLs, TargetTime),
     G2 = G#mafia_game{deadlines = NewDLs,
                       game_end = ?undefined},
-    ?dwrite_game(G2),
+    ?dwrite_game(game_t7, G2),
     {game_unended, G2};
 unend_game(G = #mafia_game{game_end = ?undefined}) ->
     {already_running, G}.

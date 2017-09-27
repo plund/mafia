@@ -154,11 +154,20 @@ do_print_stats(PP, PrStats) ->
                   ?undefined -> ?undefined;
                   {ET, _} -> ET
               end,
+    {RelativeWhatTime, RelativeStr} =
+        if Phase == ?total_stats,
+           IsGameEnded ->
+                {relative_end_time, "End"};
+           Phase /= ?total_stats,
+           Phase /= CurrPhase ->
+                {relative_dead_line, "DL"};
+           true ->
+                {relative_now, "Now"}
+        end,
     TimeF =
         fun(MsgTime) ->
-                if Phase == ?total_stats,
-                   IsGameEnded ->
-                        %% time relative game EndTime
+                case RelativeWhatTime of
+                    relative_end_time ->
                         Suffix = if MsgTime < EndTime -> "*";
                                     true -> ""
                                  end,
@@ -166,12 +175,9 @@ do_print_stats(PP, PrStats) ->
                           ?stats,
                           mafia_time:hh_mm_to_time(MsgTime, EndTime))
                             ++ Suffix;
-                   Phase /= ?total_stats,
-                   Phase /= CurrPhase ->
-                        %% time relative historical deadline
+                    relative_dead_line ->
                         print_time_5d_stat(G, MsgTime);
-                   true ->
-                        %% time relative now
+                    relative_now ->
                         print_time_5d_str(
                           ?stats,
                           mafia_time:hh_mm_to_time(MsgTime, TimeNow))
@@ -220,31 +226,32 @@ do_print_stats(PP, PrStats) ->
                 WordLn = ArgBeg ++ "words",
                 WPostLn = ArgBeg ++ "words_per_post",
                 LMsgLn = ArgBeg ++ "last_msg_time",
+                Last = "Last (" ++ RelativeStr ++ ")",
                 {PostTitle, WordTitle, WPostTitle, LMsgTitle} =
                     case PP#pp.sort of
                         ?sort_normal ->
                             {"Posts",
                              ["<a href=\"", WordLn, "\">Words</a>"],
                              ["<a href=\"", WPostLn, "\">W/Post</a>"],
-                             ["<a href=\"", LMsgLn, "\">Last</a>"]
+                             ["<a href=\"", LMsgLn, "\">", Last, "</a>"]
                             };
                         ?sort_words ->
                             {["<a href=\"", PostLn, "\">Posts</a>"],
                              "Words",
                              ["<a href=\"", WPostLn, "\">W/Post</a>"],
-                             ["<a href=\"", LMsgLn, "\">Last</a>"]
+                             ["<a href=\"", LMsgLn, "\">", Last, "</a>"]
                             };
                         ?sort_words_per_post ->
                             {["<a href=\"", PostLn, "\">Posts</a>"],
                              ["<a href=\"", WordLn, "\">Words</a>"],
                              "W/Post",
-                             ["<a href=\"", LMsgLn, "\">Last</a>"]
+                             ["<a href=\"", LMsgLn, "\">", Last, "</a>"]
                             };
                         ?sort_last_msg_time ->
                             {["<a href=\"", PostLn, "\">Posts</a>"],
                              ["<a href=\"", WordLn, "\">Words</a>"],
                              ["<a href=\"", WPostLn, "\">W/Post</a>"],
-                             "Last"
+                             Last
                             }
                     end,
                 ["<tr><th colspan=6>",

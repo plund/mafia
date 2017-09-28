@@ -158,7 +158,7 @@ dir_and_filename(Mode, G, Phase) ->
     PhaseBaseFN =
         case Phase of
             ?current -> ?CURRENT_GAME_FN;
-            #phase{don = ?game_ended} -> ?CURRENT_GAME_FN;
+            #phase{ptype = ?game_ended} -> ?CURRENT_GAME_FN;
             _ -> phase_base_fn(FilePrefix, Phase)
         end,
     PhaseFN = PhaseBaseFN ++ suffix(Mode),
@@ -170,7 +170,7 @@ suffix(?html) -> ".html".
 get_path(P) -> mafia_lib:get_path(P).
 
 phase_base_fn(FilePrefix, Phase = #phase{}) ->
-    PhStr = case Phase#phase.don of
+    PhStr = case Phase#phase.ptype of
                 ?day -> "d";
                 ?night -> "n"
             end ++ ?i2l(Phase#phase.num),
@@ -214,19 +214,19 @@ file_name_test() ->
        "/my_mecked_path/m27/m27_d1.txt",
        game_phase_full_fn(?text,
                           #mafia_game{game_num = 27},
-                          #phase{num = 1, don = ?day})
+                          #phase{num = 1, ptype = ?day})
       ),
     ?assertEqual(
        "/my_mecked_path/m28/m28_n3.txt",
        game_phase_full_fn(?text,
                           #mafia_game{game_num = 28},
-                          #phase{num = 3, don = ?night})
+                          #phase{num = 3, ptype = ?night})
       ),
     ?assertEqual(
        "/my_mecked_path/m28/m28_n3.html",
        game_phase_full_fn(?html,
                           #mafia_game{game_num = 28},
-                          #phase{num = 3, don = ?night})
+                          #phase{num = 3, ptype = ?night})
       ),
     ?assertEqual(
        "/my_mecked_path/m28/game_status.html",
@@ -240,12 +240,12 @@ file_name_test() ->
        game_phase_full_fn(
          ?text,
          #mafia_game{game_num = 26},
-         #phase{don = ?game_ended})
+         #phase{ptype = ?game_ended})
       ),
     ?assertEqual({"/m29/m29_d2.txt", "m29_d2.txt"},
                  game_link_and_text(?text,
                                     #mafia_game{game_num = 29},
-                                    #phase{num = 2, don = ?day})
+                                    #phase{num = 2, ptype = ?day})
                 ),
     ?assertEqual({"/m29/game_status.txt", "game_status.txt"},
                  game_link_and_text(?text,
@@ -255,7 +255,7 @@ file_name_test() ->
     ?assertEqual({"/m28/m28_n3.html", "m28_n3.html"},
                  game_link_and_text(?html,
                                     #mafia_game{game_num = 28},
-                                    #phase{num = 3, don = ?night})
+                                    #phase{num = 3, ptype = ?night})
                 ),
     ?assertEqual("command_files/m28_manual_cmds.txt",
                  cmd_filename(#mafia_game{game_num = 28, thread_id = 1234})

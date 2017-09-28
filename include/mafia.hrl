@@ -28,7 +28,7 @@
 -type seconds1970() :: integer().
 -type greg_secs() :: integer().
 -type message() :: binary().
--type day_night() :: ?day | ?night | ?game_start | ?game_ended.
+-type phase_type() :: ?day | ?night | ?game_start | ?game_ended.
 -type mfargs() :: {atom(), atom(), list()}.
 -type login_attempt() :: {seconds1970(), ?success | ?failure}.
 
@@ -56,7 +56,7 @@
 
 -record(phase,
         {num :: ?undefined | integer(),
-         don :: ?undefined | day_night()
+         ptype :: ?undefined | phase_type()
         }).
 
 -record(dl,
@@ -137,7 +137,7 @@
 -record(stat,
         {key :: {player(), game_num()}
               | {player(), game_num(),
-                 ?game_ended | {day_num(), day_night()}}
+                 ?game_ended | {day_num(), phase_type()}}
               | term(),
          msg_ids :: [msg_id()],
          num_chars :: integer(),
@@ -149,7 +149,7 @@
 -record(prstat,
         {key :: {player(), game_num()}
               | {player(), game_num(),
-                 ?game_ended | {day_num(), day_night()}}
+                 ?game_ended | {day_num(), phase_type()}}
               | ?undefined,
          msg_ids :: [msg_id()],
          num_chars :: integer(),

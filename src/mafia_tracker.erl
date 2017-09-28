@@ -26,7 +26,7 @@ web_vote_tracker(Opts) ->
                   {_, GK} -> GK;
                   false -> ?getv(?game_key)
               end,
-    Phase = #phase{num = DayNum, don = ?day},
+    Phase = #phase{num = DayNum, ptype = ?day},
     PP = #pp{game_key = GameKey,
              day_num = DayNum,
              phase = Phase,

@@ -117,7 +117,7 @@ stop() -> application:stop(mafia).
 
 print_votes() -> mafia_print:print_votes().
 print_votes(DayNum) -> mafia_print:print_votes(DayNum).
-print_votes(DayNum, DoN) -> mafia_print:print_votes(DayNum, DoN).
+print_votes(DayNum, Ptype) -> mafia_print:print_votes(DayNum, Ptype).
 print_messages(User) -> mafia_print:print_messages(User).
 man_downl() -> mafia_data:man_downl().
 setup_mnesia() -> mafia_db:setup_mnesia().
@@ -382,7 +382,7 @@ end_phase(MsgId) ->
         {ok, G, M} ->
             Time = M#message.time,
             case mafia_time:calculate_phase(G, Time) of
-                #phase{don = ?game_ended} -> {?error, ?game_ended};
+                #phase{ptype = ?game_ended} -> {?error, ?game_ended};
                 Phase = #phase{} ->
                     Cmd = #cmd{time = Time,
                                msg_id = MsgId,

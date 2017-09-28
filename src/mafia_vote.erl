@@ -53,14 +53,14 @@ check_cmds_votes2(G, Re, M) ->
                       M#message.time >= EndTime
               end,
     PhaseM = mafia_time:calculate_phase(G, M#message.time),
-    IsStarted = PhaseM#phase.don /= ?game_start,
+    IsStarted = PhaseM#phase.ptype /= ?game_start,
     DoGenerate =
         case mafia_lib:prev_msg(M) of
             ?none -> false;
             PrevM ->
                 PhasePrevM = mafia_time:calculate_phase(G, PrevM#message.time),
                 PhasePrevM /= PhaseM
-                    andalso PhasePrevM#phase.don /= ?game_start
+                    andalso PhasePrevM#phase.ptype /= ?game_start
         end,
     if DoGenerate ->
             mafia_web:regen_history(M, G);
@@ -103,7 +103,7 @@ check_for_gm_cmds(Re, M, G, DoGenerate) ->
     G7 = check_for_deaths(Re, M, G6),
 
     %% if time is 0 - 20 min after a deadline generate a history page
-    {RelTimeSecs, _DL} = mafia_time:nearest_deadline(G7, M#message.time),
+    {RelTimeSecs, _PT} = mafia_time:nearest_deadline(G7, M#message.time),
     if not DoGenerate,
        G7 /= G6, %% someone died
        RelTimeSecs >= 0,
@@ -387,16 +387,16 @@ is_first_non_letter([H|_]) ->
 check_for_early_end(#regex{msg_text_u = MsgText}, Time, G) ->
     case find_early_end(MsgText) of
         {?error, _} -> G;
-        {ok, DoN} ->
+        {ok, Ptype} ->
             case mafia_time:calculate_phase(G, Time) of
-                #phase{don = ?game_ended} ->
+                #phase{ptype = ?game_ended} ->
                     ?dbg(Time, "GM early end command for game that has ended"),
                     G;
-                #phase{don = DoN} = Phase ->
+                #phase{ptype = Ptype} = Phase ->
                     mafia_time:end_phase(G, Phase, Time);
                 _ ->
                     ?dbg(Time,
-                         {"GM early end command with wrong phase type", DoN}),
+                         {"GM early end command with wrong phase type", Ptype}),
                     G
             end
     end.
@@ -590,10 +590,10 @@ replace2(G, M, New, Old, true) ->
 replace3(G, M, New, Old) ->
     %% replace ALSO in #mafia_day.players_rem
     Phase = mafia_time:calculate_phase(G, M#message.time),
-    if Phase#phase.don == ?game_ended ->
+    if Phase#phase.ptype == ?game_ended ->
             {?game_ended, G};
        true ->
-            DayNum = if Phase#phase.don == ?game_start -> 1;
+            DayNum = if Phase#phase.ptype == ?game_start -> 1;
                         true -> Phase#phase.num
                      end,
             Day = ?rday(G, DayNum),
@@ -885,7 +885,7 @@ reg_vote(M, G, Vote, RawVote, IsOkVote) ->
 vote2(M, G, Vote, RawVote, IsOkVote) ->
     %% find mafia_day
     case mafia_time:calculate_phase(G, M#message.time) of
-        Phase = #phase{don =?day} ->
+        Phase = #phase{ptype =?day} ->
             io:format(
               "~s Register Vote: ~s votes ~p ~s\n",
               [mafia_print:print_time(M#message.time, short),
@@ -927,7 +927,7 @@ vote2(M, G, Vote, RawVote, IsOkVote) ->
 
 reg_end_vote(G, Op, M) ->
     case mafia_time:calculate_phase(G, M#message.time) of
-        Phase = #phase{don = ?day} ->
+        Phase = #phase{ptype = ?day} ->
             Day = ?rday(G, Phase),
             User = M#message.user_name,
             OldEndVotes = Day#mafia_day.end_votes,

@@ -14,7 +14,7 @@
          split_into_groups/2,
          object_rows/1,
          object_rows_text/2,
-         don_arg/1,
+         ptype_arg/1,
          ul/2
         ]).
 
@@ -26,16 +26,16 @@
 %% Manual API
 print_stats() -> print_stats_opts([]).
 
-print_stats(e) -> print_stats_opts([{?phase, #phase{don = ?game_ended}}]);
+print_stats(e) -> print_stats_opts([{?phase, #phase{ptype = ?game_ended}}]);
 print_stats(Opts) when is_list(Opts) -> print_stats_opts(Opts).
 
-print_stats(Num, DoN) ->
-    DoN2 = don_arg(DoN),
-    print_stats_opts([{?phase, #phase{num = Num, don = DoN2}}]).
+print_stats(Num, Ptype) ->
+    Ptype2 = ptype_arg(Ptype),
+    print_stats_opts([{?phase, #phase{num = Num, ptype = Ptype2}}]).
 
 print_stats_opts(Opts) ->
     DefOpts = [{?game_key, ?getv(?game_key)},
-               {?phase, #phase{num = 1, don = ?day}},
+               {?phase, #phase{num = 1, ptype = ?day}},
                {?dev, ?standard_io},
                {?sort, ?sort_normal}],
     PP = po(#pp{}, DefOpts),
@@ -61,7 +61,7 @@ print_stats_match(PP) when PP#pp.phase == ?total_stats ->
     Result = '$_',
     MatchExpr = [{MatchHead, Guard, [Result]}],
     print_statsI(PP#pp{match_expr = MatchExpr});
-print_stats_match(PP) when (PP#pp.phase)#phase.don == ?game_ended ->
+print_stats_match(PP) when (PP#pp.phase)#phase.ptype == ?game_ended ->
     %% END stats
     Pattern = mnesia:table_info(stat, wild_pattern),
     MatchHead = Pattern#stat{key = {'$1', '$2', '$3'}},
@@ -72,11 +72,11 @@ print_stats_match(PP) when (PP#pp.phase)#phase.don == ?game_ended ->
     print_statsI(PP#pp{match_expr = MatchExpr});
 print_stats_match(PP) ->
     %% PHASE stats
-    #phase{num = Day, don = DoN} = PP#pp.phase,
+    #phase{num = Day, ptype = Ptype} = PP#pp.phase,
     Pattern = mnesia:table_info(stat, wild_pattern),
     MatchHead = Pattern#stat{key = {'$1', '$2', {'$3', '$4'}}},
     Guard = [{'==', '$2', PP#pp.game_key},
-             {'==', '$3', Day}, {'==', '$4', DoN}],
+             {'==', '$3', Day}, {'==', '$4', Ptype}],
     Result = '$_',
     MatchExpr = [{MatchHead, Guard, [Result]}],
     print_statsI(PP#pp{match_expr = MatchExpr}).
@@ -323,11 +323,11 @@ do_print_stats(PP, PrStats) ->
 %% INTERNAL
 
 phase_args(?total_stats) -> "phase=global";
-phase_args(#phase{don = ?game_ended}) -> "phase=end";
-phase_args(#phase{don = DoN, num = DNum}) ->
-    Ph = "phase=" ++ if DoN == ?game_start -> "Game Start";
-                        DoN == ?day -> "day";
-                        DoN == ?night -> "night"
+phase_args(#phase{ptype = ?game_ended}) -> "phase=end";
+phase_args(#phase{ptype = Ptype, num = DNum}) ->
+    Ph = "phase=" ++ if Ptype == ?game_start -> "Game Start";
+                        Ptype == ?day -> "day";
+                        Ptype == ?night -> "night"
                      end,
     Num = "&num=" ++ ?i2l(DNum),
     Ph ++ Num.

@@ -294,7 +294,7 @@ expand_deadlines(G) ->
     TargetTime = LastDL#dl.time + 11 * ?DaySecs,
     get_some_extra_dls(G, DLs2, TargetTime).
 
-first_phase() -> #phase{num = 0, don = ?game_start}.
+first_phase() -> #phase{num = 0, ptype = ?game_start}.
 
 %% gregorian_seconds().
 first_deadline_secs1970(G) ->
@@ -311,32 +311,32 @@ first_deadline_greg_secs(G) ->
 
 -spec inc_phase(#phase{} | #dl{}) -> ?undefined | #phase{}.
 inc_phase(#dl{phase = Phase}) -> inc_phase(Phase);
-inc_phase(Ph = #phase{don = ?game_start}) ->
-    Ph#phase{num = 1, don = ?day};
-inc_phase(#phase{don = ?game_ended}) ->
+inc_phase(Ph = #phase{ptype = ?game_start}) ->
+    Ph#phase{num = 1, ptype = ?day};
+inc_phase(#phase{ptype = ?game_ended}) ->
     ?undefined;
-inc_phase(Ph = #phase{don = ?day}) ->
-    Ph#phase{don = ?night};
-inc_phase(#phase{num = Num, don = ?night}) ->
-    #phase{num = Num + 1, don = ?day}.
+inc_phase(Ph = #phase{ptype = ?day}) ->
+    Ph#phase{ptype = ?night};
+inc_phase(#phase{num = Num, ptype = ?night}) ->
+    #phase{num = Num + 1, ptype = ?day}.
 
 -spec decr_phase(#phase{} | #dl{}) -> ?undefined | #phase{}.
 decr_phase(#dl{phase = Phase}) -> decr_phase(Phase);
-decr_phase(#phase{don = ?game_start}) ->
+decr_phase(#phase{ptype = ?game_start}) ->
     ?undefined;
-decr_phase(#phase{don = ?game_ended}) ->
+decr_phase(#phase{ptype = ?game_ended}) ->
     ?undefined;
-decr_phase(#phase{num = 1, don = ?day}) ->
-    #phase{num = 0, don = ?game_start};
-decr_phase(#phase{num = Num, don = ?day}) ->
-    #phase{num = Num - 1, don = ?night};
-decr_phase(Ph = #phase{don = ?night}) ->
-    Ph#phase{don = ?day}.
+decr_phase(#phase{num = 1, ptype = ?day}) ->
+    #phase{num = 0, ptype = ?game_start};
+decr_phase(#phase{num = Num, ptype = ?day}) ->
+    #phase{num = Num - 1, ptype = ?night};
+decr_phase(Ph = #phase{ptype = ?night}) ->
+    Ph#phase{ptype = ?day}.
 
 -spec inc_deadline(#mafia_game{}, #dl{}) -> #dl{}.
 inc_deadline(G, DL = #dl{time = Time}) ->
     NextPhase = inc_phase(DL#dl.phase),
-    NHours = case NextPhase#phase.don of
+    NHours = case NextPhase#phase.ptype of
                  ?day   -> G#mafia_game.day_hours;
                  ?night -> G#mafia_game.night_hours
              end,
@@ -461,9 +461,6 @@ return_time_left(TimeLeft, DL, ?seconds) ->
 
 %% -----------------------------------------------------------------------------
 
-
-%% -type phase() :: #phase{num = day_num(), don = (?day | ?night)} |
-%%                  #phase{num = ?undefined, don = (?game_ended | ?game_start)}.
 -spec calculate_phase(G :: integer() | #mafia_game{})
                      -> #phase{}.
 calculate_phase(G) ->
@@ -480,13 +477,13 @@ calculate_phase(GNum, Time) when is_integer(GNum) ->
     end;
 calculate_phase(#mafia_game{game_end = {EndTime, _}}, Time)
   when Time >= EndTime ->
-    #phase{don = ?game_ended};
+    #phase{ptype = ?game_ended};
 calculate_phase(Game, Time) ->
     DL = get_nxt_deadline(Game, Time),
     DL#dl.phase.
 
 phases_upto(EndPhase) ->
-    phases_upto(EndPhase, #phase{num = 1, don = ?day}, []).
+    phases_upto(EndPhase, #phase{num = 1, ptype = ?day}, []).
 
 phases_upto(EndPhase, Ph, Acc) when EndPhase > Ph ->
     phases_upto(EndPhase, inc_phase(Ph), [Ph | Acc]);
@@ -522,7 +519,7 @@ get_nxt_deadline(Game = #mafia_game{}, Time) ->
     GetNext =
         fun({Take, _Drop}) ->
                 case Take of
-                    [] -> #dl{phase = #phase{don = ?game_ended}};
+                    [] -> #dl{phase = #phase{ptype = ?game_ended}};
                     _ ->
                         lists:last(Take)
                 end
@@ -550,7 +547,7 @@ split_dls(Game, Time) ->
 get_time_for_phase(G, Phase) when is_integer(G); is_atom(G) ->
     get_time_for_phase(?rgame(G), Phase);
 get_time_for_phase([G], Phase) -> get_time_for_phase(G, Phase);
-get_time_for_phase(G = #mafia_game{}, #phase{don = ?game_ended}) ->
+get_time_for_phase(G = #mafia_game{}, #phase{ptype = ?game_ended}) ->
     case G#mafia_game.game_end of
         ?undefined -> ?undefined;
         {Time, _MsgId} -> Time
@@ -573,7 +570,7 @@ get_time_for_prev_phase(G, Phase) ->
     end.
 
 -spec nearest_deadline(integer() | #mafia_game{} | [#mafia_game{}])
-                      -> {integer(), #dl{} | ?game_ended} | none.
+                      -> {integer(), #dl{}} | none.
 nearest_deadline(GameKey) when is_integer(GameKey) ->
     nearest_deadline(?rgame(GameKey));
 nearest_deadline([]) -> none;
@@ -583,12 +580,14 @@ nearest_deadline([G]) ->
         ?undefined ->
             nearest_deadline(G, Now);
         {EoGTime, _MsgId} ->
-            {Now - EoGTime, ?game_ended}
+            {Now - EoGTime,
+             #dl{phase = #phase{ptype = ?game_ended},
+                 time = EoGTime}}
     end.
 
 -spec nearest_deadline(integer() | #mafia_game{} | [#mafia_game{}],
                        seconds1970())
-                      -> {integer(), #dl{}} | none.
+                      -> {integer(), phase_type()} | none.
 nearest_deadline(GNum, Time) when is_integer(GNum) ->
     nearest_deadline(?rgame(GNum), Time);
 nearest_deadline([], _) -> none;
@@ -613,10 +612,8 @@ timer_minutes(GNum) ->
         _ ->
             case nearest_deadline(GNum) of
                 none -> none;
-                {RelTimeSecs, ?game_ended} ->
-                    t_mins(?game_ended, RelTimeSecs);
-                {RelTimeSecs, #dl{phase = #phase{don = DoN}}} ->
-                    t_mins(DoN, RelTimeSecs)
+                {RelTimeSecs, #dl{phase = #phase{ptype = Ptype}}} ->
+                    t_mins(Ptype, RelTimeSecs)
             end
     end.
 
@@ -731,7 +728,7 @@ move_next_deadline(G, M, DeltaSecs) ->
     Time = M#message.time,
     move_dls2(G, M, DeltaSecs, calculate_phase(G, Time)).
 
-move_dls2(G, _M, _TimeDiff, #phase{don = ?game_ended}) ->
+move_dls2(G, _M, _TimeDiff, #phase{ptype = ?game_ended}) ->
     {{?error, ?game_ended}, G};
 move_dls2(G, M, TimeDiff, _Phase) ->
     %% Calc time remaining

@@ -414,7 +414,7 @@ regen_historyI(Time, GNum)
 regen_historyI(Time, {GKey, Phase = #phase{}}) ->
     regen_historyI(Time, GKey, Phase, ?rgame(GKey)).
 
-regen_historyI(_, _, #phase{don = ?game_start}, _) -> ok;
+regen_historyI(_, _, #phase{ptype = ?game_start}, _) -> ok;
 regen_historyI(Time, GNum, Phase = #phase{}, [G]) ->
     ?dbg(Time, {"DO REGENERATE_HISTORY 3", Phase, Time}),
     Opts = [{?game_key, GNum},
@@ -428,7 +428,7 @@ regen_historyI(Time, GNum, Phase = #phase{}, [G]) ->
         _ ->
             ?dbg(Time, {"REGENERATE GAME_STATUS"}),
             Opts2 = [{?game_key, GNum},
-                     {?phase, #phase{don = ?game_ended}}],
+                     {?phase, #phase{ptype = ?game_ended}}],
             FNTxt2 = mafia_file:game_phase_full_fn(G, ?current),
             FNHtml2 = mafia_file:game_phase_full_fn(?html, G, ?current),
             regen_hist_txt(FNTxt2, Opts2),
@@ -469,13 +469,13 @@ get_links(Opts) ->
     GNum = proplists:get_value(?game_key, Opts),
     Phase = proplists:get_value(?phase, Opts),
     PrevPhase = mafia_time:decr_phase(Phase),
-    PLinkF = fun(DoN, Num) ->
+    PLinkF = fun(Ptype, Num) ->
                      ["&lt;&lt; ",
-                      ddonstr(DoN),
+                      dptypestr(Ptype),
                       " ", ?i2l(Num)]
              end,
-    NLinkF = fun(DoN, Num) ->
-                     [ddonstr(DoN),
+    NLinkF = fun(Ptype, Num) ->
+                     [dptypestr(Ptype),
                       " ", ?i2l(Num),
                       " &gt;&gt;"]
              end,
@@ -483,20 +483,20 @@ get_links(Opts) ->
         case PrevPhase of
             ?undefined -> "";
             #phase{num = 0} -> "";
-            #phase{num = PDayNum, don = PDoN} ->
-                web_impl:hist_link("game_status", GNum, PDoN, PDayNum, PLinkF)
+            #phase{num = PDayNum, ptype = PPtype} ->
+                web_impl:hist_link("game_status", GNum, PPtype, PDayNum, PLinkF)
         end,
     NextPhase = mafia_time:inc_phase(Phase),
     NextLink =
         case NextPhase of
             ?undefined -> "";
-            #phase{num = NDayNum, don = NDoN} ->
-                web_impl:hist_link("game_status", GNum, NDoN, NDayNum, NLinkF)
+            #phase{num = NDayNum, ptype = NPtype} ->
+                web_impl:hist_link("game_status", GNum, NPtype, NDayNum, NLinkF)
         end,
     {PrevLink, NextLink}.
 
-ddonstr(?night) -> "Night";
-ddonstr(?day) -> "Day".
+dptypestr(?night) -> "Night";
+dptypestr(?day) -> "Day".
 
 %%--------------------------------------------------------------------
 
@@ -638,7 +638,7 @@ set_dl_timer(S, Time, [G]) ->
 set_dl_timer(S, Time, G) ->
     S2 = cancel_dl_timer(S),
     case mafia_time:get_nxt_deadline(G, Time) of
-        #dl{phase = #phase{don = ?game_ended}} -> S2;
+        #dl{phase = #phase{ptype = ?game_ended}} -> S2;
         DL = #dl{} ->
             NtpOffsetMilliSecs = round(S#state.ntp_offset_secs * 1000),
             SysTimeMs = mafia_time:system_time_ms(),

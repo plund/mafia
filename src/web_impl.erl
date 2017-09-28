@@ -107,7 +107,7 @@ front_page(Sid, _Env, In) ->
          "</th><th>Statistics"
          "</th><th>Vote Tracker"
          "</th></tr>\r\n",
-         if CurPhase#phase.don == ?game_ended ->
+         if CurPhase#phase.ptype == ?game_ended ->
                  [["<tr ", ?BG_MED_GREEN, ">"],
                   "<td>"
                   "<a href=\"game_status?g=", GNStr, "&phase=end\">Game End</a>"
@@ -117,8 +117,8 @@ front_page(Sid, _Env, In) ->
                   "</td></tr>\r\n"];
             true -> []
          end,
-         [game_day_links(DoN, GameNum, DayNum)
-          || #phase{num = DayNum, don = DoN} <- RevPhases],
+         [game_day_links(Ptype, GameNum, DayNum)
+          || #phase{num = DayNum, ptype = Ptype} <- RevPhases],
          ["<tr ", ?BG_MED_GREEN, ">"],
          "<td colspan=3 align=center>"
          "<a href=\"stats?g=", GNStr, "&phase=global\">"
@@ -167,22 +167,22 @@ game_day_links(?day, GNum, DayNum) ->
     ].
 
 %% new module web_lib for the below?
-hist_link(Page, GNum, DoN, DNum) ->
-    LinkF = fun(DoN2, DNum2) -> [ddonstr(DoN2), " ", ?i2l(DNum2)] end,
-    hist_link(Page, GNum, DoN, DNum, LinkF).
+hist_link(Page, GNum, Ptype, DNum) ->
+    LinkF = fun(Ptype2, DNum2) -> [dptypestr(Ptype2), " ", ?i2l(DNum2)] end,
+    hist_link(Page, GNum, Ptype, DNum, LinkF).
 
 hist_link("vote_tracker" = Page, GNum, ?day, DNum, _LinkF) ->
     ["<a href=\"", Page, "?g=", ?i2l(GNum), "&day=", ?i2l(DNum), "\">Day ",
      ?i2l(DNum), "</a>"];
-hist_link(Page, GNum, DoN, DNum, LinkF) ->
-    ["<a href=\"", Page, "?g=", ?i2l(GNum), "&phase=", donstr(DoN),
-     "&num=", ?i2l(DNum), "\">", LinkF(DoN, DNum), "</a>"].
+hist_link(Page, GNum, Ptype, DNum, LinkF) ->
+    ["<a href=\"", Page, "?g=", ?i2l(GNum), "&phase=", ptypestr(Ptype),
+     "&num=", ?i2l(DNum), "\">", LinkF(Ptype, DNum), "</a>"].
 
-donstr(?night) -> "night";
-donstr(?day) -> "day".
+ptypestr(?night) -> "night";
+ptypestr(?day) -> "day".
 
-ddonstr(?night) -> "Night";
-ddonstr(?day) -> "Day".
+dptypestr(?night) -> "Night";
+dptypestr(?day) -> "Day".
 
 %% -----------------------------------------------------------------------------
 %% replace game selection section in file.
@@ -317,11 +317,11 @@ msgs2(Sid, GNum, In, PQ, []) ->
 
                      %% 3. Test Day
                      fun() when not IsDayCond -> ?true;
-                        %% need DayNum, DoN, Page, find_part
+                        %% need DayNum, Ptype, Page, find_part
                         () ->
                              case DayCond of
                                  ?game_ended ->
-                                     MsgPhase#phase.don == ?game_ended;
+                                     MsgPhase#phase.ptype == ?game_ended;
                                  {Ua, Na, Ub, Nb} ->
                                      IsAok =
                                          case {Ua, Na} of
@@ -329,7 +329,7 @@ msgs2(Sid, GNum, In, PQ, []) ->
                                              {page, _} -> Page >= Na;
                                              _ ->
                                                  SPhaseA = #phase{num = Na,
-                                                                  don = Ua},
+                                                                  ptype = Ua},
                                                  SPhaseA =< MsgPhase
                                          end,
                                      IsBok =
@@ -338,7 +338,7 @@ msgs2(Sid, GNum, In, PQ, []) ->
                                              {page, _} -> Page =< Nb;
                                              _ ->
                                                  SPhaseB = #phase{num = Nb,
-                                                                  don = Ub},
+                                                                  ptype = Ub},
                                                  MsgPhase =< SPhaseB
                                          end,
                                      (MThId /= GThId) or (IsAok and IsBok)
@@ -374,13 +374,13 @@ msgs2(Sid, GNum, In, PQ, []) ->
                         SizeDiv = deliver_div(Sid, DivStr),
                         DayStr =
                             case MsgPhase of
-                                #phase{num = DNum, don = ?day} ->
+                                #phase{num = DNum, ptype = ?day} ->
                                     "Day-" ++ ?i2l(DNum);
-                                #phase{num = DNum, don = ?night} ->
+                                #phase{num = DNum, ptype = ?night} ->
                                     "Night-" ++ ?i2l(DNum);
-                                #phase{don = ?game_start} ->
+                                #phase{ptype = ?game_start} ->
                                     "Game Start ";
-                                #phase{don = ?game_ended} ->
+                                #phase{ptype = ?game_ended} ->
                                     "Game End "
                             end,
                         ModifiedMsg = modify_message(Msg, WordsU),
@@ -820,7 +820,7 @@ validate_phase(GNum, Phase) ->
     case ?rgame(GNum) of
         [] ->
             error;
-        [G] when Phase#phase.don == ?game_ended ->
+        [G] when Phase#phase.ptype == ?game_ended ->
             case G#mafia_game.game_end of
                 ?undefined -> error;
                 _ -> show_phase
@@ -868,18 +868,18 @@ get_phase2(_GNum, PhaseStr, NumStr) ->
     gs_phase(PhaseStr, NumStr).
 
 gs_phase("end", _) ->
-    {?history, #phase{don = ?game_ended}};
+    {?history, #phase{ptype = ?game_ended}};
 gs_phase("day", Str) ->
     case conv_to_num(Str) of
         {ok, Num} ->
-            {?history, #phase{num = Num, don = ?day}};
+            {?history, #phase{num = Num, ptype = ?day}};
         {error, _HtmlErr} = E ->
             E
     end;
 gs_phase("night", Str) ->
     case conv_to_num(Str) of
         {ok, Num} ->
-            {?history, #phase{num = Num, don = ?night}};
+            {?history, #phase{num = Num, ptype = ?night}};
         {error, _HtmlErr} = E ->
             E
     end;
@@ -1038,17 +1038,17 @@ stats2({"phase", PhType},
     {ok, ?total_stats};
 stats2({"phase", "end"},
        _) ->
-    {ok, #phase{don = ?game_ended}};
+    {ok, #phase{ptype = ?game_ended}};
 stats2({"phase", "day"},
        {"num", Str}) ->
     case conv_to_num(Str) of
-        {ok, Num} -> {ok, #phase{num = Num, don = ?day}};
+        {ok, Num} -> {ok, #phase{num = Num, ptype = ?day}};
         {error, _HtmlErr} = E -> E
     end;
 stats2({"phase", "night"},
        {"num", Str}) ->
     case conv_to_num(Str) of
-        {ok, Num} -> {ok, #phase{num = Num, don = ?night}};
+        {ok, Num} -> {ok, #phase{num = Num, ptype = ?night}};
         {error, _HtmlErr} = E -> E
     end;
 stats2(_, _) ->
@@ -1262,12 +1262,12 @@ show_msgI(G, #message{user_name = MsgUserB,
     MsgPhase = mafia_time:calculate_phase(G, Time),
     DayStr =
         case MsgPhase of
-            #phase{num = DNum, don = ?day} ->
+            #phase{num = DNum, ptype = ?day} ->
                 "Day-" ++ ?i2l(DNum);
-            #phase{num = DNum, don = ?night} ->
+            #phase{num = DNum, ptype = ?night} ->
                 "Night-" ++ ?i2l(DNum);
-            #phase{don = ?game_start} -> "Game Start";
-            #phase{don = ?game_ended} -> "Game End "
+            #phase{ptype = ?game_start} -> "Game Start";
+            #phase{ptype = ?game_ended} -> "Game End "
         end,
     Color = mafia_lib:bgcolor(MsgUserB),
     {HH, MM} = mafia_time:hh_mm_to_deadline(G, Time),

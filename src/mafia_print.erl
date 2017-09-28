@@ -35,7 +35,7 @@
          split_into_groups/2,
          object_rows/1,
          object_rows_text/2,
-         don_arg/1,
+         ptype_arg/1,
          ul/2
         ]).
 
@@ -136,10 +136,10 @@ pm_rmess(PP) ->
 
 %% -----------------------------------------------------------------------------
 
-don_arg(DoN) ->
-    if DoN == d; DoN == day; DoN == ?day -> ?day;
-       DoN == n; DoN == night; DoN == ?night -> ?night
-       %% DoN == e; DoN == 'end'; DoN == ?game_end -> ?game_ended
+ptype_arg(Ptype) ->
+    if Ptype == d; Ptype == day; Ptype == ?day -> ?day;
+       Ptype == n; Ptype == night; Ptype == ?night -> ?night
+       %% Ptype == e; Ptype == 'end'; Ptype == ?game_end -> ?game_ended
     end.
 
 setup_pp(PP) when PP#pp.game == ?undefined ->
@@ -212,9 +212,9 @@ setup_pp(PP) when PP#pp.players_vote == ?undefined ->
     setup_pp(PP#pp{players_vote = AllPlayersB});
 setup_pp(PP) when PP#pp.phase_type == ?undefined ->
     PhaseType = case PP#pp.phase of
-                    #phase{don = ?game_start} -> ?game_start;
-                    #phase{don = ?game_ended} -> ?game_ended;
-                    #phase{don = DoN} -> DoN;
+                    #phase{ptype = ?game_start} -> ?game_start;
+                    #phase{ptype = ?game_ended} -> ?game_ended;
+                    #phase{ptype = Ptype} -> Ptype;
                     ?total_stats -> ?total_stats
                 end,
     setup_pp(PP#pp{phase_type = PhaseType});
@@ -229,9 +229,9 @@ print_votes() ->
     print_votes([{?phase, Phase}]).
 
 %% /2 human
-print_votes(DayNum, DoN) ->
-    DoN2 = don_arg(DoN),
-    print_votes([{?phase, #phase{num = DayNum, don = DoN2}}]).
+print_votes(DayNum, Ptype) ->
+    Ptype2 = ptype_arg(Ptype),
+    print_votes([{?phase, #phase{num = DayNum, ptype = Ptype2}}]).
 
 %% /1 generic
 print_votes(Opts) ->
@@ -421,7 +421,7 @@ print_votesI(PPin) ->
         [D#death.player
          || D = #death{phase = Ph, is_deleted = false}
                 <- G#mafia_game.player_deaths,
-            if (PP#pp.phase)#phase.don == ?game_ended -> true;
+            if (PP#pp.phase)#phase.ptype == ?game_ended -> true;
                true -> Ph =< PP#pp.phase
             end],
     %% split up remaining players into groups of ?NumColsInGrp (10)
@@ -496,7 +496,7 @@ print_votesI(PPin) ->
         end,
 
     %% Part - Posting stats
-    PPstat = if (PP#pp.phase)#phase.don == ?game_ended ->
+    PPstat = if (PP#pp.phase)#phase.ptype == ?game_ended ->
                      PP#pp{phase = ?total_stats};
                 true -> PP
              end,
@@ -505,7 +505,7 @@ print_votesI(PPin) ->
     %% Part - Dead players
     DoReport =
         fun(DPhase) ->
-                if (PP#pp.phase)#phase.don == ?game_ended -> true;
+                if (PP#pp.phase)#phase.ptype == ?game_ended -> true;
                    PP#pp.use_time == ?undefined -> DPhase == PP#pp.phase;
                    true -> DPhase =< PP#pp.phase
                 end
@@ -530,11 +530,11 @@ print_votesI(PPin) ->
     IsZeroReplacements = [] == [R || R = #replacement{} <- DeathsToReport],
     PrFun =
         fun(IsEnd, Ph) ->
-                " died " ++ pr_eodon(IsEnd, Ph)
+                " died " ++ pr_eo_ptype(IsEnd, Ph)
         end,
     PrRepFun =
         fun(Ph) ->
-                " was replaced " ++ pr_eodon(false, Ph) ++ " by "
+                " was replaced " ++ pr_eo_ptype(false, Ph) ++ " by "
         end,
     if PP#pp.mode == ?text ->
             if not IsZeroDeaths ->
@@ -798,12 +798,12 @@ print_num_dls(_PP, DoDispTime2DL, _Num)
   when DoDispTime2DL == false -> [].
 
 prep_dl_info(G, Time, DLs) ->
-    [{if DoN == ?game_start -> pr_don(DoN);
-         true -> [pr_don(DoN), " ", ?i2l(N)]
+    [{if Ptype == ?game_start -> pr_ptype(Ptype);
+         true -> [pr_ptype(Ptype), " ", ?i2l(N)]
       end,
       mafia_time:secs2day_hour_min_sec(Time - DLT),
       print_game_time(G, DLT, ?human)}
-     || #dl{phase = #phase{num = N, don = DoN}, time = DLT} <- DLs].
+     || #dl{phase = #phase{num = N, ptype = Ptype}, time = DLT} <- DLs].
 
 print_dls_text(_PP, DLs, _Title, _) when length(DLs) =< 0 -> ok;
 print_dls_text(PP, DLs, Title, PrintRelative) ->
@@ -867,7 +867,7 @@ print_dls_html(DLs, Title, PrintRelative) ->
       || {PhaseStr, {Days, {HH, MM, _}}, TimeStr} <- DLs]].
 
 pr_thread_links(PP, _DoDispTime2DL)
-  when (PP#pp.phase)#phase.don == ?game_ended ->
+  when (PP#pp.phase)#phase.ptype == ?game_ended ->
     GameNumStr = integer_to_list((PP#pp.game)#mafia_game.game_num),
     Link = "<a href=\"/e/web/msgs?g=" ++ GameNumStr ++
         "&part=end\">Game End</a>",
@@ -1035,15 +1035,16 @@ user_vote(UserVotes) ->
     end.
 
 
-pr_eodon(true, Phase = #phase{}) -> pr_eodon(Phase);
-pr_eodon(false, Ph = #phase{}) -> print_phase(Ph).
+pr_eo_ptype(true, Phase = #phase{}) -> pr_eo_ptype(Phase);
+pr_eo_ptype(false, Ph = #phase{}) -> print_phase(Ph).
 
-pr_eodon(#phase{num = Num, don = ?day}) -> "EoD"++ ?i2l(Num);
-pr_eodon(#phase{num = Num, don = ?night}) -> "EoN"++ ?i2l(Num);
-pr_eodon(#phase{don = ?game_ended}) -> "at end of game".
+pr_eo_ptype(#phase{num = Num, ptype = ?day}) -> "EoD"++ ?i2l(Num);
+pr_eo_ptype(#phase{num = Num, ptype = ?night}) -> "EoN"++ ?i2l(Num);
+pr_eo_ptype(#phase{ptype = ?game_ended}) -> "at end of game".
 
-pr_phase_long(#phase{don = ?game_ended}) -> "Game End";
-pr_phase_long(#phase{num = Num, don = DoN}) -> pr_don(DoN) ++ " " ++ ?i2l(Num);
+pr_phase_long(#phase{ptype = ?game_ended}) -> "Game End";
+pr_phase_long(#phase{num = Num, ptype = Ptype}) ->
+    pr_ptype(Ptype) ++ " " ++ ?i2l(Num);
 pr_phase_long(?total_stats) -> "Game Global Statistics".
 
 %%%%%%%%%%
@@ -1204,20 +1205,20 @@ print_dl_div_lineI(PhText, Txt) ->
               "--------------------------------\n",
               [Txt, PhText]).
 
-print_phase(#phase{don = ?game_start}) -> "Game Start";
-print_phase(#phase{don = ?game_ended}) -> "Game End";
-print_phase(#phase{num = Num, don = DoN}) ->
-    pr_don(DoN) ++ " " ++ ?i2l(Num).
+print_phase(#phase{ptype = ?game_start}) -> "Game Start";
+print_phase(#phase{ptype = ?game_ended}) -> "Game End";
+print_phase(#phase{num = Num, ptype = Ptype}) ->
+    pr_ptype(Ptype) ++ " " ++ ?i2l(Num).
 
-print_phase_next(Ph = #phase{don = DoN}) when DoN == ?game_start ->
+print_phase_next(Ph = #phase{ptype = Ptype}) when Ptype == ?game_start ->
     print_phase(Ph);
 print_phase_next(Ph) ->
     "next " ++ print_phase(Ph) ++ " deadline".
 
-pr_don(?game_start) -> "Game Start";
-pr_don(?game_ended) -> "Game End";
-pr_don(?day) -> "Day";
-pr_don(?night) -> "Night".
+pr_ptype(?game_start) -> "Game Start";
+pr_ptype(?game_ended) -> "Game End";
+pr_ptype(?day) -> "Day";
+pr_ptype(?night) -> "Night".
 
 %% -----------------------------------------------------------------------------
 

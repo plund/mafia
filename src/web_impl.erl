@@ -407,7 +407,7 @@ msgs2(Sid, GNum, In, PQ, []) ->
                                 p(HH), ":", p(MM), "<br>",
                                 HPage,
                                 "</td><td valign=\"top\">",
-                                ModifiedMsg,
+                                break_long_words(ModifiedMsg),
                                 "</td></tr>\r\n"]),
                         SizeOut = web:deliver(Sid, OutB),
                         MI#miter{bytes = MI#miter.bytes + SizeDiv + SizeOut,
@@ -456,6 +456,27 @@ msgs2(Sid, GNum, In, PQ, []) ->
     C = del_end(Sid),
     Args = [list_to_binary(K) || {K, V} <- PQ, V/=""] -- [<<"button">>],
     {A + B + C, Args}.
+
+-define(MAX_WORD, 120).
+
+break_long_words(Msg) ->
+    dblw(Msg, ?MAX_WORD, out).
+
+%% do_break_long_words
+dblw([], _, _) -> [];
+dblw([$\s | T], _, out) -> [$\s | dblw(T, ?MAX_WORD, out)];
+
+dblw([$< | T], N, out)  -> [$< | dblw(T, N - 1, html)];
+dblw([$> | T], N, html) -> [$> | dblw(T, N - 1, out)];
+
+dblw([$& | T], N, out) -> [$\& | dblw(T, N - 1, amp)];
+dblw([$; | T], N, amp) -> [$\; | dblw(T, N - 1, out)];
+
+dblw(Str, N, out) when N =< 0 -> [$\s | dblw(Str, ?MAX_WORD, out)];
+%% dblw([H | T], N, html) -> [H  | dblw(T, N - 1, html)];
+%% dblw([H | T], N, amp) -> [H | dblw(T, N - 1, amp)];
+dblw([H | T], N, Mode) -> [H | dblw(T, N - 1, Mode)].
+
 
 deliver_div(Sid, DivStr) ->
     deliver_div(Sid, DivStr, "#aaaaff").

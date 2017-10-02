@@ -15,6 +15,8 @@ SERVER_ROOT=$RUN_DIR/httpd/$DOMAIN_NAME
 
 # A secure way to figure out where the repo and this script is located
 SCRIPT_DIR=$(cd $(dirname $0) && pwd)
+# A variant that resolves soft links
+#SCRIPT_DIR=$(readlink -nf $(dirname $0))
 
 # other
 CMD=$(basename $0)

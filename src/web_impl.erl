@@ -457,7 +457,8 @@ msgs2(Sid, GNum, In, PQ, []) ->
     Args = [list_to_binary(K) || {K, V} <- PQ, V/=""] -- [<<"button">>],
     {A + B + C, Args}.
 
--define(MAX_WORD, 120).
+-define(MAX_WORD, 60).
+-define(BRNCH, "&#8203;"). %% breaking non-character
 
 break_long_words(Msg) ->
     dblw(Msg, ?MAX_WORD, out).
@@ -472,9 +473,7 @@ dblw([$> | T], N, html) -> [$> | dblw(T, N - 1, out)];
 dblw([$& | T], N, out) -> [$\& | dblw(T, N - 1, amp)];
 dblw([$; | T], N, amp) -> [$\; | dblw(T, N - 1, out)];
 
-dblw(Str, N, out) when N =< 0 -> [$\s | dblw(Str, ?MAX_WORD, out)];
-%% dblw([H | T], N, html) -> [H  | dblw(T, N - 1, html)];
-%% dblw([H | T], N, amp) -> [H | dblw(T, N - 1, amp)];
+dblw(Str, N, out) when N =< 0 -> ?BRNCH ++ dblw(Str, ?MAX_WORD, out);
 dblw([H | T], N, Mode) -> [H | dblw(T, N - 1, Mode)].
 
 

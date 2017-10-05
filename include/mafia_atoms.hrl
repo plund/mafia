@@ -7,6 +7,9 @@
 -define(ok, ok).
 -define(error, error).
 
+-define(webDip, webDip).
+-define(vDip, vDip).
+
 -define(stop, stop).
 -define(none, none).
 -define(match, match).

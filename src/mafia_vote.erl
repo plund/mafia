@@ -572,13 +572,16 @@ find_player_replacement(Reg = #regex{play_repl = RE}) ->
                      string())
                     -> {replace_result(), #mafia_game{}}.
 replace_player(G, M, NewPlayer, OldPlayer) ->
-    replace1(G, M, ?ruserUB(NewPlayer), ?ruserUB(OldPlayer)).
+    Site = G#mafia_game.site,
+    replace1(G, M,
+             ?ruserUB(NewPlayer, Site),
+             ?ruserUB(OldPlayer, Site)).
 
 replace1(G, _M, _NewPlayer, []) -> {old_no_exists, G};
 replace1(G, _M, [], _OldPlayer) -> {new_no_exists, G};
 replace1(G, M, [New], [Old]) ->
     replace2(G, M, New, Old,
-             lists:member(Old#user.name, G#mafia_game.players_rem)).
+             lists:member(?e1(Old#user.name), G#mafia_game.players_rem)).
 
 replace2(G, _M, _New, _Old, false) ->
     {not_remain, G};
@@ -597,8 +600,8 @@ replace3(G, M, New, Old) ->
                         true -> Phase#phase.num
                      end,
             Day = ?rday(G, DayNum),
-            NewP = New#user.name,
-            OldP = Old#user.name,
+            NewP = ?e1(New#user.name),
+            OldP = ?e1(Old#user.name),
             ?dbg(M#message.time, {?b2l(NewP), replaces, ?b2l(OldP)}),
             Rems2 = repl_user(OldP, NewP, Day#mafia_day.players_rem),
             Replacement = #replacement{
@@ -688,8 +691,7 @@ check_for_votes(#regex{msg_text_u = MsgU}, M, G) ->
     end.
 
 check_VOTE(MsgUC, M, G) ->
-    Players = G#mafia_game.players_rem,
-    Players2 = add_nolynch_and_aliases(Players),
+    Players = add_nolynch_and_aliases(G),
     VoteStr = "##VOTE",
     UnvoteStr = "##UNVOTE",
     case {mafia_data:rm_to_after_pos(MsgUC, VoteStr),
@@ -708,7 +710,7 @@ check_VOTE(MsgUC, M, G) ->
                          mafia_data:get_after_pos(
                            Pos, length(VoteStr), Msg),
                          60))),
-            case rank_options(Players2, RestUC) of
+            case rank_options(Players, RestUC) of
                 [{NumV, TopP}] when NumV >= 2; NumV >= size(TopP) ->
                     reg_vote(M, G, TopP, RawVote, true);
                 [{NumV1, TopP}, {NumV2, _}|_]
@@ -751,10 +753,12 @@ is_user_in_list(UserB, UsersB) ->
 
 %% -----------------------------------------------------------------------------
 
-add_nolynch_and_aliases(Players) ->
+add_nolynch_and_aliases(G) ->
+    Players = G#mafia_game.players_rem,
+    Site = G#mafia_game.site,
     AddAlias =
         fun(P, Acc) ->
-                case ?ruser(P) of
+                case ?ruser(P, Site) of
                     [#user{aliases = AliasesB}] when AliasesB /= [] ->
                         Acc ++ [{?b2l(P), ?b2l(A)} || A <- AliasesB];
                     _ -> Acc

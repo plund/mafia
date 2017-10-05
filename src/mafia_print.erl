@@ -657,7 +657,8 @@ print_votesI(PPin) ->
                 GameThId = (PP#pp.game)#mafia_game.thread_id,
                 [if is_integer(GameThId) ->
                          ThStr = ?i2l(GameThId),
-                         GameLink = [?UrlBeg, ThStr, "#", ThStr],
+                         GameLink =
+                             [mafia_lib:get_url_begin(G), ThStr, "#", ThStr],
                          Per = PP#pp.period,
                          ["<tr><td align=center><br>",
                           if is_number(Per) ->

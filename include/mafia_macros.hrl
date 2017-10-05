@@ -22,7 +22,8 @@
 
 -define(BotUrl, "http://mafia.peterlund.se/").
 
--define(UrlBeg, "http://webdiplomacy.net/forum.php?threadID=").
+-define(UrlBeg,  "http://webdiplomacy.net/forum.php?threadID=").
+-define(UrlvDip, "http://vdiplomacy.com/forum.php?threadID=").
 -define(UrlMid, "&page-thread=").
 -define(UrlEnd, "#threadPager").
 
@@ -50,6 +51,7 @@
 -define(l2ub(L), ?l2b(?l2u(L))).
 -define(b2ul(B), ?l2u(?b2l(B))).
 -define(b2ub(B), ?l2b(?b2ul(B))).
+-define(e1(T), element(1, T)).
 
 -define(inc_cnt(CntName), mafia_lib:inc_cnt(CntName)).
 -define(inc_cnt(CntName, Inc), mafia_lib:inc_cnt(CntName, Inc)).
@@ -71,8 +73,9 @@
 -define(rmess(MsgId), mafia_lib:rmess(MsgId)).
 -define(rpage(ThId, Page), mafia_lib:rpage(ThId, Page)).
 -define(rpage(Key), mafia_lib:rpage(Key)).
--define(ruser(User), mafia_lib:ruser(User)).
--define(ruserUB(User), mafia_lib:ruserUB(User)).
+-define(ruser(User, Site), mafia_lib:ruser(User, Site)).
+-define(ruserUB(User, Site), mafia_lib:ruserUB(User, Site)).
+-define(ruserUB(UserSite), mafia_lib:ruserUB(UserSite)).
 
 -define(rgame(ThId), mafia_lib:rgame(ThId)).
 -define(rday(GK, Phase), mafia_lib:rday(GK, Phase)).

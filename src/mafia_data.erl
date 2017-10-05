@@ -50,6 +50,7 @@
          page_last_read :: ?undefined |  page_num(),
          page_total_last_read :: ?undefined | page_num(),
          game_rec :: ?undefined | #mafia_game{},
+         site = ?webDip :: site(),
          thread_id :: ?undefined | thread_id(),
          is_pregame = false :: boolean(),
          url :: ?undefined | string(),
@@ -151,6 +152,7 @@ downl_web(G = #mafia_game{thread_id = GThId,
     ?dbg({down_web, Page, LMT}),
     S0 = #s{utc_time = mafia_time:utc_secs1970(),
             game_rec = G,
+            site = G#mafia_game.site,
             thread_id = ThId,
             is_pregame = IsPregame,
             page_to_read = Page
@@ -339,6 +341,7 @@ refresh_votes(G0 = #mafia_game{}, PageFilter) ->
 %% MsgId and #message{} are ok
 checkvote_fun(G, DoPrint) ->
     GNum = G#mafia_game.game_num,
+    Site = G#mafia_game.site,
     CommandFile = mafia_file:cmd_filename(G),
     Cmds = case file:consult(CommandFile) of
                {ok, CmdsOnFile} -> [C || C = #cmd{} <- CmdsOnFile];
@@ -348,7 +351,7 @@ checkvote_fun(G, DoPrint) ->
     DoCheck =
         fun(Msg) ->
                 MsgId = Msg#message.msg_id,
-                mafia:add_user(Msg#message.user_name),
+                mafia:add_user(Msg#message.user_name, Site),
                 G2 = hd(?rgame(GNum)),
                 mafia_vote:check_cmds_votes(G2, REs, Msg),
                 MFAs = [MFA || #cmd{msg_id = MId, mfa = MFA} <- Cmds,
@@ -739,7 +742,11 @@ get_body(S, no_file) ->
     get_body2(S2, http_request(S2)).
 
 make_url(S) ->
-    Url = ?UrlBeg ++ ?i2l(S#s.thread_id) ++ ?UrlMid ++ ?i2l(S#s.page_to_read)
+    UrlBeg = case S#s.site of
+                 ?webDip -> ?UrlBeg;
+                 ?vDip -> ?UrlvDip
+             end,
+    Url = UrlBeg ++ ?i2l(S#s.thread_id) ++ ?UrlMid ++ ?i2l(S#s.page_to_read)
         ++ ?UrlEnd,
     S#s{url = Url}.
 
@@ -908,7 +915,7 @@ analyse_body(S, User, MsgId, Time, Msg) ->
                  S;
              ?changed ->
                  MsgR = write_message_rec(S, MsgId, User, Time, Msg),
-                 mafia:add_user(User),
+                 mafia:add_user(User, S#s.site),
                  if is_function(CheckVote) -> CheckVote(MsgR);
                     true -> ok
                  end,

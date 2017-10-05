@@ -10,7 +10,7 @@
          rpage/2,
          rday/2,
          rgame/1,
-         ruser/1,
+         ruser/2,
 
          set/2,
          unset/1,
@@ -38,7 +38,7 @@ rmess(MsgId) -> ?rmess(MsgId).
 rpage(GNum, Page) -> ?rpage(GNum, Page).
 rday(GNum, DayNum) -> ?rday(GNum, DayNum).
 rgame(GNum) when is_integer(GNum) -> ?rgame(GNum).
-ruser(Name) -> ?ruser(Name).
+ruser(Name, Site) -> ?ruser(Name, Site).
 
 show() -> mafia:show_settings().
 show_cnts() -> mafia_lib:print_all_cnts().

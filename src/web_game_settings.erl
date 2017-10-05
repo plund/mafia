@@ -15,6 +15,9 @@
 -define(MinThId, 1000111).
 -define(MaxThId, 3000000).
 
+-define(MinThIdvDip,  72000).
+-define(MaxThIdvDip, 299999).
+
 game_settings(Sid, Env, In) ->
     PQ = httpd:parse_query(In),
     Button = proplists:get_value("button", PQ),
@@ -73,8 +76,10 @@ game_settings_update(Sid, Env, Button, PQ) ->
         end,
     ServerKeeperInfo =
         case ?getv(?server_keeper) of
-            ?undefined -> "";
-            SK -> [" and the Server Keeper (", SK, ")"]
+            {SK, _} ->
+                [" and the Server Keeper (", SK, ")"];
+            _ ->
+                ""
         end,
     PwF =
         fun(user) -> User;
@@ -201,7 +206,7 @@ enter_user_pw_box(F) ->
 
 -define(GAME_FIELDS,
         [gms, name, thread_id, signup_thid, start_time, time_zone, dst_zone,
-         players_orig, day_hours, night_hours, role_pm]).
+         players_orig, day_hours, night_hours, site, role_pm]).
 
 get_game_settings(GNum) when is_integer(GNum) ->
     G = hd(?rgame(GNum)),
@@ -225,6 +230,7 @@ gts(G, [A = day_hours | As]) ->
 gts(G, [A = night_hours | As]) ->
     tr_key(A, ?i2l(G#mafia_game.night_hours)) ++ gts(G, As);
 gts(G, [A = role_pm | As]) -> tr_key(A, role_pm(G)) ++ gts(G, As);
+gts(G, [A = site | As]) -> tr_key(A, site(G)) ++ gts(G, As);
 gts(G, [A = time_zone | As]) -> tr_key(A, game_time_zone(G)) ++ gts(G, As);
 gts(G, [A = start_time | As]) ->
     tr_key(A, game_start_time(G)) ++ gts(G, As);
@@ -250,6 +256,8 @@ game_name(#mafia_game{name = Name}) -> ?b2l(Name).
 
 role_pm(#mafia_game{role_pm = ?undefined}) -> ?UNSET;
 role_pm(#mafia_game{role_pm = Url}) -> ?b2l(Url).
+
+site(#mafia_game{site = Site}) -> ?a2l(Site).
 
 game_start_time(#mafia_game{start_time = ?undefined}) -> ?UNSET;
 game_start_time(#mafia_game{start_time = Time}) ->
@@ -312,20 +320,30 @@ mug0(_G, User, Pass, _GameSett)
     end;
 mug0(G, User, Pass, GameSett) ->
     ?dbg({user_pass, User, Pass}),
-    mug1(G, ?ruserUB(User), GameSett,
-         mafia_lib:check_password(User, Pass)).
+    case is_user_and_password_ok(G, User, Pass) of
+        true ->
+            mug2(G, GameSett);
+        false ->
+            [{error, "This combination of user and password does not exist."}]
+    end.
 
-mug1(G, [#user{name = Name}], GameSett, ok) -> %% User/PW matches
-    ServerKeeper = case ?getv(?server_keeper) of
-                       ?undefined -> [];
-                       SK -> [?l2b(SK)]
-                   end,
-    Allowed = G#mafia_game.gms ++ ServerKeeper,
-    mug2(G, GameSett, lists:member(Name, Allowed));
-mug1(_, _, _, _) ->
-    [{error, "This combination of user and password does not exist."}].
+is_user_and_password_ok(_, "serverkeeper", Pass) ->
+    case ?getv(?server_keeper) of
+        {SkName, SkSite} ->
+            ok == mafia_lib:check_password(SkName, SkSite, Pass);
+        _ ->
+            false
+    end;
+is_user_and_password_ok(G, User, Pass) ->
+    GSite = G#mafia_game.site,
+    Allowed = [?b2l(U) || U <- G#mafia_game.gms],
+    case lists:member(User, Allowed) of
+        false -> false;
+        true ->
+            ok == mafia_lib:check_password(User, GSite, Pass)
+    end.
 
-mug2(G, GameSett, IsAllowed) when IsAllowed ->  % User is allowed
+mug2(G, GameSett) ->
     ?dbg({sett, GameSett}),
     NewConf = [list_to_tuple(string:tokens(P, "="))
                || P <- string:tokens(GameSett, "\r\n")],
@@ -335,9 +353,7 @@ mug2(G, GameSett, IsAllowed) when IsAllowed ->  % User is allowed
                         NewConf),
     Values2 = [{K, string:strip(V)} || {K, V} <- Values],
     ?dbg({values2, Values2}),
-    process_input(Values2, {G, []});
-mug2(_, _, _) ->
-    [{warning, "You are not allowed to edit this game"}].
+    process_input(Values2, {G, []}).
 
 is_ready_to_go(CurG, {G, Es}) ->
     %% Check if ready to update and go
@@ -410,6 +426,7 @@ is_ready_to_go(players_orig, _, {_, G, Es}) ->
 is_ready_to_go(day_hours, _, Acc) -> Acc;
 is_ready_to_go(night_hours, _, Acc) -> Acc;
 is_ready_to_go(role_pm, _, Acc) -> Acc;
+is_ready_to_go(site, _, Acc) -> Acc;
 is_ready_to_go(duplicates, CurG, {_, G, Es}) ->
     %% check not same user in both gms and players_orig
     %% if problem reset both fields to orignal before writing
@@ -468,6 +485,7 @@ pri([F={"day_hours", _} | T], Acc) -> pri(T, pr_int(F, Acc));
 pri([F={"night_hours", _} | T], Acc) ->  pri(T, pr_int(F, Acc));
 pri([{"role_pm", Url} | T], {G, Es}) ->
     pri(T, {G#mafia_game{role_pm = ?eb2ud(?l2b(Url))}, Es});
+pri([F={"site", _} | T], Acc) -> pri(T, pr_site(F, Acc));
 pri([F={"time_zone", _} | T], Acc) ->  pri(T, pr_int(F, Acc));
 pri([F={"start_time", _} | T], Acc) -> pri(T, pr_start_time(F, Acc));
 pri([F={"dst_zone", _} | T], Acc) -> pri(T, pr_dst_zone(F, Acc));
@@ -480,8 +498,8 @@ pri([{Par, Value} | T], {G, Es}) ->
 pri([], Acc) -> Acc.
 
 pr_user_list({Field, GmStr}, {G, Es}) ->
-    ReadF = fun(U) -> case ?ruserUB(U) of
-                          [#user{name = Name}] ->
+    ReadF = fun(U) -> case ?ruserUB(U, G#mafia_game.site) of
+                          [#user{name = {Name, _}}] ->
                               {true, ?b2l(Name)};
                           _ ->
                               {false, U}
@@ -501,17 +519,25 @@ pr_user_list({Field, GmStr}, {G, Es}) ->
                           players_rem = Players}, Es2}
     end.
 
+min_thid(#mafia_game{site = ?webDip}) -> ?MinThId;
+min_thid(#mafia_game{site = ?vDip}) -> ?MinThIdvDip.
+
+max_thid(#mafia_game{site = ?webDip}) -> ?MaxThId;
+max_thid(#mafia_game{site = ?vDip}) -> ?MaxThIdvDip.
+
 pr_int({Field, IntStr}, {G, Es}) ->
+    MinThId = min_thid(G),
+    MaxThId = max_thid(G),
     case catch ?l2i(IntStr) of
         {'EXIT', _} ->
             {G, Es ++ [{error, Field ++ ": " ++ IntStr ++
                             " is not and integer."}]};
         Int when (Field == "signup_thid") and
-                 (Int < ?MinThId) ->
+                 (Int < MinThId) ->
             {G, Es ++ [{error, Field ++ ": " ++ IntStr ++
                             " is too low."}]};
         Int when (Field == "signup_thid") and
-                 (Int > ?MaxThId) ->
+                 (Int > MaxThId) ->
             {G, Es ++ [{error, Field ++ ": " ++ IntStr ++
                             " is too high."}]};
         Int when ((Field == "day_hours")
@@ -588,6 +614,17 @@ check_int(Par = {_, _, Str}, Es, _Size, Min, Max) ->
                      par_desc(Par) ++ " should be maximum " ++ ?i2l(Max)}]};
         Int ->
             {Int, Es}
+    end.
+
+pr_site({Field, Site}, {G, Es}) ->
+    Sites = [?webDip, ?vDip],
+    SiteStrs = [?a2l(St) || St <- Sites],
+    case lists:member(Site, SiteStrs) of
+        true ->
+            {G#mafia_game{site = ?l2a(Site)}, Es};
+        false ->
+            {G, Es ++ [{error, Field ++ ": Only the following sites are "
+                        "allowed: " ++ string:join(SiteStrs, ", ")}]}
     end.
 
 pr_dst_zone({Field, Zone}, {G, Es}) ->
@@ -726,19 +763,23 @@ maybe_set_thread_id(_, User, Pass, _)
           end,
     {false, Es2};
 maybe_set_thread_id(G, User, Pass, ThreadId) ->
-    msti2(G,
-          mafia_lib:check_password(User, Pass),
-          catch ?l2i(ThreadId)).
+    case is_user_and_password_ok(G, User, Pass) of
+        true ->
+            msti2(G,
+                  catch ?l2i(ThreadId),
+                  min_thid(G),
+                  max_thid(G));
+        false ->
+            [{error, "This combination of user and password does not exist."}]
+    end.
 
-msti2(_G, {error, _}, _) ->
-    {false, [{error, "This combination of user and password does not exist."}]};
-msti2(_G, _PwRes, {'EXIT', _}) ->
+msti2(_G, {'EXIT', _}, _, _) ->
     {false, [{error, "Thread id is not an integer"}]};
-msti2(_G, _PwRes, ThId) when ThId =< ?MinThId ->
+msti2(_G, ThId, MinThId, _) when ThId =< MinThId ->
     {false, [{error, "Thread id has a too low value"}]};
-msti2(_G, _PwRes, ThId) when ThId >  ?MaxThId ->
+msti2(_G, ThId, _, MaxThId) when ThId >  MaxThId ->
     {false, [{error, "Thread id has a too high value"}]};
-msti2(G, _PwRes, ThId) ->
+msti2(G, ThId, _, _) ->
     {IsReady, G2, Es} = is_ready_to_go(G, {G, []}),
     if IsReady ->
             %% START GAME!

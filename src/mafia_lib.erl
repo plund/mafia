@@ -13,14 +13,14 @@
 
          rday/2,
          rgame/1,
-         ruser/1,
+         ruser/2,
          ruserUB/1,
+         ruserUB/2,
          rmessI/1,
 
-         set_new_password/1,
-         check_password/2,
+         set_new_password/2,
+         check_password/3,
 
-         %% prev_msg_id/1,
          prev_msg/1,
 
          get_path/1,
@@ -28,6 +28,7 @@
          my_string_substr/3,
          alpha_sort/1,
          to_bin_sort/1,
+         get_url_begin/1,
          bgcolor/1,
 
          re_matches/2,
@@ -187,41 +188,48 @@ rgameI(GameNum) ->
     mnesia:dirty_read(mafia_game, GameNum).
 
 %% -----------------------------------------------------------------------------
+%% Read on primary key
+-spec ruserUB(string() | binary(), site()) -> [#user{}].
+ruserUB(User, Site) when is_list(User) -> ruserUBI(?l2ub(User), Site);
+ruserUB(UserB, Site) when is_binary(UserB) -> ruserUBI(?b2ub(UserB), Site).
 
--spec ruser(string() | binary()) -> [#user{}].
-ruser(User) when is_list(User) -> ruserI(?l2b(User));
-ruser(UserB) when is_binary(UserB) -> ruserI(UserB).
+-spec ruserUB({binary(), site()}) -> [#user{}].
+ruserUB({UserB, Site}) when is_binary(UserB) -> ruserUBI(?b2ub(UserB), Site).
 
--spec ruserI(binary()) -> [#user{}].
-ruserI(UserB) -> mnesia:dirty_index_read(user, UserB, #user.name).
+-spec ruserUBI(binary(), site()) -> [#user{}].
+ruserUBI(UserUB, Site) -> mnesia:dirty_read(user, {UserUB, Site}).
 
--spec ruserUB(string() | binary()) -> [#user{}].
-ruserUB(User) when is_list(User) -> ruserUBI(?l2ub(User));
-ruserUB(UserB) when is_binary(UserB) -> ruserUBI(?b2ub(UserB)).
+%% Read on secondary key
+-spec ruser(string() | binary(), site()) -> [#user{}].
+ruser(User, Site) when is_list(User) -> ruserI(?l2b(User), Site);
+ruser(UserB, Site) when is_binary(UserB) -> ruserI(UserB, Site).
 
--spec ruserUBI(binary()) -> [#user{}].
-ruserUBI(UserUB) -> mnesia:dirty_read(user, UserUB).
+-spec ruserI(binary(), site()) -> [#user{}].
+ruserI(UserB, Site) ->
+    mnesia:dirty_index_read(user, {UserB, Site}, #user.name).
 
 %% -----------------------------------------------------------------------------
 
 -define(PW_SPACE, 1000000).
 
-set_new_password(User) ->
-    case mafia_lib:ruserUB(User) of
-        [U = #user{name = Name}] ->
+set_new_password(User, Site) ->
+    case ruserUB(User, Site) of
+        [U = #user{name = {Name, _}}] ->
             Rand = rand:uniform(?PW_SPACE),
             PW = base64:encode_to_string(integer_to_list(Rand)),
             PwHash = erlang:phash2(PW, ?PW_SPACE),
             ?dwrite_user(U#user{pw_hash = PwHash}),
-            {ok, {?b2l(Name), PW}}; %% send PW to user
+            {ok, {?b2l(Name), Site, PW}}; %% send PW to user
         _ ->
             {error, user_not_found}
     end.
 
-check_password(User, Password) ->
+-spec check_password(string(), site(), string())
+                    -> ok | {error, nomatch_user_password}.
+check_password(User, Site, Password) ->
     %% Security improvment: Store time when fun returns error
     %% Delay response next time for this user to 30 seconds after last error
-    case mafia_lib:ruserUB(User) of
+    case ruserUB(User, Site) of
         [#user{pw_hash = PwHashDb}] ->
             PwHashCmp = erlang:phash2(Password, ?PW_SPACE),
             if PwHashCmp == PwHashDb ->
@@ -234,17 +242,6 @@ check_password(User, Password) ->
     end.
 
 %% -----------------------------------------------------------------------------
-
-%% -spec prev_msg_id(Id :: msg_id()) -> ?none | msg_id().
-%% prev_msg_id(Id) when is_integer(Id) ->
-%%     case rmessI(Id) of
-%%         [M] ->
-%%             case prev_msg(M) of
-%%                 PM = #message{} ->
-%%                     PM#message.msg_id;
-%%                 ?none -> ?none
-%%             end
-%%     end.
 
 -spec prev_msg(Msg :: #message{}) -> ?none | #message{}.
 prev_msg(Msg) ->
@@ -327,6 +324,9 @@ to_bin_sort(LoB = [Bin|_]) when is_binary(Bin) ->
     to_bin_sort([?b2l(L) || L <- LoB]).
 
 %% -----------------------------------------------------------------------------
+
+get_url_begin(#mafia_game{site = ?webDip}) -> ?UrlBeg;
+get_url_begin(#mafia_game{site = ?vDip}) -> ?UrlvDip.
 
 bgcolor("") ->
     bgcolorI(?TURQUOISE_HEX);

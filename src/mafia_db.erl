@@ -3,10 +3,7 @@
 -include("mafia.hrl").
 -include("mafia_game.hrl").
 
--export([
-         verify_new_user_list/1,
-
-         set/2,
+-export([set/2,
          unset/1,
          getv/1,
          getv/2,
@@ -20,50 +17,8 @@
          reset_game/1,
          write_game/1,
          rewrite_game/1,
-         write_game/2,
-         write_default_user_table/0
+         write_game/2
         ]).
-
-
-%% Pre-check user list given by GM in initial game PM
-verify_new_user_list(29) ->
-    Users = ?M29_GMs ++ ?M29_players ++ ?M29_subs,
-    verify_new_user_list2(Users);
-verify_new_user_list(28) ->
-    Users = ?M28_GMs ++ ?M28_players,
-    verify_new_user_list2(Users);
-verify_new_user_list(27) ->
-    Users = ?M27_GMs ++ ?M27_players,
-    verify_new_user_list2(Users);
-verify_new_user_list(26) ->
-    Users = ?M26_GMs ++ ?M26_players,
-    verify_new_user_list2(Users);
-verify_new_user_list(25) ->
-    Users = ?M25_GMs ++ ?M25_players,
-    verify_new_user_list2(Users);
-verify_new_user_list(24) ->
-    Users = ?M24_GMs ++ ?M24_players,
-    verify_new_user_list2(Users).
-
-verify_new_user_list2(Users) ->
-    [begin
-         UserB = ?l2b(User),
-         case ?ruserUB(User) of
-             [] ->
-                 io:format("User ~p does not exist\n",[User]);
-             [#user{name = UserB,
-                    verification_status = Ver}] ->
-                 io:format("User ~p exists with correct case "
-                           "and is ~p\n", [User, Ver]);
-             [#user{name = UserB2,
-                    verification_status = Ver}] ->
-                 io:format("User ~p exists but has incorrect case. "
-                           "Correct case is ~p and is ~p\n",
-                           [User, ?b2l(UserB2), Ver])
-         end
-     end
-     || User <- Users],
-    done.
 
 getv(Key) -> getv(Key, ?undefined).
 
@@ -122,17 +77,6 @@ start_mnesia(Op) ->
 to_bin(LoL = [[_|_]|_]) -> [?l2b(L) || L <- LoL].
 
 to_bin_sort(LoL) -> mafia_lib:to_bin_sort(LoL).
-
-write_default_user_table() ->
-    [ ?dwrite_user(
-         #user{name_upper = ?l2ub(U),
-               name = ?l2b(U),
-               aliases = mafia_upgrade:get_aliases(?l2b(U)),
-               verification_status = ?unverified})
-      || U <- lists:usort(?M24_players ++ ?M24_GMs ++
-                              ?M25_players ++ ?M25_GMs ++
-                              ?M26_players ++ ?M26_GMs)],
-    ok.
 
 -define(Cpy(Template, Field), Field = Template#mafia_game.Field).
 reset_game(GNum) ->
@@ -270,9 +214,10 @@ make_game_rec(24) ->
       players_rem = to_bin(?M24_players)
      }.
 
-set(K=?server_keeper, U) ->
-    case ?ruserUB(U) of
-        [User] -> set_kv(K, ?b2l(User#user.name));
+set(K = ?server_keeper, {U, Site}) when Site == ?webDip; Site == ?vDip ->
+    case ?ruserUB(U, Site) of
+        [#user{name = {Name, _}}] ->
+            set_kv(K, {?b2l(Name), Site});
         [] -> {error, user_not_in_db}
     end;
 set(K=?thread_id, V) when is_integer(V), V > 0 -> set_kv(K, V);

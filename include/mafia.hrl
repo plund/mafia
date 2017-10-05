@@ -17,6 +17,7 @@
 -type dst_change() :: {datetime(), dst_direction()}.
 
 -type game_num() :: integer().
+-type site() :: ?webDip | ?vDip.
 -type thread_id() :: integer().
 -type page_num() :: integer().
 -type msg_id() :: integer().
@@ -104,6 +105,7 @@
 
 -record(mafia_game,
         {game_num :: ?undefined | integer(),
+         site = ?webDip :: site(),
          thread_id :: '$1' | ?undefined | thread_id(),
          signup_thid :: ?undefined | thread_id(),
          name :: ?undefined | binary(),
@@ -126,8 +128,9 @@
         }).
 
 -record(user,
-        {name_upper :: ?undefined | user(),
-         name :: ?undefined | user(),
+        {name_upper :: ?undefined | {user(), site()},
+         name :: ?undefined | {user(), site()},
+         site = ?webDip :: site(),
          aliases = [] :: [alias()],
          verification_status :: ?undefined | ?verified | ?unverified,
          pw_hash :: ?undefined | integer(),

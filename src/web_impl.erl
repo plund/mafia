@@ -78,9 +78,9 @@ front_page(Sid, _Env, In) ->
         end,
     SignupLink =
         if G#mafia_game.signup_thid /= ?undefined ->
-                [" href=\"http://webdiplomacy.net/forum.php?threadID=",
-                 ?i2l(G#mafia_game.signup_thid), "#",
-                 ?i2l(G#mafia_game.signup_thid),
+                SignUpThid = ?i2l(G#mafia_game.signup_thid),
+                [" href=\"", mafia_lib:get_url_begin(G),
+                 SignUpThid, "#", SignUpThid,
                  "\""
                 ];
            true -> ""

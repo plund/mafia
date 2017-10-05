@@ -318,16 +318,21 @@ handle_info(check_ntp_offset, State) ->
           end),
     {noreply, State};
 handle_info({ntp_offset_cmd_out, NtpStr}, State) ->
-    %% ?dbg({ntp_offset_cmd_out, NtpStr}),
     Lines = string:tokens(NtpStr, "\n"),
     %% negative offset value means that the local clock is ahead
     Ms = [re:run(L, ".*offset ([-.0-9]*).*", [{capture, [1], list}])
           || L <- Lines],
     Offs = [list_to_float(FloatStr) || {match, [FloatStr]} <- Ms],
     NumOffVals = length(Offs),
-    AvgOffset = lists:sum(Offs) / NumOffVals,
-    ?dbg({ntp_offset_avg, NumOffVals, AvgOffset}),
-    {noreply, State#state{ntp_offset_secs = AvgOffset}};
+    S2 = case NumOffVals of
+             0 ->
+                 State;
+             _ ->
+                 AvgOffset = lists:sum(Offs) / NumOffVals,
+                 ?dbg({ntp_offset_avg, NumOffVals, AvgOffset}),
+                 State#state{ntp_offset_secs = AvgOffset}
+         end,
+    {noreply, S2};
 handle_info(_Info, State) ->
     {noreply, State}.
 

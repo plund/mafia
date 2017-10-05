@@ -8,7 +8,6 @@
          update_db_attributes/1,
          fix_deaths_in_games/0,
 
-         get_aliases/1,
          save_copy_on_file/2,
          read_file_copy/1
         ]).
@@ -42,6 +41,25 @@ upgrade(user) ->
             mnesia:table_info(user, attributes),
             record_info(fields, user)).
 
+upgrade(Tab = mafia_game,
+        As = [game_num,thread_id,signup_thid,name,day_hours,night_hours,
+              time_zone,start_time,dst_zone,dst_changes,deadlines,gms,
+              players_orig,players_rem,player_deaths,page_to_read,game_end,
+              last_msg_id,last_msg_time, role_pm],
+        Fs = [game_num,
+              site, % new
+              thread_id,signup_thid,name,day_hours,night_hours,
+              time_zone,start_time,dst_zone,dst_changes,deadlines,gms,
+              players_orig,players_rem,player_deaths,page_to_read,game_end,
+              last_msg_id,last_msg_time, role_pm]) ->
+    upgrade_tab_game_171005(Tab, As, Fs);
+upgrade(Tab = user,
+        As = [name_upper, name, aliases, verification_status, pw_hash,
+              logins],
+        Fs = [name_upper, name, site, % new
+              aliases, verification_status, pw_hash,
+              logins]) ->
+    upgrade_tab_user_171005(Tab, As, Fs);
 upgrade(Tab = mafia_game,
         As = [game_num,thread_id,signup_thid,name,day_hours,night_hours,
               time_zone,start_time,dst_zone,dst_changes,deadlines,gms,
@@ -99,15 +117,25 @@ upgrade(Tab = mafia_game,
               players_rem,player_deaths,page_to_read,game_end,
               last_msg_id,last_msg_time]) ->
     upgrade_tab_game_170412(Tab, As, Fs);
-upgrade(Tab = user,
-        As = [name_upper, name, verification_status],
-        Fs = [name_upper, name, aliases, verification_status]) ->
-    upgrade_tab_user_161210(Tab, As, Fs);
 upgrade(Tab, As, Fs) when As == Fs ->
     io:format("No upgrade for table '~p' with attributes: ~999p\n", [Tab, As]);
 upgrade(Tab, As, Fs) ->
     io:format("No upgrade for table '~p' from:\n~999p\nto\n~999p\n",
               [Tab, As, Fs]).
+
+%% -----------------------------------------------------------------------------
+%% insert ?undefined for signup_thid
+%% -----------------------------------------------------------------------------
+upgrade_tab_game_171005(Tab, As, Fs) ->
+    io:format("Upgrade table '~p' 171003, adding 'site'\n"
+              "from:\n~999p\nto\n~999p\n",
+              [Tab, As, Fs]),
+    Trans =
+        fun(RecOld) ->
+                G = move_old_vals_to_new_pos(RecOld, As, Fs),
+                G#mafia_game{site = ?webDip}
+        end,
+    mnesia:transform_table(Tab, Trans, Fs).
 
 %% -----------------------------------------------------------------------------
 %% add role_pm and set some signup_thid with values found in index.html
@@ -291,19 +319,38 @@ update_db_attributes(mafia_day) ->
                            ignore,
                            record_info(fields, mafia_day)).
 
-%% -----------------------------------------------------------------------------
-%% Add aliases to user table, 161210
-%% -----------------------------------------------------------------------------
-
--define(Aliases, [{"RagingIke297", ["Ike"]},
-                  {"WardenDresden", ["WD"]},
-                  {"Glen_Alexander", ["GA"]},
-                  {"DemonRHK", ["RHK"]},
-                  {"CaptainMeme", ["Meme"]},
-                  {"Hellenic Riot", ["HR", "H.R."]},
-                  {"brainbomb", ["BB"]},
-                  {"No-Lynch", ["No Lynch"]}
-                 ]).
+upgrade_tab_user_171005(Tab, As, Fs) ->
+    %% Cmp with upgrade_tab_game_170412 where primary keys also were modified
+    %% but ...
+    %% This is more advanced, since both the primary key and the attribute
+    %% list are modified at the same time.
+    io:format("Upgrading table '~p' 171003\n"
+              "adding site to both primary and secondary keys\n"
+              "from:\n~999p\nto\n~999p\n",
+              [Tab, As, Fs]),
+    Trans =
+        fun(RecOld) ->
+                U1 = move_old_vals_to_new_pos(RecOld, As, Fs),
+                %% Using element and setelement to get rid of dialyzer warnings
+                NameU = element(#user.name_upper, U1),
+                Name = element(#user.name, U1),
+                U2 = setelement(#user.name_upper, U1, {NameU, ?webDip}),
+                U3 = setelement(#user.name, U2, {Name, ?webDip}),
+                setelement(#user.site, U3, ?webDip)
+        end,
+    OldPrimKeys = [ K || K <- mnesia:dirty_all_keys(user)],
+    Delete =
+        fun(Key) ->
+                RecOld = hd(mnesia:dirty_read(Tab, Key)),
+                RecNew = Trans(RecOld),
+                mnesia:dirty_delete(Tab, Key),
+                RecNew
+        end,
+    NewUsers = [ Delete(PK)|| PK <- OldPrimKeys],
+    %% Change table format *before* writing new users back!
+    mnesia:transform_table(Tab, ignore, Fs),
+    _ = [mnesia:dirty_write(NUser) || NUser <- NewUsers],
+    ok.
 
 upgrade_tab_user_170717(Tab, As, Fs) ->
     io:format("Upgrading table '~p' 170717 from:\n~999p\nto\n~999p\n",
@@ -323,26 +370,16 @@ append_last(LastValue) ->
             list_to_tuple(NewList)
     end.
 
-upgrade_tab_user_161210(Tab, As, Fs) ->
-    io:format("Upgrading table '~p' from:\n~999p\nto\n~999p\n", [Tab, As, Fs]),
-    save_copy_on_file(user, "user_add_alias"),
-    Trans =
-        fun({_, NameUB, NameB, VerSt}) ->
-                Aliases = get_aliases(NameB),
-                #user{name_upper = NameUB,
-                      name = NameB,
-                      aliases = Aliases,
-                      verification_status = VerSt}
-        end,
-    mnesia:transform_table(Tab, Trans, record_info(fields, user)).
-
-get_aliases(NameB) ->
-    case lists:keyfind(?b2l(NameB), 1, ?Aliases) of
-        false -> [];
-        {_, As} -> [?l2b(A) || A <- As]
-    end.
-
 %% -----------------------------------------------------------------------------
+%% @doc Return new record with same name with different number of fields.
+%% Values are moved to a new position when the field name is the same in Fs
+%% as in As.
+move_old_vals_to_new_pos(RecOld, As, Fs) ->
+    [Tab | ValuesOldList] = tuple_to_list(RecOld),
+    OldAsVals = lists:zip(As, ValuesOldList),
+    %% Pick values for new rec
+    NewValues = [proplists:get_value(F, OldAsVals) || F <- Fs],
+    list_to_tuple([Tab | NewValues]).
 
 save_copy_on_file(Tab, FileName) when FileName /= "" ->
     FileName2 = FileName ++ ".upg.bak",

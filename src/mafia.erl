@@ -1,20 +1,21 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% Where is the below useful?
+%%% io:format("~*s~*s~*s~*s~*s~n",
+%%%           [-5, "No", -5, "CMC", -5, "NMC", -10, "CEI",
+%%%            -5, "rep"]).
 %% coordinate poll_timer and dl_timer. "No poll at dl"
 %% Make use of dl_poll_info.txt when generating history pages at:
 %%    1) deadline 2) player death at End of Day/Night
 %% do LATE read of signup thread
 %% Add signup_thid info to all games.
-%% Mnesia overloaded fixes
 %% try autostart again
 %% vhosts in inets - no support - try patch inets :)
 %% LOW - Add Last&more link also on game_end page
 %% - balki vote on Jamie g29? d1 46:13 did not get the correct part in console
 %%   due to unicode
 %% http://mafia_test.peterlund.se/e/web/msgs?part=p3-5#msg_id=1480166
-%% Force split long lines in thread
-%% - split mafia_print. stats and tracker into separate modules?
 %% Instead add ServerKeeper/GM commands:
 %% ##bot endgame <msgid> | unendgame
 %% ##bot endphase|unendphase <msgid>
@@ -34,12 +35,11 @@
          stop/0,
 
          game_start/2, %% old
-         end_phase/1,
-         unend_phase/1,
-         end_phase/2, %% deprecated
-         move_next_deadline/3,
-         end_game/1,
-         unend_game/1,
+         end_phase/2,
+         unend_phase/2,
+         move_next_deadline/4,
+         end_game/2,
+         unend_game/2,
          switch_to_game/1,
          set_signup_thid/2,
          set_role_pm/2,
@@ -47,16 +47,16 @@
          game_thread/1,
          initiate_game/1,
          initiate_game/2,
+         initiate_game/3,
          write_settings_file/1,
          remove_not_running_game/1,
          delete_game_and_all_data/1,
          pregame_create/1, % old
          pregame_update/0, % old
 
-         replace_player/3,
-         kill_player/3,
-         set_death_msgid/4,
-         set_death_comment/3, %% deprecated
+         replace_player/4,
+         kill_player/4,
+         set_death_msgid/5,
 
          print_votes/0,
          print_votes/1,
@@ -74,10 +74,10 @@
          show_all_users/1,
          show_all_aliases/0,
          show_aliases/1,
-         add_user/1,
-         remove_user/1,
-         add_alias/2,
-         remove_alias/2,
+         add_user/2,
+         remove_user/2,
+         add_alias/3,
+         remove_alias/3,
          export_user_data/0,
          import_user_data/0,
 
@@ -189,15 +189,20 @@ show_game_data(GNum) ->
 %% @doc Initiate game that has not started yet
 %% @end
 %% -----------------------------------------------------------------------------
-initiate_game(GNum) when is_integer(GNum) ->
-    initiate_game(GNum, []).
+initiate_game(GNum) ->
+    initiate_game(GNum, [], ?webDip).
 
-initiate_game(GNum, GMs) when is_integer(GNum) ->
+initiate_game(GNum, Site) when Site == ?webDip;
+                               Site == ?vDip ->
+    initiate_game(GNum, [], Site).
+
+initiate_game(GNum, GMs, Site) when is_integer(GNum) ->
     DoFun = fun(G) ->
-                    GMsB = get_user_list(GMs),
+                    GMsB = get_user_list(GMs, Site),
                     ?dwrite_game(game_m1,
                                  G#mafia_game{game_num = GNum,
-                                              gms = GMsB}),
+                                              gms = GMsB,
+                                              site = Site}),
                     {wrote, GNum, GMsB}
             end,
     do_if_not_running(GNum, DoFun).
@@ -230,12 +235,12 @@ do_if_not_running2([G = #mafia_game{thread_id = ?undefined}], DoFun) ->
 do_if_not_running2(_, _) ->
     {error, running}.
 
-get_user_list([]) -> [];
-get_user_list([User | T]) ->
-    case mafia_lib:ruserUB(User) of
-        [#user{name = NameB}] ->
-            [NameB | get_user_list(T)];
-        _ -> get_user_list(T)
+get_user_list([], _) -> [];
+get_user_list([User | T], Site) ->
+    case mafia_lib:ruserUB(User, Site) of
+        [#user{name = {NameB, _}}] ->
+            [NameB | get_user_list(T, Site)];
+        _ -> get_user_list(T, Site)
     end.
 
 %% -----------------------------------------------------------------------------
@@ -377,8 +382,8 @@ game_start(GNum, ThId) when is_integer(GNum), is_integer(ThId) ->
 %% the game's local date and time given by the GM in the same message
 %% @end
 %% -----------------------------------------------------------------------------
-end_phase(MsgId) ->
-    case find_mess_game(MsgId) of
+end_phase(GNum, MsgId) ->
+    case find_mess_game(GNum, MsgId) of
         {ok, G, M} ->
             Time = M#message.time,
             case mafia_time:calculate_phase(G, Time) of
@@ -397,8 +402,8 @@ end_phase(MsgId) ->
 
 %% - add unend_phase putting previous phase correct number hours (48/24) later
 %%   than now
-unend_phase(MsgId) ->
-    case find_mess_game(MsgId) of
+unend_phase(GNum, MsgId) ->
+    case find_mess_game(GNum, MsgId) of
         {ok, G, M} ->
             Time = M#message.time,
             Cmd = #cmd{time = Time,
@@ -410,29 +415,18 @@ unend_phase(MsgId) ->
         {?error, _} = E -> E
     end.
 
-
-%% OLD DEPRECATED - should call end_phase/1 and then
-%% Example: mafia:end_phase(1427098, {{2016, 12, 13}, {18,0,0}}).
--spec end_phase(MsgId :: msg_id(),
-                TimeNextDL :: datetime()) -> ok.
-end_phase(MsgId, _TimeNextDL) ->
-    case ?rmess(MsgId) of
-        [] -> msg_not_found;
-        [_] ->
-            end_phase(MsgId),
-            move_next_deadline(MsgId, earlier, 24)
-    end.
-
-
 %% -----------------------------------------------------------------------------
 %% @doc Move next and all following deadlines forward or backward in time
 %% keeping the day/night lengths
 %% @end
 %% -----------------------------------------------------------------------------
--spec move_next_deadline(msg_id(), later|earlier, hour() | {hour(), minute()})
+-spec move_next_deadline(GNum :: game_num(),
+                         msg_id(),
+                         later | earlier,
+                         hour() | {hour(), minute()})
                         -> term().
-move_next_deadline(MsgId, Direction, TimeDiff) ->
-    case find_mess_game(MsgId) of
+move_next_deadline(GNum, MsgId, Direction, TimeDiff) ->
+    case find_mess_game(GNum, MsgId) of
         {ok, G, M} ->
             {Reply, _} =
                 mafia_time:move_next_deadline(G, M, Direction, TimeDiff),
@@ -456,9 +450,10 @@ move_next_deadline(MsgId, Direction, TimeDiff) ->
 %% @end
 %% -----------------------------------------------------------------------------
 %% Example: mafia:end_game(1427800).
--spec end_game(MsgId :: msg_id()) -> term().
-end_game(MsgId) ->
-    case find_mess_game(MsgId) of
+-spec end_game(GNum :: game_num(),
+               MsgId :: msg_id()) -> term().
+end_game(GNum, MsgId) ->
+    case find_mess_game(GNum, MsgId) of
         {ok, G, M} ->
             Time = M#message.time,
             Cmd = #cmd{time = Time,
@@ -476,9 +471,10 @@ end_game(MsgId) ->
 %% @end
 %% -----------------------------------------------------------------------------
 %% Example: mafia:unend_game(1427800).
--spec unend_game(MsgId :: msg_id()) -> term().
-unend_game(MsgId) ->
-    case find_mess_game(MsgId) of
+-spec unend_game(GNum :: game_num(),
+                 MsgId :: msg_id()) -> term().
+unend_game(GNum, MsgId) ->
+    case find_mess_game(GNum, MsgId) of
         {ok, G, M} ->
             Time = M#message.time,
             Cmd = #cmd{time = Time,
@@ -495,11 +491,12 @@ unend_game(MsgId) ->
 %% @doc Read the GM message and add good comment about who the dead player was.
 %% @end
 %% -----------------------------------------------------------------------------
--spec replace_player(MsgId :: msg_id(),
+-spec replace_player(GNum :: game_num(),
+                     MsgId :: msg_id(),
                      OldPlayer :: string(),
                      NewPlayer :: string()) -> term().
-replace_player(MsgId, OldPlayer, NewPlayer) ->
-    case find_mess_game(MsgId) of
+replace_player(GNum, MsgId, OldPlayer, NewPlayer) ->
+    case find_mess_game(GNum, MsgId) of
         {ok, G, M} ->
             case mafia_vote:replace_player(G, M,
                                            NewPlayer,
@@ -526,8 +523,8 @@ replace_player(MsgId, OldPlayer, NewPlayer) ->
 %% -----------------------------------------------------------------------------
 %% mafia:set_death_msgid(1468321, "Maniac", 1468307, "he was Big Ham, the "
 %% "Mafia Goon.").
-set_death_msgid(MsgId, Player, DeathMsgId, DeathComment) ->
-    case find_mess_game(MsgId) of
+set_death_msgid(GNum, MsgId, Player, DeathMsgId, DeathComment) ->
+    case find_mess_game(GNum, MsgId) of
         {ok, G, M} ->
             Time = M#message.time,
             Cmd = #cmd{time = Time,
@@ -553,14 +550,15 @@ set_death_msgid(MsgId, Player, DeathMsgId, DeathComment) ->
 %% @doc Read the GM message and add good comment about who the dead player was.
 %% @end
 %% -----------------------------------------------------------------------------
--spec kill_player(MsgId :: msg_id(),
+-spec kill_player(GNum :: game_num(),
+                  MsgId :: msg_id(),
                   Player :: string(),
                   Comment :: string())
                  -> {player_killed, #phase{}} |
                     {?error, msg_not_found | game_not_found} |
                     {player_other_case | not_remaining_player, string()}.
-kill_player(MsgId, Player, Comment) ->
-    case find_mess_game(MsgId) of
+kill_player(GNum, MsgId, Player, Comment) ->
+    case find_mess_game(GNum, MsgId) of
         {ok, G, M} ->
             Time = M#message.time,
             Cmd = #cmd{time = Time,
@@ -575,10 +573,10 @@ kill_player(MsgId, Player, Comment) ->
                     mafia_web:regen_history(M, G),
                     {player_killed, DeathPhase};
                 {not_remaining_player, _G2} ->
-                    case ?ruser(Player) of
+                    case ?ruser(Player, G#mafia_game.site) of
                         [] ->
                             {player_no_exist, Player};
-                        [#user{name = NameB}] ->
+                        [#user{name = {NameB, _}}] ->
                             if NameB /= PlayerB ->
                                     {player_other_case, ?b2l(NameB)};
                                true ->
@@ -589,21 +587,17 @@ kill_player(MsgId, Player, Comment) ->
         {?error, _} = E -> E
     end.
 
-%% deprecated - kept only for command_files
-set_death_comment(MsgId, Player, Comment) ->
-    kill_player(MsgId, Player, Comment).
-
 %% -----------------------------------------------------------------------------
 
--spec find_mess_game(MsgId :: msg_id())
+-spec find_mess_game(GNum :: game_num(),
+                     MsgId :: msg_id())
                     -> {ok, #mafia_game{}, #message{}} |
                        {?error, msg_not_found | game_not_found}.
-find_mess_game(MsgId) ->
+find_mess_game(GNum, MsgId) ->
     case ?rmess(MsgId) of
         [] -> {?error, msg_not_found};
         [M] ->
-            ThId = M#message.thread_id,
-            case game_for_thid(ThId) of
+            case ?rgame(GNum) of
                 [] -> {?error, game_not_found};
                 [G] -> {ok, G, M}
             end
@@ -672,24 +666,31 @@ show_users(UserKeys, M) ->
     show_usersI(?standard_io, UserKeys, M).
 
 show_usersI(Mode, UserKeys, M) when M == alias; M == all ->
-    H1 = print(Mode, ["User", "Aliases"]),
-    H2 = print(Mode, ["----", "-------"]),
+    H1 = print(Mode, ["User", "Site", "Aliases"]),
+    H2 = print(Mode, ["----", "----", "-------"]),
     Text =
         [begin
-             U = hd(?ruserUB(UserUB)),
+             U = hd(?ruserUB(UserKey)),
              if M == all; U#user.aliases /= [] ->
                      case U#user.aliases of
-                         [] -> print(Mode, [?b2l(U#user.name)]);
-                         _ -> print(Mode,
-                                    [?b2l(U#user.name),
-                                     string:join(
-                                       ["\"" ++ ?b2l(AlB) ++ "\""
-                                        || AlB <- U#user.aliases], ", ")])
+                         [] ->
+                             print(Mode,
+                                   [?b2l(?e1(U#user.name)),
+                                    ?a2l(U#user.site)
+                                   ]);
+                         _ ->
+                             print(Mode,
+                                   [?b2l(?e1(U#user.name)),
+                                    ?a2l(U#user.site),
+                                    string:join(
+                                      ["\"" ++ ?b2l(AliasB) ++ "\""
+                                       || AliasB <- U#user.aliases], ", ")
+                                   ])
                      end;
                 true -> ""
              end
          end
-         || UserUB <- UserKeys],
+         || UserKey <- UserKeys],
     case Mode of
         ?return_text -> [H1, H2, Text];
         ?standard_io -> ok
@@ -698,8 +699,8 @@ show_usersI(Mode, UserKeys, M) when M == alias; M == all ->
 all_keys(Tab) -> mafia_lib:all_keys(Tab).
 
 match_user_keys(Search) ->
-    [UserUB || UserUB <- all_keys(user),
-               0 /= string:str(?b2l(UserUB), ?l2u(Search))].
+    [UserKey || UserKey = {UserUB, _} <- all_keys(user),
+                0 /= string:str(?b2l(UserUB), ?l2u(Search))].
 
 show_all_aliases() ->
     show_aliases(all).
@@ -717,43 +718,45 @@ show_aliases(Search) ->
 print(Mode, Args) ->
     Fmt =
         case {Mode, length(Args)} of
-            {?return_text, 1} -> "~s\n";
-            {?return_text, 2} -> "~s <=> ~s\n";
-            {?standard_io, 1} -> "~-20s\n";
-            {?standard_io, 2} -> "~-20s ~s\n"
+            {?return_text, 2} -> "~s, ~s\n";
+            {?return_text, 3} -> "~s, ~s <=> ~s\n";
+            {?standard_io, 2} -> "~-20s ~s\n";
+            {?standard_io, 3} -> "~-20s ~s ~s\n"
           end,
     do_print(Mode, Fmt, Args).
 
 do_print(?standard_io, Fmt, Args) -> io:format(Fmt, Args);
 do_print(?return_text, Fmt, Args) -> io_lib:format(Fmt, Args).
 
-show_aliasesI(User) ->
-    case ?ruserUB(User) of
+show_aliasesI(UserSite) ->
+    case ?ruserUB(UserSite) of
         [] -> {error, user_not_found};
-        [#user{} = U] ->
+        [#user{name = {Name, _}, aliases = Aliases}] ->
             io:format("Found: ~s\nAliases: ~p\n",
-                      [?b2l(U#user.name),
-                       [?b2l(AlB) || AlB <- U#user.aliases]])
+                      [?b2l(Name),
+                       [?b2l(AliasB) || AliasB <- Aliases]])
     end.
 
--spec add_user(Name :: (string() | binary()))
+-spec add_user(Name :: (string() | binary()),
+               site())
               -> ok | {error, eexists}.
-add_user(NameB) when is_binary(NameB) ->
-    add_user(?b2l(NameB));
-add_user(Name) when is_list(Name) ->
-    case ?ruser(Name) of
+add_user(NameB, Site) when is_binary(NameB) ->
+    add_user(?b2l(NameB), Site);
+add_user(Name, Site) when is_list(Name) ->
+    case ?ruser(Name, Site) of
         [] ->
             NameU = string:to_upper(Name),
-            User = #user{name_upper = ?l2b(NameU),
-                         name = ?l2b(Name),
+            User = #user{name_upper = {?l2b(NameU), Site},
+                         name = {?l2b(Name), Site},
+                         site = Site,
                          verification_status = verified},
             ?dwrite_user(User);
         [#user{}] ->
             {error, eexists}
     end.
 
-remove_user(Name) ->
-    case ?ruser(Name) of
+remove_user(Name, Site) ->
+    case ?ruser(Name, Site) of
         [] ->
             {error, enoexists};
         [#user{} = U] ->
@@ -769,13 +772,15 @@ remove_user(Name) ->
             end
     end.
 
--spec add_alias(User :: string(), Alias :: string())
+-spec add_alias(User :: string(),
+                site(),
+                Alias :: string())
                -> ok | {error, Reason :: term()}.
-add_alias(User, Alias) ->
+add_alias(User, Site, Alias) ->
     UserB = ?l2b(User),
     AliasB = ?l2b(Alias),
     AliasUB = ?l2ub(Alias),
-    case ?ruser(User) of
+    case ?ruser(User, Site) of
         [] -> {error, user_not_found};
         [#user{} = U] when U#user.name /= UserB ->
             {error, user_case_not_matching};
@@ -790,12 +795,14 @@ add_alias(User, Alias) ->
             end
     end.
 
--spec remove_alias(User :: string(), Alias :: string())
+-spec remove_alias(User :: string(),
+                   site(),
+                   Alias :: string())
                   -> ok | {error, Reason :: term()}.
-remove_alias(User, Alias) ->
+remove_alias(User, Site, Alias) ->
     UserB = ?l2b(User),
     AliasB = ?l2b(Alias),
-    case ?ruser(User) of
+    case ?ruser(User, Site) of
         [] -> {error, user_not_found};
         [#user{} = U] when U#user.name /= UserB ->
             {error, user_case_not_matching};
@@ -814,7 +821,7 @@ remove_alias(User, Alias) ->
 export_user_data() ->
     %% to file
     Keys = all_keys(user),
-    Recs = [hd(?ruserUB(UserUB)) || UserUB <- Keys],
+    Recs = [hd(?ruserUB(UserSite)) || UserSite <- Keys],
     file:write_file("user_data.txt",
                     io_lib:format("~p.\n", [Recs]),
                     [write]).
@@ -828,9 +835,10 @@ import_user_data({error, _} = Error) -> Error;
 import_user_data({ok, [Users]}) ->
     RespF =
         fun() ->
-                Resp =io:get_line(
-                        ?l2a("Action I = store Imported User, "
-                             "D = keep DB unchanged, X = eXit (D): ")),
+                Resp =
+                    io:get_line(
+                      ?l2a("Action I = store Imported User, "
+                           "D = keep DB unchanged, X = eXit (D): ")),
                 %% io:format("Resp ~p\n", [Resp]),
                 case string:to_upper(Resp) of
                     "I"++_ -> ?take_import;

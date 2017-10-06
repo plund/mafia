@@ -338,7 +338,7 @@ upgrade_tab_user_171005(Tab, As, Fs) ->
                 U3 = setelement(#user.name, U2, {Name, ?webDip}),
                 setelement(#user.site, U3, ?webDip)
         end,
-    OldPrimKeys = [ K || K <- mnesia:dirty_all_keys(user)],
+    OldPrimKeys = mnesia:dirty_all_keys(user),
     Delete =
         fun(Key) ->
                 RecOld = hd(mnesia:dirty_read(Tab, Key)),

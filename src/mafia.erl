@@ -1,6 +1,12 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% Test existing command files for old games after last commit.
+%% Bug: The http link on the textual game status page points to the wrong site.
+%% mafia_data: 745 Use mafia_lib:get_url_begin
+%% mafia: change ?return_text to ?html
+%% Bug?: Why does not manual poll() trigger vote counting Site?
+%% Bug?: Why could I not set role_pm via GUI?
 %% Where is the below useful?
 %%% io:format("~*s~*s~*s~*s~*s~n",
 %%%           [-5, "No", -5, "CMC", -5, "NMC", -10, "CEI",
@@ -391,7 +397,7 @@ end_phase(GNum, MsgId) ->
                 Phase = #phase{} ->
                     Cmd = #cmd{time = Time,
                                msg_id = MsgId,
-                               mfa = {mafia, end_phase, [MsgId]}},
+                               mfa = {mafia, end_phase, [GNum, MsgId]}},
                     ?man(Time, Cmd),
                     mafia_file:manual_cmd_to_file(G, Cmd),
                     mafia_time:end_phase(G, Phase, Time),
@@ -408,7 +414,7 @@ unend_phase(GNum, MsgId) ->
             Time = M#message.time,
             Cmd = #cmd{time = Time,
                        msg_id = MsgId,
-                       mfa = {mafia, end_phase, [MsgId]}},
+                       mfa = {mafia, end_phase, [GNum, MsgId]}},
             ?man(Time, {'UNDO', Cmd}),
             mafia_file:manual_cmd_from_file(G, Cmd),
             mafia_time:unend_phase(G, M);
@@ -435,7 +441,7 @@ move_next_deadline(GNum, MsgId, Direction, TimeDiff) ->
                         #cmd{time = M#message.time,
                              msg_id = MsgId,
                              mfa = {mafia, move_next_deadline,
-                                    [MsgId, Direction, TimeDiff]}},
+                                    [GNum, MsgId, Direction, TimeDiff]}},
                     ?man(M#message.time, Cmd),
                     mafia_file:manual_cmd_to_file(G, Cmd);
                true ->
@@ -458,7 +464,7 @@ end_game(GNum, MsgId) ->
             Time = M#message.time,
             Cmd = #cmd{time = Time,
                        msg_id = MsgId,
-                       mfa = {mafia, end_game, [MsgId]}},
+                       mfa = {mafia, end_game, [GNum, MsgId]}},
             ?man(Time, Cmd),
             mafia_file:manual_cmd_to_file(G, Cmd),
             {Reply, _G2} = mafia_time:end_game(M, G),
@@ -479,7 +485,7 @@ unend_game(GNum, MsgId) ->
             Time = M#message.time,
             Cmd = #cmd{time = Time,
                        msg_id = MsgId,
-                       mfa = {mafia, end_game, [MsgId]}},
+                       mfa = {mafia, end_game, [GNum, MsgId]}},
             ?man(Time, {'UNDO', Cmd}),
             mafia_file:manual_cmd_from_file(G, Cmd),
             {Reply, _G2} = mafia_time:unend_game(G),
@@ -506,7 +512,7 @@ replace_player(GNum, MsgId, OldPlayer, NewPlayer) ->
                         #cmd{time = M#message.time,
                              msg_id = MsgId,
                              mfa = {mafia, replace_player,
-                                    [MsgId, OldPlayer, NewPlayer]}},
+                                    [GNum, MsgId, OldPlayer, NewPlayer]}},
                     ?man(M#message.time, Cmd),
                     mafia_file:manual_cmd_to_file(G, Cmd),
                     ok;
@@ -530,7 +536,7 @@ set_death_msgid(GNum, MsgId, Player, DeathMsgId, DeathComment) ->
             Cmd = #cmd{time = Time,
                        msg_id = MsgId,
                        mfa = {mafia, set_death_msgid,
-                              [MsgId, Player, DeathMsgId, DeathComment]}},
+                              [GNum, MsgId, Player, DeathMsgId, DeathComment]}},
             PlayerB = ?l2b(Player),
             case mafia_vote:set_death_msgid(G, M,
                                             PlayerB,
@@ -564,7 +570,7 @@ kill_player(GNum, MsgId, Player, Comment) ->
             Cmd = #cmd{time = Time,
                        msg_id = MsgId,
                        mfa = {mafia, kill_player,
-                              [MsgId, Player, Comment]}},
+                              [GNum, MsgId, Player, Comment]}},
             PlayerB = ?l2b(Player),
             case mafia_vote:kill_player(G, M, PlayerB, Comment) of
                 {{ok, DeathPhase}, _G2} ->

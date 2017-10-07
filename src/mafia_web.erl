@@ -128,7 +128,7 @@ get_ntp_offset()  ->
         {'EXIT', _} -> "Unknown NTP offset";
         OffsetSecs when is_float(OffsetSecs) ->
             OffsMilliStr = float_to_list(OffsetSecs * 1000,
-                                         [{decimals, 3}]),
+                                         [{decimals, 2}]),
             OffsMilliStr ++ " millisecs"
     end.
 
@@ -299,9 +299,7 @@ handle_info({?deadline, DL}, State) ->
     {noreply, S2};
 handle_info(do_polling, State) ->
     {_Reply, S2} = maybe_change_timer(State),
-    TimeStr = mafia_print:print_time(?console),
     if is_integer(State#state.game_num) ->
-            io:format("~s poll for new messages\n", [TimeStr]),
             mafia_data:downl_web(State#state.game_num),
             flush(do_polling);
        true -> ok

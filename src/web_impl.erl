@@ -1199,10 +1199,15 @@ dst_changes(Sid, _Env, In) ->
 %% http://mafia.peterlund.se/e/web/users
 users(Sid, _Env, _In) ->
     A = del_start(Sid, "Existing Users and Aliases in bot DB", 0),
-    Html = ["<tr><td><font size=-1><i>Players must exist in the user DB before "
-            "they can replace a player in game.<br>\r\n"
-            "Ask replacement player to send one message in game if they "
-            "are not listed here</i></font></td></tr>\r\n",
+    Html = ["<tr><td align=center>"
+            "<font size=-1><i>A Player must have a user id in the user DB "
+            "before they can replace a player in a running game.<br>\r\n"
+            "The user id must also be registered on the same site "
+            "(webDip or vDip) as where the game is played.<br>\r\n"
+            "Ask replacement player to send one message in the game thread "
+            "in case they are not listed here <br>\r\n"
+            "and want to take over a position in your game.</i></font>"
+            "</td></tr>\r\n",
             "<tr><td><pre>",
             mafia:show_all_users(?return_text),
             "</pre></td></tr>"],

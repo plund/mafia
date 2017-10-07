@@ -149,7 +149,6 @@ downl_web(G = #mafia_game{thread_id = GThId,
     Page = G#mafia_game.page_to_read,
     LMI = G#mafia_game.last_msg_id,
     LMT = G#mafia_game.last_msg_time,
-    ?dbg({down_web, Page, LMT}),
     S0 = #s{utc_time = mafia_time:utc_secs1970(),
             game_rec = G,
             site = G#mafia_game.site,
@@ -773,7 +772,7 @@ http_request(S2) ->
         {ok, {_StatusLine, _Headers, Body}} ->
             ?inc_cnt(http_responses),
             B = erlang:monotonic_time(millisecond),
-            ?dbg({download_wait_ms, B - A}),
+            ?dbg({download_wait_ms, S2#s.site, B - A}),
             {ok, Body};
         {ok, {_StatusCode, Body}} ->
             ?inc_cnt(http_responses),

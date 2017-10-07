@@ -2,12 +2,8 @@
 
 -include("mafia.hrl").
 %% site() needs to be part of the message primary key too.
-%% mafia: change ?return_text to ?html
 %% Bug?: Why does not manual poll() trigger vote counting Site?
-%% Where is the below useful?
-%%% io:format("~*s~*s~*s~*s~*s~n",
-%%%           [-5, "No", -5, "CMC", -5, "NMC", -10, "CEI",
-%%%            -5, "rep"]).
+%% Useful? io:format("~*s~*s~*s~n", [-15, "aaa", 5, "bbb", -5, "cc"]).
 %% coordinate poll_timer and dl_timer. "No poll at dl"
 %% Make use of dl_poll_info.txt when generating history pages at:
 %%    1) deadline 2) player death at End of Day/Night
@@ -656,7 +652,6 @@ last_msg_in_thread(ThId) when is_integer(ThId) ->
     end.
 
 show_all_users() ->
-    io:format("All Users\n"),
     show_usersI(?standard_io, all_keys(user), all).
 
 show_all_users(?return_text) ->
@@ -675,21 +670,14 @@ show_usersI(Mode, UserKeys, M) when M == alias; M == all ->
         [begin
              U = hd(?ruserUB(UserKey)),
              if M == all; U#user.aliases /= [] ->
-                     case U#user.aliases of
-                         [] ->
-                             print(Mode,
-                                   [?b2l(?e1(U#user.name)),
-                                    ?a2l(U#user.site)
-                                   ]);
-                         _ ->
-                             print(Mode,
-                                   [?b2l(?e1(U#user.name)),
-                                    ?a2l(U#user.site),
-                                    string:join(
-                                      ["\"" ++ ?b2l(AliasB) ++ "\""
-                                       || AliasB <- U#user.aliases], ", ")
-                                   ])
-                     end;
+                     Aliases = string:join(
+                                 ["\"" ++ ?b2l(AliasB) ++ "\""
+                                  || AliasB <- U#user.aliases], ", "),
+                     print(Mode,
+                           [?b2l(?e1(U#user.name)),
+                            ?a2l(U#user.site),
+                            Aliases
+                           ]);
                 true -> ""
              end
          end
@@ -719,13 +707,7 @@ show_aliases(Search) ->
     ok.
 
 print(Mode, Args) ->
-    Fmt =
-        case {Mode, length(Args)} of
-            {?return_text, 2} -> "~s, ~s\n";
-            {?return_text, 3} -> "~s, ~s <=> ~s\n";
-            {?standard_io, 2} -> "~-20s ~s\n";
-            {?standard_io, 3} -> "~-20s ~s ~s\n"
-          end,
+    Fmt = "~30s ~-6s ~s~n",
     do_print(Mode, Fmt, Args).
 
 do_print(?standard_io, Fmt, Args) -> io:format(Fmt, Args);

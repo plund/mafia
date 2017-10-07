@@ -682,9 +682,9 @@ print_votesI(PPin) ->
                  end,
                  if DoDispTime2DL ->
                          ["<tr><td align=center><br>",
-                          "Server time offset: ",
+                          "Server time behind: ",
                           mafia_web:get_ntp_offset(),
-                          "</td></tr>"
+                          " (negative is ahead)</td></tr>"
                          ];
                     true -> ""
                  end

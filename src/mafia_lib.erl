@@ -325,8 +325,9 @@ to_bin_sort(LoB = [Bin|_]) when is_binary(Bin) ->
 
 %% -----------------------------------------------------------------------------
 
-get_url_begin(#mafia_game{site = ?webDip}) -> ?UrlBeg;
-get_url_begin(#mafia_game{site = ?vDip}) -> ?UrlvDip.
+get_url_begin(#mafia_game{site = Site}) -> get_url_begin(Site);
+get_url_begin(?webDip) -> ?UrlBeg;
+get_url_begin(?vDip) -> ?UrlvDip.
 
 bgcolor("") ->
     bgcolorI(?TURQUOISE_HEX);

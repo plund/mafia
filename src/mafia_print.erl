@@ -647,10 +647,11 @@ print_votesI(PPin) ->
                                    end]);
                            true -> ok
                         end,
+                        UrlBeg = mafia_lib:get_url_begin(G),
                         io:format(
                           PP#pp.dev,
                           "Mafia game thread at: ~s\n",
-                          [?UrlBeg ++ ?i2l(GameThId)]);
+                          [UrlBeg ++ ?i2l(GameThId)]);
                    true -> ok
                 end;
            PP#pp.mode == ?html ->

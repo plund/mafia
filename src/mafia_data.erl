@@ -742,10 +742,7 @@ get_body(S, no_file) ->
     get_body2(S2, http_request(S2)).
 
 make_url(S) ->
-    UrlBeg = case S#s.site of
-                 ?webDip -> ?UrlBeg;
-                 ?vDip -> ?UrlvDip
-             end,
+    UrlBeg = mafia_lib:get_url_begin(S#s.site),
     Url = UrlBeg ++ ?i2l(S#s.thread_id) ++ ?UrlMid ++ ?i2l(S#s.page_to_read)
         ++ ?UrlEnd,
     S#s{url = Url}.

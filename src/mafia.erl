@@ -1,9 +1,7 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% Test existing command files for old games after last commit.
-%% Bug: The http link on the textual game status page points to the wrong site.
-%% mafia_data: 745 Use mafia_lib:get_url_begin
+%% site() needs to be part of the message primary key too.
 %% mafia: change ?return_text to ?html
 %% Bug?: Why does not manual poll() trigger vote counting Site?
 %% Bug?: Why could I not set role_pm via GUI?

@@ -4,7 +4,6 @@
 %% site() needs to be part of the message primary key too.
 %% mafia: change ?return_text to ?html
 %% Bug?: Why does not manual poll() trigger vote counting Site?
-%% Bug?: Why could I not set role_pm via GUI?
 %% Where is the below useful?
 %%% io:format("~*s~*s~*s~*s~*s~n",
 %%%           [-5, "No", -5, "CMC", -5, "NMC", -10, "CEI",

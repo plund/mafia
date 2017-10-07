@@ -345,7 +345,7 @@ is_user_and_password_ok(G, User, Pass) ->
 
 mug2(G, GameSett) ->
     ?dbg({sett, GameSett}),
-    NewConf = [list_to_tuple(string:tokens(P, "="))
+    NewConf = [split_on_first_equal_sign(P)
                || P <- string:tokens(GameSett, "\r\n")],
     %% [{"gms","peterlund"}, ...]
     {Values, _Unset} =
@@ -354,6 +354,14 @@ mug2(G, GameSett) ->
     Values2 = [{K, string:strip(V)} || {K, V} <- Values],
     ?dbg({values2, Values2}),
     process_input(Values2, {G, []}).
+
+split_on_first_equal_sign(P) ->
+    split_on_first_equal_sign(P, []).
+
+split_on_first_equal_sign([$= | T], Acc) -> {?lrev(Acc), T};
+split_on_first_equal_sign([], Acc) -> {?lrev(Acc), ""};
+split_on_first_equal_sign([H | T], Acc) ->
+    split_on_first_equal_sign(T, [H | Acc]).
 
 is_ready_to_go(CurG, {G, Es}) ->
     %% Check if ready to update and go

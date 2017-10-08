@@ -4,7 +4,7 @@
 
          rmess/1,
          rpage/1,
-         rpage/2,
+         rpage/3,
          pages_for_thread/1,
          all_page_keys/0,
          all_page_keys/1,
@@ -30,12 +30,13 @@
          to_bin_sort/1,
          get_url_begin/1,
          bgcolor/1,
+         split_on_first_char/2,
 
          re_matches/2,
          merge_intervals/1,
 
-         all_msgids/1,
          all_msgids/2,
+         all_msgids/3,
 
          inc_cnt/1,
          inc_cnt/2,
@@ -62,7 +63,7 @@ dwrite(Tag, Obj) ->
     dirty_update_counter(cnt, {dirty_write, ?global, Tag}, 1),
     dirty_write(Obj).
 
-rmess(MsgId) ->
+rmess(MsgId = {_, _}) ->
     OffsetNow = mafia_time:utc_secs1970(),
     case rmessI(MsgId) of
         [] -> [];
@@ -70,17 +71,17 @@ rmess(MsgId) ->
         [M] -> [M]
     end.
 
-rmessI(MsgId) ->
+rmessI(MsgId = {_, _}) ->
     mnesia:dirty_read(message, MsgId).
 
 %% -----------------------------------------------------------------------------
 
-rpage(Key) ->
+rpage(Key = {_, _, Site}) ->
     case rpageI(Key) of
         [] -> [];
         [P] ->
             MsgIds2 = [MId || MId <- P#page_rec.message_ids,
-                              [] /= ?rmess(MId) ],
+                              [] /= ?rmess({MId, Site}) ],
             if MsgIds2 == [] -> [];
                true ->
                     Complete = P#page_rec.complete andalso
@@ -91,9 +92,9 @@ rpage(Key) ->
             end
     end.
 
-rpage(ThId, Page) -> rpage({ThId, Page}).
+rpage(ThId, Page, Site) -> rpage({ThId, Page, Site}).
 
-rpageI(Key) -> mnesia:dirty_read(page_rec, Key).
+rpageI(Key = {_,_,_}) -> mnesia:dirty_read(page_rec, Key).
 
 %% update page_rec only if more info is added
 dwrite_page(P) ->
@@ -115,11 +116,11 @@ dwrite_page(P) ->
             dirty_write(Db3)
     end.
 
-pages_for_thread(ThId) ->
-    [P || {_, P} <- all_page_keys(ThId)].
+pages_for_thread(Key = {_ThId, _Site}) ->
+    [P || {_, P, _} <- all_page_keys(Key)].
 
-all_page_keys(GNum) ->
-    [K || K = {N, _} <- all_page_keys(), N == GNum].
+all_page_keys({ThId, Site}) ->
+    [K || K = {N, _, S} <- all_page_keys(), N == ThId, S == Site].
 
 all_page_keys() ->
     lists:sort([ K || K <- mnesia:dirty_all_keys(page_rec), [] /= rpage(K)]).
@@ -245,20 +246,21 @@ check_password(User, Site, Password) ->
 
 -spec prev_msg(Msg :: #message{}) -> ?none | #message{}.
 prev_msg(Msg) ->
-    #message{msg_id = MsgId,
+    #message{msg_key = MsgKey,
              thread_id = ThId,
              page_num = PageNum
             } = Msg,
-    P = hd(rpageI({ThId, PageNum})),
+    {MsgId, Site} = MsgKey,
+    P = hd(rpageI({ThId, PageNum, Site})),
     case lists:takewhile(fun(Mid) -> Mid < MsgId end, P#page_rec.message_ids) of
         [] ->
-            case rpageI({ThId, PageNum - 1}) of
+            case rpageI({ThId, PageNum - 1, Site}) of
                 [] -> ?none;
                 [P2] ->
-                    hd(rmessI(lists:last(P2#page_rec.message_ids)))
+                    hd(rmessI({lists:last(P2#page_rec.message_ids), Site}))
             end;
         MsgIds ->
-            hd(rmessI(lists:last(MsgIds)))
+            hd(rmessI({lists:last(MsgIds), Site}))
     end.
 
 %% -----------------------------------------------------------------------------
@@ -387,6 +389,17 @@ bgcolorI(ColorStr) ->
 
 %% -----------------------------------------------------------------------------
 
+
+split_on_first_char(P, Char) ->
+    split_on_first_char(P, [], Char).
+
+split_on_first_char([Char | T], Acc, Char) -> {?lrev(Acc), T};
+split_on_first_char([], Acc, _) -> {?lrev(Acc), ""};
+split_on_first_char([H | T], Acc, Char) ->
+    split_on_first_char(T, [H | Acc], Char).
+
+%% -----------------------------------------------------------------------------
+
 %% read re:run matches
 re_matches(_Str, []) -> [];
 re_matches(Str, [{-1, _L}|SubStrs]) -> ["-1" |re_matches(Str, SubStrs)];
@@ -449,27 +462,36 @@ merge_overlap(L) ->
 
 %% -----------------------------------------------------------------------------
 
-all_msgids(ThId) ->
-    AllPages = pages_for_thread(ThId),
-    all_msgids(ThId, AllPages).
+%/1
+%% Returns [{Page::integer(), MsgId :: msg_id()}]
+all_msgids(ThId, Site) ->
+    AllPages = pages_for_thread({ThId, Site}),
+    all_msgids(ThId, Site, AllPages).
 
-all_msgids(_ThId, []) -> [];
-all_msgids(ThId, [PageN|PagesT]) ->
-    all_msgids(ThId, PagesT, PageN, ?rpage({ThId, PageN})).
+%/2
+%% Returns [{Page::integer(), MsgId :: msg_id()}]
+all_msgids(_, _, []) -> [];
+all_msgids(ThId, Site, [PageN|PagesT]) ->
+    all_msgids(ThId, Site, PagesT, PageN, ?rpage({ThId, PageN, Site})).
 
-all_msgids(ThId, PagesT, _PageN, []) ->
-    all_msgids(ThId, PagesT);
-all_msgids(ThId, PagesT, PageN, [PR]) ->
-    all_msgids2(ThId, PagesT, PageN, PR#page_rec.message_ids).
+%/4
+all_msgids(ThId, Site, PagesT, _PageN, []) ->
+    all_msgids(ThId, Site, PagesT);
+all_msgids(ThId, Site, PagesT, PageN, [PR]) ->
+    all_msgids2(ThId, Site, PagesT, PageN, PR#page_rec.message_ids).
 
-all_msgids2(ThId, PagesT, _PageN, []) ->
-    all_msgids(ThId, PagesT);
-all_msgids2(ThId, PagesT, PageN, [MId|MIds]) ->
-    all_msgids2(ThId, PagesT, PageN, [MId|MIds], ?rmess(MId)).
+%% -----------------------------------------------------------------------------
+%/4
+all_msgids2(ThId, Site, PagesT, _PageN, []) ->
+    all_msgids(ThId, Site, PagesT);
+all_msgids2(ThId, Site, PagesT, PageN, [MId|MIds]) ->
+    all_msgids3(ThId, Site, PagesT, PageN, [MId|MIds], ?rmess({MId, Site})).
 
-all_msgids2(_ThId, _PagesT, _PageN, _MIds, []) -> [];
-all_msgids2(ThId, PagesT, PageN, [MId|MIds], _) ->
-    [{PageN, MId} | all_msgids2(ThId, PagesT, PageN, MIds)].
+%/5
+%% Returns [{Page::integer(), MsgId :: msg_id()}]
+all_msgids3(_, _, _, _, _, []) -> [];
+all_msgids3(ThId, Site, PagesT, PageN, [MId|MIds], _) ->
+    [{PageN, MId} | all_msgids2(ThId, Site, PagesT, PageN, MIds)].
 
 %% -----------------------------------------------------------------------------
 %% Counter updates

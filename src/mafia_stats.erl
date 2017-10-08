@@ -84,13 +84,14 @@ print_stats_match(PP) ->
 do_print_stats(PP) ->
     MatchExpr = PP#pp.match_expr,
     Stats = mnesia:dirty_select(stat, MatchExpr),
-    PrStats = [mk_prstat(S) || S <- Stats],
+    PrStats = [mk_prstat(S, PP) || S <- Stats],
     do_print_stats(PP, PrStats).
 
--spec mk_prstat(#stat{}) -> #prstat{}.
-mk_prstat(S = #stat{}) ->
+-spec mk_prstat(#stat{}, #pp{}) -> #prstat{}.
+mk_prstat(S = #stat{}, PP) ->
+    #mafia_game{site = Site} = PP#pp.game,
     LastMsgId = lists:max(S#stat.msg_ids),
-    M = hd(?rmess(LastMsgId)),
+    M = hd(?rmess({LastMsgId, Site})),
     #prstat{key = S#stat.key,
             msg_ids = S#stat.msg_ids,
             num_chars = S#stat.num_chars,
@@ -132,6 +133,7 @@ do_print_stats(PP, PrStats) ->
     UserF = fun(S) -> element(1, S#prstat.key) end,
     Phase = PP#pp.phase,
     G = PP#pp.game,
+    Site = G#mafia_game.site,
     CurrPhase = mafia_time:calculate_phase(G),
     GNum = G#mafia_game.game_num,
     PhaseRef =
@@ -195,7 +197,7 @@ do_print_stats(PP, PrStats) ->
                    {MsgTime, MsgId} = S#prstat.last_msg,
                    ["<a href=\"/e/web/msg"
                     "?g=", ?i2l(GNum),
-                    "&id=", ?i2l(MsgId),
+                    "&id=", web:msg_key2str({MsgId, Site}),
                     "&var=last_msg",
                     "&user=", UserF(S),
                     "&phase=", PhaseName(),

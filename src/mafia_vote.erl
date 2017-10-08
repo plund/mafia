@@ -91,7 +91,7 @@ check_cmds_votes2(G, Re, M) ->
 log_unallowed_msg(Type, M) ->
     MTime = M#message.time,
     User = ?b2l(M#message.user_name),
-    MsgId = M#message.msg_id,
+    MsgId = M#message.msg_key,
     ?dbg(MTime, {Type, sent_message, MsgId, User}).
 
 %% Removes player from Game if dead
@@ -128,7 +128,7 @@ check_for_deaths(Reg = #regex{}, M, G) ->
             Rs = [ReRes || {MRes, ReRes} <- tuple_to_list(Matches),
                            MRes == ?match],
             Reg2 = lists:min(Rs),
-            ?dbg(M#message.time, {msgid_pos, M#message.msg_id, Reg2#regex.pos}),
+            ?dbg(M#message.time, {msgid_pos, M#message.msg_key, Reg2#regex.pos}),
             {KilledUserB, DeathComment} =
                 read_death_line(G, Reg#regex.msg_text, Reg2),
             case KilledUserB of
@@ -202,7 +202,7 @@ kill_player(G, M, DeadB, DeathComment, true) ->
     Death = #death{player = DeadB,
                    is_end = IsEnd,
                    phase = DeathPhase,
-                   msg_id = M#message.msg_id,
+                   msg_key = M#message.msg_key,
                    time = M#message.time,
                    comment = ?l2b(DeathComment),
                    is_deleted = false
@@ -225,7 +225,7 @@ kill_player(G, M, DeadB, DeathComment, false) ->
               [mafia_print:print_time(M#message.time, short), ?b2l(DeadB)]),
             {IsEnd, DeathPhase} = is_end_of_phase(M, G),
             OldPhase = D#death.phase,
-            Death = D#death{msg_id = M#message.msg_id,
+            Death = D#death{msg_key = M#message.msg_key,
                             time = M#message.time,
                             phase = DeathPhase,
                             is_end = IsEnd,
@@ -260,7 +260,7 @@ set_death_msgid(G, M, DeadB, [DeathMsg], DeathComment) ->
             {IsEnd, DeathPhase} = is_end_of_phase(DeathMsg, G),
             io:format("~p\n", [{IsEnd, DeathPhase}]),
             OldPhase = D#death.phase,
-            Death = D#death{msg_id = DeathMsg#message.msg_id,
+            Death = D#death{msg_key = DeathMsg#message.msg_key,
                             time = DeathMsg#message.time,
                             phase = DeathPhase,
                             is_end = IsEnd,
@@ -608,7 +608,7 @@ replace3(G, M, New, Old) ->
               new_player = NewP,
               replaced_player = OldP,
               phase = Phase,
-              msg_id = M#message.msg_id,
+              msg_key = M#message.msg_key,
               time = M#message.time
              },
             DeathsD2 = [Replacement | Day#mafia_day.player_deaths],
@@ -897,7 +897,7 @@ vote2(M, G, Vote, RawVote, IsOkVote) ->
                if IsOkVote -> "Approved"; true -> "Rejected" end]),
             User = M#message.user_name,
             NewVote = #vote{time = M#message.time,
-                            id = M#message.msg_id,
+                            msg_key = M#message.msg_key,
                             page = M#message.page_num,
                             vote = Vote,
                             raw = RawVote,
@@ -909,14 +909,14 @@ vote2(M, G, Vote, RawVote, IsOkVote) ->
                 case lists:keyfind(User, 1, Votes) of
                     false -> [{User, [NewVote]} | Votes];
                     {User, UVotes} ->
-                        ExistVote = lists:keyfind(NewVote#vote.id,
-                                                  #vote.id,
+                        ExistVote = lists:keyfind(NewVote#vote.msg_key,
+                                                  #vote.msg_key,
                                                   UVotes),
                         UVotes2 =
                             if IsOkVote; ExistVote == false ->
-                                    %% Overwrite vote for this msg_id is ok
-                                    lists:keystore(NewVote#vote.id,
-                                                   #vote.id,
+                                    %% Overwrite vote for this msg_key is ok
+                                    lists:keystore(NewVote#vote.msg_key,
+                                                   #vote.msg_key,
                                                    UVotes,
                                                    NewVote);
                                true ->

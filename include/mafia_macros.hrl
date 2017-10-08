@@ -9,6 +9,11 @@
 -define(TURQUOISE_HEX, "DFFFDF").
 -define(BG_TURQUOISE, "bgcolor=\"#" ++ ?TURQUOISE_HEX ++ "\"").
 
+-define(MinThId,    1000111).
+-define(MaxThId,    3000000).
+-define(MinThIdvDip,  72000).
+-define(MaxThIdvDip, 299999).
+
 -define(GSECS_1970, 62167219200).
 -define(GDAYS_1970, 719528).
 %% calendar:date_to_gregorian_days({1970,1,1}) -> 719528.
@@ -70,8 +75,8 @@
 
 -define(dwrite_game(Tag, Obj), mafia_lib:dwrite(Tag, Obj)).
 
--define(rmess(MsgId), mafia_lib:rmess(MsgId)).
--define(rpage(ThId, Page), mafia_lib:rpage(ThId, Page)).
+-define(rmess(MsgKey), mafia_lib:rmess(MsgKey)).
+-define(rpage(ThId, Page, Site), mafia_lib:rpage(ThId, Page, Site)).
 -define(rpage(Key), mafia_lib:rpage(Key)).
 -define(ruser(User, Site), mafia_lib:ruser(User, Site)).
 -define(ruserUB(User, Site), mafia_lib:ruserUB(User, Site)).

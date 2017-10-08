@@ -19,8 +19,9 @@
 -type game_num() :: integer().
 -type site() :: ?webDip | ?vDip.
 -type thread_id() :: integer().
--type page_num() :: integer().
 -type msg_id() :: integer().
+-type msg_key() :: {msg_id(), site()}.
+-type page_num() :: integer().
 -type day_num() :: integer().
 -type alias() :: binary().
 -type user() :: binary().
@@ -39,20 +40,20 @@
         }).
 
 -record(page_rec,
-        {key :: ?undefined | {thread_id(), page_num()},
-         message_ids = [] :: [msg_id()],
+        {key :: ?undefined | {thread_id(), page_num(), site()},
+         site :: site(),
          thread_id :: ?undefined | thread_id(),
+         message_ids = [] :: [msg_id()],
          complete = false:: boolean()
         }).
 
 -record(message,
-        {msg_id :: ?undefined | msg_id(),
+        {msg_key :: ?undefined | msg_key(),
          thread_id :: ?undefined | thread_id(),
          page_num :: ?undefined | page_num(),
          user_name :: ?undefined | user(),
          time :: ?undefined | seconds1970(),
          message :: ?undefined | message()
-         %% is_deleted = false :: boolean()  %% Delete marking
         }).
 
 -record(phase,
@@ -67,7 +68,7 @@
 
 -record(vote,
         {time :: ?undefined | seconds1970(),
-         id :: ?undefined | msg_id(),
+         msg_key :: ?undefined | msg_key(),
          page :: ?undefined | page_num(),
          vote :: ?undefined | player(),
          raw :: ?undefined | binary(),
@@ -79,7 +80,7 @@
          is_end :: ?undefined | boolean(),
          phase :: ?undefined | #phase{},
          comment :: ?undefined | binary(),
-         msg_id :: ?undefined | msg_id(),
+         msg_key :: ?undefined | msg_key(),
          time :: ?undefined | seconds1970(),
          is_deleted = false :: boolean()
         }).
@@ -88,7 +89,7 @@
         {new_player :: ?undefined | player(),
          replaced_player :: ?undefined | player(),
          phase :: ?undefined | #phase{},
-         msg_id :: ?undefined | msg_id(),
+         msg_key :: ?undefined | msg_key(),
          time :: ?undefined | seconds1970()
         }).
 

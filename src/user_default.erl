@@ -5,9 +5,8 @@
 -export([help/0, help/1, mhelp/0, ehelp/0, chelp/0,
          l/0,
 
-         grep/1, grep/2,
          rmess/1,
-         rpage/2,
+         rpage/3,
          rday/2,
          rgame/1,
          ruser/2,
@@ -28,14 +27,12 @@
          stop/0,
 
          pm/1,
-         pp/0, pp/1, pp/2,
-         pps/0, pps/1, pps/2
+         pp/0, pp/3,
+         pps/0, pps/1, pps/3
         ]).
 
-grep(Str) -> mafia_data:grep(Str).
-grep(Str, Mode) -> mafia_data:grep(Str, Mode).
 rmess(MsgId) -> ?rmess(MsgId).
-rpage(GNum, Page) -> ?rpage(GNum, Page).
+rpage(ThId, Page, Site) -> ?rpage(ThId, Page, Site).
 rday(GNum, DayNum) -> ?rday(GNum, DayNum).
 rgame(GNum) when is_integer(GNum) -> ?rgame(GNum).
 ruser(Name, Site) -> ?ruser(Name, Site).
@@ -50,11 +47,10 @@ getv(K) -> mafia_db:getv(K).
 
 pm(MsgId) -> mafia_print:pm(MsgId).
 pp() -> mafia_print:pp().
-pp(Page) -> mafia_print:pp(Page).
-pp(ThId, Page) -> mafia_print:pp(ThId, Page).
+pp(ThId, Page, Site) -> mafia_print:pp(ThId, Page, Site).
 pps() -> mafia_print:pps().
 pps(Page) -> mafia_print:pps(Page).
-pps(ThId, Page) -> mafia_print:pps(ThId, Page).
+pps(ThId, Page, Site) -> mafia_print:pps(ThId, Page, Site).
 
 stop_poll() -> mafia_web:stop_polling().
 start_poll() -> mafia_web:start_polling().
@@ -75,7 +71,7 @@ patches/       - Store updated beam files here and do l() to load them
 logs/          - Logs run_erl.log, erlang.log.N
 user_data.txt  - User table exported, may be imported
 
-DBG: grep/1, grep/2, rmess/1, rpage/2, rday/2, rgame/1
+DBG: rmess/1, rpage/2, rday/2, rgame/1
 
 COMMANDS:
 show()         - Show server settings
@@ -129,19 +125,19 @@ mafia:switch_to_game(GNum, refresh)
 
 Manual Commands
 ---------------
-mafia:end_phase(MsgId)   - Ends current phase.
-mafia:unend_phase(MsgId) - Remove early end of this last phase
-mafia:move_next_deadline(MsgId, Dir, Time) - Moves next deadline
+mafia:end_phase(GNum, MsgId)   - Ends current phase.
+mafia:unend_phase(GNum, MsgId) - Remove early end of this last phase
+mafia:move_next_deadline(GNum, MsgId, Dir, Time) - Moves next deadline
          earlier or later. A deadline can not be moved into the past.
          Dir = later | earlier
          Time = H | {H, M}
-mafia:end_game(MsgId)   - Ends the game with the given msg_id
-mafia:unend_game(MsgId) - Unend game
+mafia:end_game(GNum, MsgId)   - Ends the game with the given msg_id
+mafia:unend_game(GNum, MsgId) - Unend game
 
-mafia:kill_player(MsgId, Player, Comment) - Kill a player
-mafia:set_death_msgid(MsgId, Player, DeathMsgId, Comment).
+mafia:kill_player(GNum, MsgId, Player, Comment) - Kill a player
+mafia:set_death_msgid(GNum, MsgId, Player, DeathMsgId, Comment).
     Reference a previous msgid as the death message, give comment.
-mafia:replace_player(MsgId, OldPlayer, NewPlayer)
+mafia:replace_player(GNum, MsgId, OldPlayer, NewPlayer)
     New player is replacing old player in game. Exact names!
     Old player must exist in user DB
     New player is created if missing in DB
@@ -162,7 +158,10 @@ mafia:import_user_data() - import from file 'user_data.txt'
 mafia_time:show_time_offset()   - Display offset
 mafia_time:set_time_offset(Off) - Change the time offset
     do a refresh_votes() after changing offset
-    Off = Secs | {msg_id, MsgId} | {move, Secs} | {days_hours, Days, Hours})
+    Off = Secs
+        | {move, Secs}
+        | {msg_key, {MsgId, Site}}
+        | {days_hours, Days, Hours})
 
 mafia:show_all_users()          - List primary keys in User DB
 mafia:show_all_users(Search)    - List primary keys matching Search

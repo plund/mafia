@@ -30,17 +30,38 @@ recreate_game_table() ->
 %% mnesia_table arity is number of fields + 1
 upgrade() ->
     upgrade(mafia_game),
-    upgrade(user).
+    upgrade(user),
+    upgrade(page_rec),
+    upgrade(message),
+    ok.
 
 upgrade(mafia_game = Tab) ->
     upgrade(Tab,
             mnesia:table_info(Tab, attributes),
             record_info(fields, mafia_game));
-upgrade(user) ->
-    upgrade(user,
-            mnesia:table_info(user, attributes),
-            record_info(fields, user)).
+upgrade(user = Tab) ->
+    upgrade(Tab,
+            mnesia:table_info(Tab, attributes),
+            record_info(fields, user));
+upgrade(page_rec = Tab) ->
+    upgrade(Tab,
+            mnesia:table_info(Tab, attributes),
+            record_info(fields, page_rec));
+upgrade(message = Tab) ->
+    upgrade(Tab,
+            mnesia:table_info(Tab, attributes),
+            record_info(fields, message)).
 
+upgrade(Tab = message,
+        As = [msg_id,thread_id,page_num,user_name,time,message],
+        Fs = [msg_key,thread_id,page_num,user_name,time,message]
+       ) ->
+    upgrade_tab_message_171008(Tab, As, Fs);
+upgrade(Tab = page_rec,
+        As = [key,message_ids,thread_id,complete],
+        Fs = [key,site,thread_id,message_ids,complete]
+       ) ->
+    upgrade_tab_page_rec_171008(Tab, As, Fs);
 upgrade(Tab = mafia_game,
         As = [game_num,thread_id,signup_thid,name,day_hours,night_hours,
               time_zone,start_time,dst_zone,dst_changes,deadlines,gms,
@@ -122,6 +143,56 @@ upgrade(Tab, As, Fs) when As == Fs ->
 upgrade(Tab, As, Fs) ->
     io:format("No upgrade for table '~p' from:\n~999p\nto\n~999p\n",
               [Tab, As, Fs]).
+
+upgrade_tab_message_171008(Tab, _As, Fs) ->
+    mnesia:transform_table(Tab, ignore, Fs),
+    case is_integer(mnesia:dirty_first(message)) of
+        true ->  do_upgrade_tab_message_171008();
+        false -> already_done
+    end.
+
+do_upgrade_tab_message_171008() ->
+    %% mnesia:table_info(message, size) -> 53281
+    %% Now rewrite primary keys.
+    Site = fun(MsgId) when MsgId < ?MaxThIdvDip -> ?vDip;
+              (_) -> ?webDip
+           end,
+    [begin
+         [M] = mnesia:dirty_read(message, MsgId),
+         M2 = setelement(#message.msg_key, M, {MsgId, Site(MsgId)}),
+         mnesia:dirty_write(M2),
+         mnesia:dirty_delete(message, MsgId)
+     end
+     || MsgId <- mnesia:dirty_all_keys(message), is_integer(MsgId)],
+    ok.
+
+upgrade_tab_page_rec_171008(Tab, As, Fs) ->
+    Site = fun(ThId) when ThId < ?MaxThIdvDip -> ?vDip;
+              (_) -> ?webDip
+           end,
+    Trans =
+        fun(RecOld) ->
+                P = move_old_vals_to_new_pos(RecOld, As, Fs),
+                {ThId, _PNum} = element(#page_rec.key, P),
+                setelement(#page_rec.site, P, Site(ThId))
+        end,
+    mnesia:transform_table(Tab, Trans, Fs),
+    case tuple_size(mnesia:dirty_first(page_rec)) of
+        2 -> do_upgrade_tab_page_rec_171008(Site);
+        _ -> already_done
+    end.
+
+do_upgrade_tab_page_rec_171008(Site) ->
+    %% mnesia:table_info(page_rec, size) -> 1785
+    %% Now rewrite primary keys.
+    [begin
+         [P] = mnesia:dirty_read(page_rec, {ThId, PNum}),
+         P2 = setelement(#page_rec.key, P, {ThId, PNum, Site(ThId)}),
+         mnesia:dirty_write(P2),
+         mnesia:dirty_delete(page_rec, {ThId, PNum})
+     end
+     || {ThId, PNum} <- mnesia:dirty_all_keys(page_rec)],
+    ok.
 
 %% -----------------------------------------------------------------------------
 %% insert ?undefined for signup_thid

@@ -278,7 +278,7 @@ msgs2(Sid, GNum, In, PQ, []) ->
     DoCont = IsUserCond orelse IsWordCond orelse IsDayCond,
     Fun =
         fun(acc, init) -> #miter{};
-           (#message{msg_id = MsgId,
+           (#message{msg_key = MsgKey,
                      thread_id = MThId,
                      user_name = MsgUserB,
                      page_num = Page,
@@ -387,7 +387,7 @@ msgs2(Sid, GNum, In, PQ, []) ->
                         BgColor = mafia_lib:bgcolor(MsgUserB),
                         {HH, MM} = mafia_time:hh_mm_to_deadline(GNum, Time),
                         %% Add context link when doing User/Word search
-                        MsgRef = ["msg_id=", ?i2l(MsgId)],
+                        MsgRef = ["msg_id=", web:msg_key2str(MsgKey)],
 
                         {Pages, _, _} = page_context(Page, 1),
                         HPage =
@@ -950,12 +950,12 @@ vote_tracker2(GNum, DayStr, _) when DayStr /= "" ->
     end;
 vote_tracker2(GNum, "", MsgIdStr) when MsgIdStr /= "" ->
     try
-        MsgId = list_to_integer(MsgIdStr),
-        show_message(?rgame(GNum), ?rmess(MsgId), vote)
+        MsgKey = web:str2msg_key(MsgIdStr),
+        show_message(?rgame(GNum), ?rmess(MsgKey), vote)
     catch _:_ ->
             {error,
              "<tr><td>"
-             "Was not able to convert msg_id value to integer"
+             "Was not able to convert msg_id value"
              "</td></tr>"}
     end;
 vote_tracker2(_, "", "") ->
@@ -971,9 +971,9 @@ msg(Sid, _Env, In) ->
     GNum = get_gnum(GNumStr),
     MsgIdText = get_arg(PQ, "id"),
     Variant = get_arg(PQ, "var"),
-    Ms = case catch ?l2i(MsgIdText) of
+    Ms = case catch web:str2msg_key(MsgIdText) of
              {'EXIT', _} -> [];
-             MsgId -> ?rmess(MsgId)
+             MsgKey -> ?rmess(MsgKey)
          end,
     {HStart, Html} = msg2(?rgame(GNum), Ms, Variant, PQ),
     A = del_start(Sid, HStart, 0),
@@ -1255,11 +1255,11 @@ show_message3(G, M, Str) ->
 
 page_links(G, M, Str) ->
     PageNum = M#message.page_num,
-    MsgId = M#message.msg_id,
+    MsgKey = M#message.msg_key,
     UrlPart1 = ["/e/web/msgs?g=", ?i2l(G#mafia_game.game_num), "&part=p"],
     PageStr = ?i2l(PageNum),
     {PageCont, VPPrev, VPNext} = page_context(PageNum, 1),
-    LinkEnd = "#msg_id=" ++ ?i2l(MsgId),
+    LinkEnd = "#msg_id=" ++ web:msg_key2str(MsgKey),
     Link1 = UrlPart1 ++ PageStr ++ LinkEnd,
     Link3 = UrlPart1 ++ PageCont ++ LinkEnd,
     ["<tr><td colspan=2 align=center><br>"
@@ -1275,8 +1275,8 @@ page_context(PageNum, Context) ->
 
 show_msg(G = #mafia_game{}, M = #message{}) ->
     show_msgI(G, M);
-show_msg(G = #mafia_game{}, MsgId) when is_integer(MsgId) ->
-     show_msgI(G, hd(?rmess(MsgId))).
+show_msg(G = #mafia_game{site = Site}, MsgId) when is_integer(MsgId) ->
+     show_msgI(G, hd(?rmess({MsgId, Site}))).
 
 %% show_msgI(_, []) -> "<tr><td>No message found with this id</td></tr>";
 %% show_msgI(G, [M]) -> show_msgI(G, M);

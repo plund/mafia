@@ -16,7 +16,9 @@
 
          deliver/2,
          is_secure/1,
-         host_info/1
+         host_info/1,
+         msg_key2str/1,
+         str2msg_key/1
         ]).
 
 -define(page(PageFun),
@@ -107,3 +109,14 @@ host_info(Env) ->
                     end
             end,
     {lists:all(IsNum, Tokens), Host, ScriptName}.
+
+msg_key2str({MsgId, ?webDip}) -> ":" ++ ?i2l(MsgId);
+msg_key2str({MsgId, ?vDip}) -> "v:" ++ ?i2l(MsgId).
+
+str2msg_key(Str) ->
+    case mafia_lib:split_on_first_char(Str, $:) of
+        {"", IntStr} ->
+            {?l2i(IntStr), ?webDip};
+        {"v", IntStr} ->
+            {?l2i(IntStr), ?vDip}
+    end.

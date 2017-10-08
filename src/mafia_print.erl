@@ -1,9 +1,9 @@
 -module(mafia_print).
 
 %% Manual API
--export([pp/0, pp/1, pp/2,
-         pps/0, pps/1, pps/2,
-         pm/1,
+-export([pp/0, pp/3,
+         pps/0, pps/1, pps/3,
+         pm/1, pm/2,
          print_votes/0,
          print_votes/1,
          print_votes/2
@@ -12,7 +12,6 @@
 %% API
 -export([
          print_phase/1,
-         print_messages/1,
          print_message_summary/1,
          print_message_full/1,
          print_time/1,
@@ -63,75 +62,74 @@ po(P, []) -> P.
 %% -----------------------------------------------------------------------------
 
 pp() ->
-    ThId = ?getv(?thread_id),
-    Page = case ?rgame(ThId) of
-               [] -> ?getv(?page_to_read);
-               [G] -> G#mafia_game.page_to_read
-           end,
-    pp(ThId, Page).
+    GNum = ?getv(?game_key),
+    case ?rgame(GNum) of
+        [] -> {error, no_game};
+        [#mafia_game{thread_id = ThId,
+                     site = Site,
+                     page_to_read = Page}] ->
+            ppI(ThId, Page, Site)
+    end.
 
-pp({ThId, Page}) ->
-    pp(ThId, Page);
-pp(Page) ->
-    ThId = ?getv(?thread_id),
-    pp(ThId, Page).
+pp(ThId, Page, Site) ->
+    ppI(ThId, Page, Site).
 
-pp(GNum, Page) ->
-    ppI(GNum, Page).
-
-ppI(E = {?error, _}, _Page) -> E;
-ppI(ThId, Page) ->
+ppI(E = {?error, _}, _Site, _Page) -> E;
+ppI(ThId, Page, Site) ->
     %% Select MsgIds here
-    MsgIds = msgids(ThId, Page),
-    print_page(ThId, MsgIds, fun print_message_full/1).
+    MsgIds = msgids(ThId, Page, Site),
+    print_page(ThId, MsgIds, Site, fun print_message_full/1).
 
 %% -----------------------------------------------------------------------------
 
 pps() ->
-    ThId = ?getv(?thread_id),
-    Page = case ?rgame(ThId) of
-               [] -> ?getv(?page_to_read);
-               [G] -> G#mafia_game.page_to_read
-           end,
-    pps(ThId, Page).
+    GNum = ?getv(?game_key),
+    case ?rgame(GNum) of
+        [] -> {error, no_game};
+        [#mafia_game{thread_id = ThId,
+                     site = Site,
+                     page_to_read = Page}] ->
+            ppsI(ThId, Page, Site)
+    end.
 
 pps({ThId, Page}) ->
-    pps(ThId, Page);
+    ppsI(ThId, Page, ?webDip);
 pps(Page) when is_integer(Page) ->
     ThId = ?getv(?thread_id),
-    pps(ThId, Page).
+    ppsI(ThId, Page, ?webDip).
 
-pps(GNum, Page) ->
-    ppsI(GNum, Page).
+pps(ThId, Page, Site) ->
+    ppsI(ThId, Page, Site).
 
-ppsI(E = {?error, _}, _Page) -> E;
-ppsI(ThId, Page) ->
+ppsI(E = {?error, _}, _, _) -> E;
+ppsI(ThId, Page, Site) ->
     %% Select MsgIds here
-    MsgIds = msgids(ThId, Page),
-
+    MsgIds = msgids(ThId, Page, Site),
     io:format("~-10s "
               "~-3s"
               " ~-11s "
               "~-7s "
               "~s\n",
               ["Player", "pg", "Date/Time", "Msg Id", "Message Text"]),
-    print_page(ThId, MsgIds, fun print_message_summary/1).
+    print_page(ThId, MsgIds, Site, fun print_message_summary/1).
 
 %% -----------------------------------------------------------------------------
-
 pm(MsgId) when is_integer(MsgId) ->
-    pm(?standard_io, MsgId);
+    pm(MsgId, ?webDip);
 pm(PP = #pp{}) when PP#pp.message == ?undefined ->
     pm_rmess(PP);
 pm(PP = #pp{}) ->
     print_message_full(PP).
 
-pm(Fd, MsgId) when is_integer(MsgId) ->
+pm(MsgId, Site) ->
+    pm(?standard_io, MsgId, Site).
+
+pm(Fd, MsgId, Site) when is_integer(MsgId) ->
     {TzH, Dst} = mafia_time:get_tz_dst(),
-    pm(#pp{dev = Fd, msg_id = MsgId, time_zone = TzH, dst = Dst}).
+    pm(#pp{dev = Fd, msg_id = MsgId, site = Site, time_zone = TzH, dst = Dst}).
 
 pm_rmess(PP) ->
-    M = hd(?rmess(PP#pp.msg_id)),
+    M = hd(?rmess({PP#pp.msg_id, PP#pp.site})),
     pm(PP#pp{message = M}).
 
 %% -----------------------------------------------------------------------------
@@ -326,6 +324,7 @@ print_votesI(PPin) ->
                                   "-----------------------\n",
                                   []),
                         pm(PP#pp{msg_id = EndMsgId,
+                                 site = G#mafia_game.site,
                                  time_zone = TzH,
                                  dst = Dst});
                     ?html ->
@@ -549,14 +548,15 @@ print_votesI(PPin) ->
                               [string:join(
                                  [?b2l(DeadPl) ++ PrFun(IsEnd, Ph) ++
                                       if Com == ?undefined ->
-                                              " - msg: " ++ ?i2l(MsgId);
+                                              " - msg: " ++
+                                                  web:msg_key2str(MsgKey);
                                          is_binary(Com) ->
                                               " - " ++ ?b2l(Com)
                                       end
                                   || #death{player = DeadPl,
                                             is_end = IsEnd,
                                             phase = Ph,
-                                            msg_id = MsgId,
+                                            msg_key = MsgKey,
                                             comment = Com}
                                          <- DeathsToReport],
                                  Div)]);
@@ -588,18 +588,19 @@ print_votesI(PPin) ->
                               #death{player = DeadPl,
                                      is_end = IsEnd,
                                      phase = Ph,
-                                     msg_id = MsgId,
+                                     msg_key = MsgKey,
                                      comment = Com} ->
                                   ["<tr><td><table align=left><tr><td",
                                    bgcolor(DeadPl), ">", ?b2l(DeadPl), "</td>"
                                    "<td><a href=\"/e/web/msg"
                                    "?g=", ?i2l(G#mafia_game.game_num),
-                                   "&id=", ?i2l(MsgId),
+                                   "&id=", web:msg_key2str(MsgKey),
                                    "&player=", ?b2l(DeadPl),
                                    "&var=death\">",
                                    PrFun(IsEnd, Ph), "</a>",
                                    if Com == ?undefined ->
-                                           " - msg: " ++ ?i2l(MsgId);
+                                           " - msg: " ++
+                                               web:msg_key2str(MsgKey);
                                       is_binary(Com) ->
                                            " - " ++ ?b2l(Com)
                                    end,
@@ -607,12 +608,12 @@ print_votesI(PPin) ->
                               #replacement{new_player = NewPl,
                                            replaced_player = RepPl,
                                            phase = Ph,
-                                           msg_id = MsgId} ->
+                                           msg_key = MsgKey} ->
                                   ["<tr><td><table align=left><tr><td",
                                    bgcolor(RepPl), ">", ?b2l(RepPl), "</td>"
                                    "<td><a href=\"/e/web/msg"
                                    "?g=", ?i2l(G#mafia_game.game_num),
-                                   "&id=", ?i2l(MsgId),
+                                   "&id=", web:msg_key2str(MsgKey),
                                    "&player=", ?b2l(RepPl),
                                    "&var=replacement\">",
                                    PrRepFun(Ph), "</a></td>"
@@ -879,15 +880,17 @@ pr_thread_links(PP, DoDispTime2DL) ->
     %% Day4(p98-) p103-, p108-, p113-, p118-, p123-, p128-, last(p130)
     StartTime = mafia_time:get_time_for_prev_phase(PP#pp.game, PP#pp.phase),
     EndTime = mafia_time:get_time_for_phase(PP#pp.game, PP#pp.phase),
-    ThId = (PP#pp.game)#mafia_game.thread_id,
-    PageKeys = mafia_lib:all_page_keys(ThId),
+    #mafia_game{thread_id = ThId,
+                site = Site} = PP#pp.game,
+    Thread = {ThId, Site},
+    PageKeys = mafia_lib:all_page_keys(Thread),
     GameNumStr = integer_to_list((PP#pp.game)#mafia_game.game_num),
     case lists:foldl(
            fun(_PK, Acc = {done, _}) -> Acc;
-              (PK = {_, P}, Acc) ->
+              (PK = {_, P, _}, Acc) ->
                    #page_rec{message_ids= [MsgId|_]} =
                        hd(?rpage(PK)),
-                   #message{time = MTime} = hd(?rmess(MsgId)),
+                   #message{time = MTime} = hd(?rmess({MsgId, Site})),
                    case Acc of
                        {startpage, _} when MTime >= StartTime ->
                            {endpage, {P-1, P-1}};
@@ -1111,42 +1114,23 @@ user_vote_timesort(Votes) ->
 
 %% -----------------------------------------------------------------------------
 
-print_messages(User) when is_list(User) ->
-    print_messages(?l2b(User));
-print_messages(User) when is_binary(User) ->
-    ThId = ?getv(?thread_id),
-    AllMsgIds = mafia_lib:all_msgids(ThId),
-    UserMsgIds =
-        lists:filter(
-          fun(MsgId) ->
-                  case ?rmess(MsgId) of
-                      [#message{user_name = U}]
-                        when U == User -> true;
-                      _ -> false
-                  end
-          end,
-          AllMsgIds),
-    print_page(ThId, UserMsgIds, fun print_message_summary/1).
-
-%% -----------------------------------------------------------------------------
-
 print_pages_for_thread() ->
     ThId = ?getv(?thread_id),
     print_pages_for_thread(ThId).
 
 print_pages_for_thread(ThId) ->
-    Pages = mafia:pages_for_thread(ThId),
+    Pages = mafia_lib:pages_for_thread(ThId),
     io:format("Thread ~p has stored Pages ~w\n", [ThId, Pages]).
 
 %% -----------------------------------------------------------------------------
 
 -define(MsgTime(M), M#message.time).
 
-print_page(_ThId, [], _PrintFun) -> ok;
-print_page(ThId, MsgIds, PrintFun) ->
+print_page(_, [], _, _) -> ok;
+print_page(ThId, MsgIds, Site, PrintFun) ->
     %% print starting line with current phase
     %% does this thread have a game?
-    MsgsPage = read_msgs(MsgIds),
+    MsgsPage = read_msgs(MsgIds, Site),
     case ?rgame(ThId) of
         [] ->
             [PrintFun(M) || M <- MsgsPage];
@@ -1184,13 +1168,13 @@ print_page(ThId, MsgIds, PrintFun) ->
     end,
     ok.
 
-msgids(ThId, PageNum) ->
-    case ?rpage(ThId, PageNum) of
+msgids(ThId, PageNum, Site) ->
+    case ?rpage(ThId, PageNum, Site) of
         [] -> [];
         [#page_rec{message_ids = MIds}] -> MIds
     end.
 
-read_msgs(MsgIds) -> [hd(?rmess(MsgId)) || MsgId <- MsgIds].
+read_msgs(MsgIds, Site) -> [hd(?rmess({MsgId, Site})) || MsgId <- MsgIds].
 
 cmp_time(A, B) -> time(A) =< time(B).
 
@@ -1244,7 +1228,7 @@ print_message_full(PP = #pp{}) ->
                ?i2l(M#message.page_num),
                print_timeI(PP#pp{t_mode = ?long}),
                ?i2l(M#message.thread_id),
-               ?i2l(M#message.msg_id),
+               ?i2l(?e1(M#message.msg_key)),
                html2txt(?b2l(M#message.message))
               ]).
 
@@ -1270,7 +1254,7 @@ print_message_summary(PP = #pp{}) ->
                         [?b2l(M#message.user_name),
                          ?i2l(M#message.page_num),
                          print_timeI(PP#pp{t_mode = ?short}),
-                         ?i2l(M#message.msg_id),
+                         ?i2l(?e1(M#message.msg_key)),
                          MsgShort
                         ]),
     io:format("~s", [Str]).

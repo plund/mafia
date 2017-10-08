@@ -26,7 +26,6 @@
 %% utilities
 -export([update_stat/2,
          compress_txt_files/0,
-         grep/1, grep/2,
          iterate_all_game_msgs/3,
 
          delete_game_data_in_other_tabs/1,
@@ -201,7 +200,7 @@ check_db(S) ->
     G = S#s.game_rec,
     {MsgIdFun, Acc} = checkvote_fun(G, true),
     Filter = fun(Page) -> Page >= InitPage end,
-    case iter_msgids(S#s.thread_id, MsgIdFun, Acc, Filter) of
+    case iter_msgids({S#s.thread_id, S#s.site}, MsgIdFun, Acc, Filter) of
         {_, PageNum, MsgId, MsgTime} ->
             {PageNum, MsgId, MsgTime};
         ?none -> %% unread thread - nothing in DB
@@ -246,14 +245,15 @@ delete_game_data_in_other_tabs([]) -> {error, no_game};
 delete_game_data_in_other_tabs([G]) ->
     delete_game_data_in_other_tabs(G);
 delete_game_data_in_other_tabs(#mafia_game{game_num = GNum,
-                                           thread_id = ThId}) ->
+                                           thread_id = ThId,
+                                           site = Site}) ->
     %% Delete mafia_day
     _ = [mnesia:dirty_delete(mafia_day, K)
          || K = {GN, _} <- mnesia:dirty_all_keys(mafia_day), GN == GNum],
 
     %% Delete messages for msg_ids found in page_rec of thread
     MsgIdFun = fun(MsgId) -> mnesia:dirty_delete(message, MsgId) end,
-    iterate_all_msg_ids(ThId, MsgIdFun, all),
+    iterate_all_msg_ids({ThId, Site}, MsgIdFun, all),
 
     %% Delete page_recs for thread
     [mnesia:dirty_delete(page_rec, K)
@@ -310,14 +310,15 @@ refresh_votes(G0 = #mafia_game{}, PageFilter) ->
     %% Reinitialize the game table
     G = reset_game(G0),
     ThId = G#mafia_game.thread_id,
+    Site = G#mafia_game.site,
     {MsgIdFun, Acc} = checkvote_fun(G, false),
-    case iter_msgids(ThId, MsgIdFun, Acc, PageFilter) of
+    case iter_msgids({ThId, Site}, MsgIdFun, Acc, PageFilter) of
         none ->
             ?dbg({last_iter_msg_ref, none}),
             ok;
         {_, PageNum, MsgId, MsgTime} ->
             ?dbg({last_iter_msg_ref, ThId, PageNum, MsgId}),
-            M = hd(?rmess(MsgId)),
+            M = hd(?rmess({MsgId, Site})),
             if MsgTime /= M#message.time ->
                     ?dbg({refresh_votes, not_same, MsgTime, M#message.time});
                true -> ok
@@ -349,7 +350,7 @@ checkvote_fun(G, DoPrint) ->
     REs = mafia_vote:get_regexs(),
     DoCheck =
         fun(Msg) ->
-                MsgId = Msg#message.msg_id,
+                MsgId = ?e1(Msg#message.msg_key),
                 mafia:add_user(Msg#message.user_name, Site),
                 G2 = hd(?rgame(GNum)),
                 mafia_vote:check_cmds_votes(G2, REs, Msg),
@@ -369,13 +370,13 @@ checkvote_fun(G, DoPrint) ->
              {A#acc.game_num, A#acc.last_page, A#acc.last_msg_id,
               A#acc.last_msg_time};
         (MsgId, Acc) when Acc#acc.last_msg_time == ?undefined ->
-             [Msg] = ?rmess(MsgId),
+             [Msg] = ?rmess({MsgId, Site}),
              MsgTime = Msg#message.time,
              Acc#acc{last_page = Msg#message.page_num,
                      last_msg_id = MsgId,
                      last_msg_time = MsgTime};
         (MsgId, Acc) ->
-             [Msg] = ?rmess(MsgId),
+             [Msg] = ?rmess({MsgId, Site}),
              MsgTime = Msg#message.time,
              if MsgTime >= Acc#acc.last_msg_time,
                 MsgId /= Acc#acc.last_msg_id ->
@@ -432,12 +433,13 @@ check_vote_msgid_fun(_, _, _, IsPregame) when IsPregame -> ?undefined;
 check_vote_msgid_fun(G, LMI, LMT, _IsPregame) ->
     DoCheck = do_check_fun(G),
     fun(Msg = #message{}) when Msg#message.time >= LMT,
-                               Msg#message.msg_id /= LMI ->
+                               ?e1(Msg#message.msg_key) /= LMI ->
             DoCheck(Msg);
        (MsgId) when is_integer(MsgId) ->
-            case ?rmess(MsgId) of
+            Site = G#mafia_game.site,
+            case ?rmess({MsgId, Site}) of
                 [Msg] when Msg#message.time >= LMT,
-                           Msg#message.msg_id /= LMI ->
+                           ?e1(Msg#message.msg_key) /= LMI ->
                     DoCheck(Msg);
                 _ -> ignore
             end;
@@ -452,7 +454,7 @@ do_check_fun(G) ->
            end,
     REs = mafia_vote:get_regexs(),
     fun(Msg) ->
-            MsgId = Msg#message.msg_id,
+            MsgId = ?e1(Msg#message.msg_key),
             G2 = hd(?rgame(GNum)),
             Resp = mafia_vote:check_cmds_votes(G2, REs, Msg),
             [erlang:apply(M, F, A) || #cmd{msg_id = MId,
@@ -494,23 +496,25 @@ refresh_stat() ->
 refresh_stat(GNum) when is_integer(GNum) ->
     refresh_stat(?rgame(GNum));
 refresh_stat([]) -> ok;
-refresh_stat([G = #mafia_game{thread_id = ThId}]) ->
+refresh_stat([G = #mafia_game{thread_id = ThId,
+                              site = Site}]) ->
     UpdateStatF = fun(MsgId) ->
-                          update_stat(?rmess(MsgId), G)
+                          update_stat(G, ?rmess(MsgId))
                   end,
-    iterate_all_msg_ids(ThId, UpdateStatF),
+    iterate_all_msg_ids({ThId, Site}, UpdateStatF),
     ok.
 
-update_stat([], _) -> ok;
-update_stat([M], G) ->
-    update_stat(M, G);
-update_stat(G, M) ->
+update_stat(_, []) -> ok;
+update_stat(G, [M]) ->
+    update_stat(G, M);
+update_stat(G = #mafia_game{}, M = #message{}) ->
     GNum = G#mafia_game.game_num,
-    #message{msg_id = MsgId,
+    #message{msg_key = MsgKey,
              user_name = UserB, %% :: user(),
              time = Time,       %% :: seconds1970(),
              message = MsgBin   %% :: message()
             } = M,
+    MsgId = ?e1(MsgKey),
     Phase = case mafia_time:calculate_phase(G, Time) of
                 #phase{ptype = ?game_start} -> ?game_start;
                 #phase{ptype = ?game_ended} -> ?game_ended;
@@ -592,67 +596,37 @@ sum_stat(#prstat{key = KA,
             words_per_post = NewNumWords / NewNumPosts
            }.
 
-%% for mafia.erl!
-grep(Str) -> grep(Str, summary).
-
-grep(Str, s) -> grep(Str, summary);
-grep(Str, f) -> grep(Str, full);
-grep(Str, summary) ->
-    grepI(Str, fun mafia_print:print_message_summary/1);
-grep(Str, full) ->
-    grepI(Str, fun mafia_print:print_message_full/1).
-
-grepI(Str, PrintF)  ->
-    ThId = ?getv(?thread_id),
-    StrU = ?l2u(Str),
-    GrepF =
-        fun(M) ->
-                Msg = ?b2l(M#message.message),
-                MsgU = ?l2u(Msg),
-                case string:str(MsgU, StrU) of
-                    0 -> ok;
-                    _P ->
-                        PrintF(M)
-                end
-        end,
-    iterate_all_msgs(ThId, GrepF),
-    ok.
-
 iterate_all_game_msgs(GNum, DoSignup, MsgFun) ->
     case ?rgame(GNum) of
         [#mafia_game{thread_id = ThId,
+                     site = Site,
                      signup_thid = SuThId}] ->
             Pks1 = if DoSignup, is_integer(SuThId) ->
-                           mafia_lib:all_page_keys(SuThId);
+                           mafia_lib:all_page_keys({SuThId, Site});
                       true -> []
                    end,
             Pks2 = if is_integer(ThId) ->
-                           mafia_lib:all_page_keys(ThId);
+                           mafia_lib:all_page_keys({ThId, Site});
                       true -> []
                    end,
             PageKeys = Pks1 ++ Pks2,
-            iterate_all_msgs(MsgFun, PageKeys, erlang:fun_info(MsgFun, arity));
+            iterate_all_msgs(MsgFun, PageKeys, Site,
+                             erlang:fun_info(MsgFun, arity));
         _ ->
             []
     end.
 
--spec iterate_all_msgs(ThId :: integer(),
-                       MsgFun :: function())
-                      -> term().
-iterate_all_msgs(ThId, MsgFun) ->
-    PageKeys = mafia_lib:all_page_keys(ThId),
-    iterate_all_msgs(MsgFun, PageKeys, erlang:fun_info(MsgFun, arity)).
-
-iterate_all_msgs(MsgFun, PageKeys, {arity,1}) ->
+iterate_all_msgs(MsgFun, PageKeys, Site, {arity,1}) ->
     F = fun(PageKey) ->
                 [PR] = ?rpage(PageKey),
-                Msgs = [hd(?rmess(MsgId)) || MsgId <- PR#page_rec.message_ids],
+                Msgs = [hd(?rmess({MsgId, Site}))
+                        || MsgId <- PR#page_rec.message_ids],
                 lists:foreach(MsgFun, Msgs),
                 PageKey
         end,
     [F(PK) || PK <- PageKeys],
     ok;
-iterate_all_msgs(MsgFun, PageKeys, {arity,2}) ->
+iterate_all_msgs(MsgFun, PageKeys, Site, {arity,2}) ->
     MsgIds = lists:foldl(
                fun(PKey, Acc) ->
                        [#page_rec{message_ids = MsgIds}] =
@@ -662,7 +636,7 @@ iterate_all_msgs(MsgFun, PageKeys, {arity,2}) ->
                [],
                PageKeys),
     lists:foldl(fun(MsgId, Acc2) ->
-                        MsgFun(hd(?rmess(MsgId)), Acc2)
+                        MsgFun(hd(?rmess({MsgId, Site})), Acc2)
                 end,
                 MsgFun(acc, init),
                 MsgIds).
@@ -673,35 +647,40 @@ iterate_all_msg_ids(ThId, Fun) ->
 
 %% If the MsgIdFun returns an integer, the last returned integer
 %% will also be returned from this fun as the MsgTime
--spec iterate_all_msg_ids(ThId :: integer(),
+-spec iterate_all_msg_ids({thread_id(), site()},
                           MsgIdFun :: function(),
                           PageFilter:: all | function())
                          -> last_iter_msg_ref().
-iterate_all_msg_ids(ThId, MsgIdFun, Filter) ->
-    iter_msgids(ThId, MsgIdFun, no_acc, Filter).
+iterate_all_msg_ids(Thread, MsgIdFun, Filter) ->
+    iter_msgids(Thread, MsgIdFun, no_acc, Filter).
 
-iter_msgids(ThId, MsgIdFun, Acc, PageFilter) ->
-    All = mafia:pages_for_thread(ThId),
+iter_msgids(Thread, MsgIdFun, Acc, PageFilter) ->
+    All = mafia_lib:pages_for_thread(Thread),
     Pages = if PageFilter == all ->
                     All;
                is_function(PageFilter) ->
                     lists:filter(PageFilter, All)
             end,
+    ?dbg({iter_msgids, pages, Pages}),
     %% get last page num
-    iterate_all_msg_idsI(ThId, MsgIdFun, Pages, Acc,
+    iterate_all_msg_idsI(Thread, MsgIdFun, Pages, Acc,
                          erlang:fun_info(MsgIdFun, arity)).
 
 %% Return reference to last iterated message
 -type arity2resp() :: term().
--spec iterate_all_msg_idsI(ThId :: integer(),
+-spec iterate_all_msg_idsI({thread_id(), site()},
                            MsgIdFun :: function(),
                            PageNums :: [integer()],
                            Acc :: term(),
                            {arity, integer()}
                           )
                           -> last_iter_msg_ref() | arity2resp().
-iterate_all_msg_idsI(ThId, MsgIdFun, PageNums, Acc, {arity, Ar}) ->
-    case mafia_lib:all_msgids(ThId, PageNums) of
+iterate_all_msg_idsI(Thread = {ThId, Site},
+                     MsgIdFun,
+                     PageNums,
+                     Acc,
+                     {arity, Ar}) ->
+    case mafia_lib:all_msgids(ThId, Site, PageNums) of
         [] -> ?none;
         PageMsgIds ->
             {LastPage, LastMsgId} = lists:last(PageMsgIds),
@@ -716,7 +695,7 @@ iterate_all_msg_idsI(ThId, MsgIdFun, PageNums, Acc, {arity, Ar}) ->
                           end,
                           none,
                           PageMsgIds),
-                    {ThId, LastPage, LastMsgId, LastMsgTime};
+                    {Thread, LastPage, LastMsgId, LastMsgTime};
                Ar == 2 ->
                     AccOut =
                         lists:foldl(MsgIdFun, Acc,
@@ -959,12 +938,14 @@ read_to_before(Str, Search) ->
 -spec update_page_rec(#s{}, msg_id()) -> ?changed | ?unchanged.
 update_page_rec(S, MsgIdInt) ->
     {Action, PageRec} =
-        case ?rpage(S#s.thread_id, S#s.page_last_read) of
-            [] -> {?changed,
-                   #page_rec{key = {S#s.thread_id, S#s.page_last_read},
-                             message_ids = [MsgIdInt],
-                             thread_id = S#s.thread_id,
-                             complete = false}};
+        case ?rpage(S#s.thread_id, S#s.page_last_read, S#s.site) of
+            [] ->
+                {?changed,
+                 #page_rec{key = {S#s.thread_id, S#s.page_last_read, S#s.site},
+                           site = S#s.site,
+                           thread_id = S#s.thread_id,
+                           message_ids = [MsgIdInt],
+                           complete = false}};
             [P = #page_rec{message_ids = MsgIds, complete = Comp}] ->
                 MsgIds2 =
                     case lists:member(MsgIdInt, MsgIds) of
@@ -992,7 +973,7 @@ update_page_rec(S, MsgIdInt) ->
 %% splitting them into the 2 first pages)
 remove_duplicate_msgid(S = #s{page_last_read = 2}, Action, MsgId)
   when Action == ?changed ->
-    case ?rpage(S#s.thread_id, 1) of
+    case ?rpage(S#s.thread_id, 1, S#s.site) of
         [P = #page_rec{message_ids = MsgIds}] ->
             case lists:member(MsgId, MsgIds) of
                 true ->
@@ -1007,7 +988,8 @@ remove_duplicate_msgid(_, _, _) ->
     ok.
 
 write_message_rec(S, MsgIdInt, User, Time, MsgText) ->
-    Msg = #message{msg_id = MsgIdInt,
+    MsgKey = {MsgIdInt, S#s.site},
+    Msg = #message{msg_key = MsgKey,
                    thread_id = S#s.thread_id,
                    page_num = S#s.page_last_read,
                    user_name = User,

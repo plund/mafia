@@ -1,7 +1,7 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% site() needs to be part of the message primary key too.
+%% site() needs to be part of the message and page_rec primary keys too.
 %% Bug?: Why does not manual poll() trigger vote counting Site?
 %% Useful? io:format("~*s~*s~*s~n", [-15, "aaa", 5, "bbb", -5, "cc"]).
 %% coordinate poll_timer and dl_timer. "No poll at dl"
@@ -60,7 +60,6 @@
          print_votes/0,
          print_votes/1,
          print_votes/2,
-         print_messages/1,
 
          man_downl/0,
          show_settings/0,
@@ -87,9 +86,7 @@
         ]).
 
 %% libary
--export([game_for_thid/1,
-         pages_for_thread/1,
-         last_msg_in_thread/1
+-export([game_for_thid/1
         ]).
 
 %% utilities
@@ -100,9 +97,7 @@
 
          print_all_cnts/0,
          print_all_cnts/1,
-         save_cnts_to_file/0,
-         add_sim_gm_message/4,
-         rm_sim_gm_message/2
+         save_cnts_to_file/0
         ]).
 
 -export([cmp_vote_raw/0
@@ -117,7 +112,6 @@ stop() -> application:stop(mafia).
 print_votes() -> mafia_print:print_votes().
 print_votes(DayNum) -> mafia_print:print_votes(DayNum).
 print_votes(DayNum, Ptype) -> mafia_print:print_votes(DayNum, Ptype).
-print_messages(User) -> mafia_print:print_messages(User).
 man_downl() -> mafia_data:man_downl().
 setup_mnesia() -> mafia_db:setup_mnesia().
 remove_mnesia() -> mafia_db:remove_mnesia().
@@ -144,30 +138,30 @@ show_game_pages(GNum) when is_integer(GNum) ->
     case ?rgame(GNum) of
         [] ->
             io:format("No game record exist for ~p\n", [GNum]);
-        [#mafia_game{thread_id = ThId}] when is_integer(ThId) ->
+        [#mafia_game{thread_id = ThId,
+                     site = Site}] when is_integer(ThId) ->
             io:format("Game page keys and messages\n"),
-            show_game_pagesI(ThId);
+            show_game_pagesI(ThId, Site);
         [_] ->
             io:format("Game has no thread id\n")
     end.
 
-show_game_pagesI(ThId) ->
-    [{P, length((hd(?rpage(T,P)))#page_rec.message_ids)}
-     || {T,P} <- mafia_lib:all_page_keys(ThId)].
+show_game_pagesI(ThId, Site) ->
+    [{Page, length((hd(?rpage(Key)))#page_rec.message_ids)}
+     || Key = {_, Page, _} <- mafia_lib:all_page_keys({ThId, Site})].
 
 show_game_data(GNum) ->
     case ?rgame(GNum) of
         [] ->
             io:format("No game record exist\n");
-        [G] ->
+        [#mafia_game{thread_id = ThId, site = Site}] ->
             io:format("Game record exist\n"),
-            ThId = G#mafia_game.thread_id,
             io:format("Thread id ~p\n", [ThId]),
-            PageKeys = [K || K = {Th, _} <- all_keys(page_rec),
+            PageKeys = [K || K = {Th, _, _} <- all_keys(page_rec),
                              Th == ThId],
             io:format("Num Page records ~p\n", [length(PageKeys)]),
-            MsgIds = [MsgId || {_, MsgId} <- mafia_lib:all_msgids(ThId),
-                               [] /= ?rmess(MsgId)
+            MsgIds = [MsgId || {_, MsgId} <- mafia_lib:all_msgids(ThId, Site),
+                               [] /= ?rmess({MsgId, Site})
                      ],
             io:format("There are ~p messages in mnesia for this game\n",
                       [length(MsgIds)])
@@ -526,6 +520,7 @@ set_death_msgid(GNum, MsgId, Player, DeathMsgId, DeathComment) ->
     case find_mess_game(GNum, MsgId) of
         {ok, G, M} ->
             Time = M#message.time,
+            Site = G#mafia_game.site,
             Cmd = #cmd{time = Time,
                        msg_id = MsgId,
                        mfa = {mafia, set_death_msgid,
@@ -533,7 +528,7 @@ set_death_msgid(GNum, MsgId, Player, DeathMsgId, DeathComment) ->
             PlayerB = ?l2b(Player),
             case mafia_vote:set_death_msgid(G, M,
                                             PlayerB,
-                                            ?rmess(DeathMsgId),
+                                            ?rmess({DeathMsgId, Site}),
                                             DeathComment) of
                 ok ->
                     ?man(Time, Cmd),
@@ -592,13 +587,13 @@ kill_player(GNum, MsgId, Player, Comment) ->
                      MsgId :: msg_id())
                     -> {ok, #mafia_game{}, #message{}} |
                        {?error, msg_not_found | game_not_found}.
-find_mess_game(GNum, MsgId) ->
-    case ?rmess(MsgId) of
-        [] -> {?error, msg_not_found};
-        [M] ->
-            case ?rgame(GNum) of
-                [] -> {?error, game_not_found};
-                [G] -> {ok, G, M}
+find_mess_game(GNum, MsgId) when is_integer(MsgId) ->
+    case ?rgame(GNum) of
+        [] -> {?error, game_not_found};
+        [G] ->
+            case ?rmess({MsgId, G#mafia_game.site}) of
+                [] -> {?error, msg_not_found};
+                [M] -> {ok, G, M}
             end
     end.
 
@@ -636,20 +631,6 @@ show_settings() ->
         end,
     [PrintSettings(K) || K <- all_keys(?kv_store)],
     ok.
-
-pages_for_thread(ThId) ->
-    mafia_lib:pages_for_thread(ThId).
-
--spec last_msg_in_thread(ThId :: integer()) -> none | #message{}.
-last_msg_in_thread(ThId) when is_integer(ThId) ->
-    case pages_for_thread(ThId) of
-        [] -> none;
-        Ps ->
-            LastPage = lists:last(Ps),
-            PageRec = hd(?rpage(ThId, LastPage)),
-            MsgId = lists:last(PageRec#page_rec.message_ids),
-            hd(?rmess(MsgId))
-    end.
 
 show_all_users() ->
     show_usersI(?standard_io, all_keys(user), all).
@@ -864,49 +845,6 @@ print_all_cnts() -> mafia_lib:print_all_cnts().
 print_all_cnts(N) -> mafia_lib:print_all_cnts(N).
 
 save_cnts_to_file() -> mafia_lib:save_cnts_to_file().
-
-%% Use one message as template to create a new
-%% put it first on any page
-%% refresh({upto, })
-add_sim_gm_message(Page, SimMsgId, TplMsgId, Text) ->
-    ThId = ?getv(?game_key),
-    case {?rgame(ThId),
-          ?rpage(ThId, Page),
-          ?rmess(TplMsgId),
-          ?rmess(SimMsgId)} of
-        {[], _, _, _} -> no_game;
-        {_, [], _, _} -> no_page;
-        {_, _, [], _} -> no_template_message;
-        {_, _, _, [_]} -> message_exist_already;
-        {[G], [P], [M], []} ->
-            GM1 = hd(G#mafia_game.gms),
-            SimMsg = M#message{user_name = GM1,
-                               msg_id = SimMsgId,
-                               page_num = Page,
-                               message = ?l2b(Text)},
-            P2 = P#page_rec{message_ids = [SimMsgId | P#page_rec.message_ids]},
-            ?dwrite_msg(SimMsg),
-            ?dwrite_page(P2),
-            ok
-    end.
-
-
-rm_sim_gm_message(Page, SimMsgId) ->
-    ThId = ?getv(?game_key),
-    case ?rpage(ThId, Page) of
-        [P] ->
-            case P#page_rec.message_ids of
-                [SimMsgId|T]  ->
-                    P2 = P#page_rec{message_ids = T},
-                    mnesia:dirty_delete(messsage, SimMsgId),
-                    ?dwrite_page(P2),
-                    sim_msg_deleted;
-                _ ->
-                    {page_has_not_msg_id, Page, SimMsgId}
-            end;
-        [] ->
-            {page_do_not_exist, ThId, Page}
-    end.
 
 %% =============================================================================
 %% INTERNAL FUNCTIONS

@@ -113,8 +113,8 @@ set_time_offset(Offset) ->
 set_time_offsetI(Offset) when is_integer(Offset) -> Offset;
 set_time_offsetI({move, DiffSecs}) when is_integer(DiffSecs) ->
     get_time_offset() + DiffSecs;
-set_time_offsetI({msg_id, MsgId}) when is_integer(MsgId) ->
-    case mafia_lib:rmessI(MsgId) of
+set_time_offsetI({msg_key, MsgKey = {MsgId,_}}) when is_integer(MsgId) ->
+    case mafia_lib:rmessI(MsgKey) of
         [] -> 0;
         [M] -> utc_secs1970I() - M#message.time
     end;
@@ -753,7 +753,7 @@ move_dls2(G, M, TimeDiff, _Phase) ->
 
 end_game(M, G) ->
     EndTime = M#message.time,
-    MsgId = M#message.msg_id,
+    MsgKey = M#message.msg_key,
 
     %% remove all DLs after EndTime
     DLs2 = lists:foldr(
@@ -769,7 +769,7 @@ end_game(M, G) ->
     LastDL = #dl{phase = NextPhase, time = EndTime},
     DLs3 = [LastDL | DLs2],
     G2 = G#mafia_game{deadlines = DLs3,
-                      game_end = {EndTime, MsgId}},
+                      game_end = {EndTime, ?e1(MsgKey)}},
     ?dwrite_game(game_t6, G2),
     mafia_web:regen_history(EndTime, G2),
     {?game_ended, G2}.

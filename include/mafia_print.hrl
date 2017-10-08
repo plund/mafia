@@ -14,6 +14,7 @@
                 | ?game_ended | ?total_stats,
     day_num :: ?undefined | integer(),
     message :: ?undefined | #message{},
+    site :: ?undefined | site(),
     msg_id :: ?undefined | msg_id(),
     match_expr :: term(),
     dev = ?standard_io,

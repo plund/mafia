@@ -12,12 +12,6 @@
 -define(BStart, "Start Game").
 -define(BStartNow, "Start Game Now").
 
--define(MinThId, 1000111).
--define(MaxThId, 3000000).
-
--define(MinThIdvDip,  72000).
--define(MaxThIdvDip, 299999).
-
 game_settings(Sid, Env, In) ->
     PQ = httpd:parse_query(In),
     Button = proplists:get_value("button", PQ),
@@ -356,12 +350,7 @@ mug2(G, GameSett) ->
     process_input(Values2, {G, []}).
 
 split_on_first_equal_sign(P) ->
-    split_on_first_equal_sign(P, []).
-
-split_on_first_equal_sign([$= | T], Acc) -> {?lrev(Acc), T};
-split_on_first_equal_sign([], Acc) -> {?lrev(Acc), ""};
-split_on_first_equal_sign([H | T], Acc) ->
-    split_on_first_equal_sign(T, [H | Acc]).
+    mafia_lib:split_on_first_char(P, $=).
 
 is_ready_to_go(CurG, {G, Es}) ->
     %% Check if ready to update and go

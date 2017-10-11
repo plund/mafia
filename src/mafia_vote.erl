@@ -414,6 +414,8 @@ find_early_end(MsgText) ->
         {0, _, _} -> {?error, no_early_end};
         {_, HStr1, TStr1} ->
             %%_TStr1 no letters/numbers before end
+            %% Get beginning of "ENDED EARLY" line
+            HEarlyLine = ?lrev(hd(string:tokens(?lrev(HStr1), "\n"))),
             NoTxtBeforeNL =
                 fun(Str) ->
                         Res =
@@ -431,8 +433,8 @@ find_early_end(MsgText) ->
                 true ->
                     SearchU2 = "DAY",
                     SearchU3 = "NIGHT",
-                    case {find_parts(HStr1, SearchU2),
-                          find_parts(HStr1, SearchU3)} of
+                    case {find_parts(HEarlyLine, SearchU2),
+                          find_parts(HEarlyLine, SearchU3)} of
                         {{0, _, _}, {0, _, _}} ->
                             {?error, no_phase_type};  %% no "DAY" or "NIGHT"
                         {Pos1, Pos2} ->

@@ -12,11 +12,13 @@
 
 -include("mafia.hrl").
 
+%% first match is lowest since pos is first
 -record(regex,
         {pos,
          msg_text_u,
          msg_text,
          match,
+         match_u,
          pre_match,
          pre_match_u,
          play_repl,
@@ -119,14 +121,13 @@ check_for_deaths(Reg = #regex{}, M, G) ->
     SearchU1 = "DIED",
     SearchU2 = "DEAD",
     SearchU3 = "BEEN LYNCHED",
-    case {regex_find(SearchU1, Reg),
+    case [regex_find(SearchU1, Reg),
           regex_find(SearchU2, Reg),
-          regex_find(SearchU3, Reg)} of
-        {{?nomatch, _}, {?nomatch, _}, {?nomatch, _}} -> %% no-one has died
+          regex_find(SearchU3, Reg)] of
+        [{?nomatch, _}, {?nomatch, _}, {?nomatch, _}] -> %% no-one has died
             G;
         Matches ->
-            Rs = [ReRes || {MRes, ReRes} <- tuple_to_list(Matches),
-                           MRes == ?match],
+            Rs = [ReRes || {MRes, ReRes} <- Matches, MRes == ?match],
             Reg2 = lists:min(Rs),
             ?dbg(M#message.time, {msgid_pos, M#message.msg_key, Reg2#regex.pos}),
             {KilledUserB, DeathComment} =
@@ -675,54 +676,60 @@ find_game_unend(#regex{msg_text_u = MsgTextU, game_unend = RE}) ->
     re:run(MsgTextU, RE).
 
 %% -----------------------------------------------------------------------------
+-define(V_VOTE, "##VOTE").
+-define(V_UNVOTE, "##UNVOTE").
+-define(V_END, "##END").
+-define(V_UNEND, "##UNEND").
 
-check_for_votes(#regex{msg_text_u = MsgU}, M, G) ->
-    check_VOTE(MsgU, M, G),
-    EndStr = "##END",
-    UnendStr = "##UNEND",
-    case {string:str(MsgU, EndStr),
-          string:str(MsgU, UnendStr)} of
-        {0, 0} -> ok;
-        {_, 0} -> %% add end
-            reg_end_vote(G, add, M);
-        {0, _} -> %% remove end
-            reg_end_vote(G, remove, M);
-        _ -> ok
-    end.
-
-check_VOTE(MsgUC, M, G) ->
-    Players = add_nolynch_and_aliases(G),
-    VoteStr = "##VOTE",
-    UnvoteStr = "##UNVOTE",
-    case {mafia_data:rm_to_after_pos(MsgUC, VoteStr),
-          mafia_data:rm_to_after_pos(MsgUC, UnvoteStr)} of
-        {{0, ""}, {0, ""}} ->
-            ignore;
-        {{0, ""}, {_, RestUC}} ->
-            Vote = ?l2b(?Unvote),
-            reg_vote(M, G, Vote, Vote, true),
-            check_VOTE(RestUC, M, G);
-        {{Pos, RestUC}, _} ->
-            Msg = mafia_print:html2txt(?b2l(M#message.message)),
-            RawVote =
-                ?l2b(string:strip(
-                       string:left(
-                         mafia_data:get_after_pos(
-                           Pos, length(VoteStr), Msg),
-                         60))),
-            case rank_options(Players, RestUC) of
-                [{NumV, TopP}] when NumV >= 2; NumV >= size(TopP) ->
-                    reg_vote(M, G, TopP, RawVote, true);
-                [{NumV1, TopP}, {NumV2, _}|_]
-                  when NumV1 > NumV2 andalso
-                       (NumV1 >= 2 orelse
-                        NumV1 >= size(TopP)) ->
-                    reg_vote(M, G, TopP, RawVote, true);
-                _ ->
-                    Vote = ?l2b("-"),
-                    reg_vote(M, G, Vote, RawVote, false)
+check_for_votes(Reg = #regex{}, M, G) ->
+    case [regex_find(?V_VOTE, Reg),
+          regex_find(?V_UNVOTE, Reg),
+          regex_find(?V_END, Reg),
+          regex_find(?V_UNEND, Reg)] of
+        [{?nomatch, _}, {?nomatch, _}, {?nomatch, _}, {?nomatch, _}] ->
+            %% no votes found
+            G;
+        Matches ->
+            Rests = [ReRest || {MRes, ReRest} <- Matches, MRes == ?match],
+            Reg2 = lists:min(Rests),
+            case Reg2#regex.match_u of
+                ?V_VOTE ->
+                    %% redo RawVote (only used in textual output)
+                    %% This gets wrong on second vote in same message.
+                    Msg = mafia_print:html2txt(?b2l(M#message.message)),
+                    Pos = Reg2#regex.pos,
+                    RawVote =
+                        ?l2b(string:strip(
+                               string:left(
+                                 mafia_data:get_after_pos(
+                                   Pos, length(?V_VOTE), Msg),
+                                 60))),
+                    Players = add_nolynch_and_aliases(G),
+                    RestUC = Reg2#regex.msg_text_u,
+                    case rank_options(Players, RestUC) of
+                        [{NumV, TopP}] when NumV >= 2; NumV >= size(TopP) ->
+                            reg_vote(M, G, TopP, RawVote, true);
+                        [{NumV1, TopP}, {NumV2, _}|_]
+                          when NumV1 > NumV2 andalso
+                               (NumV1 >= 2 orelse
+                                NumV1 >= size(TopP)) ->
+                            %% CHECK IF THIS IS A VOTE SWITCH!
+                            %% IF SO -> REMOVE POSSIBLE END VOTES
+                            reg_vote(M, G, TopP, RawVote, true);
+                        _ ->
+                            Vote = ?l2b("-"),
+                            reg_vote(M, G, Vote, RawVote, false)
+                    end;
+                ?V_UNVOTE ->
+                    %% REMOVE POSSIBLE END VOTES
+                    Vote = ?l2b(?Unvote),
+                    reg_vote(M, G, Vote, Vote, true);
+                ?V_END ->
+                    reg_end_vote(G, add, M);
+                ?V_UNEND ->
+                    reg_end_vote(G, remove, M)
             end,
-            check_VOTE(RestUC, M, G)
+            check_for_votes(Reg2, M, G)
     end.
 
 %% -----------------------------------------------------------------------------
@@ -826,11 +833,13 @@ regex_find(SearchU, Reg = #regex{}) ->
             PreMatch = string:left(Msg, P - 1),
             PreMatchU = string:left(MsgU, P - 1),
             Match = string:substr(Msg, P, length(SearchU)),
+            MatchU = string:substr(MsgU, P, length(SearchU)),
             PostMatch = mafia_data:get_after_pos(P, SearchU, Msg),
             PostMatchU = mafia_data:get_after_pos(P, SearchU, MsgU),
             Reg2 = Reg#regex{msg_text = PostMatch,
                              msg_text_u = PostMatchU,
                              match = Match,
+                             match_u = MatchU,
                              pos = P,
                              pre_match = PreMatch,
                              pre_match_u = PreMatchU

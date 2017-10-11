@@ -1,14 +1,16 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% site() needs to be part of the message and page_rec primary keys too.
-%% Bug?: Why does not manual poll() trigger vote counting Site?
-%% Useful? io:format("~*s~*s~*s~n", [-15, "aaa", 5, "bbb", -5, "cc"]).
+%% Vote switch should remove end vote
+%% - make sure vote order applies also to ##end
 %% coordinate poll_timer and dl_timer. "No poll at dl"
 %% Make use of dl_poll_info.txt when generating history pages at:
 %%    1) deadline 2) player death at End of Day/Night
-%% do LATE read of signup thread
-%% Add signup_thid info to all games.
+%%    - use quickcheck license
+%% Bug?: Why does not manual poll() trigger vote counting Site?
+%% Useful? io:format("~*s~*s~*s~n", [-15, "aaa", 5, "bbb", -5, "cc"]).
+%% Multiple active games and pollings
+%% - do LATE read of signup thread
 %% try autostart again
 %% vhosts in inets - no support - try patch inets :)
 %% LOW - Add Last&more link also on game_end page
@@ -26,7 +28,6 @@
 %% - fix a better player name recognition in votes and deaths?
 %%    - check if abbrev code can loop forever
 %%    - add unit tests for abbreviations
-%%    - use quickcheck license
 
 %% interface
 -export([

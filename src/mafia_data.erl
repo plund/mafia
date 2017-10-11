@@ -17,9 +17,7 @@
         ]).
 
 %% library
--export([
-         rm_to_after_pos/2,
-         get_after_pos/3,
+-export([get_after_pos/3,
          sum_stat/2
         ]).
 
@@ -907,9 +905,10 @@ rm_to_after(Str, [Search|T]) when is_list(Search) ->
     rm_to_after(rm_to_after(Str, Search), T);
 %% return string()
 rm_to_after(Str, Search) ->
-    element(2, rm_to_after_pos(Str, Search)).
+    element(2, rm_to_after_match(Str, Search)).
 
-rm_to_after_pos(Str, Search) ->
+%% @doc return string after match
+rm_to_after_match(Str, Search) ->
     case string:str(Str, Search) of
         0 -> {0, ""};
         P -> {P, get_after_pos(P, length(Search), Str)}

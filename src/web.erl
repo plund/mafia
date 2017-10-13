@@ -118,5 +118,8 @@ str2msg_key(Str) ->
         {"", IntStr} ->
             {?l2i(IntStr), ?webDip};
         {"v", IntStr} ->
-            {?l2i(IntStr), ?vDip}
+            {?l2i(IntStr), ?vDip};
+        _ ->
+            ?dbg({error, not_msg_id, Str}),
+            {error, not_msg_id}
     end.

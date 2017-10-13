@@ -971,22 +971,32 @@ msg(Sid, _Env, In) ->
     GNum = get_gnum(GNumStr),
     MsgIdText = get_arg(PQ, "id"),
     Variant = get_arg(PQ, "var"),
-    Ms = case catch web:str2msg_key(MsgIdText) of
-             {'EXIT', _} -> [];
-             MsgKey -> ?rmess(MsgKey)
-         end,
-    {HStart, Html} = msg2(?rgame(GNum), Ms, Variant, PQ),
+    MsgKey = web:str2msg_key(MsgIdText),
+    Msg = case ?rmess(MsgKey) of
+              [] -> {no_msg_found, MsgIdText};
+              [Msg2 | _] -> Msg2
+          end,
+    {HStart, Html} = msg2(?rgame(GNum), Msg, Variant, PQ),
     A = del_start(Sid, HStart, 0),
     B = web:deliver(Sid, Html),
     C = del_end(Sid),
     Args = make_args(PQ, ["var"]),
     {A + B + C, Args}.
 
-msg2([], _, _Variant, _PQ) ->
-    "Game not found";
-msg2(_, [], _Variant, _PQ) ->
-    "No message found with this id";
-msg2([G], [M], Variant, PQ) ->
+msg2(_, Err = {no_msg_found, MsgIdStr} , _, _) ->
+    ?dbg(Err),
+    {"Error",
+     ["<tr><td><table cellpadding=6 cellspacing=3>",
+      "No message found with this id: " ++ MsgIdStr,
+      "</table></td></tr>"
+     ]};
+msg2([], _, _, _) ->
+    {"Error",
+     ["<tr><td><table cellpadding=6 cellspacing=3>",
+      "Game not found",
+      "</table></td></tr>"
+     ]};
+msg2([G], M = #message{}, Variant, PQ) ->
     case Variant of
         "death" ->
             Player = get_arg(PQ, "player"),
@@ -1281,9 +1291,9 @@ show_msg(G = #mafia_game{site = Site}, MsgId) when is_integer(MsgId) ->
 %% show_msgI(_, []) -> "<tr><td>No message found with this id</td></tr>";
 %% show_msgI(G, [M]) -> show_msgI(G, M);
 show_msgI(G, #message{user_name = MsgUserB,
-                         page_num = PageNum,
-                         time = Time,
-                         message = MsgB}) ->
+                      page_num = PageNum,
+                      time = Time,
+                      message = MsgB}) ->
     MsgPhase = mafia_time:calculate_phase(G, Time),
     DayStr =
         case MsgPhase of

@@ -1,6 +1,9 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% WTF is GNum needed (default game_key) to show a message using "msg"?
+%%  Answer: we display phase and a link to page and pages in a game
+%%  Conclusion: Change to always require g=<gamenum> (remove use of game_key)
 %% Vote switch should remove end vote
 %% - make sure vote order applies also to ##end
 %% coordinate poll_timer and dl_timer. "No poll at dl"

@@ -6,6 +6,8 @@
 -define(failure, failure).
 -define(ok, ok).
 -define(error, error).
+-define(valid, valid).
+-define(invalid, invalid).
 
 -define(webDip, webDip).
 -define(vDip, vDip).

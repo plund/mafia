@@ -67,13 +67,18 @@ msgs2(Sid, GNum, In, PQ, []) ->
                                     PartsText, SignupText],
                             Arg /= ""],
                         ", "),
-    DayCond = find_part(PartsText),
+    PartCond = find_part(PartsText),
     UsersU = find_word_searches(UsersText),
     WordsU = find_word_searches(WordsText),
     IsUserCond = UsersU /= [],
     IsWordCond = WordsU /= [],
-    IsDayCond = DayCond /= ?undefined,
-    DoCont = IsUserCond orelse IsWordCond orelse IsDayCond,
+    PartMode = if PartCond /= ?undefined -> ?valid;
+                  PartCond == ?undefined,
+                  PartsText /= "" -> ?invalid;
+                  true -> ?undefined
+               end,
+    DoCont = PartMode /= ?invalid andalso
+        (IsUserCond orelse IsWordCond orelse PartMode == ?valid),
     Fun =
         fun(acc, init) -> #miter{};
            (#message{msg_key = MsgKey,
@@ -113,11 +118,10 @@ msgs2(Sid, GNum, In, PQ, []) ->
                                WordsU)
                      end,
 
-                     %% 3. Test Day
-                     fun() when not IsDayCond -> ?true;
-                        %% need DayNum, Ptype, Page, find_part
+                     %% 3. Test part
+                     fun() when PartMode == ?undefined -> ?true;
                         () ->
-                             case DayCond of
+                             case PartCond of
                                  ?game_ended ->
                                      MsgPhase#phase.ptype == ?game_ended;
                                  {Ua, Na, Ub, Nb} ->

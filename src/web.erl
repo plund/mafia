@@ -25,10 +25,13 @@
 PageFun(Sid, Env, In) ->
     catch_debug(
       Sid, PageFun,
-      fun(do) -> web_impl:PageFun(Sid, Env, In);
+      fun(do) -> (mod(PageFun)):PageFun(Sid, Env, In);
          (in) -> {PageFun, In}
       end)
 ).
+
+mod(msgs) -> web_msgs;
+mod(_) -> web_impl.
 
 %% forwards to web_impl module.
 ?page(front_page).

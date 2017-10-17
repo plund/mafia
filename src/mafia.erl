@@ -1,12 +1,14 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% WTF is GNum needed (default game_key) to show a message using "msg"?
+%% Why is GNum needed (default game_key) to show a message using "msg"?
 %%  Answer: we display phase and a link to page and pages in a game
 %%  Conclusion: Change to always require g=<gamenum> (remove use of game_key)
+%%    OR do not display phase and links when GNum is missing.
 %% Vote switch should remove end vote
+%% - disregard votes when more than one vote is present in the same message
 %% - make sure vote order applies also to ##end
-%% coordinate poll_timer and dl_timer. "No poll at dl"
+%% Coordinate poll_timer and dl_timer. "No poll at dl"
 %% Make use of dl_poll_info.txt when generating history pages at:
 %%    1) deadline 2) player death at End of Day/Night
 %%    - use quickcheck license
@@ -59,6 +61,8 @@
 
          replace_player/4,
          kill_player/4,
+         ignore_message/2,
+
          set_death_msgid/5,
 
          print_votes/0,
@@ -582,6 +586,20 @@ kill_player(GNum, MsgId, Player, Comment) ->
                             end
                     end
             end;
+        {?error, _} = E -> E
+    end.
+
+%% -----------------------------------------------------------------------------
+
+ignore_message(GNum, MsgId) ->
+    case find_mess_game(GNum, MsgId) of
+        {ok, G, M} ->
+            Time = M#message.time,
+            Cmd = #cmd{time = Time,
+                       msg_id = MsgId,
+                       mfa = {mafia, ignore_message,
+                              [GNum, MsgId]}},
+            mafia_file:manual_cmd_to_file(G, Cmd);
         {?error, _} = E -> E
     end.
 

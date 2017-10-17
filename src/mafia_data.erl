@@ -346,12 +346,18 @@ checkvote_fun(G, DoPrint) ->
                _ -> []
            end,
     REs = mafia_vote:get_regexs(),
+    IgnoredMsgs =
+        [MId || #cmd{msg_id = MId,
+                     mfa = {_, ignore_message, _}} <- Cmds],
     DoCheck =
         fun(Msg) ->
                 MsgId = ?e1(Msg#message.msg_key),
                 mafia:add_user(Msg#message.user_name, Site),
                 G2 = hd(?rgame(GNum)),
-                mafia_vote:check_cmds_votes(G2, REs, Msg),
+                case lists:member(MsgId, IgnoredMsgs) of
+                    false -> mafia_vote:check_cmds_votes(G2, REs, Msg);
+                    true -> ok
+                end,
                 MFAs = [MFA || #cmd{msg_id = MId, mfa = MFA} <- Cmds,
                                MId == MsgId],
                 [erlang:apply(M, F, A) || {M, F, A} <- MFAs],

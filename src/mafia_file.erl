@@ -25,6 +25,7 @@
 
 -define(CURRENT_GAME_FN, "game_status").
 
+%% Add Cmd to file if missing
 manual_cmd_to_file(G, Cmd) ->
     FN = cmd_filename(G),
     DoAppend =

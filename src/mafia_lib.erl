@@ -131,6 +131,7 @@ all_keys(Tab) -> lists:sort(mnesia:dirty_all_keys(Tab)).
 
 %% -----------------------------------------------------------------------------
 
+%% -> #mafia_day{}
 rday(GameNum, #phase{num = DayNum}) ->
     rday(GameNum, DayNum);
 rday(GameNum, DayNum) when is_integer(GameNum) ->

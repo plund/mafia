@@ -770,7 +770,12 @@ check_for_votes2(Reg, Players, Acc) ->
                             _ ->
                                 {?l2b("-"), false}
                         end,
-                    New = {vote, Vote, RawVote, IsValid},
+                    New =
+                        case ?b2l(Vote) of
+                            ?END -> {end_vote};
+                            ?UNEND -> {unend_vote};
+                            _ -> {vote, Vote, RawVote, IsValid}
+                        end,
                     check_for_votes2(Reg2, Players, [New | Acc]);
                 ?V_UNVOTE ->
                     New = {unvote},
@@ -960,14 +965,6 @@ r_count([], [], N) ->
 %% -----------------------------------------------------------------------------
 
 reg_vote(M, G, Vote, RawVote, IsOkVote) ->
-    case ?b2ul(Vote) of
-        ?END -> reg_end_vote(G, add, M);
-        ?UNEND -> reg_end_vote(G, remove, M);
-        _ ->
-            vote2(M, G, Vote, RawVote, IsOkVote)
-    end.
-
-vote2(M, G, Vote, RawVote, IsOkVote) ->
     %% find mafia_day
     case mafia_time:calculate_phase(G, M#message.time) of
         Phase = #phase{ptype =?day} ->
@@ -1186,6 +1183,7 @@ check_votes_test_() ->
                          Players(["abc", "def", "ghi"]),
                          [])
        ),
+     %% ##unvote
      ?_assertMatch(
         {{unvote}, ?undefined},
         check_for_votes2(Regex("##unvote"),
@@ -1198,6 +1196,26 @@ check_votes_test_() ->
                          Players(["abc", "def", "ghi"]),
                          [])
        ),
+     %% ##VOTE END / UNEND
+     ?_assertMatch(
+        {?undefined, {end_vote}},
+        check_for_votes2(Regex("##vote end"),
+                         Players(["ezio"]),
+                         [])
+       ),
+     ?_assertMatch(
+        {?undefined, {end_vote}},
+        check_for_votes2(Regex("##voteend"),
+                         Players(["enda"]),
+                         [])
+       ),
+     ?_assertMatch(
+        {?undefined, {unend_vote}},
+        check_for_votes2(Regex("##voteunend"),
+                         Players(["una"]),
+                         [])
+       ),
+     %% Vote similar users "abc" "abcde"
      ?_assertMatch(
         {{vote, <<"abc">>, <<"abc ef ##end">>, true}, {end_vote}},
         check_for_votes2(Regex("##vote abc ef ##end "),

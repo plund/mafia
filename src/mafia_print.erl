@@ -303,6 +303,9 @@ print_votesI(PPin) ->
     HDeadLine =
         if DoDispTime2DL ->
                 print_time_left_to_dl(PP);
+           %% PhaseType /= ?game_ended ->
+           %%      %% PP#pp.phase
+           %%      print_dl_time(PP);
            PhaseType == ?game_ended ->
                 {EndTime, EndMsgId} = G#mafia_game.game_end,
                 {TzH, Dst} = mafia_time:get_tz_dst(G, EndTime),
@@ -357,10 +360,13 @@ print_votesI(PPin) ->
     EndVotes =
         if PhaseType == ?day ->
                 EndVoters = Day#mafia_day.end_votes,
+                EndNums = "(" ++ ?i2l(length(EndVoters)) ++ "/" ++
+                    ?i2l(length(Day#mafia_day.players_rem)) ++ ")",
+                EndVoteTitle0 = "End-votes " ++ EndNums,
                 EndVoteTitle =
-                    if EndVoters == [] -> "End votes: -";
-                       true -> "End votes: "
-                    end,
+                    EndVoteTitle0 ++ if EndVoters == [] -> ": -";
+                                        true -> ": "
+                                     end,
                 if PP#pp.mode == ?text ->
                         io:format(
                           PP#pp.dev,
@@ -947,8 +953,9 @@ pr_votes(PP) ->
                           [pr_phase_long(PP#pp.phase)]),
                 [begin
                      io:format(PP#pp.dev, "~s (~p): ", [?b2l(Vote), N]),
-                     VoterNames = [?b2l(Voter)
-                                   || {_Time, Voter, _Raw3} <- VoteInfos],
+                     VoterNames =
+                         [?b2l(Voter) ++ star_if_endvote(Day, Voter)
+                          || {_Time, Voter, _Raw3} <- VoteInfos],
                      io:format(PP#pp.dev, "~s\n",
                                [string:join(VoterNames, ", ")])
                  end
@@ -962,7 +969,8 @@ pr_votes(PP) ->
                  [["<tr><td", bgcolor(Vote), " align=center>", nbsp(?b2l(Vote)),
                    "</td><td align=center>(", ?i2l(N), ")</td>",
                    "<td><table><tr>",
-                   [["<td", bgcolor(Voter), ">", nbsp(?b2l(Voter)), "</td>"]
+                   [["<td", bgcolor(Voter), ">", nbsp(?b2l(Voter)),
+                     star_if_endvote(Day, Voter), "</td>"]
                     || {_Time, Voter, _Raw3} <- VoteInfos],
                    "</tr></table></td>",
                    "</tr>\r\n"] || {Vote, N, VoteInfos} <- VoteSumSort],
@@ -970,6 +978,12 @@ pr_votes(PP) ->
                 ]
         end,
     Html.
+
+star_if_endvote(Day, Voter) ->
+    case lists:member(Voter, Day#mafia_day.end_votes) of
+        true -> "*";
+        false -> ""
+    end.
 
 vote_summary(Day, Players) ->
     Votes = rem_play_votes(Day, Players),

@@ -1183,6 +1183,13 @@ check_votes_test_() ->
                          Players(["abc", "def", "ghi"]),
                          [])
        ),
+     ?_assertMatch(
+        %% but end_vote should not be registered
+        {{unvote}, {end_vote}},
+        check_for_votes2(Regex("##unvote ##end"),
+                         Players([]),
+                         [])
+       ),
      %% ##unvote
      ?_assertMatch(
         {{unvote}, ?undefined},

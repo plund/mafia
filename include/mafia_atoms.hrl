@@ -8,6 +8,8 @@
 -define(error, error).
 -define(valid, valid).
 -define(invalid, invalid).
+-define(positive, positive).
+-define(negative, negative).
 
 -define(webDip, webDip).
 -define(vDip, vDip).

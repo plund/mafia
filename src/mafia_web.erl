@@ -125,11 +125,15 @@ get_state()  ->
 
 get_ntp_offset()  ->
     case catch gen_server:call(?SERVER, get_ntp_offset, 200) of
-        {'EXIT', _} -> "Unknown NTP offset";
+        {'EXIT', _} ->
+            {?undefined, "Unknown NTP offset"};
         OffsetSecs when is_float(OffsetSecs) ->
-            OffsMilliStr = float_to_list(OffsetSecs * 1000,
+            Sign = if OffsetSecs < 0 -> ?negative;
+                      true -> ?positive
+                   end,
+            OffsMilliStr = float_to_list(abs(OffsetSecs * 1000),
                                          [{decimals, 2}]),
-            OffsMilliStr ++ " millisecs"
+            {Sign, OffsMilliStr ++ " millisecs"}
     end.
 
 %%--------------------------------------------------------------------

@@ -688,10 +688,7 @@ find_game_unend(#regex{msg_text_u = MsgTextU, game_unend = RE}) ->
 %% Count ##END only if it is last and the user is voting for someone
 %% Start checking current Vote status, then process message
 check_for_votes(G, M, Reg = #regex{}, #phase{ptype = ?day, num = DayNum}) ->
-    Players = add_nolynch_and_aliases(G),
-    {Vote, EndVote} = check_for_votes2(Reg, Players, []),
-
-    %% Check current vote STATUS!!!
+    %% Check current vote and end vote status
     User = M#message.user_name,
     #mafia_day{votes = Votes,
                end_votes = EndVotes} = ?rday(G#mafia_game.game_num, DayNum),
@@ -706,43 +703,62 @@ check_for_votes(G, M, Reg = #regex{}, #phase{ptype = ?day, num = DayNum}) ->
                       end
               end,
     IsEndVote = lists:member(User, EndVotes),
-    IsStillEndVote =
-        case Vote of
-            {vote, NewVote, RawVote, IsValid} when NewVote /= CurVote ->
-                reg_end_vote(G, remove, M),
-                reg_vote(M, G, NewVote, RawVote, IsValid),
-                false;
-            {vote, NewVote, RawVote, IsValid} when NewVote == CurVote ->
-                reg_vote(M, G, NewVote, RawVote, IsValid),
-                IsEndVote;
-            {unvote} when CurVote /= ?undefined ->
-                reg_end_vote(G, remove, M),
-                UnVote = ?l2b(?Unvote),
-                reg_vote(M, G, UnVote, UnVote, true),
-                false;
-            ?undefined -> IsEndVote;
-            _ -> false
-    end,
+    Players = add_nolynch_and_aliases(G),
 
+    %% Analyze message text and figure out what that needs to change
+    Actions = check_for_votes1(Reg, Players, CurVote, IsEndVote),
+    _ = [case Action of
+             remove_end ->
+                 reg_end_vote(G, M, remove);
+             add_end ->
+                 reg_end_vote(G, M, add);
+             {vote, NewVote, RawVote, IsValid} ->
+                 reg_vote(G, M, NewVote, RawVote, IsValid);
+             {unvote} ->
+                 UnVote = ?l2b(?Unvote),
+                 reg_vote(G, M, UnVote, UnVote, true)
+         end
+         || Action <- Actions],
+    ok;
+check_for_votes(_, _, _, _) ->
+    ok.
+
+%% Returns actions to perform
+check_for_votes1(Reg, Players, CurVote, IsEndVote) ->
+    %% ?dbg(CurVote),
+    {Vote, EndVote} = check_for_votes2(Reg, Players, []),
+    {IsStillEndVote, Actions1} =
+        case Vote of
+            {vote, NewVote, _, _} = V when NewVote /= CurVote ->
+                {false, [remove_end, V]};
+            {vote, NewVote, _, _} when NewVote == CurVote ->
+                {IsEndVote, []};
+            {unvote} = V when CurVote /= ?undefined ->
+                {false, [remove_end, V]};
+            ?undefined ->
+                {IsEndVote, []};
+            _ ->
+                {false, []}
+        end,
     %% Find out if there is a vote after this message
     IsVote = case {CurVote, Vote} of
                  {?undefined, ?undefined} -> false;
                  {_, ?undefined} -> true;
-                 {_, V} when ?e1(V) == vote -> true;
-                 {_, V} when ?e1(V) == unvote -> false
+                 _ when ?e1(Vote) == vote -> true;
+                 _ when ?e1(Vote) == unvote -> false
              end,
+    Actions2 =
+        case EndVote of
+            end_vote when not IsStillEndVote, IsVote ->
+                [add_end];
+            unend_vote when IsEndVote ->
+                [remove_end];
+            ?undefined -> [];
+            _  -> []
+        end,
+    Actions1 ++ Actions2.
 
-    case EndVote of
-        {end_vote} when not IsStillEndVote, IsVote ->
-            reg_end_vote(G, add, M);
-        {unend_vote} when IsEndVote->
-            reg_end_vote(G, remove, M);
-        ?undefined -> ok;
-        _  -> ok
-    end;
-check_for_votes(_, _, _, _) ->
-    ok.
-
+%% Returns relevant votes to consider
 check_for_votes2(Reg, Players, Acc) ->
     case [regex_find(?V_VOTE, Reg),
           regex_find(?V_UNVOTE, Reg),
@@ -772,20 +788,17 @@ check_for_votes2(Reg, Players, Acc) ->
                         end,
                     New =
                         case ?b2l(Vote) of
-                            ?END -> {end_vote};
-                            ?UNEND -> {unend_vote};
+                            ?END -> end_vote;
+                            ?UNEND -> unend_vote;
                             _ -> {vote, Vote, RawVote, IsValid}
                         end,
                     check_for_votes2(Reg2, Players, [New | Acc]);
                 ?V_UNVOTE ->
-                    New = {unvote},
-                    check_for_votes2(Reg2, Players, [New | Acc]);
+                    check_for_votes2(Reg2, Players, [{unvote} | Acc]);
                 ?V_END ->
-                    New = {end_vote},
-                    check_for_votes2(Reg2, Players, [New | Acc]);
+                    check_for_votes2(Reg2, Players, [end_vote | Acc]);
                 ?V_UNEND ->
-                    New = {unend_vote},
-                    check_for_votes2(Reg2, Players, [New | Acc])
+                    check_for_votes2(Reg2, Players, [unend_vote | Acc])
             end
     end.
 
@@ -794,7 +807,7 @@ remove_double_votes([V|_], EndVote)
     {V, EndVote};
 remove_double_votes([V|T], EndVote)
   when EndVote == ?undefined andalso
-       (?e1(V) == end_vote orelse ?e1(V) == unend_vote) ->
+       (V == end_vote orelse V == unend_vote) ->
     remove_double_votes(T, V);
 remove_double_votes([_|T], EndVote) ->
     remove_double_votes(T, EndVote);
@@ -964,7 +977,7 @@ r_count([], [], N) ->
 
 %% -----------------------------------------------------------------------------
 
-reg_vote(M, G, Vote, RawVote, IsOkVote) ->
+reg_vote(G, M, Vote, RawVote, IsOkVote) ->
     %% find mafia_day
     case mafia_time:calculate_phase(G, M#message.time) of
         Phase = #phase{ptype =?day} ->
@@ -1007,7 +1020,7 @@ reg_vote(M, G, Vote, RawVote, IsOkVote) ->
             ignore
     end.
 
-reg_end_vote(G, Op, M) ->
+reg_end_vote(G, M, Op) ->
     case mafia_time:calculate_phase(G, M#message.time) of
         Phase = #phase{ptype = ?day} ->
             Day = ?rday(G, Phase),
@@ -1157,87 +1170,131 @@ find_game_unend_test_() ->
           get_game_unend(" \rg\n g \n the game  has  unended now \n g  \r g ")))
     ].
 
-check_votes_test_() ->
-    Regex = fun(Text) ->
-                    #regex{msg_text = Text,
-                           msg_text_u = ?l2u(Text)}
-            end,
-    Players =
-        fun(Ps) ->
-                add_nolynch_and_aliases(
-                  #mafia_game{players_rem = [?l2b(P) || P <- Ps]},
-                  false)
-        end,
+ut_regex(Text) ->
+    #regex{msg_text = Text,
+           msg_text_u = ?l2u(Text)}.
+
+ut_players(Ps) ->
+    add_nolynch_and_aliases(
+      #mafia_game{players_rem = [?l2b(P) || P <- Ps]},
+      false).
+
+check_for_votes1_test_() ->
+    [
+     ?_assertMatch(
+        [],
+        check_for_votes1(ut_regex("Hello"),
+                         ut_players([]),
+                         <<"peterlund">>, %% CurVote,
+                         true %% IsEndVote
+                        )
+       ),
+     ?_assertMatch(
+        [],
+        check_for_votes1(ut_regex("##vote peter"),
+                         ut_players(["peterlund"]),
+                         <<"peterlund">>, %% CurVote,
+                         false %% IsEndVote
+                        )
+       ),
+     ?_assertMatch(
+        [],
+        check_for_votes1(ut_regex("##vote peter"),
+                         ut_players(["peterlund"]),
+                         <<"peterlund">>, %% CurVote,
+                         true %% IsEndVote
+                        )
+       ),
+     ?_assertMatch(
+        [remove_end, {vote, <<"brainbomb">>, <<"brain">>, true}],
+        check_for_votes1(ut_regex("##vote brain"),
+                         ut_players(["peterlund", "brainbomb"]),
+                         <<"peterlund">>, %% CurVote,
+                         true %% IsEndVote
+                        )
+       ),
+     ?_assertMatch(
+        %% but end_vote should not be registered
+        [remove_end, {unvote}],
+        check_for_votes1(ut_regex("##unvote"),
+                         ut_players([]),
+                         <<"brainbomb">>, %% CurVote,
+                         true %% IsEndVote
+                        )
+       )
+    ].
+
+check_for_votes2_test_() ->
     [?_assertMatch(
         {{vote, <<"abc">>, <<"abc, ##end">>, true},
-         {end_vote}},
-        check_for_votes2(Regex("##vote abc, ##end"),
-                         Players(["abc", "def", "ghi"]),
+         end_vote},
+        check_for_votes2(ut_regex("##vote abc, ##end"),
+                         ut_players(["abc", "def", "ghi"]),
                          [])
        ),
      ?_assertMatch(
         {{vote, <<"ghi">>, <<"ghill, dd">>, true},
          ?undefined},
-        check_for_votes2(Regex("##vote hej, ##end, ##vote abc, "
+        check_for_votes2(ut_regex("##vote hej, ##end, ##vote abc, "
                                "##end ##vote ghill, dd"),
-                         Players(["abc", "def", "ghi"]),
+                         ut_players(["abc", "def", "ghi"]),
                          [])
        ),
      ?_assertMatch(
         %% but end_vote should not be registered
-        {{unvote}, {end_vote}},
-        check_for_votes2(Regex("##unvote ##end"),
-                         Players([]),
+        {{unvote}, end_vote},
+        check_for_votes2(ut_regex("##unvote ##end"),
+                         ut_players([]),
                          [])
        ),
      %% ##unvote
      ?_assertMatch(
         {{unvote}, ?undefined},
-        check_for_votes2(Regex("##unvote"),
-                         Players(["abc", "def", "ghi"]),
+        check_for_votes2(ut_regex("##unvote"),
+                         ut_players(["abc", "def", "ghi"]),
                          [])
        ),
      ?_assertMatch(
-        {{unvote}, {unend_vote}},
-        check_for_votes2(Regex("##unvote ##unend"),
-                         Players(["abc", "def", "ghi"]),
+        {{unvote}, unend_vote},
+        check_for_votes2(ut_regex("##unvote ##unend"),
+                         ut_players(["abc", "def", "ghi"]),
                          [])
        ),
      %% ##VOTE END / UNEND
      ?_assertMatch(
-        {?undefined, {end_vote}},
-        check_for_votes2(Regex("##vote end"),
-                         Players(["ezio"]),
+        {?undefined, end_vote},
+        check_for_votes2(ut_regex("##vote end"),
+                         ut_players(["ezio"]),
                          [])
        ),
      ?_assertMatch(
-        {?undefined, {end_vote}},
-        check_for_votes2(Regex("##voteend"),
-                         Players(["enda"]),
+        {?undefined, end_vote},
+        check_for_votes2(ut_regex("##voteend"),
+                         ut_players(["enda"]),
                          [])
        ),
      ?_assertMatch(
-        {?undefined, {unend_vote}},
-        check_for_votes2(Regex("##voteunend"),
-                         Players(["una"]),
+        {?undefined, unend_vote},
+        check_for_votes2(ut_regex("##voteunend"),
+                         ut_players(["una"]),
                          [])
        ),
      %% Vote similar users "abc" "abcde"
      ?_assertMatch(
-        {{vote, <<"abc">>, <<"abc ef ##end">>, true}, {end_vote}},
-        check_for_votes2(Regex("##vote abc ef ##end "),
-                         Players(["abc", "abcde"]),
+        {{vote, <<"abc">>, <<"abc ef ##end">>, true}, end_vote},
+        check_for_votes2(ut_regex("##vote abc ef ##end "),
+                         ut_players(["abc", "abcde"]),
                          [])
        ),
      ?_assertMatch(
-        {{vote, <<"abcde">>, <<"abcd ef ##unend">>, true}, {unend_vote}},
-        check_for_votes2(Regex("##vote abcd ef ##unend "),
-                         Players(["abc", "abcde"]),
+        {{vote, <<"abcde">>, <<"abcd ef ##unend">>, true}, unend_vote},
+        check_for_votes2(ut_regex("##vote abcd ef ##unend "),
+                         ut_players(["abc", "abcde"]),
                          [])
        ),
      ?_assertMatch(
-        {{vote, <<"-">>, <<"ab ef ##unend">>, false}, {unend_vote}},
-        check_for_votes2(Regex("##vote ab ef ##unend "),
-                         Players(["abc", "abcde"]),
+        {{vote, <<"-">>, <<"ab ef ##unend">>, false}, unend_vote},
+        check_for_votes2(ut_regex("##vote ab ef ##unend "),
+                         ut_players(["abc", "abcde"]),
                          [])
        )].

@@ -39,7 +39,6 @@
          start/0,
          stop/0,
 
-         game_start/2, %% old
          end_phase/2,
          unend_phase/2,
          move_next_deadline/4,
@@ -56,8 +55,6 @@
          write_settings_file/1,
          remove_not_running_game/1,
          delete_game_and_all_data/1,
-         pregame_create/1, % old
-         pregame_update/0, % old
 
          replace_player/4,
          kill_player/4,
@@ -278,25 +275,6 @@ delete_game_and_all_data(GNum) when is_integer(GNum) ->
             {error, no_game}
     end.
 
-%% -----------------------------------------------------------------------------
-%% @doc Create and Switch to game that has not started yet
-%% @end
-%% -----------------------------------------------------------------------------
-pregame_create(GNum) when is_integer(GNum) ->
-    Create = fun() -> mafia_db:write_game(GNum) end,
-    ?set(game_key, GNum),
-    pregame(Create).
-
-pregame_update() ->
-    GNum = ?getv(game_key),
-    Create = fun() -> mafia_db:rewrite_game(GNum) end,
-    pregame(Create).
-
-pregame(Create) ->
-    Create(),
-    mafia:stop(),     %% Set gen_server #state.game_num
-    mafia:start(),
-    mafia_web:poll(). %% creates text file
 
 %% -----------------------------------------------------------------------------
 %% @doc Switch to other game
@@ -367,16 +345,6 @@ game_thread(GNum) ->
         [G] -> G#mafia_game.thread_id;
         [] -> ?getv(?thread_id)
     end.
-
-%% -----------------------------------------------------------------------------
-%% @doc Create a game and translation in table and on file
-%% @end
-%% -----------------------------------------------------------------------------
--spec game_start(GNum :: integer(), ThId :: thread_id()) -> ok | term().
-game_start(GNum, ThId) when is_integer(GNum), is_integer(ThId) ->
-    ?set(game_key, GNum),
-    ?set(thread_id, ThId),
-    mafia_db:write_game(GNum, ThId).
 
 %% -----------------------------------------------------------------------------
 %% @doc End current phase with GM message and set next phase at

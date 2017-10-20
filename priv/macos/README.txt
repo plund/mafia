@@ -1,3 +1,15 @@
+2017-10-20
+- 2 variants of update time:
+  # adjust slowly
+  sudo ntpdate -Bu time.euro.apple.com
+  # forced fast
+  sudo ntpdate -bu time.euro.apple.com
+
+- update sudoers with command: sudo visudo
+  # config active where peter can do ntpdate without password
+  peter ALL = NOPASSWD: /usr/sbin/ntpdate
+  tried also: http://wiki.summercode.com/sudo_without_a_password_in_mac_os_x
+
 2017-02-05
 
 I was unable to get mafia to startup automatically at MacOS (Sierra) boot

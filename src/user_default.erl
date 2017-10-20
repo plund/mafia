@@ -109,19 +109,16 @@ help(type())
 -define(MAFIA_HELP,
 "Game Life Cycle
 ---------------
-Days before:
-mafia:pregame_create(99)  - create pregame
-mafia:pregame_update()    - rewrite pregame
-When game starts:
-THIS NEEDS UPDATES!
-mafia:game_start(99, 1460042).  - Assign thread id
-mafia:switch_to_game(99).       - Switch and create page_recs.
-mafia:refresh_votes().          - Count votes
 
-mafia:game_start(GNum, ThId) - Creates game using GNum ThId
-mafia:check_game_data(GNum)
-mafia:switch_to_game(GNum)
+mafia:initiate_game(GNum)
+mafia:initiate_game(GNum, Site)
+mafia:initiate_game(GNum, GMs, Site)
+mafia:switch_to_game(GNum)      - Switch and create page_recs.
 mafia:switch_to_game(GNum, refresh)
+
+mafia:refresh_votes().      - Recount votes in current game
+mafia:refresh_votes(GNums).
+mafia:refresh_votes(all).
 
 Manual Commands
 ---------------

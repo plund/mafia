@@ -1408,20 +1408,20 @@ print_timeI(PP = #pp{}) ->
     catch _:_ -> ""
     end.
 
-print_timezone(-8, ?false) -> "PST";
-print_timezone(-8, ?true) -> "PDT";
-print_timezone(-7, ?false) -> "MST";
-print_timezone(-7, ?true) -> "MDT";
-print_timezone(-6, ?false) -> "CST";
-print_timezone(-6, ?true) -> "CDT";
-print_timezone(-5, ?false) -> "EST";
-print_timezone(-5, ?true) -> "EDT";
-print_timezone(0, ?false) -> "GMT";
-print_timezone(0, ?true) -> "BST";
-print_timezone(1, ?false) -> "CET";
-print_timezone(1, ?true) -> "CEST";
-print_timezone(2, ?false) -> "EET";
-print_timezone(2, ?true) -> "EEST";
+print_timezone(-8, ?false) -> "PST (-8)";
+print_timezone(-8, ?true) -> "PDT (-7)";
+print_timezone(-7, ?false) -> "MST (-7)";
+print_timezone(-7, ?true) -> "MDT (-6)";
+print_timezone(-6, ?false) -> "CST (-6)";
+print_timezone(-6, ?true) -> "CDT (-5)";
+print_timezone(-5, ?false) -> "EST (-5)";
+print_timezone(-5, ?true) -> "EDT (-4)";
+print_timezone(0, ?false) -> "GMT (+0)";
+print_timezone(0, ?true) -> "BST (+1)";
+print_timezone(1, ?false) -> "CET (+1)";
+print_timezone(1, ?true) -> "CEST (+2)";
+print_timezone(2, ?false) -> "EET (+2)";
+print_timezone(2, ?true) -> "EEST (+3)";
 print_timezone(_, _) -> ?undefined.
 
 p(I) when I > 9 -> ?i2l(I);

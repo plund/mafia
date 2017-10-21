@@ -635,8 +635,8 @@ show_users(UserKeys, M) ->
     show_usersI(?standard_io, UserKeys, M).
 
 show_usersI(Mode, UserKeys, M) when M == alias; M == all ->
-    H1 = print(Mode, ["User", "Site", "Aliases"]),
-    H2 = print(Mode, ["----", "----", "-------"]),
+    H1 = print(Mode, ["User", " ", "Site", "Aliases"]),
+    H2 = print(Mode, ["----", " ", "----", "-------"]),
     Text =
         [begin
              U = hd(?ruserUB(UserKey)),
@@ -646,6 +646,10 @@ show_usersI(Mode, UserKeys, M) when M == alias; M == all ->
                                   || AliasB <- U#user.aliases], ", "),
                      print(Mode,
                            [?b2l(?e1(U#user.name)),
+                            case U#user.pw_hash of
+                                ?undefined -> " ";
+                                _ -> "*"
+                            end,
                             ?a2l(U#user.site),
                             Aliases
                            ]);
@@ -678,7 +682,7 @@ show_aliases(Search) ->
     ok.
 
 print(Mode, Args) ->
-    Fmt = "~30s ~-6s ~s~n",
+    Fmt = "~30s~-1s~-6s ~s~n",
     do_print(Mode, Fmt, Args).
 
 do_print(?standard_io, Fmt, Args) -> io:format(Fmt, Args);

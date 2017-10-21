@@ -301,47 +301,56 @@ print_votesI(PPin) ->
 
     %% Part - Display time Left to Deadline or display End of Game message
     HDeadLine =
-        if DoDispTime2DL ->
-                print_time_left_to_dl(PP);
-           %% PhaseType /= ?game_ended ->
-           %%      %% PP#pp.phase
-           %%      print_dl_time(PP);
-           PhaseType == ?game_ended ->
+        if PhaseType == ?game_ended ->
+                %% Use game end time to calculate phase
                 {EndTime, EndMsgId} = G#mafia_game.game_end,
                 {TzH, Dst} = mafia_time:get_tz_dst(G, EndTime),
                 EndPhase =
                     print_phase(
                       mafia_time:find_phase_with_time(G, EndTime)),
-                EndTimeStr = print_time(EndTime, TzH, Dst, ?extensive),
-                case PP#pp.mode of
-                    ?text ->
-                        io:format(
-                          PP#pp.dev,
-                          "\n"
-                          "The GAME HAS ENDED after phase ~s "
-                          "and the time was ~s\n",
-                          [EndPhase, EndTimeStr]),
-                        io:format(PP#pp.dev,
-                                  "\n"
-                                  "Game Master End Message\n"
-                                  "-----------------------\n",
-                                  []),
-                        pm(PP#pp{msg_id = EndMsgId,
-                                 site = G#mafia_game.site,
-                                 time_zone = TzH,
-                                 dst = Dst});
-                    ?html ->
-                        GmMessage = web_impl:show_msg(G, EndMsgId),
-                        ["<tr><td align=center>",
-                         "The GAME HAS ENDED after phase ",
-                         EndPhase,
-                         " and the time was ", EndTimeStr,
-                         "</td></tr>"
-                         "<tr><td align=center>"
-                         "<table cellpadding=6 cellspacing=3>",
-                         GmMessage, "</table></td></tr>"]
-                end;
-           true -> []
+                EndTimeStr = print_game_time({TzH, Dst}, EndTime, ?extensive),
+                Fmt = "The GAME HAS ENDED after phase ~s and the time was ~s\n",
+                Args = [EndPhase, EndTimeStr],
+                Html =
+                    ["The game as ended after phase ",
+                     EndPhase,
+                     " and the time was ", EndTimeStr
+                    ],
+                HDeadL1 = print_headline_time_info(PP, Fmt, Args, Html),
+                HDeadL2 =
+                    case PP#pp.mode of
+                        ?text ->
+                            io:format(PP#pp.dev,
+                                      "\n"
+                                      "Game Master End Message\n"
+                                      "-----------------------\n",
+                                      []),
+                            pm(PP#pp{msg_id = EndMsgId,
+                                     site = G#mafia_game.site,
+                                     time_zone = TzH,
+                                     dst = Dst});
+                        ?html ->
+                            GmMessage = web_impl:show_msg(G, EndMsgId),
+                            ["<tr><td align=center>"
+                             "<table cellpadding=6 cellspacing=3>",
+                             GmMessage, "</table></td></tr>"
+                            ]
+                    end,
+                [HDeadL1, HDeadL2];
+           DoDispTime2DL ->
+                %% Current phase
+                print_time_left_to_dl(PP);
+           true ->
+                %% Use phase and phase time
+                DL = lists:keyfind(PP#pp.phase,
+                                   #dl.phase,
+                                   G#mafia_game.deadlines),
+                TimeStr = print_game_time(G, DL#dl.time, ?human),
+                PhaseStr = print_phase(PP#pp.phase),
+                Fmt = "Phase ~s ended at ~s\n",
+                Args = [PhaseStr, TimeStr],
+                Html = ["Phase ", PhaseStr, " ended at ", TimeStr],
+                print_headline_time_info(PP, Fmt, Args, Html)
         end,
 
     %% Part - Thread Links
@@ -720,6 +729,14 @@ print_votesI(PPin) ->
              ["<tr><td>\r\n", HDeadlines, "</td><tr>\r\n"],
              ["<tr><td>\r\n", HFooter, "</td><tr>\r\n"]
             ]
+    end.
+
+print_headline_time_info(PP, Fmt, Args, Html) ->
+    case PP#pp.mode of
+        ?text ->
+            io:format(PP#pp.dev, "\n" ++ Fmt, Args);
+        ?html ->
+            ["<tr><td align=center><b>", Html, "</b></td></tr>"]
     end.
 
 object_rows_text(Rows, ToText) ->
@@ -1281,8 +1298,10 @@ print_message_summary(PP = #pp{}) ->
 
 %% -----------------------------------------------------------------------------
 
-print_game_time(G, Time, Mode) ->
+print_game_time(G = #mafia_game{}, Time, Mode) ->
     {TzH, Dst} = mafia_time:get_tz_dst(G, Time),
+    print_game_time({TzH, Dst}, Time, Mode);
+print_game_time({TzH, Dst}, Time, Mode) ->
     print_time(Time, TzH, Dst, Mode).
 
 %% /1

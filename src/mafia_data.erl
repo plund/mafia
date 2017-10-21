@@ -324,8 +324,7 @@ refresh_votes(G0 = #mafia_game{}, PageFilter) ->
             update_page_to_read(G#mafia_game.game_num,
                                 PageNum,
                                 MsgId,
-                                MsgTime),
-            mafia_web:update_current(MsgTime, G#mafia_game.game_num)
+                                MsgTime)
     end,
     ok.
 

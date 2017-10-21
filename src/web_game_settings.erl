@@ -85,13 +85,11 @@ game_settings_update(Sid, Env, Button, PQ) ->
                  "Only GMs (listed in the unmodified settings "
                  "above)\r\n",
                  ServerKeeperInfo,
-                 " may change the settings of a game.\r\n"
-                 "<br>"
-                 "To do so a user and password must be given. "
-                 "<br>\r\n"
-                 "It is the Server Keeper that PMs random "
-                 "passwords to "
-                 "the GMs.\r\n"
+                 " may change the settings of a game.<br>\r\n"
+                 "The GMs need a password to modify the game settings or to "
+                 "start the game.<br>\r\n"
+                 "A randomly generated password can be retrieved from the "
+                 "Server Keeper.\r\n"
                  "</font>"
                  "</td></tr>"
                 ];

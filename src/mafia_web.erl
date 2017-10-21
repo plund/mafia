@@ -30,7 +30,6 @@
          change_current_game/1,
          regen_history/2,
          update_current/0,
-         update_current/2,
          get_html/2
         ]).
 
@@ -142,9 +141,6 @@ get_ntp_offset()  ->
 %%--------------------------------------------------------------------
 update_current() ->
     gen_server:cast(?SERVER, update_current).
-
-update_current(Time, G) ->
-    update_current2(Time, G).
 
 %%--------------------------------------------------------------------
 %% @doc Change current game
@@ -380,18 +376,6 @@ update_current(#state{game_num = GameNum,
             {?use_time, mafia_time:utc_secs1970()}],
     update_current_txt(GameNum, Opts),
     update_current_html(GameNum, Phase, Opts),
-    ok.
-
-update_current2(Time, GNum) when is_integer(GNum) ->
-    update_current2(Time, hd(?rgame(GNum)));
-update_current2(Time, G = #mafia_game{game_num = GNum}) ->
-    Phase = mafia_time:calculate_phase(G, Time),
-    ?dbg({update_current2, GNum, Phase}),
-    Opts = [{?game_key, GNum},
-            {?phase, Phase}
-           ],
-    update_current_txt(GNum, Opts),
-    update_current_html(GNum, Phase, Opts),
     ok.
 
 update_current_txt(GameNum, Opts) when is_integer(GameNum) ->

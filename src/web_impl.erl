@@ -643,7 +643,23 @@ dst_changes(Sid, _Env, In) ->
                    "</td></tr>"]
                   || C <- mafia_time:dst_change_date()],
                  "<tr><td align=center>None"
-                 "</td></tr>"];
+                 "</td></tr>",
+                 "<tr><th align=center><br>"
+                 "Time Zone Abbreviations Used"
+                 "</th></tr>"
+                 "<tr><td align=center><table>"
+                 "<tr><td>"
+                 "PST/PDT - Pacific USA<br>"
+                 "MST/MDT - Mountain USA<br>"
+                 "CST/CDT - Central USA<br>"
+                 "EST/EDT - Eastern USA<br>"
+                 "GMT/BST - UK<br>"
+                 "CET/CEST - Central Europe<br>"
+                 "EET/EEST - Eastern Europe"
+                 "</td>"
+                 "</tr></table></td>"
+                 "</tr>"
+                ];
             {_, ?true} ->
                 CAtom = ?l2a(CAbbr),
                 Country = mafia_time:dst_name(CAtom),

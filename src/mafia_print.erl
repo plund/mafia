@@ -1359,16 +1359,23 @@ print_timeI(PP = #pp{}) ->
                     mafia_time:secs1970_to_local_datetime(Time, TzH, Dst);
                true -> Time
             end,
-        DstStr = case {Dst, Mode} of
-                     {?false, ?extensive} -> ", Normal Time";
-                     {?true, ?extensive} -> ", Daylight Saving Time";
-                     {?false, Mode} -> "";
-                     {?true, Mode} -> " DST"
-                 end,
         Char = case TzH of
                    0 -> "Z";
                    _ -> "T"
                end,
+        TzStr =
+            case print_timezone(TzH, Dst) of
+                ?undefined ->
+                    DstStr =
+                        case {Dst, Mode} of
+                            {?false, ?extensive} -> ", Normal Time";
+                            {?true, ?extensive} -> ", Daylight Saving Time";
+                            {?false, Mode} -> "";
+                            {?true, Mode} -> " DST"
+                        end,
+                    "(TZ:" ++ ?i2l(TzH) ++ DstStr ++ ")";
+                TzAbbr -> TzAbbr
+            end,
         Out = case Mode of
                   ?file_suffix ->
                       %% 170102Z235959
@@ -1381,25 +1388,41 @@ print_timeI(PP = #pp{}) ->
                       io_lib:format("~s-~s~s~s:~s",
                                     [p(M), p(D), Char, p(HH), p(MM)]);
                   ?long ->
-                      %% 2017-01-18Z01:02:01 (0)
-                      io_lib:format("~s-~s-~s~s~s:~s:~s (~s~s)",
-                                    [p(Y), p(M), p(D), Char, p(HH), p(MM), p(SS),
-                                     ?i2l(TzH), DstStr]);
+                      %% 2017-01-18Z01:02:01 CET
+                      io_lib:format(
+                        "~s-~s-~s~s~s:~s:~s ~s",
+                        [p(Y), p(M), p(D), Char, p(HH), p(MM), p(SS), TzStr]);
                   ?local ->
                       io_lib:format("~s-~s-~s ~s:~s:~s",
                                     [p(Y), p(M), p(D), p(HH), p(MM), p(SS)]);
                   ?human ->
-                      io_lib:format("~s-~s-~s ~s:~s:~s (TZ: ~s~s)",
-                                    [p(Y), p(M), p(D), p(HH), p(MM), p(SS),
-                                     ?i2l(TzH), DstStr]);
+                      io_lib:format(
+                        "~s-~s-~s ~s:~s:~s ~s",
+                        [p(Y), p(M), p(D), p(HH), p(MM), p(SS), TzStr]);
                   ?extensive ->
-                      io_lib:format("~s-~s-~s ~s:~s:~s (Timezone: ~s~s)",
-                                    [p(Y), p(M), p(D), p(HH), p(MM), p(SS),
-                                     ?i2l(TzH), DstStr])
+                      io_lib:format(
+                        "~s-~s-~s ~s:~s:~s ~s",
+                        [p(Y), p(M), p(D), p(HH), p(MM), p(SS), TzStr])
               end,
         lists:flatten(Out)
     catch _:_ -> ""
     end.
+
+print_timezone(-8, ?false) -> "PST";
+print_timezone(-8, ?true) -> "PDT";
+print_timezone(-7, ?false) -> "MST";
+print_timezone(-7, ?true) -> "MDT";
+print_timezone(-6, ?false) -> "CST";
+print_timezone(-6, ?true) -> "CDT";
+print_timezone(-5, ?false) -> "EST";
+print_timezone(-5, ?true) -> "EDT";
+print_timezone(0, ?false) -> "GMT";
+print_timezone(0, ?true) -> "BST";
+print_timezone(1, ?false) -> "CET";
+print_timezone(1, ?true) -> "CEST";
+print_timezone(2, ?false) -> "EET";
+print_timezone(2, ?true) -> "EEST";
+print_timezone(_, _) -> ?undefined.
 
 p(I) when I > 9 -> ?i2l(I);
 p(I) -> string:right(?i2l(I), 2, $0).

@@ -154,17 +154,17 @@ display_tls_info(Env) ->
      "Warning: Your connection is <b>not encrypted!</b><br>"
      "(User and password must be encrypted)"
      "<p>"
-     "If you are a GM and have a password and a want to change the "
-     "game settings of this game you need to reload this page by clicking <br>"
+     "If you are a GM and have a password and want to change the game settings "
+     "of this game, then you need to reload this page by clicking <br>"
      "<a href=\"" ++ SecureUrl ++ "\">",
      SecureUrl, "</a>, <br>"
      "<p>"
      "When accessing this site using an encrypted connection "
-     "the first time with a new web browser, "
+     "first time with a new web browser, "
      "you will need to <b>accept the self-signed server certificate</b> "
      "(and make a security exception). "
      "The certificate is self-signed since the server keeper does not want "
-     "to pay money to a CA or learn how it is done. :)"
+     "to pay money to a Certificate Authority."
      "</center></td></tr></table>"].
 
 enter_user_pw_box(F) ->

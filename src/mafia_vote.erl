@@ -121,10 +121,13 @@ check_for_deaths(Reg = #regex{}, M, G) ->
     SearchU1 = "DIED",
     SearchU2 = "DEAD",
     SearchU3 = "BEEN LYNCHED",
+    SearchU4 = "BEEN EATEN",
     case [regex_find(SearchU1, Reg),
           regex_find(SearchU2, Reg),
-          regex_find(SearchU3, Reg)] of
-        [{?nomatch, _}, {?nomatch, _}, {?nomatch, _}] -> %% no-one has died
+          regex_find(SearchU3, Reg),
+          regex_find(SearchU4, Reg)] of
+        [{?nomatch, _}, {?nomatch, _}, {?nomatch, _}, {?nomatch, _}] ->
+            %% no-one has died
             G;
         Matches ->
             Rs = [ReRes || {MRes, ReRes} <- Matches, MRes == ?match],

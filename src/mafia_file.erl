@@ -170,7 +170,7 @@ suffix(?html) -> ".html".
 
 get_path(P) -> mafia_lib:get_path(P).
 
-phase_base_fn(FilePrefix, Phase = #phase{ptype = ?game_start}) ->
+phase_base_fn(FilePrefix, #phase{ptype = ?game_start}) ->
     FilePrefix ++ "start";
 phase_base_fn(FilePrefix, Phase = #phase{}) ->
     PhStr = case Phase#phase.ptype of

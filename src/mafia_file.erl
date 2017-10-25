@@ -170,12 +170,14 @@ suffix(?html) -> ".html".
 
 get_path(P) -> mafia_lib:get_path(P).
 
+phase_base_fn(FilePrefix, Phase = #phase{ptype = ?game_start}) ->
+    FilePrefix ++ "start";
 phase_base_fn(FilePrefix, Phase = #phase{}) ->
     PhStr = case Phase#phase.ptype of
                 ?day -> "d";
                 ?night -> "n"
             end ++ ?i2l(Phase#phase.num),
-    %% calculate "m25_d1.txt"
+    %% calculate "m25_d1"
     FilePrefix ++ PhStr.
 
 game_prefixes(G) ->

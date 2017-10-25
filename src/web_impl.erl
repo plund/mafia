@@ -45,17 +45,7 @@ front_page(Sid, _Env, In) ->
     Page = ?b2l(Bin),
     {_, Pre, Post1} = mafia_vote:find_parts(Page, ?CUR_START_MARK),
     {_, _Middle, Post} = mafia_vote:find_parts(Post1, ?CUR_END_MARK),
-    GNStr = ?i2l(GameNum),
     G = hd(?rgame(GameNum)),
-    CurPhase = mafia_time:calculate_phase(G),
-    RevPhases =
-        case G#mafia_game.game_end of
-            ?undefined ->
-                ?lrev(mafia_time:phases_upto(CurPhase));
-            {EndTime, _} ->
-                LastPhase = mafia_time:calculate_phase(G, EndTime - 1),
-                [LastPhase | ?lrev(mafia_time:phases_upto(LastPhase))]
-        end,
     GameNums = ?lrev(mafia_lib:all_keys(mafia_game)),
     Txt = fun(GN) when GN == CurGameNum -> " Current";
              (_) -> ""
@@ -77,6 +67,45 @@ front_page(Sid, _Env, In) ->
          "</form>"
          "</td></tr>"
          "</table>"],
+    [RolePmSignUp, CurGameLinks] =
+        case catch get_fp(G) of
+            {'EXIT', _} -> ["", ""];
+            GameLink -> GameLink
+        end,
+    HLinks = [["<a href=\"/m",
+               ?i2l(GNum),
+               "/\">M",
+               ?i2l(GNum),
+               "</a>"
+              ] || GNum <- GameNums],
+    OldGamesHistoryLinks =
+        ["<table>"
+         "<tr><td align=center>",
+         "<br>"
+         "<b>Game History for All Games</b><br>",
+         string:join(HLinks, ", \r\n"),
+         "</td></tr>\r\n"
+         "</table>"],
+    Size = web:deliver(Sid, [Pre,
+                             Form,
+                             RolePmSignUp,
+                             CurGameLinks,
+                             OldGamesHistoryLinks,
+                             Post]),
+    {Size, ?none}.
+
+get_fp(G) ->
+    GNum = G#mafia_game.game_num,
+    GNStr = ?i2l(GNum),
+    CurPhase = mafia_time:calculate_phase(G),
+    RevPhases =
+        case G#mafia_game.game_end of
+            ?undefined ->
+                ?lrev(mafia_time:phases_upto(CurPhase));
+            {EndTime, _} ->
+                LastPhase = mafia_time:calculate_phase(G, EndTime - 1),
+                [LastPhase | ?lrev(mafia_time:phases_upto(LastPhase))]
+        end,
     RolePmLink =
         if G#mafia_game.role_pm /= ?undefined ->
                 [" href=\"", ?b2l(G#mafia_game.role_pm), "\""];
@@ -123,7 +152,7 @@ front_page(Sid, _Env, In) ->
                   "</td></tr>\r\n"];
             true -> []
          end,
-         [game_day_links(Ptype, GameNum, DayNum)
+         [game_day_links(Ptype, GNum, DayNum)
           || #phase{num = DayNum, ptype = Ptype} <- RevPhases],
          ["<tr ", ?BG_MED_GREEN, ">"],
          "<td colspan=3 align=center>"
@@ -131,27 +160,7 @@ front_page(Sid, _Env, In) ->
          "Game Global Statistics</a>"
          "</td></tr>\r\n"
          "</table>"],
-    HLinks = [["<a href=\"/m",
-               ?i2l(GNum),
-               "/\">M",
-               ?i2l(GNum),
-               "</a>"
-              ] || GNum <- GameNums],
-    OldGamesHistoryLinks =
-        ["<table>"
-         "<tr><td align=center>",
-         "<br>"
-         "<b>Game History for All Games</b><br>",
-         string:join(HLinks, ", \r\n"),
-         "</td></tr>\r\n"
-         "</table>"],
-    Size = web:deliver(Sid, [Pre,
-                             Form,
-                             RolePmSignUp,
-                             CurGameLinks,
-                             OldGamesHistoryLinks,
-                             Post]),
-    {Size, ?none}.
+    [RolePmSignUp, CurGameLinks].
 
 game_day_links(?night, GNum, DayNum) ->
     [["<tr ", ?BG_MED_GREEN, ">\r\n"],
@@ -377,12 +386,7 @@ get_phase(GNum, PhaseStr, NumStr) ->
                         {history | current, #phase{}} | {error, term()}.
 get_phase2(GNum, "", "") ->
     Phase = mafia_time:calculate_phase(GNum),
-    CurGameNum = mafia_db:getv(game_key),
-    if GNum == CurGameNum ->
-            {?current, Phase};
-       ?true ->
-            {?history, Phase}
-    end;
+    {?current, Phase};
 get_phase2(_GNum, PhaseStr, NumStr) ->
     gs_phase(PhaseStr, NumStr).
 

@@ -1,4 +1,3 @@
--define(SERVER, ?MODULE).
 -define(WEBPORT, 50666).
 -define(SECUREPORT, 50667).
 -define(MINUTE_MS, 60000).

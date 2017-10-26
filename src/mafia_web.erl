@@ -43,6 +43,8 @@
 
 -include("mafia.hrl").
 
+-define(SERVER, ?MODULE).
+
 -record(state,
         {timer :: ?undefined | timer:tref(),
          timer_minutes :: ?undefined | ?stopped | number(),
@@ -64,20 +66,19 @@
 %% @end
 %%--------------------------------------------------------------------
 start_link() ->
-    io:format(": start_link\n"),
-    mafia:setup_mnesia(),
+    io:format(?MODULE_STRING ++ ":start_link/0\n"),
     gen_server:start_link({local, ?SERVER}, ?MODULE, [polling], []).
 
 start() ->  %% to be removed?
-    io:format(": start\n"),
-    mafia:setup_mnesia(),
+    io:format(?MODULE_STRING ++ ":start/0\n"),
     gen_server:start({local, ?SERVER}, ?MODULE, [polling], []).
 
 start(no_polling) ->
-    mafia:setup_mnesia(),
+    io:format(?MODULE_STRING ++ ":start(no_polling)\n"),
     gen_server:start({local, ?SERVER}, ?MODULE, [no_polling], []).
 
 start_web() ->
+    io:format(?MODULE_STRING ++ ":start_web/0\n"),
     gen_server:call(?SERVER, start_web).
 
 %%--------------------------------------------------------------------
@@ -178,7 +179,6 @@ regen_history(Time, GNum) ->
 %% @end
 %%--------------------------------------------------------------------
 init([Arg]) ->
-    mafia:setup_mnesia(),
     GameKey = ?getv(?game_key),
     {ok, OffsetTimer} = init_ntp_offset(),
     State0 = #state{game_num = GameKey,

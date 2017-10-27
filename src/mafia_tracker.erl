@@ -64,7 +64,6 @@ print_tracker(PP) ->
 
 print_tracker_tab(PP, Abbrs, AllPlayersB) ->
     Votes0 = (PP#pp.day)#mafia_day.votes,
-    Deaths = (PP#pp.day)#mafia_day.player_deaths,
     Votes = [V || V <- Votes0,
                   lists:member(element(1, V), AllPlayersB)],
     Votes3 = user_vote_timesort(Votes),
@@ -93,6 +92,26 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                  pr_head_html(IterVotes, PrAbbrF)]
         end,
 
+    Html = gen_vote_rows(PP, Abbrs, Votes3, PrAbbrF, IterVotes),
+    if PP#pp.mode == ?text ->
+            io:format(PP#pp.dev,
+                      FmtTime,
+                      [pr_ivs_user(IterVotes, fun(_) -> "===" end)]),
+            io:format(PP#pp.dev,
+                      FmtVoter,
+                      [pr_ivs_user(IterVotes, PrAbbrF)]);
+       PP#pp.mode == ?html ->
+            Tab2 = [Head, Html,
+                    [pr_head_html(IterVotes, PrAbbrF),
+                     "</table>\r\n"]],
+            ["<br><table align=center>",
+             "<tr><th>Vote Tracker (Day ", ?i2l(PP#pp.day_num), ")</th></tr>",
+             "<tr><td>", Tab2, "</td></tr>",
+             "</table>"]
+    end.
+
+gen_vote_rows(PP, Abbrs, Votes3, PrAbbrF, IterVotes) ->
+    Deaths = (PP#pp.day)#mafia_day.player_deaths,
     #ra{html = Html} =
         lists:foldl(
           fun({User, V = #vote{}}, RA = #ra{ivs = IVs0}) ->
@@ -109,80 +128,68 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                               IVs2 = set_ivote(IVs, User, NewVote, VFull),
                               {IVs, IVs2}
                       end,
-                  %% calc vote move
-                  OVote = case lists:keyfind(User, #iv.u, IVs) of
-                              false -> "";
-                              #iv{v = "---"} -> "";
-                              #iv{v = V2} -> V2
-                          end,
-                  NVote = case lists:keyfind(User, #iv.u, NewIVs) of
-                              false -> "";
-                              #iv{v = "---"} -> "";
-                              #iv{v = V3} -> V3
-                          end,
-                  VoteMove = {OVote, NVote},
-                  %% calc standing
-                  Stand =
-                      ?lrev(
-                         lists:sort(
-                           lists:foldl(
-                             fun(Iv, A) when Iv#iv.v /= "---",
-                                             Iv#iv.v /= "Unv" ->
-                                     %% first use of #iv.n
-                                     case lists:keyfind(Iv#iv.v, #iv.v, A) of
-                                         false -> [Iv#iv{n = 1} | A];
-                                         Cnt = #iv{n = N} ->
-                                             lists:keyreplace(
-                                               Iv#iv.v, #iv.v, A,
-                                               Cnt#iv{n = N + 1})
-                                     end;
-                                (_, A) -> A
-                             end,
-                             [],
-                             NewIVs))),
+                  Stand = get_standing(NewIVs),
                   PrStand = lists:sublist(Stand, 4),
-                  TimeStr = print_time_5d(PP#pp.game, V#vote.time),
-                  if PP#pp.mode == ?text ->
-                          io:format(PP#pp.dev,
-                                    "~s~s~s\n",
-                                    [pr_ivs_vote_txt(PrIVs, User),
-                                     TimeStr,
-                                     pr_stand_txt(User, VoteMove,
-                                                  Abbrs, PrStand)
-                                    ]),
-                          RA#ra{ivs = NewIVs};
-                     PP#pp.mode == ?html ->
-                          RA#ra{ivs = NewIVs,
-                                html =
-                                    [RA#ra.html|
-                                     ["<tr>",
-                                      pr_ivs_vote_html(PP#pp.game, PrIVs,
-                                                       User, V#vote.msg_key),
-                                      "<td>", TimeStr, "</td>",
-                                      pr_stand_html(PP#pp.game, User,
-                                                    V#vote.msg_key,
-                                                    VoteMove, Abbrs, PrStand),
-                                      "</tr>\r\n"]]
-                               }
-                  end
+                  update_ra(PP, RA, IVs, NewIVs, PrIVs, User, V, Abbrs, PrStand)
           end,
           #ra{ivs = IterVotes, html = []},
           Votes3),
+    Html.
+
+get_standing(NewIVs) ->
+    ?lrev(
+       lists:sort(
+         lists:foldl(
+           fun(Iv, A) when Iv#iv.v /= "---",
+                           Iv#iv.v /= "Unv" ->
+                   %% first use of #iv.n
+                   case lists:keyfind(Iv#iv.v, #iv.v, A) of
+                       false -> [Iv#iv{n = 1} | A];
+                       Cnt = #iv{n = N} ->
+                           lists:keyreplace(
+                             Iv#iv.v, #iv.v, A,
+                             Cnt#iv{n = N + 1})
+                   end;
+              (_, A) -> A
+           end,
+           [],
+           NewIVs))).
+
+update_ra(PP, RA, IVs, NewIVs, PrIVs, User, V, Abbrs, PrStand) ->
+    OVote = case lists:keyfind(User, #iv.u, IVs) of
+                false -> "";
+                #iv{v = "---"} -> "";
+                #iv{v = V2} -> V2
+            end,
+    NVote = case lists:keyfind(User, #iv.u, NewIVs) of
+                false -> "";
+                #iv{v = "---"} -> "";
+                #iv{v = V3} -> V3
+            end,
+    VoteMove = {OVote, NVote},
+    TimeStr = print_time_5d(PP#pp.game, V#vote.time),
     if PP#pp.mode == ?text ->
             io:format(PP#pp.dev,
-                      FmtTime,
-                      [pr_ivs_user(IterVotes, fun(_) -> "===" end)]),
-            io:format(PP#pp.dev,
-                      FmtVoter,
-                      [pr_ivs_user(IterVotes, PrAbbrF)]);
+                      "~s~s~s\n",
+                      [pr_ivs_vote_txt(PrIVs, User),
+                       TimeStr,
+                       pr_stand_txt(User, VoteMove,
+                                    Abbrs, PrStand)
+                      ]),
+            RA#ra{ivs = NewIVs};
        PP#pp.mode == ?html ->
-            Tab2 = [Head, Html,
-                    [pr_head_html(IterVotes, PrAbbrF),
-                     "</table>\r\n"]],
-            ["<br><table align=center>",
-             "<tr><th>Vote Tracker (Day ", ?i2l(PP#pp.day_num), ")</th></tr>",
-             "<tr><td>", Tab2, "</td></tr>",
-             "</table>"]
+            RA#ra{ivs = NewIVs,
+                  html =
+                      [RA#ra.html |
+                       ["<tr>",
+                        pr_ivs_vote_html(PP#pp.game, PrIVs,
+                                         User, V#vote.msg_key),
+                        "<td>", TimeStr, "</td>",
+                        pr_stand_html(PP#pp.game, User,
+                                      V#vote.msg_key,
+                                      VoteMove, Abbrs, PrStand),
+                        "</tr>\r\n"]]
+                 }
     end.
 
 set_ivote(IVs, User, NewVote, VFull) ->

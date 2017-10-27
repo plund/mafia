@@ -159,7 +159,8 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
                                       pr_ivs_vote_html(PP#pp.game, PrIVs,
                                                        User, V#vote.msg_key),
                                       "<td>", TimeStr, "</td>",
-                                      pr_stand_html(User, V#vote.msg_key,
+                                      pr_stand_html(PP#pp.game, User,
+                                                    V#vote.msg_key,
                                                     VoteMove, Abbrs, PrStand),
                                       "</tr>\r\n"]]
                                }
@@ -291,11 +292,13 @@ pr_stand_txt(User, {OldVote, NewVote}, Abbrs, PrStand) ->
                      || #iv{n = N, v = Vote} <- PrStand],
                     ", ").
 
-pr_stand_html(User, MsgKey, {OldVote, NewVote}, Abbrs, PrStand) ->
+pr_stand_html(G, User, MsgKey, {OldVote, NewVote}, Abbrs, PrStand) ->
     UserA = mafia_name:get3l(User, Abbrs, "***"),
     Voter = ["<td align=center", bgcolor(User),">", UserA, "</td>",
              "<td align=center>", OldVote, ">",
-             ["<a href=\"/e/web/msg?id=", web:msg_key2str(MsgKey),
+             ["<a href=\"/e/web/msg"
+              "?g=", ?i2l(G#mafia_game.game_num),
+              "&id=", web:msg_key2str(MsgKey),
               "&player=", User, "&var=vote\">",
               NewVote, "</a>"],
              "</td>"],
@@ -304,7 +307,9 @@ pr_stand_html(User, MsgKey, {OldVote, NewVote}, Abbrs, PrStand) ->
               if Vote /= NewVote ->
                       VCnt(N, Vote);
                  Vote == NewVote ->
-                      ["<a href=\"/e/web/msg?id=", web:msg_key2str(MsgKey),
+                      ["<a href=\"/e/web/msg"
+                       "?g=", ?i2l(G#mafia_game.game_num),
+                       "&id=", web:msg_key2str(MsgKey),
                        "&player=", User, "&var=vote\">",
                        VCnt(N, Vote), "</a>"]
               end,

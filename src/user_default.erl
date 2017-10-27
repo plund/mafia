@@ -12,16 +12,15 @@
          ruser/2,
 
          set/2,
-         unset/1,
          getv/1,
          show/0,
          show_cnts/0,
          show_cnts/1,
          clr_cnts/0,
 
-         stop_poll/0,
-         start_poll/0,
-         poll/0,
+         stop_poll/1,
+         start_poll/1,
+         poll/1,
          state/0,
          start/0,
          stop/0,
@@ -42,7 +41,6 @@ show_cnts() -> mafia_lib:print_all_cnts().
 show_cnts(Cnt) -> mafia_lib:print_all_cnts(Cnt).
 clr_cnts() -> mnesia:clear_table(cnt).
 set(K, V) -> mafia_db:set(K, V).
-unset(K) -> mafia_db:unset(K).
 getv(K) -> mafia_db:getv(K).
 
 pm(MsgId) -> mafia_print:pm(MsgId).
@@ -52,9 +50,9 @@ pps() -> mafia_print:pps().
 pps(Page) -> mafia_print:pps(Page).
 pps(ThId, Page, Site) -> mafia_print:pps(ThId, Page, Site).
 
-stop_poll() -> mafia_web:stop_polling().
-start_poll() -> mafia_web:start_polling().
-poll() -> mafia_web:poll().
+stop_poll(GNum) -> game:stop_polling(GNum).
+start_poll(GNum) -> game:start_polling(GNum).
+poll(GNum) -> game:poll(GNum).
 state() -> mafia_web:get_state().
 start() -> mafia:start().
 stop() -> mafia:stop().
@@ -79,7 +77,6 @@ show_cnts()    - Show all counters
 show_cnts(M)   - Show counters M is int, atom or list
 clr_cnts()     - Clear all counters
 set(K, V)      - Set a key value pair
-unset(K)       - Remove a key value pair
 getv(K)        - Get a value for a key
 
 pm(MsgId)      - Display one complete message
@@ -90,9 +87,9 @@ pps()          - Display last message page in current game
 pps(Page)      - Display message page in current game
 pps(Game,Page) - Display message page in game
 
-stop_poll()    - Stop regular polling of source
-start_poll()   - Start regular polling of source
-poll()         - poll now.
+stop_poll(GNum)- Stop regular polling of source
+start_poll(GNum)- Start regular polling of source
+poll(GNum)     - poll now.
 state()        - Get gen_server state.
 start()        - Start the gen_server and the http server
 stop()         - Stop the gen_server and the http server
@@ -113,8 +110,6 @@ help(type())
 mafia:initiate_game(GNum)
 mafia:initiate_game(GNum, Site)
 mafia:initiate_game(GNum, GMs, Site)
-mafia:switch_to_game(GNum)      - Switch and create page_recs.
-mafia:switch_to_game(GNum, refresh)
 
 mafia:refresh_votes().      - Recount votes in current game
 mafia:refresh_votes(GNums).

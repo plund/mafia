@@ -65,7 +65,7 @@ check_cmds_votes2(G, Re, M) ->
                     andalso PhasePrevM#phase.ptype /= ?game_start
         end,
     if DoGenerate ->
-            mafia_web:regen_history(M, G);
+            game:regen_history(M, G);
        true -> ok
     end,
     if not IsStarted ->
@@ -110,7 +110,7 @@ check_for_gm_cmds(Re, M, G, DoGenerate) ->
        G7 /= G6, %% someone died
        RelTimeSecs >= 0,
        RelTimeSecs =< ?MAX_GM_DL_MINS * ?MinuteSecs ->
-            mafia_web:regen_history(M, G7);
+            game:regen_history(M, G7);
        true ->
             ok
     end,
@@ -244,7 +244,7 @@ kill_player(G, M, DeadB, DeathComment, false) ->
                          "Not fixed! Do refresh_votes()");
                true ->
                     update_day_rec(G2, M, Death),
-                    mafia_web:regen_history(M, {G2, DeathPhase})
+                    game:regen_history(M, {G2, DeathPhase})
             end,
             {{ok, DeathPhase}, G2};
         _ ->
@@ -280,7 +280,7 @@ set_death_msgid(G, M, DeadB, [DeathMsg], DeathComment) ->
                          "Not fixed! Do refresh_votes()");
                true ->
                     update_day_rec(G2, M, Death),
-                    mafia_web:regen_history(DeathMsg, {G2, DeathPhase})
+                    game:regen_history(DeathMsg, {G2, DeathPhase})
             end,
             ok;
         _ ->

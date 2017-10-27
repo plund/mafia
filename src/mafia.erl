@@ -1,9 +1,12 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% Run all games all time, polling stops 2 weeks after game end.
+%% Add page for serverkeeper to initiate_new_game
+%%  - will a game with signup only, poll the thread?
+%%    - dont think so, BUT it should
 %% Poll signup until game start
 %% Poll also game thread before game start
+%% Fix signup pages filtering in search s, s1-send, s4, s3-p3
 %% Why is GNum needed (default game_key) to show a message using "msg"?
 %%  Answer: we display phase and a link to page and pages in a game
 %%  Conclusion: Change to always require g=<gamenum> (remove use of game_key)
@@ -47,11 +50,10 @@
          move_next_deadline/4,
          end_game/2,
          unend_game/2,
-         switch_to_game/1,
+
          set_signup_thid/2,
          set_role_pm/2,
-         switch_thread_id/2,
-         game_thread/1,
+
          initiate_game/1,
          initiate_game/2,
          initiate_game/3,
@@ -204,6 +206,7 @@ initiate_game(GNum, GMs, Site) when is_integer(GNum) ->
                                  G#mafia_game{game_num = GNum,
                                               gms = GMsB,
                                               site = Site}),
+                    game:start_new_game(GNum),
                     {wrote, GNum, GMsB}
             end,
     do_if_not_running(GNum, DoFun).
@@ -260,8 +263,7 @@ delete_game_and_all_data(GNum) when is_integer(GNum) ->
             show_game_data(GNum),
             CurrentGameNum = ?getv(game_key),
             if GNum == CurrentGameNum ->
-                    io:format("WARNING: This is the current game. "
-                              "Consider switch_to_game first.\n");
+                    io:format("WARNING: This is the current game.\n");
                true -> ok
             end,
             Answer = io:get_line(?l2a("Are you really sure you want to "
@@ -280,23 +282,6 @@ delete_game_and_all_data(GNum) when is_integer(GNum) ->
 
 
 %% -----------------------------------------------------------------------------
-%% @doc Switch to other game
-%% @end
-%% -----------------------------------------------------------------------------
--spec switch_to_game(GNum :: game_num()) -> term().
-switch_to_game(GNum) ->
-    ?set(game_key, GNum), %% Must have it set as default game when omitted
-    case ?rgame(GNum) of
-        [#mafia_game{deadlines = DLs}] when DLs /= [] ->
-            mafia_web:change_current_game(GNum);
-        [G = #mafia_game{deadlines = DLs}] when DLs == [] ->
-            G2 = mafia_time:initial_deadlines(G),
-            ?dwrite_game(game_m2, G2),
-            mafia_web:change_current_game(GNum);
-        [] ->
-            {error, game_noexist}
-    end.
-
 -spec set_signup_thid(GNum :: game_num(),
                       thread_id()) -> ok | {error, atom()}.
 set_signup_thid(GNum, SuThId) when is_integer(SuThId) ->
@@ -326,28 +311,6 @@ set_role_pmI([G], UrlVal) ->
     ok;
 set_role_pmI(_, _) -> {error, no_game_found}.
 
-%% -----------------------------------------------------------------------------
-%% @doc Switch to other thread_id() and reread all info
-%% @end
-%% -----------------------------------------------------------------------------
--spec switch_thread_id(GNum :: game_num(),
-                       thread_id()) -> term().
-switch_thread_id(GNum, NewThId) when is_integer(NewThId) ->
-    case ?rgame(GNum) of
-        [G] ->
-            ?dwrite_game(game_m6, G#mafia_game{thread_id = NewThId}),
-            mafia_data:refresh_messages(GNum),
-            mafia_data:refresh_votes(GNum),
-            ok;
-        _ ->
-            {error, no_game}
-    end.
-
-game_thread(GNum) ->
-    case ?rgame(GNum) of
-        [G] -> G#mafia_game.thread_id;
-        [] -> ?getv(?thread_id)
-    end.
 
 %% -----------------------------------------------------------------------------
 %% @doc End current phase with GM message and set next phase at
@@ -543,7 +506,7 @@ kill_player(GNum, MsgId, Player, Comment) ->
                 {{ok, DeathPhase}, _G2} ->
                     ?man(Time, Cmd),
                     mafia_file:manual_cmd_to_file(G, Cmd),
-                    mafia_web:regen_history(M, G),
+                    game:regen_history(M, G),
                     {player_killed, DeathPhase};
                 {not_remaining_player, _G2} ->
                     case ?ruser(Player, G#mafia_game.site) of

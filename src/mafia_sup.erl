@@ -12,10 +12,14 @@
 %%   +------+-----+----------+
 %%   |      |     |          |
 %% +---+  +---+  +---+     +---+
-%% |Web|  |g21|  |g22| ... |g32|
+%% |MW |  |g21|  |g22| ... |g32|
 %% +---+  +---+  +---+     +---+
-%%
-%% Let Web start and add all siblings G1 ...
+%%   |
+%%   +------+
+%%   |      |
+%% +---+  +---+
+%% |web|  |tls|
+%% +---+  +---+
 
 -module(mafia_sup).
 
@@ -23,7 +27,7 @@
 
 %% API
 -export([start_link/0,
-         start/1]).
+         start_child/1]).
 
 %% Supervisor callbacks
 -export([init/1]).
@@ -39,8 +43,8 @@
 start_link() ->
     supervisor:start_link({local, ?SERVER}, ?MODULE, []).
 
-start(GNum) ->
-    supervisor:start_child(?SERVER, game_child_specs(GNum)).
+start_child(GNum) ->
+    supervisor:start_child(?SERVER, game_child_spec(GNum)).
 
 %%====================================================================
 %% Supervisor callbacks
@@ -69,10 +73,10 @@ all_child_specs() ->
      | all_game_child_specs()].
 
 all_game_child_specs() ->
-    [game_child_specs(GNum) || GNum <- mafia_lib:all_keys(mafia_game)].
+    [game_child_spec(GNum) || GNum <- mafia_lib:all_keys(mafia_game)].
 
-game_child_specs(GNum) ->
-    Id = ?l2a("game_" ++ ?i2l(GNum)),
+game_child_spec(GNum) ->
+    Id = game:get_id(GNum),
     #{id => Id,
       start => {game, start_link, [Id, GNum]},
       restart => permanent

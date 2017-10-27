@@ -117,9 +117,9 @@
 -define(server_keeper, server_keeper).
 -define(thread_id, thread_id).
 -define(time_offset, time_offset). %% integer in seconds
--define(timer_minutes, timer_minutes).
 -define(timezone_game, timezone_game).
 -define(timezone_user, timezone_user).
+-define(ntp_offset_secs, ntp_offset_secs).
 %% positive offset means that simulated time is in the past.
 -define(http_ip, http_ip).
 -define(http_interface, http_interface).

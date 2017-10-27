@@ -1,3 +1,6 @@
+%% Still work in progress
+%% 1. We need different schedules for signup and game threads
+%% 2. Do we need to "coordinate" ntp_checks with all game threads?
 -module(mafia_sched).
 
 -export([

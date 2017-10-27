@@ -4,7 +4,7 @@
 -include("mafia_game.hrl").
 
 -export([set/2,
-         unset/1,
+         %% unset/1,
          getv/1,
          getv/2,
 
@@ -223,7 +223,7 @@ set(K = ?server_keeper, {U, Site}) when Site == ?webDip; Site == ?vDip ->
 set(K=?thread_id, V) when is_integer(V), V > 0 -> set_kv(K, V);
 set(K=?game_key, V) when is_integer(V), V > 0 -> set_kv(K, V);
 set(K=?page_to_read, V) when is_integer(V), V > 0 -> set_kv(K, V);
-set(K=?timer_minutes, V) when is_integer(V)-> set_kv(K, V);
+%% set(K=?timer_minutes, V) when is_integer(V)-> set_kv(K, V);
 set(K=?timezone_user, V) when is_integer(V), -12 =< V, V =< 12 -> set_kv(K, V);
 set(K=?timezone_game, V) when is_integer(V), -12 =< V, V =< 12 -> set_kv(K, V);
 set(K=?time_offset, V) when is_integer(V) -> set_kv(K, V);
@@ -231,12 +231,13 @@ set(K=?dst_user, V) when is_boolean(V) -> set_kv(K, V);
 set(K=?dst_game, V) when is_boolean(V) -> set_kv(K, V);
 set(K=?mod_msg, ?undefined) -> remk(K);
 set(K=?mod_msg, V) when is_list(V) -> set_kv(K, V);
+set(K=?ntp_offset_secs, V) when is_number(V) -> set_kv(K, V);
 set(K=?console_tz, V)
   when V == user; V == game; V == utc;
        V == zulu; V == gmt ->
     set_kv(K,V).
 
-unset(K=?timer_minutes) -> remk(K).
+%% unset(K=?timer_minutes) -> remk(K).
 
 remk(Key) -> mnesia:dirty_delete(kv_store, Key).
 

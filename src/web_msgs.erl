@@ -41,7 +41,7 @@ msgs2(Sid, _GNum, _In, _PQ, NotAllowed) when NotAllowed /= [] ->
 msgs2(Sid, {?error, _}, _In, _PQ, _)  ->
     error_resp(Sid, "Bad: g=value");
 msgs2(Sid, GNum, In, PQ, []) ->
-    GThId = mafia:game_thread(GNum),
+    GThId = game_thread(GNum),
     Url2 = "e/web/msgs?",
     In3 = [string:tokens(I, "=") || I <- string:tokens(In, "&")],
     Url3 = string:join(
@@ -258,6 +258,12 @@ msgs2(Sid, GNum, In, PQ, []) ->
     C = del_end(Sid),
     Args = [list_to_binary(K) || {K, V} <- PQ, V/=""] -- [<<"button">>],
     {A + B + C, Args}.
+
+game_thread(GNum) ->
+    case ?rgame(GNum) of
+        [G] -> G#mafia_game.thread_id;
+        [] -> ?getv(?thread_id)
+    end.
 
 -define(MAX_WORD, 60).
 -define(BRNCH, "&#8203;"). %% breaking non-character

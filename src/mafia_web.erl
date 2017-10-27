@@ -1,7 +1,7 @@
 %%%-------------------------------------------------------------------
 %%% @author Peter Lund
 %%% @copyright (C) 2016, Peter Lund
-%%% @doc Updates the DB every 10 mins, 5 min last hour and 1 min last
+%%% @doc Starts web and tls servers and keep track of NTP time
 %%% 7 min to day deadline.
 %%% @end
 %%% Created : 10 Dec 2016 by Peter Lund <peter@liber>
@@ -12,25 +12,14 @@
 
 %% API
 -export([start_link/0,
-         start/0,
-         start/1,
          stop/0,
-
-         poll/0,
-         start_polling/0,
-         stop_polling/0,
 
          start_web/0,
          stop_httpd/0,
          stop_httpd/1,
 
          get_state/0,
-         get_ntp_offset/0,
-
-         change_current_game/1,
-         regen_history/2,
-         update_current/0,
-         get_html/2
+         get_ntp_offset/0
         ]).
 
 %% test
@@ -45,14 +34,14 @@
 
 -define(SERVER, ?MODULE).
 
+%% Feature:    Fields
+%% --------    ------
+%% start web:  web_pid
+%% start tls:  tls_pid
+%% ntp offset: offset_timer, ntp_offset_secs
 -record(state,
-        {timer :: ?undefined | timer:tref(),
-         timer_minutes :: ?undefined | ?stopped | number(),
-         dl_timer :: ?undefined | timer:tref(),
-         dl_time :: ?undefined | seconds1970(),
-         web_pid :: ?undefined | pid(),
+        {web_pid :: ?undefined | pid(),
          tls_pid :: ?undefined | pid(),
-         game_num :: ?undefined | integer(),
          offset_timer :: ?undefined | timer:tref(),
          ntp_offset_secs = 0.0 :: float()
         }).
@@ -67,15 +56,7 @@
 %%--------------------------------------------------------------------
 start_link() ->
     io:format(?MODULE_STRING ++ ":start_link/0\n"),
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [polling], []).
-
-start() ->  %% to be removed?
-    io:format(?MODULE_STRING ++ ":start/0\n"),
-    gen_server:start({local, ?SERVER}, ?MODULE, [polling], []).
-
-start(no_polling) ->
-    io:format(?MODULE_STRING ++ ":start(no_polling)\n"),
-    gen_server:start({local, ?SERVER}, ?MODULE, [no_polling], []).
+    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
 
 start_web() ->
     io:format(?MODULE_STRING ++ ":start_web/0\n"),
@@ -86,11 +67,6 @@ start_web() ->
 %% @end
 %%--------------------------------------------------------------------
 stop() -> gen_server:call(?SERVER, 'stop').
-
-poll() -> ?SERVER ! do_polling.
-
-start_polling() -> gen_server:call(?SERVER, ?start_polling).
-stop_polling() -> gen_server:call(?SERVER, ?stop_polling).
 
 stop_httpd() ->
     IpStr = bind_address(),
@@ -124,44 +100,17 @@ get_state()  ->
     gen_server:call(?SERVER, get_state).
 
 get_ntp_offset()  ->
-    case catch gen_server:call(?SERVER, get_ntp_offset, 200) of
-        {'EXIT', _} ->
-            {?undefined, "Unknown NTP offset"};
+    case ?getv(?ntp_offset_secs) of
         OffsetSecs when is_float(OffsetSecs) ->
             Sign = if OffsetSecs < 0 -> ?negative;
                       true -> ?positive
                    end,
             OffsMilliStr = float_to_list(abs(OffsetSecs * 1000),
                                          [{decimals, 2}]),
-            {Sign, OffsMilliStr ++ " millisecs"}
+            {Sign, OffsMilliStr ++ " millisecs"};
+        _ ->
+            {?undefined, "Unknown NTP offset"}
     end.
-
-%%--------------------------------------------------------------------
-%% @doc Update current text page
-%% @end
-%%--------------------------------------------------------------------
-update_current() ->
-    gen_server:cast(?SERVER, update_current).
-
-%%--------------------------------------------------------------------
-%% @doc Change current game
-%% @end
-%%--------------------------------------------------------------------
-change_current_game(GNum) ->
-    gen_server:call(?SERVER, {change_current_game, GNum}).
-
-%%--------------------------------------------------------------------
-%% @doc Regenerate history text page
-%% @end
-%%--------------------------------------------------------------------
-regen_history(M, {G = #mafia_game{}, Phase}) ->
-    regen_history(M, {G#mafia_game.game_num, Phase});
-regen_history(M = #message{}, G) ->
-    regen_history(M#message.time, G);
-regen_history(Time, G = #mafia_game{}) ->
-    regen_history(Time, G#mafia_game.game_num);
-regen_history(Time, GNum) ->
-    regen_historyI(Time, GNum).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -178,28 +127,15 @@ regen_history(Time, GNum) ->
 %%                     {stop, Reason}
 %% @end
 %%--------------------------------------------------------------------
-init([Arg]) ->
-    GameKey = ?getv(?game_key),
-    {ok, OffsetTimer} = init_ntp_offset(),
-    State0 = #state{game_num = GameKey,
-                    offset_timer = OffsetTimer},
+init([]) ->
+    S0 = #state{},
+    {ok, OffsetTimer} = init_ntp_offset(S0),
+    State0 = #state{offset_timer = OffsetTimer},
     State = start_web(State0),
-    S2 = set_dl_timer(State),
-    TimerMins = case ?getv(?timer_minutes) of
-                    ?undefined -> 3;
-                    V -> V
-                end,
-    if Arg == polling ->
-            ?dbg(start_polling),
-            self() ! do_polling,
-            {_Reply, S3} = set_timer_interval(S2, TimerMins),
-            {ok, S3};
-       Arg == no_polling ->
-            ?dbg(start_no_polling),
-            {ok, S2}
-    end.
+    {ok, State}.
 
-init_ntp_offset() ->
+init_ntp_offset(S) ->
+    ?set(?ntp_offset_secs, S#state.ntp_offset_secs),
     ?SERVER ! check_ntp_offset,
     timer:send_interval(10 * ?MINUTE_MS, check_ntp_offset).
 
@@ -217,40 +153,19 @@ init_ntp_offset() ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_call({change_current_game, GNum}, _From, State) ->
-    OldGNum = State#state.game_num,
-    {Reply, S4} =
-        if GNum /= OldGNum ->
-                S2 = State#state{game_num = GNum,
-                                 timer_minutes = ?undefined},
-                {TReply, S3} = maybe_change_timer(S2),
-                {{{game_num, OldGNum, GNum},
-                  {timer, TReply}},
-                 S3};
-           true -> {same_game_num, State}
-        end,
-    {reply, Reply, S4};
 handle_call(get_state, _From, State) ->
-    {reply, state_as_kvs(State), State};
+    State2KVs =
+        fun() ->
+                Fields = record_info(fields, state),
+                Values = tl(tuple_to_list(State)),
+                lists:zip(Fields, Values)
+        end,
+    {reply, State2KVs(), State};
 handle_call(get_ntp_offset, _From, State) ->
     {reply, State#state.ntp_offset_secs, State};
-handle_call({set_timer_interval, N}, _From, State) ->
-    {Reply, S2} = set_timer_interval(State, N),
-    self() ! do_polling,
-    {reply, Reply, S2};
 handle_call('stop', _From, State) ->
-    timer:cancel(State#state.timer),
     S2 = stop_web(State),
-    {stop, stopped, stop_reply, S2#state{timer = ?undefined}};
-handle_call(?start_polling, _From, State) ->
-    {Reply, S2} = maybe_change_timer(State#state{timer_minutes = ?undefined}),
-    self() ! do_polling,
-    {reply, Reply, S2};
-handle_call(?stop_polling, _From, State) ->
-    timer:cancel(State#state.timer),
-    {reply, {ok, polling_stopped}, State#state{timer = ?undefined,
-                                               timer_minutes = ?stopped}};
-
+    {stop, stopped, stop_reply, S2};
 handle_call(start_web, _From, State) ->
     S = start_web(State),
     {reply, ok, S};
@@ -268,9 +183,6 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast(update_current, State) ->
-    update_current(State),
-    {noreply, State};
 handle_cast(Msg, State) ->
     ?dbg({unhandled_other, Msg}),
     {noreply, State}.
@@ -285,27 +197,6 @@ handle_cast(Msg, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_info({?deadline3min, DL}, State) ->
-    ?dbg({?deadline3min, DL}),
-    S2 = set_dl_timer(State),
-    {noreply, S2};
-handle_info({?deadline, DL}, State) ->
-    ?dbg({?deadline, DL}),
-    mafia_data:downl_web(State#state.game_num,
-                         DL,
-                         State#state.ntp_offset_secs),
-    regen_historyI(DL#dl.time, State#state.game_num),
-    S2 = set_dl_timer(State, DL#dl.time),
-    {noreply, S2};
-handle_info(do_polling, State) ->
-    {_Reply, S2} = maybe_change_timer(State),
-    if is_integer(State#state.game_num) ->
-            mafia_data:downl_web(State#state.game_num),
-            flush(do_polling);
-       true -> ok
-    end,
-    update_current(S2),
-    {noreply, S2};
 handle_info(check_ntp_offset, State) ->
     ?dbg({check_ntp_offset, time()}),
     %% should be called once every 10 min
@@ -328,6 +219,7 @@ handle_info({ntp_offset_cmd_out, NtpStr}, State) ->
              _ ->
                  AvgOffset = lists:sum(Offs) / NumOffVals,
                  ?dbg({ntp_offset_avg, NumOffVals, AvgOffset}),
+                 ?set(?ntp_offset_secs, AvgOffset),
                  State#state{ntp_offset_secs = AvgOffset}
          end,
     {noreply, S2};
@@ -362,134 +254,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-state_as_kvs(State) ->
-    Fields = record_info(fields, state),
-    Values = tl(tuple_to_list(State)),
-    lists:zip(Fields, Values).
-
-update_current(#state{game_num = GameNum,
-                      timer_minutes = Minutes}) ->
-    Phase = mafia_time:calculate_phase(GameNum),
-    Opts = [{?game_key, GameNum},
-            {?phase, Phase},
-            {?period, Minutes}, %% mafia_time:timer_minutes(GameNum)
-            {?use_time, mafia_time:utc_secs1970()}],
-    update_current_txt(GameNum, Opts),
-    update_current_html(GameNum, Phase, Opts),
-    ok.
-
-update_current_txt(GameNum, Opts) when is_integer(GameNum) ->
-    update_current_txt(?rgame(GameNum), Opts);
-update_current_txt([G], Opts) ->
-    %% update current html here too!
-    FileName = mafia_file:game_phase_full_fn(G, ?current),
-    write_text(FileName, Opts).
-
-update_current_html(GameNum, Phase, Opts) when is_integer(GameNum) ->
-    update_current_html(?rgame(GameNum), Phase, Opts);
-update_current_html([G], Phase, Opts) ->
-    FileName = mafia_file:game_phase_full_fn(?html, G, ?current),
-    Title = ["Game Status ", mafia_print:print_phase(Phase)],
-    write_html(FileName, Title, Opts).
-
-%%--------------------------------------------------------------------
-%% @doc Regenerate history text page
-%% @end
-%%--------------------------------------------------------------------
-
-regen_historyI(Time, GNum)
-  when is_integer(Time), is_integer(GNum) ->
-    [G] = ?rgame(GNum),
-    DL = mafia_time:get_prev_deadline(G, Time),
-    regen_historyI(Time, GNum, DL#dl.phase, [G]);
-regen_historyI(Time, {GKey, Phase = #phase{}}) ->
-    regen_historyI(Time, GKey, Phase, ?rgame(GKey)).
-
-regen_historyI(_, _, #phase{ptype = ?game_start}, _) -> ok;
-regen_historyI(Time, GNum, Phase = #phase{}, [G]) ->
-    ?dbg(Time, {"DO REGENERATE_HISTORY 3", Phase, Time}),
-    Opts = [{?game_key, GNum},
-            {?phase, Phase}],
-    FNTxt = mafia_file:game_phase_full_fn(G, Phase),
-    FNHtml= mafia_file:game_phase_full_fn(?html, G, Phase),
-    regen_hist_txt(FNTxt, Opts),
-    regen_hist_html(FNHtml, Phase, Opts),
-    case G#mafia_game.game_end of
-        ?undefined -> ok;
-        _ ->
-            ?dbg(Time, {"REGENERATE GAME_STATUS"}),
-            Opts2 = [{?game_key, GNum},
-                     {?phase, #phase{ptype = ?game_ended}}],
-            FNTxt2 = mafia_file:game_phase_full_fn(G, ?current),
-            FNHtml2 = mafia_file:game_phase_full_fn(?html, G, ?current),
-            regen_hist_txt(FNTxt2, Opts2),
-            regen_hist_html(FNHtml2, Phase, Opts2)
-    end,
-    ok.
-
-regen_hist_txt(FNTxt, Opts) ->
-    write_text(FNTxt, Opts).
-
-regen_hist_html(FNHtml, Phase = #phase{}, Opts) ->
-    Title = ["History ", mafia_print:print_phase(Phase)],
-    write_html(FNHtml, Title, Opts).
-
-%%--------------------------------------------------------------------
-
-write_text(FileName, Opts) ->
-    {ok, Fd} = file:open(FileName, [write]),
-    Opts2 = Opts ++ [{?dev, Fd}],
-    mafia_print:print_votes(Opts2),
-    file:close(Fd).
-
-write_html(FileName, Title, Opts) ->
-    Opts2 = Opts ++ [{?mode, ?html}],
-    {ok, Fd} = file:open(FileName, [write]),
-    io:format(Fd, "~s", [get_html(Title, Opts2)]),
-    file:close(Fd),
-    ok.
-
-get_html(Title, Opts) ->
-    {PrevLink, NextLink} = get_links(Opts),
-    Body = mafia_print:print_votes(Opts),
-    [?HTML_TAB_START_LINKS(Title, " border=0", PrevLink, NextLink),
-     Body,
-     ?HTML_TAB_END].
-
-get_links(Opts) ->
-    GNum = proplists:get_value(?game_key, Opts),
-    Phase = proplists:get_value(?phase, Opts),
-    PrevPhase = mafia_time:decr_phase(Phase),
-    PLinkF = fun(Ptype, Num) ->
-                     ["&lt;&lt; ",
-                      dptypestr(Ptype),
-                      " ", ?i2l(Num)]
-             end,
-    NLinkF = fun(Ptype, Num) ->
-                     [dptypestr(Ptype),
-                      " ", ?i2l(Num),
-                      " &gt;&gt;"]
-             end,
-    PrevLink =
-        case PrevPhase of
-            ?undefined -> "";
-            #phase{num = 0} -> "";
-            #phase{num = PDayNum, ptype = PPtype} ->
-                web_impl:hist_link("game_status", GNum, PPtype, PDayNum, PLinkF)
-        end,
-    NextPhase = mafia_time:inc_phase(Phase),
-    NextLink =
-        case NextPhase of
-            ?undefined -> "";
-            #phase{num = NDayNum, ptype = NPtype} ->
-                web_impl:hist_link("game_status", GNum, NPtype, NDayNum, NLinkF)
-        end,
-    {PrevLink, NextLink}.
-
-dptypestr(?night) -> "Night";
-dptypestr(?day) -> "Day".
-
-%%--------------------------------------------------------------------
 
 get_interface_ip(IfName) ->
     ?dbg("Looking for IPv4 on interface " ++ IfName),
@@ -600,90 +364,4 @@ stop_web(State) ->
        true ->
             stop_httpd(),
             S2
-    end.
-
--spec maybe_change_timer(#state{}) -> {Reply::term(), #state{}}.
-maybe_change_timer(S = #state{timer = TRef,
-                              timer_minutes = TMins,
-                              game_num = GNum}) ->
-    Mins = mafia_time:timer_minutes(GNum),
-    if TMins == ?stopped -> {no_change, S};
-       Mins == ?none -> {cancelled, cancel_timer_interval(S)};
-       TRef == ?undefined; Mins /= TMins ->
-            set_timer_interval(S, Mins);
-       true -> {no_change, S}
-    end.
-
--define(_10minMs, 10 * 60 * 1000).
--define(_3minMs, 3 * 60 * 1000).
-
-set_dl_timer(S) -> set_dl_timer(S, mafia_time:utc_secs1970()).
-
-set_dl_timer(S, Time) ->
-    ?dbg({set_dl_timer, 2}),
-    set_dl_timer(S, Time, ?rgame(S#state.game_num)).
-
-set_dl_timer(S, _Time, []) -> S;
-set_dl_timer(S, Time, [G]) ->
-    set_dl_timer(S, Time, G);
-set_dl_timer(S, Time, G) ->
-    S2 = cancel_dl_timer(S),
-    case mafia_time:get_nxt_deadline(G, Time) of
-        #dl{phase = #phase{ptype = ?game_ended}} -> S2;
-        DL = #dl{} ->
-            NtpOffsetMilliSecs = round(S#state.ntp_offset_secs * 1000),
-            SysTimeMs = mafia_time:system_time_ms(),
-            RemMs = DL#dl.time * 1000
-                - SysTimeMs
-                - NtpOffsetMilliSecs,
-            ?dbg({set_dl_timer, SysTimeMs, NtpOffsetMilliSecs, RemMs}),
-            set_dl_timer2(S2, DL, RemMs)
-    end.
-
-set_dl_timer2(S, DL, RemMs) when RemMs > ?_10minMs ->
-    DelayMs = RemMs - ?_3minMs,
-    set_dl_timer3(S, ?deadline3min, DL, DelayMs);
-set_dl_timer2(S, DL, RemMs) when RemMs > 0 ->
-    set_dl_timer3(S, ?deadline, DL, RemMs);
-set_dl_timer2(S, _, _) -> S.
-
-set_dl_timer3(S, DeadlineType, DL, DelayMs) ->
-    ?dbg({set_dl_timer3, DeadlineType, DL, DelayMs}),
-    {ok, TRef} = timer:send_after(DelayMs, {DeadlineType, DL}),
-    S#state{dl_timer = TRef,
-            dl_time = DL#dl.time}.
-
-cancel_dl_timer(S) ->
-    if S#state.dl_timer /= ?undefined ->
-            timer:cancel(S#state.dl_timer);
-       true -> ok
-    end,
-    flush({?deadline, any}),
-    S#state{dl_timer = ?undefined}.
-
--spec set_timer_interval(#state{}, number()) -> {Reply :: term(), #state{}}.
-set_timer_interval(S, TMins) when is_number(TMins), TMins > 0 ->
-    S2 = cancel_timer_interval(S),
-    {ok, TRef} = timer:send_interval(trunc(TMins * ?MINUTE_MS), do_polling),
-    Reply = {interval_changed,
-             {old, S2#state.timer_minutes},
-             {new, TMins}},
-    {Reply, S2#state{timer = TRef,
-                     timer_minutes = TMins}}.
-
-cancel_timer_interval(S) ->
-    if S#state.timer /= ?undefined ->
-            timer:cancel(S#state.timer);
-       true -> ok
-    end,
-    flush(do_polling),
-    S#state{timer = undefined}.
-
-flush({Msg, X}) ->
-    receive {Msg, _} -> flush({Msg, X})
-    after 0 -> ok
-    end;
-flush(Msg) ->
-    receive Msg -> flush(Msg)
-    after 0 -> ok
     end.

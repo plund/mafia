@@ -304,7 +304,7 @@ read_file(FileName) ->
 
 game_status_out_current(GNum, Phase, Title) ->
     Opts = [{?use_time, mafia_time:utc_secs1970()},
-            {?period, mafia_time:timer_minutes(GNum)}],
+            {?period, game:poll_minutes(GNum)}],
     do_game_status_out(GNum, Phase, Title, Opts).
 
 game_status_out_hist(_GNum, _Phase, _FileName, {ok, Bin}) ->
@@ -315,7 +315,7 @@ game_status_out_hist(GNum, Phase, FileName, _) ->
     case mafia_time:get_time_for_phase(GNum, Phase) of
         PhaseTime when PhaseTime =< Time, is_integer(PhaseTime) ->
             %% Normally there should be a file and this generate should not run
-            mafia_web:regen_history(PhaseTime, {GNum, Phase}),
+            game:regen_history(PhaseTime, {GNum, Phase}),
             case read_file(FileName) of
                 {ok, Bin} ->
                     Bin;
@@ -341,7 +341,7 @@ do_game_status_out(GNum, Phase, Title, ExtraOpts) ->
             {?phase, Phase},
             {?mode, ?html}
            ] ++ ExtraOpts,
-    mafia_web:get_html(Title, Opts).
+    game_gen:get_html(Title, Opts).
 
 -spec validate_phase(game_num(), #phase{}) -> error | show_phase | show_end.
 validate_phase(GNum, Phase) ->

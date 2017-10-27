@@ -43,8 +43,6 @@
          nearest_deadline/1,
          nearest_deadline/2,
 
-         timer_minutes/1,
-
          end_phase/3,
          unend_phase/2,
          move_next_deadline/3,
@@ -590,9 +588,10 @@ nearest_deadline([G]) ->
                       -> {integer(), phase_type()} | none.
 nearest_deadline(GNum, Time) when is_integer(GNum) ->
     nearest_deadline(?rgame(GNum), Time);
-nearest_deadline([], _) -> none;
+nearest_deadline([], _) -> ?none;
 nearest_deadline([G = #mafia_game{}], Time) ->
     nearest_deadline(G, Time);
+nearest_deadline(#mafia_game{deadlines = []}, _) -> ?none;
 nearest_deadline(G = #mafia_game{}, Time) ->
     DLs = G#mafia_game.deadlines,
     {_, TDiff, NearestDL} =
@@ -602,55 +601,6 @@ nearest_deadline(G = #mafia_game{}, Time) ->
 
 %% -----------------------------------------------------------------------------
 %% End refactoring section
-%% -----------------------------------------------------------------------------
-
--spec timer_minutes(GNum :: thread_id()) -> none | number().
-timer_minutes(GNum) ->
-    case ?getv(?timer_minutes) of
-        Mins when is_integer(Mins), Mins > 0 ->
-            Mins;
-        _ ->
-            case nearest_deadline(GNum) of
-                none -> none;
-                {RelTimeSecs, #dl{phase = #phase{ptype = Ptype}}} ->
-                    t_mins(Ptype, RelTimeSecs)
-            end
-    end.
-
--define(m2s(Min), (Min * ?MinuteSecs)).
-
--spec t_mins(atom(), integer()) -> number().
-%% Day nearest
-t_mins(?day, T) when T < ?m2s(-90) -> 3;
-t_mins(?day, T) when T < ?m2s(-30) -> 2;
-t_mins(?day, T) when T < ?m2s(-5) -> 1;
-t_mins(?day, T) when T < ?m2s(2) -> 0.25;
-t_mins(?day, T) when T < ?m2s(30) -> 1;
-t_mins(?day, T) when T < ?m2s(90) -> 2;
-t_mins(?day, T) when T >= ?m2s(90) -> 3;
-%% Night nearest
-t_mins(?night, T) when T < ?m2s(-90) -> 3;
-t_mins(?night, T) when T < ?m2s(-30) -> 2;
-t_mins(?night, T) when T < ?m2s(30) -> 1;
-t_mins(?night, T) when T < ?m2s(90) -> 2;
-t_mins(?night, T) when T >= ?m2s(90) -> 3;
-%% Game starting
-t_mins(?game_start, T) when T < ?m2s(-12*60) -> 6;
-t_mins(?game_start, _T) -> 2;
-%% Game has ended
-t_mins(?game_ended, T) when T < ?m2s(60) -> 2;
-t_mins(?game_ended, T) when T < ?m2s(180) -> 4;
-t_mins(?game_ended, T) when T < ?m2s(360) -> 10;
-t_mins(?game_ended, T) when T < ?m2s(24*60) -> 20;
-t_mins(?game_ended, T) when T >= ?m2s(24*60) -> 120.
-
-%% fun(PhType, time) -> next timer time + action
-%% day =< 15 s -> DL time + DL action
-%% day =< 5 min -> even 15 sec + poll
-%% day =< 30 min -> even 1 min + poll
-%% day =< 90 min -> even 2 min + poll
-%% day > 90 -> even 3 min + poll
-
 %% -----------------------------------------------------------------------------
 
 end_phase([], _Phase, _Time) -> [];
@@ -663,7 +613,7 @@ end_phase(G, Phase = #phase{}, Time, false) ->
     NewDLs = change_dl_time(G#mafia_game.deadlines, Phase, Time),
     G2 = G#mafia_game{deadlines = NewDLs},
     ?dwrite_game(game_t3, G2),
-    mafia_web:regen_history(Time, G), %% Change to G2?
+    game:regen_history(Time, G), %% Change to G2?
     G2;
 end_phase(G, _Phase, _Time, _DL) ->
     G.
@@ -771,7 +721,7 @@ end_game(M, G) ->
     G2 = G#mafia_game{deadlines = DLs3,
                       game_end = {EndTime, ?e1(MsgKey)}},
     ?dwrite_game(game_t6, G2),
-    mafia_web:regen_history(EndTime, G2),
+    game:regen_history(EndTime, G2),
     {?game_ended, G2}.
 
 %% -----------------------------------------------------------------------------

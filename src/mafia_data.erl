@@ -426,7 +426,7 @@ checkvote_fun(G, DoPrint) ->
     }.
 
 gen_hist_and_get_dls(NextT, Acc) ->
-    mafia_web:regen_history(NextT, Acc#acc.game_num),
+    game:regen_history(NextT, Acc#acc.game_num),
     [G] = ?rgame(Acc#acc.game_num),
     lists:dropwhile(fun(#dl{time = DT}) -> DT =< NextT end,
                     ?lrev(G#mafia_game.deadlines)).

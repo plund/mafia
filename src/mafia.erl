@@ -1,6 +1,7 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% Easy page for listing users/aliases in g=32.
 %% Add page for serverkeeper to initiate_new_game
 %%  - will a game with signup only, poll the thread?
 %%    - dont think so, BUT it should

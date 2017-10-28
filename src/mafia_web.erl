@@ -198,7 +198,7 @@ handle_cast(Msg, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_info(check_ntp_offset, State) ->
-    ?dbg({check_ntp_offset, time()}),
+    %% ?dbg({check_ntp_offset, time()}),
     %% should be called once every 10 min
     %% server 17.253.38.125, stratum 1, offset -0.015001, delay 0.02968
     spawn(fun() ->
@@ -218,7 +218,8 @@ handle_info({ntp_offset_cmd_out, NtpStr}, State) ->
                  State;
              _ ->
                  AvgOffset = lists:sum(Offs) / NumOffVals,
-                 ?dbg({ntp_offset_avg, NumOffVals, AvgOffset}),
+                 OffStr = float_to_list(AvgOffset * 1000, [{decimals, 2}]),
+                 ?dbg({ntp_offset_avg, NumOffVals, OffStr}),
                  ?set(?ntp_offset_secs, AvgOffset),
                  State#state{ntp_offset_secs = AvgOffset}
          end,

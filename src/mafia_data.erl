@@ -47,6 +47,7 @@
          page_last_read :: ?undefined |  page_num(),
          page_total_last_read :: ?undefined | page_num(),
          game_rec :: ?undefined | #mafia_game{},
+         game_num :: ?undefined | integer(),
          site = ?webDip :: site(),
          thread_id :: ?undefined | thread_id(),
          is_pregame = false :: boolean(),
@@ -134,7 +135,8 @@ downl_web(GNum, DL, Offset) when is_integer(GNum) ->
 downl_web([], _, _) -> ok;
 downl_web([G], DL, Offset) -> downl_web(G, DL, Offset);
 
-downl_web(G = #mafia_game{thread_id = GThId,
+downl_web(G = #mafia_game{game_num = GNum,
+                          thread_id = GThId,
                           signup_thid = SuThId},
           DL, Offset)
   when is_integer(GThId); is_integer(SuThId) ->
@@ -148,6 +150,7 @@ downl_web(G = #mafia_game{thread_id = GThId,
     LMT = G#mafia_game.last_msg_time,
     S0 = #s{utc_time = mafia_time:utc_secs1970(),
             game_rec = G,
+            game_num = GNum,
             site = G#mafia_game.site,
             thread_id = ThId,
             is_pregame = IsPregame,
@@ -226,13 +229,17 @@ refresh_messages(?game_key = K) -> refresh_messages(?getv(K));
 refresh_messages(GNum) ->
     refresh_messagesI(?rgame(GNum)).
 
-refresh_messagesI([G = #mafia_game{thread_id = ThId}])
+refresh_messagesI([G = #mafia_game{game_num = GNum,
+                                   thread_id = ThId}])
   when is_integer(ThId) ->
     %% reset mafia_game to initial values
     G2 = reset_game(G),
     delete_game_data_in_other_tabs(G2),
     %% Populate tables message and page_rec again
-    case download(#s{game_rec = G2, thread_id = ThId, page_to_read = 1}) of
+    case download(#s{game_rec = G2,
+                     game_num = GNum,
+                     thread_id = ThId,
+                     page_to_read = 1}) of
         {ok, _S} -> ok;
         {E = {error, _}, _S} -> E
     end.
@@ -664,7 +671,6 @@ iter_msgids(Thread, MsgIdFun, Acc, PageFilter) ->
                is_function(PageFilter) ->
                     lists:filter(PageFilter, All)
             end,
-    ?dbg({iter_msgids, pages, Pages}),
     %% get last page num
     iterate_all_msg_idsI(Thread, MsgIdFun, Pages, Acc,
                          erlang:fun_info(MsgIdFun, arity)).
@@ -754,12 +760,16 @@ http_request(S2) ->
         {ok, {_StatusLine, _Headers, Body}} ->
             ?inc_cnt(http_responses),
             B = erlang:monotonic_time(millisecond),
-            ?dbg({download_wait_ms, S2#s.site, B - A}),
+            ?dbg({download_wait_ms,
+                  {S2#s.game_num, S2#s.site, S2#s.page_to_read},
+                  B - A}),
             {ok, Body};
         {ok, {_StatusCode, Body}} ->
             ?inc_cnt(http_responses),
             B = erlang:monotonic_time(millisecond),
-            ?dbg({download_wait_ms, B - A}),
+            ?dbg({download_wait_ms_2,
+                  {S2#s.game_num, S2#s.site, S2#s.page_to_read},
+                  B - A}),
             {ok, Body};
         {ok, _ReqId} ->
             ?inc_cnt(http_errors),

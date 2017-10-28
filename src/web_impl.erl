@@ -67,9 +67,9 @@ front_page(Sid, _Env, In) ->
          "</form>"
          "</td></tr>"
          "</table>"],
-    [RolePmSignUp, CurGameLinks] =
+    [RolePmSignUp, UserAliasLink, CurGameLinks] =
         case catch get_fp(G) of
-            {'EXIT', _} -> ["", ""];
+            {'EXIT', _} -> ["", "", ""];
             GameLink -> GameLink
         end,
     HLinks = [["<a href=\"/m",
@@ -89,6 +89,7 @@ front_page(Sid, _Env, In) ->
     Size = web:deliver(Sid, [Pre,
                              Form,
                              RolePmSignUp,
+                             UserAliasLink,
                              CurGameLinks,
                              OldGamesHistoryLinks,
                              Post]),
@@ -128,6 +129,14 @@ get_fp(G) ->
          "<a", SignupLink, ">M", GNStr, " Signup-thread</a>"
          "</td></tr>"
          "</table>"],
+    UserAliasLink =
+        ["<br>\r\n"
+         "<table>"
+         "<tr><td>"
+         "<a href=/e/web/users?g=", GNStr, ">User and Aliases in M", GNStr,
+         "</a>\r\n"
+         "</td></tr>"
+         "</table>"],
     CurGameLinks =
         ["<br>\r\n"
          "<table cellspacing=4>",
@@ -160,7 +169,7 @@ get_fp(G) ->
          "Game Global Statistics</a>"
          "</td></tr>\r\n"
          "</table>"],
-    [RolePmSignUp, CurGameLinks].
+    [RolePmSignUp, UserAliasLink, CurGameLinks].
 
 game_day_links(?night, GNum, DayNum) ->
     [["<tr ", ?BG_MED_GREEN, ">\r\n"],
@@ -726,23 +735,42 @@ dst_changes(Sid, _Env, In) ->
 
 %% -----------------------------------------------------------------------------
 %% http://mafia.peterlund.se/e/web/users
-users(Sid, _Env, _In) ->
-    A = del_start(Sid, "Existing Users and Aliases in bot DB", 0),
-    Html = ["<tr><td align=center>"
-            "<font size=-1><i>A Player must have a user id in the user DB "
-            "before they can replace a player in a running game.<br>\r\n"
-            "The user id must also be registered on the same site "
-            "(webDip or vDip) as where the game is played.<br>\r\n"
-            "Ask replacement player to send one message in the game thread "
-            "in case they are not listed here <br>\r\n"
-            "and want to take over a position in your game.</i></font>"
-            "</td></tr>\r\n",
-            "<tr><td><pre>",
-            mafia:show_all_users(?return_text),
-            "</pre></td></tr>"],
+users(Sid, _Env, In) ->
+    PQ = httpd:parse_query(In),
+    GNumStr = get_arg(PQ, "g"),
+    ?dbg(GNumStr),
+    {Title, Html} =
+        case get_gnum2(GNumStr) of
+            ?none -> users_all();
+            GNum -> users_game(GNum)
+        end,
+    A = del_start(Sid, Title, 0),
     B = web:deliver(Sid, Html),
     C = del_end(Sid),
     {A + B + C, ?none}.
+
+users_all() ->
+    {"Existing Users and Aliases in bot DB",
+     ["<tr><td align=center>"
+      "<font size=-1><i>A Player must have a user id in the user DB "
+      "before they can replace a player in a running game.<br>\r\n"
+      "The user id must also be registered on the same site "
+      "(webDip or vDip) as where the game is played.<br>\r\n"
+      "Ask replacement player to send one message in the game thread "
+      "in case they are not listed here <br>\r\n"
+      "and want to take over a position in your game.</i></font>"
+      "</td></tr>\r\n",
+      "<tr><td><pre>",
+      mafia:show_all_users(?return_text),
+      "</pre></td></tr>"]
+    }.
+
+users_game(GNum) ->
+    {"Users and Aliases in game M"++?i2l(GNum),
+     ["<tr><td><pre>",
+      mafia:show_game_users(?return_text, GNum),
+      "</pre></td></tr>"]
+    }.
 
 %% -----------------------------------------------------------------------------
 
@@ -863,14 +891,17 @@ game_nums_rev_sort() -> ?lrev(lists:sort(mnesia:dirty_all_keys(mafia_game))).
 %% ----------------------------------------------------------------------------
 
 get_gnum("") -> ?getv(?game_key);
-get_gnum("m" ++ NumStr) ->
-    get_gnum(NumStr);
-get_gnum(NumStr) ->
+get_gnum(V) -> get_gnum2(V).
+
+get_gnum2("m" ++ NumStr) ->
+    get_gnum2(NumStr);
+get_gnum2(NumStr) ->
     case catch ?l2i(NumStr) of
         Int when is_integer(Int) ->
             Int;
         _ ->
-            ?dbg({illegal_game_number, NumStr})
+            ?dbg({illegal_game_number, NumStr}),
+            ?none
     end.
 
 error_resp(Sid, Specific) ->

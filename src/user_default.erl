@@ -63,42 +63,42 @@ l() -> mafia:l().
 "MAFIA HELP
 ----------
 FILES:
-thread_pages/  - Raw downloaded source thread pages to be reread
-command_files/ - Manual commands issued, rerun when refresh_votes
-patches/       - Store updated beam files here and do l() to load them
-logs/          - Logs run_erl.log, erlang.log.N
-user_data.txt  - User table exported, may be imported
+thread_pages/    - Raw downloaded source thread pages to be reread
+command_files/   - Manual commands issued, rerun when refresh_votes
+patches/         - Store updated beam files here and do l() to load them
+logs/            - Logs run_erl.log, erlang.log.N
+user_data.txt    - User table exported, may be imported
 
 DBG: rmess/1, rpage/2, rday/2, rgame/1
 
 COMMANDS:
-show()         - Show server settings
-show_cnts()    - Show all counters
-show_cnts(M)   - Show counters M is int, atom or list
-clr_cnts()     - Clear all counters
-set(K, V)      - Set a key value pair
-getv(K)        - Get a value for a key
+show()           - Show server settings
+show_cnts()      - Show all counters
+show_cnts(M)     - Show counters M is int, atom or list
+clr_cnts()       - Clear all counters
+set(K, V)        - Set a key value pair
+getv(K)          - Get a value for a key
 
-pm(MsgId)      - Display one complete message
-pp()           - Display last message page in current game
-pp(Page)       - Display message page in current game
-pp(Game,Page)  - Display message page in game
-pps()          - Display last message page in current game
-pps(Page)      - Display message page in current game
-pps(Game,Page) - Display message page in game
+pm(MsgId)        - Display one complete message
+pp()             - Display last message page in current game
+pp(Page)         - Display message page in current game
+pp(Game,Page)    - Display message page in game
+pps()            - Display last message page in current game
+pps(Page)        - Display message page in current game
+pps(Game,Page)   - Display message page in game
 
-stop_poll(GNum)- Stop regular polling of source
-start_poll(GNum)- Start regular polling of source
-poll(GNum)     - poll now.
-state()        - Get gen_server state.
-start()        - Start the gen_server and the http server
-stop()         - Stop the gen_server and the http server
+stop_poll(GNum)  - Stop regular polling of source
+start_poll(GNum) - Start regular polling of source
+poll(GNum)       - poll now.
+state()          - Get gen_server state.
+start()          - Start the gen_server and the http server
+stop()           - Stop the gen_server and the http server
 
-l()            - Load all beams found in src dir.
+l()              - Load all beams found in src dir.
 
-mhelp()        - Mafia help
-chelp()        - Command help
-ehelp()        - Erlang shell help
+mhelp()          - Mafia help
+chelp()          - Command help
+ehelp()          - Erlang shell help
 help(type())
   where type() :: e | erlang | m | mafia | c | cmd | command.
 ").

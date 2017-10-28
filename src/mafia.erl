@@ -1,7 +1,6 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% Easy page for listing users/aliases in g=32.
 %% Add page for serverkeeper to initiate_new_game
 %%  - will a game with signup only, poll the thread?
 %%    - dont think so, BUT it should
@@ -79,6 +78,8 @@
          refresh_votes/0,
          refresh_votes/1,
 
+         show_game_users/1,
+         show_game_users/2,
          show_all_users/0,
          show_all_users/1,
          show_all_aliases/0,
@@ -602,32 +603,63 @@ show_users(UserKeys, M) ->
     show_usersI(?standard_io, UserKeys, M).
 
 show_usersI(Mode, UserKeys, M) when M == alias; M == all ->
-    H1 = print(Mode, ["User", " ", "Site", "Aliases"]),
-    H2 = print(Mode, ["----", " ", "----", "-------"]),
+    Header = print_header_w_fmt(Mode),
     Text =
         [begin
              U = hd(?ruserUB(UserKey)),
              if M == all; U#user.aliases /= [] ->
-                     Aliases = string:join(
-                                 ["\"" ++ ?b2l(AliasB) ++ "\""
-                                  || AliasB <- U#user.aliases], ", "),
-                     print(Mode,
-                           [?b2l(?e1(U#user.name)),
-                            case U#user.pw_hash of
-                                ?undefined -> " ";
-                                _ -> "*"
-                            end,
-                            ?a2l(U#user.site),
-                            Aliases
-                           ]);
+                     pr_user_line(Mode, U);
                 true -> ""
              end
          end
          || UserKey <- UserKeys],
     case Mode of
-        ?return_text -> [H1, H2, Text];
+        ?return_text -> [Header, Text];
         ?standard_io -> ok
     end.
+
+show_game_users(GNum) ->
+    Mode = ?standard_io,
+    show_game_users(Mode, GNum).
+
+show_game_users(Mode, GNum) ->
+    Header = print_header_w_fmt(Mode),
+    Text =
+        case ?rgame(GNum) of
+            [G] ->
+                [begin [U] = ?ruser(UName, G#mafia_game.site),
+                       pr_user_line(Mode, U)
+                 end
+                 || UName <- G#mafia_game.players_orig];
+            _ ->
+                "error: game_not_found"
+        end,
+    case Mode of
+        ?return_text -> [Header, Text];
+        ?standard_io -> ok
+    end.
+
+pr_user_line(Mode, U) ->
+    Aliases = string:join(
+                ["\"" ++ ?b2l(AliasB) ++ "\""
+                 || AliasB <- U#user.aliases], ", "),
+    print_w_fmt(Mode,
+                [?b2l(?e1(U#user.name)),
+                 case U#user.pw_hash of
+                     ?undefined -> " ";
+                     _ -> "*"
+                 end,
+                 ?a2l(U#user.site),
+                 Aliases
+                ]).
+
+print_header_w_fmt(Mode) ->
+    [print_w_fmt(Mode, ["User", " ", "Site", "Aliases"]),
+     print_w_fmt(Mode, ["----", " ", "----", "-------"])].
+
+print_w_fmt(Mode, Args) ->
+    Fmt = "~30s~-1s~-6s ~s~n",
+    do_print(Mode, Fmt, Args).
 
 all_keys(Tab) -> mafia_lib:all_keys(Tab).
 
@@ -647,10 +679,6 @@ show_aliases(Search) ->
     UserKeys = match_user_keys(Search),
     [show_aliasesI(UKey) || UKey <- UserKeys],
     ok.
-
-print(Mode, Args) ->
-    Fmt = "~30s~-1s~-6s ~s~n",
-    do_print(Mode, Fmt, Args).
 
 do_print(?standard_io, Fmt, Args) -> io:format(Fmt, Args);
 do_print(?return_text, Fmt, Args) -> io_lib:format(Fmt, Args).

@@ -96,7 +96,7 @@ stop(GNum) -> gen_server:call(get_id(GNum), 'stop').
 %% @end
 %%--------------------------------------------------------------------
 init([GNum]) ->
-    io:format(?MODULE_STRING ++ ":init/1 ~p ~p\n", [GNum, time()]),
+    ?dbg({init, GNum}),
     S1 = #state{game_num = GNum},
     S2 = set_dl_timer(S1),
     {_Reply, S3} = maybe_change_poll_int(S2),
@@ -250,7 +250,6 @@ maybe_change_poll_int(S = #state{poll_timer = TRef,
 set_dl_timer(S) -> set_dl_timer(S, mafia_time:utc_secs1970()).
 
 set_dl_timer(S, Time) ->
-    ?dbg({set_dl_timer, 2}),
     set_dl_timer(S, Time, ?rgame(S#state.game_num)).
 
 set_dl_timer(S, _Time, []) -> S;
@@ -301,6 +300,7 @@ cancel_dl_timer(S) ->
 set_poll_timer(S, TMins) when is_number(TMins), TMins > 0 ->
     S2 = cancel_poll_timer(S),
     {ok, TRef} = timer:send_interval(trunc(TMins * ?MINUTE_MS), do_polling),
+    ?dbg({set_poll_timer, S#state.game_num, TMins}),
     Reply = {interval_changed,
              {old, S2#state.poll_minutes},
              {new, TMins}},

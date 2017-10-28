@@ -35,7 +35,6 @@
          calculate_phase/2,
          phases_upto/1,
          find_phase_with_time/2,
-         get_nxt_deadline/1,
          get_nxt_deadline/2,
          get_prev_deadline/2,
          get_time_for_phase/2,
@@ -495,17 +494,12 @@ find_phase_with_time(G, Time) ->
         DL = #dl{} -> DL#dl.phase
     end.
 
--spec get_nxt_deadline(#mafia_game{}) -> #dl{}.
-get_nxt_deadline(Game) ->
-    get_nxt_deadline(Game, utc_secs1970()).
-
 %% @doc Get next deadline *after* Time
 %% @end
 -spec get_nxt_deadline(#mafia_game{}, seconds1970()) -> #dl{}.
-get_nxt_deadline(#mafia_game{game_end = {EndTime, _},
-                             deadlines = DLs},
+get_nxt_deadline(#mafia_game{game_end = {EndTime, _}},
                  Time) when Time >= EndTime ->
-    lists:keyfind(EndTime, #dl.time, DLs);
+    #dl{time = EndTime, phase = #phase{ptype = ?game_ended}};
 get_nxt_deadline(Game = #mafia_game{}, Time) ->
     {ComingDLs, _} = split_dls(Game, Time),
     Game2 = if length(ComingDLs) < 4 ->

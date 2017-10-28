@@ -668,7 +668,9 @@ show_aliasesI(UserSite) ->
               -> ok | {error, eexists}.
 add_user(NameB, Site) when is_binary(NameB) ->
     add_user(?b2l(NameB), Site);
-add_user(Name, Site) when is_list(Name) ->
+add_user(Name, Site)
+  when is_list(Name) andalso
+       (Site == ?webDip orelse Site == ?vDip) ->
     case ?ruser(Name, Site) of
         [] ->
             NameU = string:to_upper(Name),
@@ -702,13 +704,15 @@ remove_user(Name, Site) ->
                 site(),
                 Alias :: string())
                -> ok | {error, Reason :: term()}.
-add_alias(User, Site, Alias) ->
+add_alias(User, Site, Alias)
+  when is_list(User) andalso is_list(Alias) andalso
+       (Site == ?webDip orelse Site == ?vDip) ->
     UserB = ?l2b(User),
     AliasB = ?l2b(Alias),
     AliasUB = ?l2ub(Alias),
     case ?ruser(User, Site) of
         [] -> {error, user_not_found};
-        [#user{} = U] when U#user.name /= UserB ->
+        [#user{} = U] when ?e1(U#user.name) /= UserB ->
             {error, user_case_not_matching};
         [#user{aliases = AliasesB} = U] ->
             AliasesUB = [?b2ub(AlB) || AlB <- U#user.aliases],

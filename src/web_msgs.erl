@@ -14,7 +14,6 @@
         ]).
 
 -define(su_page, su_page).
--define(su_end, su_end).
 -define(g_page, g_page).
 -define(g_end, g_end).
 
@@ -278,7 +277,6 @@ is_part_ok(G, IMsg, MsgPhase, {Ua, Na, Ub, Nb}) ->
     IsAok =
         fun() ->
                 case {Ua, Na} of
-                    {?su_end, _} -> ?false;
                     {?g_end, _} ->
                         Na == ?undefined andalso
                             MsgPhase#phase.ptype == ?game_ended;
@@ -297,13 +295,12 @@ is_part_ok(G, IMsg, MsgPhase, {Ua, Na, Ub, Nb}) ->
     IsBok =
         fun() ->
                 case {Ub, Nb} of
-                    {?su_end, ?undefined} ->
-                        MThId == GSuId;
-                    {?su_end, _} ->
-                        ?false; % Fmt error
                     {?su_page, ?undefined} ->
                         MThId == GSuId;
-                    {?g_end, _} -> Nb == ?undefined;
+                    {?g_end, _} ->
+                        if Ua == ?g_end -> ?true;
+                           true -> MsgPhase#phase.ptype /= ?game_ended
+                        end;
                     {?g_page, ?undefined} ->
                         %% xx-
                         ?true;
@@ -319,7 +316,6 @@ is_part_ok(G, IMsg, MsgPhase, {Ua, Na, Ub, Nb}) ->
     IsNotLateSuMsg =
         fun() ->
                 MThId == GThId orelse
-                    Ub == ?su_end orelse
                     Ub == ?su_page orelse
                     MsgPhase#phase.ptype == ?game_start
         end,
@@ -552,10 +548,10 @@ find_part(Text) ->
 
 find_part2(TextU) ->
     %% p3-n8, p1-2, n7-d8, p33-, -55
-    %% NEW: s, s1-p1, s4-send
+    %% NEW: s, s1-p1, s4-s
     %% NEW: end, p55-end = 55-
     Re = "^\\s*((S|D|N|P|DAY|NIGHT|PAGE|END)? *([0-9]*))? *"
-        "(- *((SEND|S|D|N|P|DAY|NIGHT|PAGE|END)? *([0-9]*))?)?\\s*$",
+        "(- *((S|D|N|P|DAY|NIGHT|PAGE|END)? *([0-9]*))?)?\\s*$",
     case re:run(TextU, Re, [{capture, [2, 3, 4, 6, 7], list}]) of
         nomatch ->
             ?undefined;
@@ -569,11 +565,6 @@ find_part2(TextU) ->
                Ua == ?g_end, not ?undef(Na) ->
                     ?undefined;
                Ub == ?g_end, not ?undef(Nb) ->
-                    ?undefined;
-               Ua == ?su_end ->
-                    ?undefined;
-               (Ua == ?g_page orelse Ua == ?day orelse Ua == ?night),
-               (Ub == ?su_end orelse Ub == ?su_page) ->
                     ?undefined;
                Nb == ?undefined, Dash == "" -> % dash missing
                     {Ua, Na, Ua, Na};
@@ -592,7 +583,6 @@ mk_int(Str) ->
 
 s_unit("") -> ?g_page;
 s_unit("S") -> ?su_page;
-s_unit("SEND") -> ?su_end;
 s_unit("END") -> ?g_end;
 s_unit("P") -> ?g_page;
 s_unit("PAGE") -> ?g_page;
@@ -622,7 +612,7 @@ find_part_test_() ->
 
      ?_assertMatch({?su_page, ?ud, ?su_page, ?ud}, find_part("s")),
      ?_assertMatch(?ud, find_part("send")),
-     ?_assertMatch({?su_page, 3, ?su_end, ?ud}, find_part("s3-send")),
+     ?_assertMatch({?su_page, 3, ?su_page, ?ud}, find_part("s3-s")),
      ?_assertMatch({?g_end, ?ud, ?g_end, ?ud}, find_part("end")),
      ?_assertMatch({?g_page, ?ud, ?g_end, ?ud}, find_part("-end")),
      ?_assertMatch({?g_page, 44, ?g_end, ?ud}, find_part("44-end")),

@@ -27,8 +27,8 @@
             <td><input name="part" type="text" size="25"></td>
             <td>
               Examples: day1, page 44, p11-17, D3, N3, n2 - d3, d3-, -p7,
-              day 2 - night 2, end, 55-end<br>
-              Search signup: s, s2-s7, s3-send, s-p3, -p1</td>
+              day 2 - night 2, 55-end, end<br>
+              Search signup: s, s2-s7, s3-s, s-p3, -p1</td>
           </tr>
           <tr bgcolor="#afefaf">
             <td>Game</td>
@@ -119,24 +119,30 @@
                 found  in the resulting output.
               <p>
                 In the <b>Page/Phase</b> condition a single number is a
-                page number. A page can also be given using "p33" or "page 33"
+                page number. A page can also be given using "p33" or "page 33".
                 Here you can also enter "d3" or "D3" or "day 3" which all will
-                output messages for day 3. Same for "n1", "N 1" and "night 1".
+                output messages for day 3. "n1", "N 1" and "night 1" return all
+                messages for night 1.
+                "s" returns all messages in the signup thread, "s3" returns all
+                messages on page 3 in the signup thread.
+                "end" returns all message from after the game has ended.
               <p>
                 You can give a sequence like "D3-N3", "page 1 - page 13" or
                 even mixed "p30-d1". You may also start or end with dash.
-                "-6" will result in pages 1-6, while "N4 -" returns messages
-                for night 4 and everying coming after.
+                "-6" which is the same as "s1-6" will result in all pages from
+                the beggining of the signup thread to page 6 in the game thread.
+                "N4 -" returns all messages for night 4 and everying after that.
               <p>
-                Search for "end" returns only end of game messages, while both
-                "33-end" and "33-" returns all pages from page 33 including
-                end of game messages.
+                Search for "end" returns only message after end of game, while
+                "33-end" returns message from page 33 to the end of game.
+                "33-" returns all messages starting from game thread page 33
+                and after.
               <p>
                 Search the full signup thread by only inserting "s".
                 Insert "s3-p4" to search from signup thread page 3 to game
                 thread page 4.
-                Insert "s4-send" to search signup thread page 4 to the end of
-                the signup thread.
+                Insert "s4-s" to search the signup thread starting at signup
+                page 4.
               <p>
                 <b>Word</b> searches including UNICODE letters are at the moment
                 not supported.

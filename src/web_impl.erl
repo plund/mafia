@@ -3,7 +3,6 @@
 %% web
 -export([front_page/3,
          game_status/3,
-         search/3,
          vote_tracker/3,
          msg/3,
          stats/3,
@@ -22,7 +21,7 @@
          game_nums_rev_sort/0]).
 
 %% for web_msgs
--export([get_gnum/1,
+-export([get_gnum2/1,
          error_resp/2,
          page_context/2,
          pr2dig/1
@@ -207,38 +206,6 @@ ptypestr(?day) -> "day".
 
 dptypestr(?night) -> "Night";
 dptypestr(?day) -> "Day".
-
-%% -----------------------------------------------------------------------------
-%% replace game selection section in file.
-%%
--define(START_MARK, "<!-- START GAME SELECTION -->").
--define(END_MARK, "<!-- END GAME SELECTION -->").
-
-search(Sid, _Env, _In) ->
-    DocRoot = mafia_file:get_path(h_doc_root),
-    SearchFormFN = filename:join(DocRoot, "search_form.html"),
-    {ok, MsgBin} = file:read_file(SearchFormFN),
-    Msg = ?b2l(MsgBin),
-    {_, Pre, Post1} = mafia_vote:find_parts(Msg, ?START_MARK),
-    {_, _Pre2, Post} = mafia_vote:find_parts(Post1, ?END_MARK),
-    GNums = game_nums_rev_sort(),
-    Curr = mafia_db:getv(game_key),
-    %% <select name="g">
-    %%   <option value="27" selected>M27</option>
-    %%   <option value="26">M26</option>
-    %% </select>
-    POpt =
-        fun(GN) when GN == Curr ->
-                ["<option value=\"", ?i2l(GN), "\"",
-                 " selected",
-                 ">M", ?i2l(GN), " Current</option>\r\n"];
-           (GN) ->
-                ["<option value=\"", ?i2l(GN), "\"",
-                 ">M", ?i2l(GN), "</option>\r\n"]
-        end,
-    Opts = ["<select name=\"g\">", [POpt(GN) || GN <- GNums], "</select>"],
-    Size = web:deliver(Sid, [Pre, Opts, Post]),
-    {Size, ?none}.
 
 %% -----------------------------------------------------------------------------
 %% http://mafia.peterlund.se/e/web/game_status
@@ -884,15 +851,13 @@ get_arg(PQ, ArgStr) ->
         {_, V} -> V
     end.
 
-game_nums_rev_sort() -> ?lrev(lists:sort(mnesia:dirty_all_keys(mafia_game))).
-
-%% ----------------------------------------------------------------------------
-%% INTERNAL FUNCTIONS
-%% ----------------------------------------------------------------------------
+game_nums_rev_sort() ->
+    ?lrev(lists:sort(mnesia:dirty_all_keys(mafia_game))).
 
 get_gnum("") -> ?getv(?game_key);
 get_gnum(V) -> get_gnum2(V).
 
+-spec get_gnum2(string()) -> integer() | ?none.
 get_gnum2("m" ++ NumStr) ->
     get_gnum2(NumStr);
 get_gnum2(NumStr) ->
@@ -903,6 +868,10 @@ get_gnum2(NumStr) ->
             ?dbg({illegal_game_number, NumStr}),
             ?none
     end.
+
+%% ----------------------------------------------------------------------------
+%% INTERNAL FUNCTIONS
+%% ----------------------------------------------------------------------------
 
 error_resp(Sid, Specific) ->
     Html = [?HTML_TAB_START("Game Status", " border=\"0\""),

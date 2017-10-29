@@ -30,6 +30,7 @@ PageFun(Sid, Env, In) ->
       end)
 ).
 
+mod(search) -> web_msgs;
 mod(msgs) -> web_msgs;
 mod(_) -> web_impl.
 

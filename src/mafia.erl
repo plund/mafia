@@ -6,7 +6,6 @@
 %%    - dont think so, BUT it should
 %% Poll signup until game start
 %% Poll also game thread before game start
-%% Fix signup pages filtering in search s, s1-send, s4, s3-p3
 %% Why is GNum needed (default game_key) to show a message using "msg"?
 %%  Answer: we display phase and a link to page and pages in a game
 %%  Conclusion: Change to always require g=<gamenum> (remove use of game_key)

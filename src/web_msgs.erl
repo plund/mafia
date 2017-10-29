@@ -1,12 +1,11 @@
 -module(web_msgs).
 
--export([msgs/3]).
+-export([search/3, msgs/3]).
 
 -include("mafia.hrl").
 
 -import(web_impl,
         [get_arg/2,
-         get_gnum/1,
          del_start/3,
          del_end/1,
          error_resp/2,
@@ -14,6 +13,42 @@
          pr2dig/1
         ]).
 
+-define(su_page, su_page).
+-define(su_end, su_end).
+-define(g_page, g_page).
+-define(g_end, g_end).
+
+%% -----------------------------------------------------------------------------
+%% replace game selection section in file.
+%%
+-define(START_MARK, "<!-- START GAME SELECTION -->").
+-define(END_MARK, "<!-- END GAME SELECTION -->").
+
+search(Sid, _Env, _In) ->
+    DocRoot = mafia_file:get_path(h_doc_root),
+    SearchFormFN = filename:join(DocRoot, "search_form.html"),
+    {ok, MsgBin} = file:read_file(SearchFormFN),
+    Msg = ?b2l(MsgBin),
+    {_, Pre, Post1} = mafia_vote:find_parts(Msg, ?START_MARK),
+    {_, _Pre2, Post} = mafia_vote:find_parts(Post1, ?END_MARK),
+    GNums = web_impl:game_nums_rev_sort(),
+    Curr = mafia_db:getv(?game_key),
+    POpt =
+        fun(GN) when GN == Curr ->
+                ["<option value=\"", ?i2l(GN), "\"",
+                 " selected",
+                 ">M", ?i2l(GN), " Current</option>\r\n"];
+           (GN) ->
+                ["<option value=\"", ?i2l(GN), "\"",
+                 ">M", ?i2l(GN), "</option>\r\n"]
+        end,
+    Opts = ["<select name=\"g\">", [POpt(GN) || GN <- GNums], "</select>"],
+    Size = web:deliver(Sid, [Pre, Opts, Post]),
+    {Size, ?none}.
+
+%% -----------------------------------------------------------------------------
+%% Respond to msgs queries
+%%
 -define(OUT_LIMIT, 400000).
 
 %% record used when iterating over all messages
@@ -31,17 +66,21 @@
 msgs(Sid, _Env, In) ->
     PQ = httpd:parse_query(In) -- [{[],[]}],
     NotAllowed = [Key || {Key, _} <- PQ]
-        -- ["g", "user", "word", "part", "UorW", "signup", "button"],
-    GNum = get_gnum(get_arg(PQ, "g")),
-    msgs2(Sid, GNum, In, PQ, NotAllowed).
+        -- ["g", "user", "word", "part", "UorW", "button"],
+    case web_impl:get_gnum2(get_arg(PQ, "g")) of
+        GNum when is_integer(GNum) ->
+            msgs2(Sid, ?rgame(GNum), In, PQ, NotAllowed);
+        ?none ->
+            error_resp(Sid, ["Bad or missing game id"])
+        end.
 
-msgs2(Sid, _GNum, _In, _PQ, NotAllowed) when NotAllowed /= [] ->
+msgs2(Sid, _, _In, _PQ, NotAllowed) when NotAllowed /= [] ->
     error_resp(Sid, ["Params not allowed: ",
-                string:join(NotAllowed, ", ")]);
-msgs2(Sid, {?error, _}, _In, _PQ, _)  ->
-    error_resp(Sid, "Bad: g=value");
-msgs2(Sid, GNum, In, PQ, []) ->
-    GThId = game_thread(GNum),
+                     string:join(NotAllowed, ", ")]);
+msgs2(Sid, [], _In, _PQ, _)  ->
+    error_resp(Sid, ["Game does not exist"]);
+msgs2(Sid, [G], In, PQ, []) ->
+    GNum = G#mafia_game.game_num,
     Url2 = "e/web/msgs?",
     In3 = [string:tokens(I, "=") || I <- string:tokens(In, "&")],
     Url3 = string:join(
@@ -56,37 +95,31 @@ msgs2(Sid, GNum, In, PQ, []) ->
                        "true" -> ?true;
                        "false" -> ?false
                    end,
-    DoSignup = case proplists:get_value("signup", PQ) of
-                   ?undefined -> ?false;
-                   "true" -> ?true;
-                   "false" -> ?false
-               end,
-    SignupText = if DoSignup -> "+signup"; true -> "" end,
-    Title = string:join([Arg
-                         || Arg <- [GnumText, UsersText, WordsText,
-                                    PartsText, SignupText],
-                            Arg /= ""],
-                        ", "),
+    Title = string:join(
+              [Arg || Arg <- [GnumText, UsersText, WordsText, PartsText],
+                      Arg /= ""],
+              ", "),
     PartCond = find_part(PartsText),
     UsersU = find_word_searches(UsersText),
     WordsU = find_word_searches(WordsText),
     IsUserCond = UsersU /= [],
     IsWordCond = WordsU /= [],
-    PartMode = if PartCond /= ?undefined -> ?valid;
+    PartMode = if PartCond /= ?undefined ->
+                       ?valid;
                   PartCond == ?undefined,
-                  PartsText /= "" -> ?invalid;
-                  true -> ?undefined
+                  PartsText /= "" ->
+                       ?invalid;
+                  ?true -> ?undefined
                end,
     DoCont = PartMode /= ?invalid andalso
         (IsUserCond orelse IsWordCond orelse PartMode == ?valid),
     Fun =
         fun(acc, init) -> #miter{};
            (#message{msg_key = MsgKey,
-                     thread_id = MThId,
                      user_name = MsgUserB,
                      page_num = Page,
                      time = Time,
-                     message = MsgB},
+                     message = MsgB} = IMsg,
             MI) when MI#miter.bytes < ?OUT_LIMIT  ->
                 MsgPhase = mafia_time:calculate_phase(GNum, Time),
                 Msg = ?b2l(MsgB),
@@ -120,31 +153,7 @@ msgs2(Sid, GNum, In, PQ, []) ->
 
                      %% 3. Test part
                      fun() when PartMode == ?undefined -> ?true;
-                        () ->
-                             case PartCond of
-                                 ?game_ended ->
-                                     MsgPhase#phase.ptype == ?game_ended;
-                                 {Ua, Na, Ub, Nb} ->
-                                     IsAok =
-                                         case {Ua, Na} of
-                                             {_, ?undefined} -> ?true;
-                                             {page, _} -> Page >= Na;
-                                             _ ->
-                                                 SPhaseA = #phase{num = Na,
-                                                                  ptype = Ua},
-                                                 SPhaseA =< MsgPhase
-                                         end,
-                                     IsBok =
-                                         case {Ub, Nb} of
-                                             {_, ?undefined} -> ?true;
-                                             {page, _} -> Page =< Nb;
-                                             _ ->
-                                                 SPhaseB = #phase{num = Nb,
-                                                                  ptype = Ub},
-                                                 MsgPhase =< SPhaseB
-                                         end,
-                                     (MThId /= GThId) or (IsAok and IsBok)
-                             end
+                        () -> is_part_ok(G, IMsg, MsgPhase, PartCond)
                      end],
                 AllTestsOk =
                     if not IsUserOrWord ->
@@ -239,8 +248,9 @@ msgs2(Sid, GNum, In, PQ, []) ->
                         "<br><br></td></tr>"],
                 TabEnd = "</table></td></tr>",
                 B1 = web:deliver(Sid, [TabStart, Row1]),
+                InclSignup = ?true,
                 #miter{bytes = B2, last = DidLast} =
-                    mafia_data:iterate_all_game_msgs(GNum, DoSignup, Fun),
+                    mafia_data:iterate_all_game_msgs(GNum, InclSignup, Fun),
                 SizeDiv = if DidLast ->
                                   deliver_div(Sid, "Last Message Reached");
                              ?true -> 0
@@ -259,11 +269,61 @@ msgs2(Sid, GNum, In, PQ, []) ->
     Args = [list_to_binary(K) || {K, V} <- PQ, V/=""] -- [<<"button">>],
     {A + B + C, Args}.
 
-game_thread(GNum) ->
-    case ?rgame(GNum) of
-        [G] -> G#mafia_game.thread_id;
-        [] -> ?getv(?thread_id)
-    end.
+is_part_ok(G, IMsg, MsgPhase, {Ua, Na, Ub, Nb}) ->
+    GThId = G#mafia_game.thread_id,
+    GSuId = G#mafia_game.signup_thid,
+    MThId = IMsg#message.thread_id,
+    %% ?dbg({GThId, GSuId, MThId}),
+    Page = IMsg#message.page_num,
+    IsAok =
+        fun() ->
+                case {Ua, Na} of
+                    {?su_end, _} -> ?false;
+                    {?g_end, _} ->
+                        Na == ?undefined andalso
+                            MsgPhase#phase.ptype == ?game_ended;
+                    {_, ?undefined} ->
+                        %% -xx, s-xx
+                        ?true;
+                    {?g_page, _} ->
+                        MThId == GThId andalso Page >= Na;
+                    {?su_page, _} ->
+                        MThId == GThId orelse Page >= Na;
+                    _ ->
+                        SPhaseA = #phase{num = Na, ptype = Ua},
+                        SPhaseA =< MsgPhase
+                end
+        end,
+    IsBok =
+        fun() ->
+                case {Ub, Nb} of
+                    {?su_end, ?undefined} ->
+                        MThId == GSuId;
+                    {?su_end, _} ->
+                        ?false; % Fmt error
+                    {?su_page, ?undefined} ->
+                        MThId == GSuId;
+                    {?g_end, _} -> Nb == ?undefined;
+                    {?g_page, ?undefined} ->
+                        %% xx-
+                        ?true;
+                    {?su_page, _} ->
+                        MThId == GSuId andalso Page =< Nb;
+                    {?g_page, _} ->
+                        MThId == GSuId orelse Page =< Nb;
+                    _ ->
+                        SPhaseB = #phase{num = Nb, ptype = Ub},
+                        MsgPhase =< SPhaseB
+                end
+        end,
+    IsNotLateSuMsg =
+        fun() ->
+                MThId == GThId orelse
+                    Ub == ?su_end orelse
+                    Ub == ?su_page orelse
+                    MsgPhase#phase.ptype == ?game_start
+        end,
+    IsAok() andalso IsBok() andalso IsNotLateSuMsg().
 
 -define(MAX_WORD, 60).
 -define(BRNCH, "&#8203;"). %% breaking non-character
@@ -485,36 +545,44 @@ is_word(MsgU, Pos, LenMsg, LenSea, {IsWcAtBeg, IsWcAtEnd}) ->
         lists:member(lists:nth(NextPosAfterSearch, MsgU), ?BoundaryChars),
     (IsBoundA or IsWcAtBeg) and (IsBoundB or IsWcAtEnd).
 
+-define(undef(X), (X == ?undefined)).
+
 find_part(Text) ->
     find_part2(?l2u(Text)).
 
-find_part2("END"++_) -> ?game_ended;
 find_part2(TextU) ->
     %% p3-n8, p1-2, n7-d8, p33-, -55
-    %% default type is p=page
-    Reg6 = "^\\s*((D|N|P|DAY|NIGHT|PAGE)? *([0-9]+))? *"
-        "(- *((D|N|P|DAY|NIGHT|PAGE)? *([0-9]+))?)?\\s*$",
-    case re:run(TextU, Reg6, [{capture, [1,2,3,4,5,6,7]}]) of
+    %% NEW: s, s1-p1, s4-send
+    %% NEW: end, p55-end = 55-
+    Re = "^\\s*((S|D|N|P|DAY|NIGHT|PAGE|END)? *([0-9]*))? *"
+        "(- *((SEND|S|D|N|P|DAY|NIGHT|PAGE|END)? *([0-9]*))?)?\\s*$",
+    case re:run(TextU, Re, [{capture, [2, 3, 4, 6, 7], list}]) of
         nomatch ->
             ?undefined;
-        {match, Ms} ->
-            case mafia_lib:re_matches(TextU, Ms) of
-                [_, Ua0, Na0, Dash, _, Ub0, Nb0] ->
-                    Ua = s_unit(Ua0),
-                    Ub = s_unit(Ub0),
-                    Na = mk_int(Na0),
-                    Nb = mk_int(Nb0),
-                    if Na == ?undefined, Nb == ?undefined ->
-                            ?undefined;
-                       Nb == ?undefined, Dash == "-1" -> % dash missing
-                            {Ua, Na, Ua, Na};
-                       ?true ->
-                            {Ua, Na, Ub, Nb}
-                    end
+        {match, [Ua0, Na0, Dash, Ub0, Nb0]} ->
+            Ua = s_unit(Ua0),
+            Ub = s_unit(Ub0),
+            Na = mk_int(Na0),
+            Nb = mk_int(Nb0),
+            if Ua == ?g_page, Ub == ?g_page, ?undef(Na), ?undef(Nb) ->
+                    ?undefined;
+               Ua == ?g_end, not ?undef(Na) ->
+                    ?undefined;
+               Ub == ?g_end, not ?undef(Nb) ->
+                    ?undefined;
+               Ua == ?su_end ->
+                    ?undefined;
+               (Ua == ?g_page orelse Ua == ?day orelse Ua == ?night),
+               (Ub == ?su_end orelse Ub == ?su_page) ->
+                    ?undefined;
+               Nb == ?undefined, Dash == "" -> % dash missing
+                    {Ua, Na, Ua, Na};
+               ?true ->
+                    {Ua, Na, Ub, Nb}
             end
     end.
 
-mk_int("-1") -> ?undefined;
+mk_int("") -> ?undefined;
 mk_int(Str) ->
     case catch ?l2i(Str) of
         {'EXIT', _} ->
@@ -522,9 +590,12 @@ mk_int(Str) ->
         Int -> Int
     end.
 
-s_unit("-1") -> page;
-s_unit("P") -> page;
-s_unit("PAGE") -> page;
+s_unit("") -> ?g_page;
+s_unit("S") -> ?su_page;
+s_unit("SEND") -> ?su_end;
+s_unit("END") -> ?g_end;
+s_unit("P") -> ?g_page;
+s_unit("PAGE") -> ?g_page;
 s_unit("D") -> ?day;
 s_unit("DAY") -> ?day;
 s_unit("N") -> ?night;
@@ -536,14 +607,24 @@ s_unit("NIGHT") -> ?night.
 
 -include_lib("eunit/include/eunit.hrl").
 
+-define(ud, undefined).
+
 find_part_test_() ->
     [
-     ?_assertMatch({page, 23, page, 88}, find_part("p23-p88")),
-     ?_assertMatch({page, 23, page, 88}, find_part("23-88")),
-     ?_assertMatch({night, 23, day, 88}, find_part("n23-d88")),
-     ?_assertMatch({page, undefined, page, 88}, find_part("-p88")),
-     ?_assertMatch({page, 23, page, undefined}, find_part("p23-")),
+     ?_assertMatch({?g_page, 23, ?g_page, 88}, find_part("p23-p88")),
+     ?_assertMatch({?g_page, 23, ?g_page, 88}, find_part("23-88")),
+     ?_assertMatch({?night, 23, ?day, 88}, find_part("n23-d88")),
+     ?_assertMatch({?g_page, ?ud, ?g_page, 88}, find_part("-p88")),
+     ?_assertMatch({?g_page, 23, ?g_page, ?ud}, find_part("p23-")),
 
-     ?_assertMatch({page, 23, day, 1}, find_part("page 23 - day 1")),
-     ?_assertMatch({page, 23, day, 1}, find_part(" page23-day1 "))
+     ?_assertMatch({?g_page, 23, ?day, 1}, find_part("page 23 - day 1")),
+     ?_assertMatch({?g_page, 23, ?day, 1}, find_part(" page23-day1 ")),
+
+     ?_assertMatch({?su_page, ?ud, ?su_page, ?ud}, find_part("s")),
+     ?_assertMatch(?ud, find_part("send")),
+     ?_assertMatch({?su_page, 3, ?su_end, ?ud}, find_part("s3-send")),
+     ?_assertMatch({?g_end, ?ud, ?g_end, ?ud}, find_part("end")),
+     ?_assertMatch({?g_page, ?ud, ?g_end, ?ud}, find_part("-end")),
+     ?_assertMatch({?g_page, 44, ?g_end, ?ud}, find_part("44-end")),
+     ?_assertMatch({?night, 7, ?g_end, ?ud}, find_part("n7-end"))
     ].

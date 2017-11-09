@@ -732,10 +732,10 @@ check_for_votes1(Reg, Players, CurVote, IsEndVote) ->
     {Vote, EndVote} = check_for_votes2(Reg, Players, []),
     {IsStillEndVote, Actions1} =
         case Vote of
-            {vote, NewVote, _, _} = V when NewVote /= CurVote ->
-                {false, [remove_end, V]};
-            {vote, NewVote, _, _} when NewVote == CurVote ->
-                {IsEndVote, []};
+            {vote, NewVote, _, _} when NewVote /= CurVote ->
+                {false, [remove_end, Vote]};
+            {vote, NewVote, _, _}  when NewVote == CurVote ->
+                {IsEndVote, [Vote]};
             {unvote} = V when CurVote /= ?undefined ->
                 {false, [remove_end, V]};
             ?undefined ->
@@ -1193,7 +1193,7 @@ check_for_votes1_test_() ->
                         )
        ),
      ?_assertMatch(
-        [],
+        [{vote, <<"peterlund">>, <<"peter">>, true}],
         check_for_votes1(ut_regex("##vote peter"),
                          ut_players(["peterlund"]),
                          <<"peterlund">>, %% CurVote,
@@ -1201,7 +1201,7 @@ check_for_votes1_test_() ->
                         )
        ),
      ?_assertMatch(
-        [],
+        [{vote, <<"peterlund">>, <<"peter">>, true}],
         check_for_votes1(ut_regex("##vote peter"),
                          ut_players(["peterlund"]),
                          <<"peterlund">>, %% CurVote,

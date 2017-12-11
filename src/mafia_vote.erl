@@ -132,7 +132,8 @@ check_for_deaths(Reg = #regex{}, M, G) ->
         Matches ->
             Rs = [ReRes || {MRes, ReRes} <- Matches, MRes == ?match],
             Reg2 = lists:min(Rs),
-            ?dbg(M#message.time, {msgid_pos, M#message.msg_key, Reg2#regex.pos}),
+            ?dbg(M#message.time,
+                 {msgid_pos, M#message.msg_key, Reg2#regex.pos}),
             {KilledUserB, DeathComment} =
                 read_death_line(G, Reg#regex.msg_text, Reg2),
             case KilledUserB of
@@ -846,10 +847,6 @@ player_type(M, G) ->
 
 is_user_in_list(UserB, UsersB) ->
     lists:member(UserB, UsersB).
-    %% User = ?b2l(UserB),
-    %% UserU = ?l2u(User),
-    %% UsersU = [?b2ul(U) || U <- UsersB],
-    %% lists:member(UserU, UsersU).
 
 %% -----------------------------------------------------------------------------
 
@@ -1183,11 +1180,6 @@ find_game_unend_test_() ->
 ut_regex(Text) ->
     #regex{msg_text = Text,
            msg_text_u = ?l2u(Text)}.
-
-%% ut_players(Ps) ->
-%%     add_nolynch_and_aliases(
-%%       #mafia_game{players_rem = [?l2b(P) || P <- Ps]},
-%%       false).
 
 ut_game(Ps) ->
     #mafia_game{players_rem = [?l2b(P) || P <- Ps]}.

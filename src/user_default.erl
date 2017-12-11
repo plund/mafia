@@ -159,8 +159,8 @@ mafia:show_all_users()          - List primary keys in User DB
 mafia:show_all_users(Search)    - List primary keys matching Search
 mafia:show_all_aliases()        - Display all defined
 mafia:show_aliases(Search)      - User search string.
-mafia:add_alias(User, Site, Alias) - Add one alias
-mafia:remove_alias(User, Alias) - Remove one alias
+mafia:add_alias(User, Site, Alias)    - Add one alias
+mafia:remove_alias(User, Site, Alias) - Remove one alias
 ").
 
 help() ->

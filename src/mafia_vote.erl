@@ -706,10 +706,9 @@ check_for_votes(G, M, Reg = #regex{}, #phase{ptype = ?day, num = DayNum}) ->
                       end
               end,
     IsEndVote = lists:member(User, EndVotes),
-    Players = add_nolynch_and_aliases(G),
 
     %% Analyze message text and figure out what that needs to change
-    Actions = check_for_votes1(Reg, Players, CurVote, IsEndVote),
+    Actions = check_for_votes1(G, Reg, CurVote, IsEndVote),
     _ = [case Action of
              remove_end ->
                  reg_end_vote(G, M, remove);
@@ -727,9 +726,9 @@ check_for_votes(_, _, _, _) ->
     ok.
 
 %% Returns actions to perform
-check_for_votes1(Reg, Players, CurVote, IsEndVote) ->
+check_for_votes1(G, Reg, CurVote, IsEndVote) ->
     %% ?dbg(CurVote),
-    {Vote, EndVote} = check_for_votes2(Reg, Players, []),
+    {Vote, EndVote} = check_for_votes2(G, Reg, []),
     {IsStillEndVote, Actions1} =
         case Vote of
             {vote, NewVote, _, _} when NewVote /= CurVote ->
@@ -762,7 +761,7 @@ check_for_votes1(Reg, Players, CurVote, IsEndVote) ->
     Actions1 ++ Actions2.
 
 %% Returns relevant votes to consider
-check_for_votes2(Reg, Players, Acc) ->
+check_for_votes2(G, Reg, Acc) ->
     case [regex_find(?V_VOTE, Reg),
           regex_find(?V_UNVOTE, Reg),
           regex_find(?V_END, Reg),
@@ -778,7 +777,7 @@ check_for_votes2(Reg, Players, Acc) ->
                     RawVote = ?l2b(string:strip(string:left(Msg, 60))),
                     RestUC = Reg2#regex.msg_text_u,
                     {Vote, IsValid} =
-                        case rank_options(Players, RestUC) of
+                        case rank_options(G, RestUC) of
                             [{NumV, TopP}] when NumV >= 2; NumV >= size(TopP) ->
                                 {TopP, true};
                             [{NumV1, TopP}, {NumV2, _}|_]
@@ -786,8 +785,17 @@ check_for_votes2(Reg, Players, Acc) ->
                                    (NumV1 >= 2 orelse
                                     NumV1 >= size(TopP)) ->
                                 {TopP, true};
-                            _ ->
-                                {?l2b("-"), false}
+                            [{NumV1, TopP} | _] = Rankings ->
+                                IsOneTop =
+                                    lists:all(fun({N, Pl}) ->
+                                                      Pl == TopP orelse
+                                                          N < NumV1
+                                              end,
+                                              Rankings),
+                                case IsOneTop of
+                                    true -> {TopP, true};
+                                    false -> {?l2b("-"), false}
+                                end
                         end,
                     New =
                         case ?b2l(Vote) of
@@ -795,13 +803,13 @@ check_for_votes2(Reg, Players, Acc) ->
                             ?UNEND -> unend_vote;
                             _ -> {vote, Vote, RawVote, IsValid}
                         end,
-                    check_for_votes2(Reg2, Players, [New | Acc]);
+                    check_for_votes2(G, Reg2, [New | Acc]);
                 ?V_UNVOTE ->
-                    check_for_votes2(Reg2, Players, [{unvote} | Acc]);
+                    check_for_votes2(G, Reg2, [{unvote} | Acc]);
                 ?V_END ->
-                    check_for_votes2(Reg2, Players, [end_vote | Acc]);
+                    check_for_votes2(G, Reg2, [end_vote | Acc]);
                 ?V_UNEND ->
-                    check_for_votes2(Reg2, Players, [unend_vote | Acc])
+                    check_for_votes2(G, Reg2, [unend_vote | Acc])
             end
     end.
 
@@ -846,30 +854,24 @@ is_user_in_list(UserB, UsersB) ->
 %% -----------------------------------------------------------------------------
 
 add_nolynch_and_aliases(G) ->
-    add_nolynch_and_aliases(G, true).
-
-add_nolynch_and_aliases(G, DoCheckDb) ->
     Players = G#mafia_game.players_rem,
-    Aliases =
-        case DoCheckDb of
-            true ->
-                AddAlias =
-                    fun(P, Acc) ->
-                            Site = G#mafia_game.site,
-                            case ?ruser(P, Site) of
-                                [#user{aliases = AliasesB}] when AliasesB /= [] ->
-                                    Acc ++ [{?b2l(P), ?b2l(A)} || A <- AliasesB];
-                                _ -> Acc
-                            end
-                    end,
-                lists:foldl(AddAlias, [], Players);
-            false -> []
+    AddAlias =
+        fun(P, Acc) ->
+                Site = G#mafia_game.site,
+                case ?ruser(P, Site) of
+                    [#user{aliases = AliasesB}] when AliasesB /= [] ->
+                        Acc ++ [{?b2l(P), ?b2l(A)} || A <- AliasesB];
+                    _ -> Acc
+                end
         end,
+    Aliases = lists:foldl(AddAlias, [], Players),
     [?b2l(P) || P <- Players] ++ ?Extra ++ Aliases.
 
 %% -----------------------------------------------------------------------------
-
-rank_options(Players, RestUC) ->
+-spec rank_options(#mafia_game{}, string()
+                  ) -> [{integer(), user()}].
+rank_options(G, RestUC) ->
+    Players = add_nolynch_and_aliases(G),
     RestUCW = waste_spaces(RestUC),
     F = fun(P) ->
                 PorA = select_alias(P),
@@ -967,14 +969,19 @@ select_name(Name) -> Name.
 select_alias({_Name, Alias}) -> Alias;
 select_alias(Name) -> Name.
 
+%% +1 for matching char
 r_count([Hp|Tp], [Hr|Tr], N) when Hp == Hr ->
-    r_count(Tp, Tr, N+1);
+    r_count(Tp, Tr, N + 1);
+%% stop when no match
 r_count([_Hp|_Tp], [], N) ->
     N;
+%% +1 for complete
 r_count([], [_Hr|_Tr], N) ->
     N + 1;
+%% stop when diff
 r_count([Hp|_Tp], [Hr|_Tr], N) when Hp /= Hr ->
     N;
+%% +1 for exact match
 r_count([], [], N) ->
     N + 1.
 
@@ -1177,127 +1184,136 @@ ut_regex(Text) ->
     #regex{msg_text = Text,
            msg_text_u = ?l2u(Text)}.
 
-ut_players(Ps) ->
-    add_nolynch_and_aliases(
-      #mafia_game{players_rem = [?l2b(P) || P <- Ps]},
-      false).
+%% ut_players(Ps) ->
+%%     add_nolynch_and_aliases(
+%%       #mafia_game{players_rem = [?l2b(P) || P <- Ps]},
+%%       false).
 
-check_for_votes1_test_() ->
-    [
-     ?_assertMatch(
-        [],
-        check_for_votes1(ut_regex("Hello"),
-                         ut_players([]),
-                         <<"peterlund">>, %% CurVote,
-                         true %% IsEndVote
-                        )
-       ),
-     ?_assertMatch(
-        [{vote, <<"peterlund">>, <<"peter">>, true}],
-        check_for_votes1(ut_regex("##vote peter"),
-                         ut_players(["peterlund"]),
-                         <<"peterlund">>, %% CurVote,
-                         false %% IsEndVote
-                        )
-       ),
-     ?_assertMatch(
-        [{vote, <<"peterlund">>, <<"peter">>, true}],
-        check_for_votes1(ut_regex("##vote peter"),
-                         ut_players(["peterlund"]),
-                         <<"peterlund">>, %% CurVote,
-                         true %% IsEndVote
-                        )
-       ),
-     ?_assertMatch(
-        [remove_end, {vote, <<"brainbomb">>, <<"brain">>, true}],
-        check_for_votes1(ut_regex("##vote brain"),
-                         ut_players(["peterlund", "brainbomb"]),
-                         <<"peterlund">>, %% CurVote,
-                         true %% IsEndVote
-                        )
-       ),
-     ?_assertMatch(
-        %% but end_vote should not be registered
-        [remove_end, {unvote}],
-        check_for_votes1(ut_regex("##unvote"),
-                         ut_players([]),
-                         <<"brainbomb">>, %% CurVote,
-                         true %% IsEndVote
-                        )
-       )
-    ].
+ut_game(Ps) ->
+    #mafia_game{players_rem = [?l2b(P) || P <- Ps]}.
 
-check_for_votes2_test_() ->
-    [?_assertMatch(
-        {{vote, <<"abc">>, <<"abc, ##end">>, true},
-         end_vote},
-        check_for_votes2(ut_regex("##vote abc, ##end"),
-                         ut_players(["abc", "def", "ghi"]),
-                         [])
-       ),
-     ?_assertMatch(
+check_for_votes1_test() ->
+    Mods = [mafia_lib],
+    meck:new(Mods, [passthrough]),
+    meck:expect(mafia_lib, ruser, fun(_, _) -> [] end),
+    ?assertMatch(
+       [],
+       check_for_votes1(ut_game([]),
+                        ut_regex("Hello"),
+                        <<"peterlund">>, %% CurVote,
+                        true %% IsEndVote
+                       )
+      ),
+    ?assertMatch(
+       [{vote, <<"peterlund">>, <<"peter">>, true}],
+       check_for_votes1(ut_game(["peterlund"]),
+                        ut_regex("##vote peter"),
+                        <<"peterlund">>, %% CurVote,
+                        false %% IsEndVote
+                       )
+      ),
+    ?assertMatch(
+       [{vote, <<"peterlund">>, <<"peter">>, true}],
+       check_for_votes1(ut_game(["peterlund"]),
+                        ut_regex("##vote peter"),
+                        <<"peterlund">>, %% CurVote,
+                        true %% IsEndVote
+                       )
+      ),
+    ?assertMatch(
+       [remove_end, {vote, <<"brainbomb">>, <<"brain">>, true}],
+       check_for_votes1(ut_game(["peterlund", "brainbomb"]),
+                        ut_regex("##vote brain"),
+                        <<"peterlund">>, %% CurVote,
+                        true %% IsEndVote
+                       )
+      ),
+    ?assertMatch(
+       %% but end_vote should not be registered
+       [remove_end, {unvote}],
+       check_for_votes1(ut_game([]),
+                        ut_regex("##unvote"),
+                        <<"brainbomb">>, %% CurVote,
+                        true %% IsEndVote
+                       )
+      ),
+    meck:unload(Mods).
+
+check_for_votes2_test() ->
+    Mods = [mafia_lib],
+    meck:new(Mods, [passthrough]),
+    meck:expect(mafia_lib, ruser, fun(_, _) -> [] end),
+    ?assertMatch(
+       {{vote, <<"abc">>, <<"abc, ##end">>, true},
+        end_vote},
+       check_for_votes2(ut_game(["abc", "def", "ghi"]),
+                        ut_regex("##vote abc, ##end"),
+                        [])
+      ),
+    ?assertMatch(
         {{vote, <<"ghi">>, <<"ghill, dd">>, true},
          ?undefined},
-        check_for_votes2(ut_regex("##vote hej, ##end, ##vote abc, "
-                               "##end ##vote ghill, dd"),
-                         ut_players(["abc", "def", "ghi"]),
-                         [])
-       ),
-     ?_assertMatch(
-        %% but end_vote should not be registered
-        {{unvote}, end_vote},
-        check_for_votes2(ut_regex("##unvote ##end"),
-                         ut_players([]),
-                         [])
-       ),
-     %% ##unvote
-     ?_assertMatch(
-        {{unvote}, ?undefined},
-        check_for_votes2(ut_regex("##unvote"),
-                         ut_players(["abc", "def", "ghi"]),
-                         [])
-       ),
-     ?_assertMatch(
-        {{unvote}, unend_vote},
-        check_for_votes2(ut_regex("##unvote ##unend"),
-                         ut_players(["abc", "def", "ghi"]),
-                         [])
-       ),
-     %% ##VOTE END / UNEND
-     ?_assertMatch(
-        {?undefined, end_vote},
-        check_for_votes2(ut_regex("##vote end"),
-                         ut_players(["ezio"]),
-                         [])
-       ),
-     ?_assertMatch(
-        {?undefined, end_vote},
-        check_for_votes2(ut_regex("##voteend"),
-                         ut_players(["enda"]),
-                         [])
-       ),
-     ?_assertMatch(
-        {?undefined, unend_vote},
-        check_for_votes2(ut_regex("##voteunend"),
-                         ut_players(["una"]),
-                         [])
-       ),
+       check_for_votes2(ut_game(["abc", "def", "ghi"]),
+                        ut_regex("##vote hej, ##end, ##vote abc, "
+                                 "##end ##vote ghill, dd"),
+                        [])
+      ),
+    ?assertMatch(
+       %% but end_vote should not be registered
+       {{unvote}, end_vote},
+       check_for_votes2(ut_game([]),
+                        ut_regex("##unvote ##end"),
+                        [])
+      ),
+    %% ##unvote
+    ?assertMatch(
+       {{unvote}, ?undefined},
+       check_for_votes2(ut_game(["abc", "def", "ghi"]),
+                        ut_regex("##unvote"),
+                        [])
+      ),
+    ?assertMatch(
+       {{unvote}, unend_vote},
+       check_for_votes2(ut_game(["abc", "def", "ghi"]),
+                        ut_regex("##unvote ##unend"),
+                        [])
+      ),
+    %% ##VOTE END / UNEND
+    ?assertMatch(
+       {?undefined, end_vote},
+       check_for_votes2(ut_game(["ezio"]),
+                        ut_regex("##vote end"),
+                        [])
+      ),
+    ?assertMatch(
+       {?undefined, end_vote},
+       check_for_votes2(ut_game(["enda"]),
+                        ut_regex("##voteend"),
+                        [])
+      ),
+    ?assertMatch(
+       {?undefined, unend_vote},
+       check_for_votes2(ut_game(["una"]),
+                        ut_regex("##voteunend"),
+                        [])
+      ),
      %% Vote similar users "abc" "abcde"
-     ?_assertMatch(
-        {{vote, <<"abc">>, <<"abc ef ##end">>, true}, end_vote},
-        check_for_votes2(ut_regex("##vote abc ef ##end "),
-                         ut_players(["abc", "abcde"]),
-                         [])
-       ),
-     ?_assertMatch(
-        {{vote, <<"abcde">>, <<"abcd ef ##unend">>, true}, unend_vote},
-        check_for_votes2(ut_regex("##vote abcd ef ##unend "),
-                         ut_players(["abc", "abcde"]),
-                         [])
-       ),
-     ?_assertMatch(
-        {{vote, <<"-">>, <<"ab ef ##unend">>, false}, unend_vote},
-        check_for_votes2(ut_regex("##vote ab ef ##unend "),
-                         ut_players(["abc", "abcde"]),
-                         [])
-       )].
+    ?assertMatch(
+       {{vote, <<"abc">>, <<"abc ef ##end">>, true}, end_vote},
+       check_for_votes2(ut_game(["abc", "abcde"]),
+                        ut_regex("##vote abc ef ##end "),
+                        [])
+      ),
+    ?assertMatch(
+       {{vote, <<"abcde">>, <<"abcd ef ##unend">>, true}, unend_vote},
+       check_for_votes2(ut_game(["abc", "abcde"]),
+                        ut_regex("##vote abcd ef ##unend "),
+                        [])
+      ),
+    ?assertMatch(
+       {{vote, <<"-">>, <<"ab ef ##unend">>, false}, unend_vote},
+       check_for_votes2(ut_game(["abc", "abcde"]),
+                        ut_regex("##vote ab ef ##unend "),
+                        [])
+      ),
+    meck:unload(Mods).

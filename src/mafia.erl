@@ -762,7 +762,7 @@ remove_alias(User, Site, Alias) ->
     AliasB = ?l2b(Alias),
     case ?ruser(User, Site) of
         [] -> {error, user_not_found};
-        [#user{} = U] when U#user.name /= UserB ->
+        [#user{} = U] when ?e1(U#user.name) /= UserB ->
             {error, user_case_not_matching};
         [#user{aliases = AliasesB} = U] ->
             case lists:member(AliasB, AliasesB) of

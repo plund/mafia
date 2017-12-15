@@ -786,7 +786,7 @@ check_for_votes2(G, Reg, Acc) ->
                                    (NumV1 >= 2 orelse
                                     NumV1 >= size(TopP)) ->
                                 {TopP, true};
-                            [{NumV1, TopP} | _] = Rankings ->
+                            [{NumV1, TopP} | _] = Rankings when NumV1 >= 2 ->
                                 IsOneTop =
                                     lists:all(fun({N, Pl}) ->
                                                       Pl == TopP orelse
@@ -796,7 +796,9 @@ check_for_votes2(G, Reg, Acc) ->
                                 case IsOneTop of
                                     true -> {TopP, true};
                                     false -> {?l2b("-"), false}
-                                end
+                                end;
+                            _ ->
+                                {?l2b("-"), false}
                         end,
                     New =
                         case ?b2l(Vote) of
@@ -1306,6 +1308,13 @@ check_for_votes2_test() ->
        {{vote, <<"-">>, <<"ab ef ##unend">>, false}, unend_vote},
        check_for_votes2(ut_game(["abc", "abcde"]),
                         ut_regex("##vote ab ef ##unend "),
+                        [])
+      ),
+    %% make sure one char match is not enough
+    ?assertMatch(
+       {{vote, <<"-">>, <<"ghug">>, false}, undefined},
+       check_for_votes2(ut_game(["guak"]),
+                        ut_regex("##vote ghug"),
                         [])
       ),
     meck:unload(Mods).

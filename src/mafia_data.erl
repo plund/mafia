@@ -379,15 +379,14 @@ checkvote_fun(G, DoPrint) ->
     {fun(report, A) ->
              {A#acc.game_num, A#acc.last_page, A#acc.last_msg_id,
               A#acc.last_msg_time};
-        (MsgId, Acc) when Acc#acc.last_msg_time == ?undefined ->
+        (MsgId, Acc0) ->
              [Msg] = ?rmess({MsgId, Site}),
              MsgTime = Msg#message.time,
-             Acc#acc{last_page = Msg#message.page_num,
-                     last_msg_id = MsgId,
-                     last_msg_time = MsgTime};
-        (MsgId, Acc) ->
-             [Msg] = ?rmess({MsgId, Site}),
-             MsgTime = Msg#message.time,
+             Acc = if Acc0#acc.last_msg_time == ?undefined ->
+                           Acc0#acc{last_page = Msg#message.page_num,
+                                    last_msg_time = MsgTime};
+                      ?true -> Acc0
+                   end,
              if MsgTime >= Acc#acc.last_msg_time,
                 MsgId /= Acc#acc.last_msg_id ->
                      DoCheck(Msg),

@@ -18,6 +18,8 @@
          ruserUB/2,
          rmessI/1,
 
+         is_alpha_num/1,
+
          set_new_password/2,
          check_password/3,
 
@@ -209,6 +211,16 @@ ruser(UserB, Site) when is_binary(UserB) -> ruserI(UserB, Site).
 -spec ruserI(binary(), site()) -> [#user{}].
 ruserI(UserB, Site) ->
     mnesia:dirty_index_read(user, {UserB, Site}, #user.name).
+
+%% -----------------------------------------------------------------------------
+
+is_alpha_num(C) when C < $0 -> ?false;
+is_alpha_num(C) when C =< $9 -> ?true;
+is_alpha_num(C) when C < $A -> ?false;
+is_alpha_num(C) when C =< $Z -> ?true;
+is_alpha_num(C) when C < $a -> ?false;
+is_alpha_num(C) when C =< $z -> ?true;
+is_alpha_num(C) when C > $z -> ?false.
 
 %% -----------------------------------------------------------------------------
 

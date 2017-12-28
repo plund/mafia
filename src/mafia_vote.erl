@@ -122,10 +122,10 @@ check_for_deaths(Reg = #regex{}, M, G) ->
     SearchU2 = "DEAD",
     SearchU3 = "BEEN LYNCHED",
     SearchU4 = "BEEN EATEN",
-    case [regex_find(SearchU1, Reg),
-          regex_find(SearchU2, Reg),
-          regex_find(SearchU3, Reg),
-          regex_find(SearchU4, Reg)] of
+    case [regex_find_words(SearchU1, Reg),
+          regex_find_words(SearchU2, Reg),
+          regex_find_words(SearchU3, Reg),
+          regex_find_words(SearchU4, Reg)] of
         [{?nomatch, _}, {?nomatch, _}, {?nomatch, _}, {?nomatch, _}] ->
             %% no-one has died
             G;
@@ -940,6 +940,24 @@ regex_find(SearchU, Reg = #regex{}) ->
                             },
             {?match, Reg2}
     end.
+
+%% Same as regex_find but surrounding chars must not be alphanumerical
+regex_find_words(SearchU, Reg = #regex{}) ->
+    case regex_find(SearchU, Reg) of
+        M = {?nomatch, _} -> M;
+        M = {?match, Reg2} ->
+            case is_either_side_alphanum(Reg2) of
+                ?false -> M;
+                ?true -> regex_find_words(SearchU, Reg2)
+            end
+    end.
+
+is_either_side_alphanum(#regex{pre_match_u = Pre,
+                               msg_text_u = Post}) ->
+    is_alpha(?lrev(Pre)) orelse is_alpha(Post).
+
+is_alpha([]) -> ?false;
+is_alpha([Char | _]) -> mafia_lib:is_alpha_num(Char).
 
 %% Return {MatchPos, PreMatchStr, PostMatchStr}
 find_parts(Str, Search) ->

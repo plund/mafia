@@ -361,7 +361,7 @@ unend_phase(GNum, MsgId) ->
                          later | earlier,
                          hour() | {hour(), minute()})
                         -> term().
-move_next_deadline(GNum, MsgId, Direction, TimeDiff) ->
+move_next_deadline(GNum, MsgId, Direction, TimeDiff) when is_integer(MsgId) ->
     case find_mess_game(GNum, MsgId) of
         {ok, G, M} ->
             {Reply, _} =

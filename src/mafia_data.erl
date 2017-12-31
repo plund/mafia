@@ -43,6 +43,7 @@
          %% either page num to get and when got the
          %% actual page num
          is_last_page :: ?undefined | boolean(),
+         do_store_last_page = ?false :: boolean(),
          body_on_file = false :: boolean(),
          page_last_read :: ?undefined |  page_num(),
          page_total_last_read :: ?undefined | page_num(),
@@ -77,15 +78,16 @@ do_man_downl(ThId, Page)
   when is_integer(ThId), is_integer(Page) ->
     Question =
         ?l2a("Do you want to download thread " ++ ?i2l(ThId) ++
-                 " starting from page " ++ ?i2l(Page) ++ " (NO/yes)> "),
+                 " starting from page " ++ ?i2l(Page) ++ " (YES/no)> "),
     Answer = io:get_line(Question),
     case string:to_upper(Answer) of
-        "YES" ++ _ ->
-            download(#s{thread_id = ThId,
-                        page_to_read = Page
-                       });
+        "NO" ++ _ ->
+            no_download;
         _ ->
-            no_download
+            download(#s{thread_id = ThId,
+                        page_to_read = Page,
+                        do_store_last_page = ?true
+                       })
     end.
 
 %% -----------------------------------------------------------------------------
@@ -106,6 +108,8 @@ download(S) when S#s.utc_time == ?undefined ->
 download(S) ->
     do_download(S).
 
+-define(SLEEP_BETWEEN_DOWNLOAD, 2000).
+
 %% The loop
 do_download(S) ->
     case get_body(S#s{dl_time = ?undefined}) of
@@ -113,7 +117,7 @@ do_download(S) ->
             S3 = analyse_body(S2),
             if not S3#s.is_last_page ->
                     if not S3#s.body_on_file ->
-                            timer:sleep(10000);
+                            timer:sleep(?SLEEP_BETWEEN_DOWNLOAD);
                        true -> ok
                     end,
                     do_download(S3);
@@ -738,7 +742,7 @@ get_body2(_S2, {error, _} = Error) -> Error;
 get_body2(S2, {ok, Body}) ->
     Body2 = get_thread_section(S2#s.thread_id, Body),
     S3 = check_this_page(S2#s{body=Body2}),
-    if not S3#s.is_last_page ->
+    if not S3#s.is_last_page; S3#s.do_store_last_page ->
             %% page complete > STORE IT on file!
             store_page(S3, Body2);
        true -> ok
@@ -928,6 +932,22 @@ rm_to_after_match(Str, Search) ->
         P -> {P, get_after_pos(P, length(Search), Str)}
     end.
 
+%% Alternative solution
+%% rm_to_after_match2([H|TBody], Search = [H|TSearch]) ->
+%%     case rm_to_after_match2b(TBody, TSearch) of
+%%         {found, Body} -> Body;
+%%         not_found ->
+%%             rm_to_after_match2(TBody, Search)
+%%     end;
+%% rm_to_after_match2([_ | TBody], Search) ->
+%%     rm_to_after_match2(TBody, Search);
+%% rm_to_after_match2([], _) -> "".
+%%
+%% rm_to_after_match2b(Body, []) -> {found, Body};
+%% rm_to_after_match2b([H|TBody], [H|TSearch]) ->
+%%     rm_to_after_match2b(TBody, TSearch);
+%% rm_to_after_match2b(_, _) -> not_found.
+
 %% refactor tail_pos_and_len(Pos, MatchStr, String) -> string().
 get_after_pos(P, Len, Str) when is_integer(Len) ->
     lists:nthtail(P - 1 + Len, Str);
@@ -939,7 +959,7 @@ get_after_pos(P, Search, Str) when is_list(Search) ->
 %% return  {NewStr, ReadText}
 read_to_before(Str, Search) ->
     case string:str(Str, Search) of
-        0 -> {"", ""};
+        0 -> {"", Str};
         P ->
             Str2 = lists:nthtail(P-1, Str),
             Read = string:left(Str, P-1),

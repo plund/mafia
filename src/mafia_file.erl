@@ -74,8 +74,24 @@ th_filenames(Game, ThId, PageNum) ->
     TarBallName = FileName ++ ".tgz",
     {FileName, TarBallName}.
 
+-define(THREAD_DIR, "thread_pages").
+
+find_gameprefix_for_thread(ThId) ->
+    {ok, GameDirs} = file:list_dir(?THREAD_DIR),
+    %% ?dbg({gdirs, GameDirs}),
+    ThIdStr = integer_to_list(ThId),
+    GameDirTokens = [string:tokens(D, "_") || D <- GameDirs],
+    Res = [X || X = [_, ThStr]  <- GameDirTokens,
+                ThStr == ThIdStr],
+    case Res of
+        [[Pre, _]] -> Pre ++ "_";
+        _ -> ""
+    end.
+
 th_filename(?undefined, ThId, Page) ->
-    th_filename2("", ThId, Page);
+    GamePrefix = find_gameprefix_for_thread(ThId),
+    %% ?dbg({gprefix, GamePrefix}),
+    th_filename2(GamePrefix, ThId, Page);
 th_filename(G, _ThId, Page) ->
     GamePrefix = game_file_prefix(G),
     #mafia_game{thread_id = GThId, signup_thid = SuThId} = G,
@@ -85,7 +101,7 @@ th_filename(G, _ThId, Page) ->
     th_filename2(GamePrefix, ThId, Page).
 
 th_filename2(GamePrefix, ThId, Page) ->
-    DirName = "thread_pages",
+    DirName = ?THREAD_DIR,
     %% verify_exist(DirName),
     DirName2 = GamePrefix ++ ?i2l(ThId),
     verify_exist(filename:join(DirName, DirName2)),
@@ -205,6 +221,7 @@ verify_exist(DirName) ->
 
 %% erlang crashed when trying to meck init
 %% meck:expect(init, get_argument, 1, {ok, [["/my_mecked_path"]]}),
+-define(DIR_LIST, ["m333_2345"]).
 
 file_name_test() ->
     Mods = [file, mafia_lib],
@@ -212,6 +229,7 @@ file_name_test() ->
     meck:new(file, [passthrough, unstick]),
     meck:expect(mafia_lib, get_path, 1, "/my_mecked_path"),
     meck:expect(file, read_file_info, 1, {ok, file_info_data}),
+    meck:expect(file, list_dir, 1, {ok, ?DIR_LIST}),
     meck:expect(mafia_db, getv, fun(time_offset) -> ?undefined end),
     ?assertEqual(
        "/my_mecked_path/m27/m27_d1.txt",
@@ -274,5 +292,8 @@ file_name_test() ->
                   "thread_pages/m28_4567/11.txt.tgz"},
                  th_filenames(#mafia_game{game_num = 28, thread_id = 4567},
                              1234, 11)
+                ),
+    ?assertEqual("thread_pages/m333_2345/11.txt",
+                 th_filename(?undefined, 2345, 11)
                 ),
     meck:unload(Mods).

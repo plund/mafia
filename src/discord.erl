@@ -245,8 +245,16 @@ decode_json(Str) ->
     decode_json_body(Ch).
 
 decode_json_body(Body) ->
-    {ok, Tokens, _} = erl_scan:string(Body),
+    {ok, TokensOpaque, _} = erl_scan:string(Body),
     %% io:format("Token ~p\n", [Tokens]),
+    Tokens =
+        lists:foldr(fun({Cat, Anno}, Acc) ->
+                            [{Cat, erl_anno:to_term(Anno)} | Acc];
+                       ({Cat, Anno, Symb}, Acc) ->
+                            [{Cat, erl_anno:to_term(Anno), Symb} | Acc]
+                    end,
+                    [],
+                    TokensOpaque),
     Ts2 = replace_curly(Tokens),
     %% io:format("curly ~p\n", [Ts2]),
     Ts3 = replace_colon(Ts2),

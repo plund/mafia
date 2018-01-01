@@ -115,7 +115,8 @@ host_info(Env) ->
     {lists:all(IsNum, Tokens), Host, ScriptName}.
 
 msg_key2str({MsgId, ?webDip}) -> ":" ++ ?i2l(MsgId);
-msg_key2str({MsgId, ?vDip}) -> "v:" ++ ?i2l(MsgId).
+msg_key2str({MsgId, ?vDip}) -> "v:" ++ ?i2l(MsgId);
+msg_key2str({MsgId, ?wd2}) -> "w:" ++ ?i2l(MsgId).
 
 str2msg_key(Str) ->
     case mafia_lib:split_on_first_char(Str, $:) of
@@ -123,6 +124,8 @@ str2msg_key(Str) ->
             {?l2i(IntStr), ?webDip};
         {"v", IntStr} ->
             {?l2i(IntStr), ?vDip};
+        {"w", IntStr} ->
+            {?l2i(IntStr), ?wd2};
         _ ->
             ?dbg({error, not_msg_id, Str}),
             {error, not_msg_id}

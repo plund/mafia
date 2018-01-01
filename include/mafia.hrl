@@ -17,7 +17,7 @@
 -type dst_change() :: {datetime(), dst_direction()}.
 
 -type game_num() :: integer().
--type site() :: ?webDip | ?vDip.
+-type site() :: ?webDip | ?vDip | ?wd2.
 -type thread_id() :: integer().
 -type msg_id() :: integer().
 -type msg_key() :: {msg_id(), site()}.

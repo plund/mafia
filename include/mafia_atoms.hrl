@@ -11,8 +11,9 @@
 -define(positive, positive).
 -define(negative, negative).
 
--define(webDip, webDip).
--define(vDip, vDip).
+-define(webDip, webDip). % ":123"
+-define(vDip, vDip).     % "v:123"
+-define(wd2, wd2).       % "w:123"
 
 -define(stop, stop).
 -define(none, none).

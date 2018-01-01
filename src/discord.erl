@@ -10,7 +10,6 @@
 
 -behaviour(gen_server). %% websocket_client
 
--compile(export_all).
 %% API
 -export([discord_client/0,
          read_discord_bot_registration_data/0,
@@ -22,6 +21,15 @@
 %% gen_server callbacks
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
          terminate/2, code_change/3]).
+
+%%-compile(export_all).
+-export([test/0,
+         close/1,
+         channel_arg/0,
+         msgs_arg/0,
+         msgs_arg2/0,
+         channel_id/0
+        ]).
 
 -include("../include/mafia_atoms.hrl").
 

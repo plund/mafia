@@ -9,6 +9,7 @@
          show_time_offset/0,
          set_time_offset/1,
          conv_gtime_secs1970/2,
+         human2datetime/1,
 
          get_tz_dst/0,
          get_tz_dst/2,
@@ -127,6 +128,33 @@ conv_gtime_secs1970(G, DateTime) ->
 utc_gs(DateTime, TZ, Dst) ->
     calendar:datetime_to_gregorian_seconds(DateTime)
         - (TZ + if Dst -> 1; true -> 0 end) * ?HourSecs.
+
+%% -----------------------------------------------------------------------------
+%% Converts "Mon Jan 01, 2018 12:58 am" to datetime()
+human2datetime(Str) ->
+    [_WD, Mon, Day, Year, Time, APM] = string:tokens(Str, " ,"),
+    [HhStr, MmStr] = string:tokens(Time, ":"),
+    HH = hour(?l2i(HhStr), APM),
+    MM = ?l2i(MmStr),
+    {{?l2i(Year), month2int(Mon), ?l2i(Day)}, {HH, MM, 0}}.
+
+hour(12, "am") -> 0;
+hour(12, "pm") -> 12;
+hour(HH, "pm") -> 12 + HH;
+hour(HH, "am") -> HH.
+
+month2int("Jan") -> 1;
+month2int("Feb") -> 2;
+month2int("Mar") -> 3;
+month2int("Apr") -> 4;
+month2int("May") -> 5;
+month2int("Jun") -> 6;
+month2int("Jul") -> 7;
+month2int("Aug") -> 8;
+month2int("Sep") -> 9;
+month2int("Oct") -> 10;
+month2int("Nov") -> 11;
+month2int("Dec") -> 12.
 
 %% -----------------------------------------------------------------------------
 
@@ -778,4 +806,16 @@ dst_change_test_() ->
      ?_assert(?to_dst == dst_change(?Time1, ?Time2, [?DST6], -5)),
      ?_assert(?to_normal == dst_change(?Time1, ?Time2, [?DST7], -5)),
      ?_assert(?same == dst_change(?Time2, ?Time3, [?DST7], -5))
+    ].
+
+human2datetime_test_() ->
+    [
+     ?_assertMatch({{2017, 10, 19}, {16, 58, 00}},
+                   human2datetime("Thu Oct 19, 2017 4:58 pm")),
+     ?_assertMatch({{2017, 12, 31}, {21, 12, 00}},
+                   human2datetime("Sun Dec 31, 2017 9:12 pm")),
+     ?_assertMatch({{2018, 1, 1}, {0, 58, 00}},
+                   human2datetime("Mon Jan 01, 2018 12:58 am")),
+     ?_assertMatch({{2018, 1, 1}, {1, 24, 00}},
+                   human2datetime("Mon Jan 01, 2018 1:24 am"))
     ].

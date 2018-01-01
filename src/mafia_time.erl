@@ -2,6 +2,7 @@
 
 -export([system_time_ms/0,
          utc_secs1970/0,
+         utc_secs1970/1,
          utc_day1970/0,
          utc_day2date/1,
          date2utc_day/1,
@@ -62,13 +63,17 @@ system_time_ms() ->
         - get_time_offset() * 1000.
 
 -spec utc_secs1970() -> seconds1970().
-utc_secs1970() ->
-    utc_secs1970I() - get_time_offset().
+utc_secs1970() -> utc_secs1970I() - get_time_offset().
 
-utc_secs1970I() ->
-    calendar:datetime_to_gregorian_seconds(
-      calendar:universal_time())
-        - ?GSECS_1970.
+-spec utc_secs1970(datetime()) -> seconds1970().
+utc_secs1970(DateTime) ->
+    utc_secs1970I(DateTime) - get_time_offset().
+
+%% internal
+utc_secs1970I() -> utc_secs1970I(calendar:universal_time()).
+
+utc_secs1970I(DateTime) ->
+    calendar:datetime_to_gregorian_seconds(DateTime) - ?GSECS_1970.
 
 %% Return the current number of days since Jan 1 1970
 -spec utc_day1970() -> Day :: integer().

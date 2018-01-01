@@ -1,6 +1,7 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% MUST add site into thread_page dir name!!
 %% Add page for serverkeeper to initiate_new_game
 %%  - will a game with signup only, poll the thread?
 %%    - dont think so, BUT it should
@@ -196,8 +197,7 @@ show_game_data(GNum) ->
 initiate_game(GNum) ->
     initiate_game(GNum, [], ?webDip).
 
-initiate_game(GNum, Site) when Site == ?webDip;
-                               Site == ?vDip ->
+initiate_game(GNum, Site) when ?IS_SITE_OK(Site) ->
     initiate_game(GNum, [], Site).
 
 initiate_game(GNum, GMs, Site) when is_integer(GNum) ->
@@ -697,8 +697,7 @@ show_aliasesI(UserSite) ->
 add_user(NameB, Site) when is_binary(NameB) ->
     add_user(?b2l(NameB), Site);
 add_user(Name, Site)
-  when is_list(Name) andalso
-       (Site == ?webDip orelse Site == ?vDip) ->
+  when is_list(Name) andalso ?IS_SITE_OK(Site) ->
     case ?ruser(Name, Site) of
         [] ->
             NameU = string:to_upper(Name),
@@ -733,8 +732,9 @@ remove_user(Name, Site) ->
                 Alias :: string())
                -> ok | {error, Reason :: term()}.
 add_alias(User, Site, Alias)
-  when is_list(User) andalso is_list(Alias) andalso
-       (Site == ?webDip orelse Site == ?vDip) ->
+  when is_list(User),
+       is_list(Alias),
+       ?IS_SITE_OK(Site) ->
     UserB = ?l2b(User),
     AliasB = ?l2b(Alias),
     AliasUB = ?l2ub(Alias),

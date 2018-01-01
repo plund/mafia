@@ -214,7 +214,7 @@ make_game_rec(24) ->
       players_rem = to_bin(?M24_players)
      }.
 
-set(K = ?server_keeper, {U, Site}) when Site == ?webDip; Site == ?vDip ->
+set(K = ?server_keeper, {U, Site}) when ?IS_SITE_OK(Site) ->
     case ?ruserUB(U, Site) of
         [#user{name = {Name, _}}] ->
             set_kv(K, {?b2l(Name), Site});

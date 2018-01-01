@@ -26,8 +26,9 @@
 
 -define(BotUrl, "http://mafia.peterlund.se/").
 
--define(UrlBeg,  "http://webdiplomacy.net/forum.php?threadID=").
+-define(UrlBeg, "http://webdiplomacy.net/forum.php?threadID=").
 -define(UrlvDip, "http://vdiplomacy.com/forum.php?threadID=").
+-define(UrlWd2, "http://webdiplomacy.net/contrib/phpBB3/viewtopic.php?f=4&t=").
 -define(UrlMid, "&page-thread=").
 -define(UrlEnd, "#threadPager").
 
@@ -50,6 +51,9 @@
 -define(l2u(L), string:to_upper(L)).
 -define(lrev(L), lists:reverse(L)).
 -define(nbsp(B), mafia_print:nbsp(B)).
+
+-define(IS_SITE_OK(Site),
+        (Site == ?webDip orelse Site == ?vDip orelse Site == ?wd2)).
 
 %% combined macros
 -define(l2ub(L), ?l2b(?l2u(L))).

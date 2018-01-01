@@ -12,6 +12,7 @@
 %% interface
 -export([man_downl/0, % Human
          man_downl/1, % Human
+         man_downl/2, % Human
          downl_web/1, % from web
          downl_web/3  % from web
         ]).
@@ -27,7 +28,10 @@
          iterate_all_game_msgs/3,
 
          delete_game_data_in_other_tabs/1,
+         delete_msgs_and_pages_for_thread/2,
          reset_game/1
+
+         %%, iterate_all_msg_ids/3
         ]).
 
 -include("mafia.hrl").
@@ -46,7 +50,7 @@
          do_store_last_page = ?false :: boolean(),
          body_on_file = false :: boolean(),
          page_last_read :: ?undefined |  page_num(),
-         page_total_last_read :: ?undefined | page_num(),
+         %% page_total_last_read :: ?undefined | page_num(),
          game_rec :: ?undefined | #mafia_game{},
          game_num :: ?undefined | integer(),
          site = ?webDip :: site(),
@@ -69,22 +73,27 @@
 man_downl() ->
     ThId = ?getv(?thread_id),
     Page = ?getv(?page_to_read),
-    do_man_downl(ThId, Page).
+    do_man_downl(ThId, ?webDip, Page).
 
 man_downl(ThId) ->
-    do_man_downl(ThId, 1).
+    do_man_downl(ThId, ?webDip, 1).
 
-do_man_downl(ThId, Page)
-  when is_integer(ThId), is_integer(Page) ->
+man_downl(ThId, Site) ->
+    do_man_downl(ThId, Site, 1).
+
+do_man_downl(ThId, Site, Page)
+  when is_integer(ThId), is_atom(Site), is_integer(Page) ->
     Question =
         ?l2a("Do you want to download thread " ++ ?i2l(ThId) ++
-                 " starting from page " ++ ?i2l(Page) ++ " (YES/no)> "),
+                 " starting from page " ++ ?i2l(Page) ++
+                 " on Site " ++ atom_to_list(Site) ++ " (YES/no)> "),
     Answer = io:get_line(Question),
     case string:to_upper(Answer) of
         "NO" ++ _ ->
             no_download;
         _ ->
             download(#s{thread_id = ThId,
+                        site = Site,
                         page_to_read = Page,
                         do_store_last_page = ?true
                        })
@@ -94,7 +103,8 @@ do_man_downl(ThId, Page)
 
 -spec download(#s{}) -> {ok | {error, Reason :: term()}, #s{}}.
 %% sets #s.utc_time and #s.check_vote_fun
-download(S) when S#s.utc_time == ?undefined ->
+download(S)
+  when S#s.utc_time == ?undefined ->
     S2 = case S#s.game_rec of
              ?undefined -> S;
              G ->
@@ -110,7 +120,7 @@ download(S) ->
 
 -define(SLEEP_BETWEEN_DOWNLOAD, 2000).
 
-%% The loop
+%% The download pages loop
 do_download(S) ->
     case get_body(S#s{dl_time = ?undefined}) of
         {ok, S2} ->
@@ -228,10 +238,19 @@ update_page_to_read(GNum, PageToRead, LastMsgId, LastMsgTime)
 
 refresh_messages() -> refresh_messages(?game_key).
 
--spec refresh_messages(GNum :: integer() | ?game_key) -> ok.
-refresh_messages(?game_key = K) -> refresh_messages(?getv(K));
-refresh_messages(GNum) ->
-    refresh_messagesI(?rgame(GNum)).
+-spec refresh_messages(GNum :: integer() | all | ?game_key) -> ok.
+refresh_messages(GNum) when is_integer(GNum) ->
+    refresh_messagesI(?rgame(GNum));
+refresh_messages(all) ->
+    AllGNums = mafia_lib:all_keys(mafia_game),
+    T = fun() -> erlang:monotonic_time(millisecond) end,
+    Start = T(),
+    [refresh_messages(GNum) || GNum <- AllGNums],
+    Stop = T(),
+    {refresh_messages, [{milliseconds_used, Stop - Start},
+                        {num_games, length(AllGNums)},
+                        {games, AllGNums}]};
+refresh_messages(?game_key = K) -> refresh_messages(?getv(K)).
 
 refresh_messagesI([G = #mafia_game{game_num = GNum,
                                    thread_id = ThId}])
@@ -246,7 +265,9 @@ refresh_messagesI([G = #mafia_game{game_num = GNum,
                      page_to_read = 1}) of
         {ok, _S} -> ok;
         {E = {error, _}, _S} -> E
-    end.
+    end;
+refresh_messagesI([G = #mafia_game{}]) ->
+    {ignore, G#mafia_game.game_num}.
 
 delete_game_data_in_other_tabs(GNum) when is_integer(GNum) ->
     delete_game_data_in_other_tabs(?rgame(GNum));
@@ -260,18 +281,20 @@ delete_game_data_in_other_tabs(#mafia_game{game_num = GNum,
     _ = [mnesia:dirty_delete(mafia_day, K)
          || K = {GN, _} <- mnesia:dirty_all_keys(mafia_day), GN == GNum],
 
-    %% Delete messages for msg_ids found in page_rec of thread
-    MsgIdFun = fun(MsgId) -> mnesia:dirty_delete(message, MsgId) end,
-    iterate_all_msg_ids({ThId, Site}, MsgIdFun, all),
-
-    %% Delete page_recs for thread
-    [mnesia:dirty_delete(page_rec, K)
-     || K = {ThId2, _P}
-            <- mnesia:dirty_all_keys(page_rec),
-        ThId2 == ThId],
+    delete_msgs_and_pages_for_thread(ThId, Site),
 
     %% Delete all stat data
     clear_stat(GNum).
+
+delete_msgs_and_pages_for_thread(ThId, Site)
+  when is_integer(ThId), ?IS_SITE_OK(Site) ->
+    %% Delete messages for msg_ids found in page_rec of thread
+    MsgIdFun = fun(MsgId) -> mnesia:dirty_delete(message, {MsgId, Site}) end,
+    iterate_all_msg_ids({ThId, Site}, MsgIdFun, all),
+    %% Delete page_recs for thread
+    [mnesia:dirty_delete(page_rec, K)
+     || K = {ThId0, _P, Site0} <- mnesia:dirty_all_keys(page_rec),
+        ThId0 == ThId, Site0 == Site0].
 
 %% Old game reset (having destroyed players_orig AND
 %% having a mafia_db:make_game_rec/1 fun clause)
@@ -731,17 +754,22 @@ get_body(S, no_file) ->
     S2 = make_url(S#s{body_on_file = false}),
     get_body2(S2, http_request(S2)).
 
-make_url(S) ->
-    UrlBeg = mafia_lib:get_url_begin(S#s.site),
-    Url = UrlBeg ++ ?i2l(S#s.thread_id) ++ ?UrlMid ++ ?i2l(S#s.page_to_read)
-        ++ ?UrlEnd,
+make_url(S) when S#s.site == ?webDip;
+                 S#s.site == ?vDip ->
+    Url = mafia_lib:get_url_begin(S#s.site) ++ ?i2l(S#s.thread_id)
+        ++ ?UrlMid ++ ?i2l(S#s.page_to_read) ++ ?UrlEnd,
+    S#s{url = Url};
+make_url(S) when S#s.site == ?wd2 ->
+    FirstMsg = ?i2l(20 * (S#s.page_to_read - 1)),
+    Url = ?UrlWd2 ++ ?i2l(S#s.thread_id) ++ "&start=" ++ FirstMsg,
     S#s{url = Url}.
 
 -spec get_body2(#s{}, term()) -> {ok, Body::term()} | {error, term()}.
 get_body2(_S2, {error, _} = Error) -> Error;
 get_body2(S2, {ok, Body}) ->
-    Body2 = get_thread_section(S2#s.thread_id, Body),
-    S3 = check_this_page(S2#s{body=Body2}),
+    %%file:write_file("last_downloaded_page", Body),
+    Body2 = get_thread_section(S2, Body),
+    S3 = check_this_page(S2#s{body = Body2}),
     if not S3#s.is_last_page; S3#s.do_store_last_page ->
             %% page complete > STORE IT on file!
             store_page(S3, Body2);
@@ -749,7 +777,9 @@ get_body2(S2, {ok, Body}) ->
     end,
     {ok, S3}.
 
-get_thread_section(ThId, Body) ->
+get_thread_section(#s{site = ?wd2}, Body) ->
+    Body;
+get_thread_section(#s{thread_id = ThId}, Body) ->
     ThStartStr = "<div class=\"thread threadID" ++ ?i2l(ThId),
     B2 = rm_to_after(Body, ThStartStr),
     ThEndStr = "<div class=\"thread thread",
@@ -836,87 +866,139 @@ compress_txt_files() ->
 %% find page nums "Page 177 of 177", if it exists
 %% sets #s.is_last_page,
 %%      #s.page_last_read = #s.page_to_read = PageLastRead,
-%%      #s.page_total_last_read = PageTotal
 -spec check_this_page(S :: #s{}) -> #s{}.
 check_this_page(S) ->
-    {_, Head} = read_to_before(S#s.body, "class=\"message-head"),
-    %%<em>Page <strong>177</strong> of <strong>177</strong>
-    CurPage = S#s.page_to_read,
-    {PageLastRead, PageTotal} =
-        case rm_to_after(Head, ["<em>Page <strong>"]) of
-            "" -> {CurPage, CurPage};
-            B2 ->
-                {B3, PageStr} = read_to_before(B2, "</strong>"),
-                LastRead = ?l2i(PageStr),
-                B4 = rm_to_after(B3, ["</strong> of <strong>"]),
-                {_B5, PageTotStr} = read_to_before(B4, "</strong>"),
-                Total = ?l2i(PageTotStr),
-                {LastRead, Total}
-        end,
+    {PageLastRead, PageTotal} = check_page_nums(S),
     IsLastPage = if PageLastRead == PageTotal -> true;
                     true -> false
                  end,
     PageToRead = case IsLastPage of
-                     true ->
-                         PageLastRead;
-                     false ->
-                         ?set(?page_to_read, PageLastRead + 1),
-                         PageLastRead + 1
+                     true -> PageLastRead;
+                     false -> ?set(?page_to_read, PageLastRead + 1),
+                              PageLastRead + 1
                  end,
     S#s{is_last_page = IsLastPage,
         page_last_read = PageLastRead,
-        page_to_read = PageToRead,
-        page_total_last_read = PageTotal}.
+        page_to_read = PageToRead}.
+
+-spec check_page_nums(#s{}) -> {PageLastRead :: integer(),
+                                PageTotal :: integer()}.
+check_page_nums(S) when S#s.site == ?webDip;
+                        S#s.site == ?vDip ->
+    {_, Head} = read_to_before(S#s.body, "class=\"message-head"),
+    CurPage = S#s.page_to_read,
+    case rm_to_after(Head, ["<em>Page <strong>"]) of
+        "" -> {CurPage, CurPage};
+        B2 ->
+            {B3, PageStr} = read_to_before(B2, "</strong>"),
+            LastRead = ?l2i(PageStr),
+            B4 = rm_to_after(B3, ["</strong> of <strong>"]),
+            {_B5, PageTotStr} = read_to_before(B4, "</strong>"),
+            Total = ?l2i(PageTotStr),
+            {LastRead, Total}
+    end;
+check_page_nums(S) when S#s.site == ?wd2 ->
+    Start = "<div class=\"pagination\">",
+    Body2 = rm_to_after(S#s.body, [Start]),
+    {_, Head} = read_to_before(Body2, "post"),
+    [NumStr] = string:tokens(Head, "\s\t\n\r"),
+    NumPosts = ?l2i(NumStr),
+    PageLastRead = S#s.page_to_read,
+    PageTotal = 1 + (NumPosts - 1) div 20,
+    {PageLastRead, PageTotal}.
 
 %% -----------------------------------------------------------------------------
-
+%% extract all messages from the page read
+%% -----------------------------------------------------------------------------
+%% /1
 analyse_body(S = #s{body = ""}) ->
     S;
-analyse_body(S) ->
-    Body = S#s.body,
-    B3 = rm_to_after(Body, ["<div class=\"reply",
-                            "<div class=\"message-head",
-                            "profile.php?user", ">"]),
+analyse_body(S) when S#s.site == ?webDip;
+                     S#s.site == ?vDip ->
+    B3 = rm_to_after(S#s.body, ["<div class=\"reply",
+                                "<div class=\"message-head",
+                                "profile.php?user", ">"]),
     {B4, UserRaw} = read_to_before(B3, "<"),
     UserStr = strip(UserRaw),
-    B4a = rm_to_after(B4, "messageID=\""),
-    {B4a2, MsgIdStr} = read_to_before(B4a, "\""),
-    B4b = rm_to_after(B4a2, "unixtime=\""),
-    {B4c, TimeStr} = read_to_before(B4b, "\""),
-    B5 = rm_to_after(B4c, ["<div class=\"message-contents\"", ">"]),
-    {B6, MsgRaw} = read_to_before(B5, "</div>"),
+    B5 = rm_to_after(B4, "messageID=\""),
+    {B6, MsgIdStr} = read_to_before(B5, "\""),
+    B7 = rm_to_after(B6, "unixtime=\""),
+    {B8, TimeStr} = read_to_before(B7, "\""),
+    UTime = if TimeStr == "" -> 0;
+               true -> ?l2i(TimeStr)
+            end,
+    B9 = rm_to_after(B8, ["<div class=\"message-contents\"", ">"]),
+    {B10, MsgRaw} = read_to_before(B9, "</div>"),
     Msg = strip(MsgRaw),
-    analyse_body(S#s{body = B6}, {UserStr, MsgIdStr, TimeStr, Msg}).
+    analyse_body(S#s{body = B10}, {UserStr, MsgIdStr, UTime, Msg});
+analyse_body(S) when S#s.site == ?wd2 ->
+    B2 = rm_to_after(S#s.body, ["<div class=\"postbody\">",
+                                "<div id=\"post_content"]),
+    {B3, MsgIdStr} = read_to_before(B2, "\">"),
+    B4 = rm_to_after(B3, ["<span class=\"responsive-hide\">",
+                          "<a ",
+                          ">"]),
+    {B5, UserStr} = read_to_before(B4, "</a>"),
+    B6 = rm_to_after(B5, ["</span>"]),
+    {B7, TimeStr0} = read_to_before(B6, "</p>"),
+    TimeStr = strip(TimeStr0),
+    UTime = if TimeStr == "" -> 0;
+               true ->
+                    UtcDateTime = mafia_time:human2datetime(TimeStr),
+                    mafia_time:utc_secs1970(UtcDateTime)
+            end,
+    B8 = rm_to_after(B7, ["<div class=\"content\">"]),
+    {B9, MsgRaw} = read_to_before(B8, "<div class=\"back2top\">"),
+    Msg2 = remove_blockquotes(MsgRaw),
+    {_, Msg3} = read_to_before(Msg2, "</div>"),
+    Msg = strip(Msg3),
+    analyse_body(S#s{body = B9}, {UserStr, MsgIdStr, UTime, Msg}).
 
-analyse_body(S, {"", _MsgIdStr, _TimeStr, _Msg}) -> S;
-analyse_body(S, {UserStr, MsgIdStr, TimeStr, Msg}) ->
-    analyse_body(S, ?l2b(UserStr), ?l2i(MsgIdStr), ?l2i(TimeStr), Msg).
+%% /2
+analyse_body(S, {"", _MsgIdStr, _UTime, _Msg}) -> S;
+analyse_body(S, {UserStr, MsgIdStr, UTime, Msg}) ->
+    analyse_body(S, ?l2b(UserStr), ?l2i(MsgIdStr), UTime, Msg).
 
-analyse_body(S, _User, _MsgId, Time, _Msg)
-  when Time > S#s.utc_time ->
+%% /5
+analyse_body(S, _User, _MsgId, UTime, _Msg)
+  when UTime > S#s.utc_time ->
     PageLastRead = S#s.page_last_read,
     ?set(?page_to_read, PageLastRead),
     S#s{is_last_page = true,
         page_to_read = PageLastRead
        };
-analyse_body(S, User, MsgId, Time, Msg) ->
+analyse_body(S, User, MsgId, UTime, Msg) ->
     CheckVote = S#s.check_vote_fun,
     S2 = case update_page_rec(S, MsgId) of
              ?unchanged ->
                  S;
              ?changed ->
-                 MsgR = write_message_rec(S, MsgId, User, Time, Msg),
+                 MsgR = write_message_rec(S, MsgId, User, UTime, Msg),
                  mafia:add_user(User, S#s.site),
                  if is_function(CheckVote) -> CheckVote(MsgR);
                     true -> ok
                  end,
                  mafia_print:print_message_summary(MsgR),
                  S#s{last_msg_id = MsgId,
-                     last_msg_time = Time}
+                     last_msg_time = UTime}
          end,
     analyse_body(S2).
 
 %% -----------------------------------------------------------------------------
+
+remove_blockquotes(Msg) ->
+    remove_blockquotes(Msg, [], 0).
+
+remove_blockquotes("<blockquote>" ++ Msg, Acc, Lvl) ->
+    remove_blockquotes(Msg, Acc, Lvl + 1);
+remove_blockquotes("</blockquote>" ++ Msg, Acc, Lvl) ->
+    remove_blockquotes(Msg, Acc, Lvl - 1);
+remove_blockquotes([H | T], Acc, Lvl) when Lvl == 0 ->
+    remove_blockquotes(T, [H | Acc], Lvl);
+remove_blockquotes([_ | T], Acc, Lvl) when Lvl > 0 ->
+    remove_blockquotes(T, Acc, Lvl);
+remove_blockquotes([], Acc, _) ->
+    ?lrev(Acc).
 
 rm_to_after(Str, []) -> Str;
 rm_to_after(Str, [Search|T]) when is_list(Search) ->

@@ -515,10 +515,12 @@ pr_user_list({Field, GmStr}, {G, Es}) ->
     end.
 
 min_thid(#mafia_game{site = ?webDip}) -> ?MinThId;
-min_thid(#mafia_game{site = ?vDip}) -> ?MinThIdvDip.
+min_thid(#mafia_game{site = ?vDip}) -> ?MinThIdvDip;
+min_thid(#mafia_game{site = ?wd2}) -> 0.
 
 max_thid(#mafia_game{site = ?webDip}) -> ?MaxThId;
-max_thid(#mafia_game{site = ?vDip}) -> ?MaxThIdvDip.
+max_thid(#mafia_game{site = ?vDip}) -> ?MaxThIdvDip;
+max_thid(#mafia_game{site = ?wd2}) -> 99999.
 
 pr_int({Field, IntStr}, {G, Es}) ->
     MinThId = min_thid(G),
@@ -612,7 +614,7 @@ check_int(Par = {_, _, Str}, Es, _Size, Min, Max) ->
     end.
 
 pr_site({Field, Site}, {G, Es}) ->
-    Sites = [?webDip, ?vDip],
+    Sites = [?webDip, ?vDip, ?wd2],
     SiteStrs = [?a2l(St) || St <- Sites],
     case lists:member(Site, SiteStrs) of
         true ->

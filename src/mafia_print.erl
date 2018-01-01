@@ -1432,21 +1432,23 @@ rm_nl([H|T]) -> [H|rm_nl(T)];
 rm_nl("") -> "".
 
 %% skip unicode for a while
-html2txt("&gt;" ++ T) -> [ $> | html2txt(T)];
-html2txt("&lt;" ++ T) -> [ $< | html2txt(T)];
-html2txt("&amp;" ++ T) -> [ $& | html2txt(T)];
-html2txt("&nbsp;" ++ T) -> [ $\s | html2txt(T)];
-html2txt("&acute;" ++ T) -> [ $´ | html2txt(T)];
-html2txt("&lsquo;" ++ T) -> [ $' | html2txt(T)];
-html2txt("&rsquo;" ++ T) -> [ $' | html2txt(T)];
-html2txt("&ldquo;" ++ T) -> [ $\" | html2txt(T)];
-html2txt("&rdquo;" ++ T) -> [ $\" | html2txt(T)];
-html2txt("&hellip;" ++ T) -> [ $\., $\., $\. | html2txt(T)];
-%% html2txt("&lsquo;" ++ T) -> [ $‘ | html2txt(T)];
-%% html2txt("&rsquo;" ++ T) -> [ $’ | html2txt(T)];
-%% html2txt("&ldquo;" ++ T) -> [ $“ | html2txt(T)];
-%% html2txt("&rdquo;" ++ T) -> [ $” | html2txt(T)];
-html2txt("<br />" ++ T) ->  [ $\n | html2txt(T)];
-html2txt([H | T]) when H > 127 -> [ $\s | html2txt(T)];
+html2txt("&gt;" ++ T) -> [$> | html2txt(T)];
+html2txt("&lt;" ++ T) -> [$< | html2txt(T)];
+html2txt("&amp;" ++ T) -> [$& | html2txt(T)];
+html2txt("&nbsp;" ++ T) -> [$\s | html2txt(T)];
+html2txt("&acute;" ++ T) -> [$´ | html2txt(T)];
+html2txt("&lsquo;" ++ T) -> [$' | html2txt(T)];
+html2txt("&rsquo;" ++ T) -> [$' | html2txt(T)];
+html2txt("&ldquo;" ++ T) -> [$\" | html2txt(T)];
+html2txt("&rdquo;" ++ T) -> [$\" | html2txt(T)];
+html2txt("&hellip;" ++ T) -> [$\., $\., $\. | html2txt(T)];
+%% html2txt("&lsquo;" ++ T) -> [$‘ | html2txt(T)];
+%% html2txt("&rsquo;" ++ T) -> [$’ | html2txt(T)];
+%% html2txt("&ldquo;" ++ T) -> [$“ | html2txt(T)];
+%% html2txt("&rdquo;" ++ T) -> [$” | html2txt(T)];
+html2txt("<br>\n" ++ T) -> [$\n | html2txt(T)];
+html2txt("<br>" ++ T) -> [$\n | html2txt(T)];
+html2txt("<br />" ++ T) ->  [$\n | html2txt(T)];
+html2txt([H | T]) when H > 127 -> [$\s | html2txt(T)];
 html2txt([H | T]) -> [H | html2txt(T)];
 html2txt("") -> "".

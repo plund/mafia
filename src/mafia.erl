@@ -526,7 +526,10 @@ kill_player(GNum, MsgId, Player, Comment) ->
 
 %% -----------------------------------------------------------------------------
 
-ignore_message(GNum, MsgId) ->
+-spec ignore_message(GNum :: game_num(),
+                     MsgId :: msg_id())
+                    -> ok | {?error, msg_not_found | game_not_found}.
+ignore_message(GNum, MsgId) when is_integer(GNum), is_integer(MsgId)  ->
     case find_mess_game(GNum, MsgId) of
         {ok, G, M} ->
             Time = M#message.time,
@@ -534,7 +537,9 @@ ignore_message(GNum, MsgId) ->
                        msg_id = MsgId,
                        mfa = {mafia, ignore_message,
                               [GNum, MsgId]}},
-            mafia_file:manual_cmd_to_file(G, Cmd);
+            mafia_file:manual_cmd_to_file(G, Cmd),
+            timer:sleep(200),
+            mafia_data:refresh_votes(GNum);
         {?error, _} = E -> E
     end.
 

@@ -25,9 +25,9 @@
          start/0,
          stop/0,
 
-         pm/1,
-         pp/0, pp/3,
-         pps/0, pps/1, pps/3
+         pm/2,
+         pp/3,
+         pps/3
         ]).
 
 rmess(MsgId) -> ?rmess(MsgId).
@@ -43,11 +43,8 @@ clr_cnts() -> mnesia:clear_table(cnt).
 set(K, V) -> mafia_db:set(K, V).
 getv(K) -> mafia_db:getv(K).
 
-pm(MsgId) -> mafia_print:pm(MsgId).
-pp() -> mafia_print:pp().
+pm(MsgId, Site) -> mafia_print:pm(MsgId, Site).
 pp(ThId, Page, Site) -> mafia_print:pp(ThId, Page, Site).
-pps() -> mafia_print:pps().
-pps(Page) -> mafia_print:pps(Page).
 pps(ThId, Page, Site) -> mafia_print:pps(ThId, Page, Site).
 
 stop_poll(GNum) -> game:stop_polling(GNum).
@@ -79,13 +76,9 @@ clr_cnts()       - Clear all counters
 set(K, V)        - Set a key value pair
 getv(K)          - Get a value for a key
 
-pm(MsgId)        - Display one complete message
-pp()             - Display last message page in current game
-pp(Page)         - Display message page in current game
-pp(Game,Page)    - Display message page in game
-pps()            - Display last message page in current game
-pps(Page)        - Display message page in current game
-pps(Game,Page)   - Display message page in game
+pm(MsgId, Site)       - Display one complete message
+pp(ThId, Page, Site)  - Display thread message page
+pps(ThId, Page, Site) - Display thread message page
 
 stop_poll(GNum)  - Stop regular polling of source
 start_poll(GNum) - Start regular polling of source
@@ -104,41 +97,49 @@ help(type())
 ").
 
 -define(MAFIA_HELP,
-"Game Life Cycle
----------------
+"Types: GNum    :: integer()
+       Site    :: webDip | vDip | wd2
+       MsgId   :: integer()
+       Player  :: string()
+       Comment :: string()
+       Dir     :: later | earlier
 
+Game Life Cycle
+---------------
 mafia:initiate_game(GNum)
 mafia:initiate_game(GNum, Site)
 mafia:initiate_game(GNum, GMs, Site)
 
-mafia:refresh_votes().      - Recount votes in current game
-mafia:refresh_votes(GNums).
-mafia:refresh_votes(all).
+Maintenance
+-----------
+mafia:refresh_votes(GNum) - Recount votes in current game
+mafia:refresh_votes(GNums)
+mafia:refresh_votes(all)        - refresh all games
+
+mafia:refresh_messages(GNum) - Reread messages from disk
+mafia:refresh_messages(all) - Reread all messages from disk
 
 Manual Commands
 ---------------
-mafia:end_phase(GNum, MsgId)   - Ends current phase.
-mafia:unend_phase(GNum, MsgId) - Remove early end of this last phase
-mafia:move_next_deadline(GNum, MsgId, Dir, Time) - Moves next deadline
-         earlier or later. A deadline can not be moved into the past.
-         Dir = later | earlier
-         Time = H | {H, M}
-mafia:end_game(GNum, MsgId)   - Ends the game with the given msg_id
-mafia:unend_game(GNum, MsgId) - Unend game
-
-mafia:kill_player(GNum, MsgId, Player, Comment) - Kill a player
-mafia:set_death_msgid(GNum, MsgId, Player, DeathMsgId, Comment).
-    Reference a previous msgid as the death message, give comment.
 mafia:replace_player(GNum, MsgId, OldPlayer, NewPlayer)
     New player is replacing old player in game. Exact names!
     Old player must exist in user DB
     New player is created if missing in DB
+mafia:ignore_message(GNum, MsgId)
+    Ignore all commands in a message
+    An mafia:refresh_votes(GNum) will be run.
+mafia:kill_player(GNum, MsgId, Player, Comment)
+    Kill a player
+mafia:set_death_msgid(GNum, MsgId, Player, DeathMsgId, Comment).
+    Reference a previous msgid as the death message, give comment.
 
-mafia:refresh_messages() - Reread all messages from disk, use 'game_key'
-mafia:refresh_votes()           - refresh current game
-mafia:refresh_votes(game_num()) - refresh one selected game
-mafia:refresh_votes(all)        - refresh all games
-mafia:print_votes()  - Current status
+mafia:end_phase(GNum, MsgId)   - Ends current phase.
+mafia:unend_phase(GNum, MsgId) - Remove early end of this last phase
+mafia:move_next_deadline(GNum, MsgId, Dir, Time) - Moves next deadline
+         earlier or later. A deadline can not be moved into the past.
+         Time = H | {H, M}
+mafia:end_game(GNum, MsgId)   - Ends the game with the given msg_id
+mafia:unend_game(GNum, MsgId) - Unend game
 ").
 
 -define(CMD_HELP,

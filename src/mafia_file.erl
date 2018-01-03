@@ -37,8 +37,10 @@ manual_cmd_to_file(G, Cmd) ->
     if DoAppend ->
             {ok, Fd} = file:open(FN, [append]),
             io:format(Fd, "~999p.\n", [Cmd]),
-            file:close(Fd);
-       not DoAppend -> ok
+            file:close(Fd),
+            added;
+       not DoAppend ->
+            not_added
     end.
 
 manual_cmd_from_file(G, Cmd) ->

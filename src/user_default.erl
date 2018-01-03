@@ -22,6 +22,8 @@
          start_poll/1,
          poll/1,
          state/0,
+         state/1,
+
          start/0,
          stop/0,
 
@@ -51,6 +53,7 @@ stop_poll(GNum) -> game:stop_polling(GNum).
 start_poll(GNum) -> game:start_polling(GNum).
 poll(GNum) -> game:poll(GNum).
 state() -> mafia_web:get_state().
+state(ProcId) -> game:get_state(ProcId).
 start() -> mafia:start().
 stop() -> mafia:stop().
 
@@ -83,7 +86,8 @@ pps(ThId, Page, Site) - Display thread message page
 stop_poll(GNum)  - Stop regular polling of source
 start_poll(GNum) - Start regular polling of source
 poll(GNum)       - poll now.
-state()          - Get gen_server state.
+state()          - Get mafia_web state.
+state(ProcId)    - get game state.
 start()          - Start the gen_server and the http server
 stop()           - Stop the gen_server and the http server
 

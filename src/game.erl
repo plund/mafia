@@ -11,10 +11,10 @@
 -behaviour(gen_server).
 
 %% API
--export([poll/1,
+-export([get_state/1,
+         poll/1,
          start_polling/1,
          stop_polling/1,
-
          poll_minutes/1,
          regen_history/2,
          update_current/0,
@@ -45,6 +45,8 @@
 %%%===================================================================
 %%% API
 %%%===================================================================
+get_state(GNum) when is_integer(GNum) -> sys:get_state(get_id(GNum)).
+
 poll(GNum) -> get_id(GNum) ! do_polling.
 
 start_polling(GNum) -> gen_server:call(get_id(GNum), ?start_polling).

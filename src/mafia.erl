@@ -1,6 +1,14 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% ##RESURRECT PLAYER
+%% - only one death list (filter from mafia_game.player_death)
+%% - reinsert PLAYER into #mafia_game.player_rem
+%% - remove #death in #mafia_game.player_deaths
+%% - reinsert PLAYER into one or more #mafia_day.player_rem
+%% - remove #death in one or more #mafia_day.player_deaths
+%% - replay messages for PLAYER since death to resurrection
+
 %% MUST add site into thread_page dir name!!
 %% Add page for serverkeeper to initiate_new_game
 %%  - will a game with signup only, poll the thread?
@@ -537,9 +545,14 @@ ignore_message(GNum, MsgId) when is_integer(GNum), is_integer(MsgId)  ->
                        msg_id = MsgId,
                        mfa = {mafia, ignore_message,
                               [GNum, MsgId]}},
-            mafia_file:manual_cmd_to_file(G, Cmd),
-            timer:sleep(200),
-            mafia_data:refresh_votes(GNum);
+            case mafia_file:manual_cmd_to_file(G, Cmd) of
+                added ->
+                    timer:sleep(200),
+                    mafia_data:refresh_votes(GNum),
+                    ok;
+                not_added ->
+                    ok
+            end;
         {?error, _} = E -> E
     end.
 

@@ -337,7 +337,7 @@ refresh_votes([], _F) ->
 refresh_votes([G], PageFilter) ->
     refresh_votes(G, PageFilter);
 refresh_votes(#mafia_game{thread_id = ?undefined}, _) ->
-    {error, game_not_running};
+    {error, game_not_started};
 refresh_votes(G0 = #mafia_game{}, PageFilter) ->
     %% Reinitialize the game table
     G = reset_game(G0),

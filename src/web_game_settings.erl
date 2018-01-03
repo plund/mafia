@@ -55,10 +55,12 @@ game_settings_update(Sid, Env, Button, PQ) ->
     GameSett = web_impl:get_arg(PQ, "game_settings"),
     User = web_impl:get_arg(PQ, "user"),
     Pass = web_impl:get_arg(PQ, "password"),
-    ?dbg({'PQ', PQ}),
+    if IsSecure ->
+            ?dbg({update, user_password, User, Pass});
+       not IsSecure -> ok
+    end,
     {IsRunning, StartAllowed, Responses} =
         maybe_update_game(Button, GNStr, User, Pass, GameSett),
-    ?dbg({'StartAllowed', StartAllowed}),
     GNum = ?l2i(GNStr),
     SettingsText =
         if Button == ?BReload ->
@@ -311,7 +313,6 @@ mug0(_G, User, Pass, _GameSett)
        true -> Es
     end;
 mug0(G, User, Pass, GameSett) ->
-    ?dbg({user_pass, User, Pass}),
     case is_user_and_password_ok(G, User, Pass) of
         true ->
             mug2(G, GameSett);
@@ -336,7 +337,6 @@ is_user_and_password_ok(G, User, Pass) ->
     end.
 
 mug2(G, GameSett) ->
-    ?dbg({sett, GameSett}),
     NewConf = [split_on_first_equal_sign(P)
                || P <- string:tokens(GameSett, "\r\n")],
     %% [{"gms","peterlund"}, ...]
@@ -344,7 +344,6 @@ mug2(G, GameSett) ->
         lists:partition(fun({_, ?UNSET}) -> false; (_) -> true end,
                         NewConf),
     Values2 = [{K, string:strip(V)} || {K, V} <- Values],
-    ?dbg({values2, Values2}),
     process_input(Values2, {G, []}).
 
 split_on_first_equal_sign(P) ->
@@ -668,16 +667,19 @@ settings_info() ->
         "</li>"
         "</ul>".
 
-game_settings_start(Sid, Env, Button, PQ) ->
+game_settings_start(Sid, Env, _Button, PQ) ->
     IsSecure = web:is_secure(Env),
     GNStr = web_impl:get_arg(PQ, "game_num"),
     User = web_impl:get_arg(PQ, "user"),
     Pass = web_impl:get_arg(PQ, "password"),
+    if IsSecure ->
+            ?dbg({start, user_password, User, Pass});
+       not IsSecure -> ok
+    end,
     ThreadId = web_impl:get_arg(PQ, "thread_id"),
     [G] = ?rgame(?l2i(GNStr)),
     WasThreadSet = ?undefined /= G#mafia_game.thread_id,
     {IsThreadSet, Responses} = maybe_set_thread_id(G, User, Pass, ThreadId),
-    ?dbg({button, Button, ThreadId}),
     Body =
         if WasThreadSet;
            IsThreadSet ->

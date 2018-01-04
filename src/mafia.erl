@@ -1,8 +1,9 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% Next: remove all writes to mafia_day.players_rem and player_deaths
+%% Remove "DUPLICATE CODE"
 %% ##RESURRECT PLAYER
-%% - only one death list (filter from mafia_game.player_death)
 %% - reinsert PLAYER into #mafia_game.player_rem
 %% - remove #death in #mafia_game.player_deaths
 %% - reinsert PLAYER into one or more #mafia_day.player_rem

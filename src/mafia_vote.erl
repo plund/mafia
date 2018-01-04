@@ -695,7 +695,8 @@ check_for_votes(G, M, Reg = #regex{}, #phase{ptype = ?day, num = DayNum}) ->
     %% Check current vote and end vote status
     User = M#message.user_name,
     #mafia_day{votes = Votes,
-               end_votes = EndVotes} = ?rday(G#mafia_game.game_num, DayNum),
+               end_votes = EndVotes} =
+        ?rday(G#mafia_game.game_num, DayNum),
     CurVote = case lists:keyfind(User, 1, Votes) of
                   false -> ?undefined;
                   {_, UVotes} ->

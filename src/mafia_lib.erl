@@ -144,7 +144,8 @@ rday(#mafia_game{} = G, DayNum) ->
     GameNum = G#mafia_game.game_num,
     ThId = G#mafia_game.thread_id,
     case mnesia:dirty_read(mafia_day, Key = {GameNum, DayNum}) of
-        [] ->
+        D when D == [];
+               DayNum == ?undefined ->
             #mafia_day{key = Key,
                        thread_id = ThId,
                        day = DayNum,
@@ -154,9 +155,65 @@ rday(#mafia_game{} = G, DayNum) ->
                        player_deaths = []
                       };
         [Day] ->
-            Day
+            Times = get_times(G, DayNum),
+            Day#mafia_day{
+              players_rem = get_day(players_rem, G, Times),
+              player_deaths = get_day(players_deaths, G, Times)
+             }
     end;
 rday([], _) -> {?error, rday_no_such_game}.
+
+get_times(G, DayNum) ->
+    TimeEoN = ?MAX_GM_DL_MINS * ?MinuteSecs, %% DUPLICATE CODE
+    TimeNow = mafia_time:utc_secs1970(),
+    DayPh = #phase{num = DayNum, ptype = ?day},
+    NigPh = #phase{num = DayNum, ptype = ?night},
+    TimeDLSta = mafia_time:get_time_for_prev_phase(G, DayPh),
+    TimeDLEnd = case mafia_time:get_time_for_phase(G, NigPh) of
+                    undefined ->
+                        element(1, G#mafia_game.game_end);
+                    Time when is_integer(Time) ->
+                        Time
+                end,
+    DTimeSta = min(TimeDLSta + TimeEoN, TimeNow),
+    DTimeEnd = min(TimeDLEnd + TimeEoN, TimeNow),
+    RTimeSta = min(TimeDLSta, TimeNow),
+    RTimeEnd = min(TimeDLEnd, TimeNow),
+    {DTimeSta, DTimeEnd, RTimeSta, RTimeEnd}.
+
+get_day(players_rem, G, {_, DTimeEnd, _, RTimeEnd}) ->
+    %% Do player replacement upto RTimeEnd in players_orig
+    Repls = [{Old, New}
+             || #replacement{new_player = New,
+                             replaced_player = Old,
+                             time = RTime}
+                    <- G#mafia_game.player_deaths, RTime =< RTimeEnd],
+    Players = lists:foldr(fun({Old, New}, Ps) -> replace2(Old, New, Ps) end,
+                          G#mafia_game.players_orig,
+                          Repls),
+    %% Remove dead players
+    Deaths = [DUser || #death{player = DUser, time = DTime}
+                           <- G#mafia_game.player_deaths, DTime =< DTimeEnd],
+    Players -- Deaths;
+get_day(players_deaths, G, {DTimeSta, DTimeEnd, RTimeSta, RTimeEnd}) ->
+    lists:foldr(
+      fun(R = #replacement{time = RTime}, Evs)
+            when RTimeSta =< RTime, RTime < RTimeEnd -> [R | Evs];
+         (D = #death{time = DTime}, Evs)
+            when DTimeSta =< DTime, DTime < DTimeEnd -> [D | Evs];
+         (_, Evs) -> Evs
+      end,
+      [],
+      G#mafia_game.player_deaths).
+
+replace2(Old, New, Ps) ->
+    MatchF = fun(P) -> P == Old end,
+    replace(MatchF, Ps, New).
+
+%% DUPLICATE CODE
+%% @doc Replace element in list if MatchF returns true
+replace(MatchF, List, NewElement) ->
+    [case MatchF(E) of true -> NewElement; false -> E end || E <- List].
 
 %% -----------------------------------------------------------------------------
 

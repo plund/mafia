@@ -87,7 +87,7 @@ stop_poll(GNum)  - Stop regular polling of source
 start_poll(GNum) - Start regular polling of source
 poll(GNum)       - poll now.
 state()          - Get mafia_web state.
-state(ProcId)    - get game state.
+state(GNum)      - Get game state.
 start()          - Start the gen_server and the http server
 stop()           - Stop the gen_server and the http server
 

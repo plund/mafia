@@ -569,15 +569,15 @@ split_dls(Game, Time) ->
       fun(#dl{time = DLTime}) -> DLTime > Time end,
       Game#mafia_game.deadlines).
 
-get_time_for_phase(G, Phase) when is_integer(G); is_atom(G) ->
-    get_time_for_phase(?rgame(G), Phase);
+get_time_for_phase(GNum, Phase) when is_integer(GNum) ->
+    get_time_for_phase(?rgame(GNum), Phase);
 get_time_for_phase([G], Phase) -> get_time_for_phase(G, Phase);
 get_time_for_phase(G = #mafia_game{}, #phase{ptype = ?game_ended}) ->
     case G#mafia_game.game_end of
         ?undefined -> ?undefined;
         {Time, _MsgId} -> Time
     end;
-get_time_for_phase(G = #mafia_game{}, Phase) ->
+get_time_for_phase(G = #mafia_game{}, Phase = #phase{}) ->
     case lists:dropwhile(
            fun(#dl{phase = Ph}) -> Ph /= Phase end,
            G#mafia_game.deadlines) of

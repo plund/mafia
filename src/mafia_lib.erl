@@ -33,6 +33,7 @@
          get_url_begin/1,
          bgcolor/1,
          split_on_first_char/2,
+         replace_p/3,
 
          re_matches/2,
          merge_intervals/1,
@@ -61,6 +62,9 @@ dirty_update_counter(cnt, Key, Inc) ->
 dwrite(page, Obj) ->
     dirty_update_counter(cnt, {dirty_write, ?global, page}, 1),
     dwrite_page(Obj);
+dwrite(day, Day) ->
+    dirty_update_counter(cnt, {dirty_write, ?global, day}, 1),
+    dirty_write(Day#mafia_day{players_rem = [], player_deaths = []});
 dwrite(Tag, Obj) ->
     dirty_update_counter(cnt, {dirty_write, ?global, Tag}, 1),
     dirty_write(Obj).
@@ -164,7 +168,6 @@ rday(#mafia_game{} = G, DayNum) ->
 rday([], _) -> {?error, rday_no_such_game}.
 
 get_times(G, DayNum) ->
-    TimeEoN = ?MAX_GM_DL_MINS * ?MinuteSecs, %% DUPLICATE CODE
     TimeNow = mafia_time:utc_secs1970(),
     DayPh = #phase{num = DayNum, ptype = ?day},
     NigPh = #phase{num = DayNum, ptype = ?night},
@@ -175,8 +178,8 @@ get_times(G, DayNum) ->
                     Time when is_integer(Time) ->
                         Time
                 end,
-    DTimeSta = min(TimeDLSta + TimeEoN, TimeNow),
-    DTimeEnd = min(TimeDLEnd + TimeEoN, TimeNow),
+    DTimeSta = min(TimeDLSta + ?MAX_GM_DL_SECS, TimeNow),
+    DTimeEnd = min(TimeDLEnd + ?MAX_GM_DL_SECS, TimeNow),
     RTimeSta = min(TimeDLSta, TimeNow),
     RTimeEnd = min(TimeDLEnd, TimeNow),
     {DTimeSta, DTimeEnd, RTimeSta, RTimeEnd}.
@@ -208,12 +211,7 @@ get_day(players_deaths, G, {DTimeSta, DTimeEnd, RTimeSta, RTimeEnd}) ->
 
 replace2(Old, New, Ps) ->
     MatchF = fun(P) -> P == Old end,
-    replace(MatchF, Ps, New).
-
-%% DUPLICATE CODE
-%% @doc Replace element in list if MatchF returns true
-replace(MatchF, List, NewElement) ->
-    [case MatchF(E) of true -> NewElement; false -> E end || E <- List].
+    replace_p(MatchF, Ps, New).
 
 %% -----------------------------------------------------------------------------
 
@@ -467,6 +465,12 @@ split_on_first_char([Char | T], Acc, Char) -> {?lrev(Acc), T};
 split_on_first_char([], Acc, _) -> {?lrev(Acc), ""};
 split_on_first_char([H | T], Acc, Char) ->
     split_on_first_char(T, [H | Acc], Char).
+
+%% -----------------------------------------------------------------------------
+%% @doc Replace element in list if MatchF returns true
+-spec replace_p(function(), list(), term()) -> UpdatedList:: list().
+replace_p(MatchF, List, NewElement) ->
+    [case MatchF(E) of ?true -> NewElement; ?false -> E end || E <- List].
 
 %% -----------------------------------------------------------------------------
 

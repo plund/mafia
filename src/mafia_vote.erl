@@ -109,7 +109,7 @@ check_for_gm_cmds(Re, M, G, DoGenerate) ->
     if not DoGenerate,
        G7 /= G6, %% someone died
        RelTimeSecs >= 0,
-       RelTimeSecs =< ?MAX_GM_DL_MINS * ?MinuteSecs ->
+       RelTimeSecs =< ?MAX_GM_DL_SECS ->
             game:regen_history(M, G7);
        true ->
             ok
@@ -213,7 +213,6 @@ kill_player(G, M, DeadB, DeathComment, true) ->
                    is_deleted = false
                   },
     NewDeaths = add_modify_deaths(Death, G),
-    update_day_rec(G, M, Death),
     G2 = G#mafia_game{players_rem = NewRems,
                       player_deaths = NewDeaths},
     ?dwrite_game(game_v1, G2),
@@ -238,14 +237,9 @@ kill_player(G, M, DeadB, DeathComment, false) ->
             NewDeaths = add_modify_deaths(Death, G),
             G2 = G#mafia_game{player_deaths = NewDeaths},
             ?dwrite_game(game_v2, G2),
-            if DeathPhase#phase.num /= OldPhase#phase.num ->
-                    %% TODO / FIXME
-                    ?dbg(M#message.time,
-                         "WARNING: Death moved between day records "
-                         "Not fixed! Do refresh_votes()");
-               true ->
-                    update_day_rec(G2, M, Death),
-                    game:regen_history(M, {G2, DeathPhase})
+            if DeathPhase#phase.num == OldPhase#phase.num ->
+                    game:regen_history(M, {G2, DeathPhase});
+               ?true -> ok
             end,
             {{ok, DeathPhase}, G2};
         _ ->
@@ -273,15 +267,9 @@ set_death_msgid(G, M, DeadB, [DeathMsg], DeathComment) ->
                            },
             NewDeaths = add_modify_deaths(Death, G),
             G2 = G#mafia_game{player_deaths = NewDeaths},
-            ?dwrite_game(game_v3, G2),
-            if DeathPhase#phase.num /= OldPhase#phase.num ->
-                    %% TODO / FIXME
-                    ?dbg(M#message.time,
-                         "WARNING: Death moved between day records "
-                         "Not fixed! Do refresh_votes()");
-               true ->
-                    update_day_rec(G2, M, Death),
-                    game:regen_history(DeathMsg, {G2, DeathPhase})
+            if DeathPhase#phase.num == OldPhase#phase.num ->
+                    game:regen_history(DeathMsg, {G2, DeathPhase});
+               ?true -> ok
             end,
             ok;
         _ ->
@@ -309,9 +297,6 @@ get_line_at(Pos, Msg) ->
                        -> NewDeaths :: [#death{} | #replacement{}].
 add_modify_deaths(D, G = #mafia_game{}) ->
     Deaths = G#mafia_game.player_deaths,
-    add_deathI(D, Deaths);
-add_modify_deaths(D, Day = #mafia_day{})->
-    Deaths = Day#mafia_day.player_deaths,
     add_deathI(D, Deaths).
 
 add_deathI(D, Deaths) ->
@@ -326,7 +311,7 @@ add_deathI(D, Deaths) ->
                          %% remove delete marking on D2
                          D2#death{is_deleted = false}
                  end,
-            replace(Match, Deaths, D3)
+            mafia_lib:replace_p(Match, Deaths, D3)
     end.
 
 %% mafia_lib?
@@ -338,47 +323,15 @@ find(MatchF, List) ->
         [MatchElement | _] -> MatchElement
     end.
 
-%% @doc Replace element in list if MatchF returns true
-replace(MatchF, List, NewR) ->
-    [case MatchF(E) of true -> NewR; false -> E end || E <- List].
-
 -spec is_end_of_phase(M :: #message{}, G :: #mafia_game{})
                      -> {IsEnd :: boolean(), #phase{}}.
 is_end_of_phase(M, G) ->
     TimeMsg = M#message.time,
     PhaseMsg = mafia_time:calculate_phase(G, TimeMsg),
-    Time20m = TimeMsg - ?MAX_GM_DL_MINS * ?MinuteSecs,
+    Time20m = TimeMsg - ?MAX_GM_DL_SECS,
     Phase20m = mafia_time:calculate_phase(G, Time20m),
     IsEnd = PhaseMsg /= Phase20m,
     {IsEnd, Phase20m}.
-
-%% In case someone votes before GM annouce dead, the day record
-%% will have too many remaining players
-update_day_rec(G, M, Death) ->
-    MsgPhase = mafia_time:calculate_phase(G, M#message.time),
-    DeathPhase = Death#death.phase,
-    IsSamePhase = MsgPhase == DeathPhase,
-    Player = Death#death.player,
-    RemPlayer =
-        fun(D) ->
-                NewRems = D#mafia_day.players_rem -- [Player],
-                D#mafia_day{players_rem = NewRems}
-        end,
-    AddDeath =
-        fun(D) ->
-                NewDeaths = add_modify_deaths(Death, D),
-                D#mafia_day{player_deaths = NewDeaths}
-        end,
-    MDay = ?rday(G, MsgPhase),
-    if IsSamePhase ->
-            MDay2 = RemPlayer(MDay),
-            ?dwrite_day(AddDeath(MDay2));
-       not IsSamePhase ->
-            ?dwrite_day(RemPlayer(MDay)),
-            DDay = ?rday(G, DeathPhase),
-            DDay2 = RemPlayer(DDay),
-            ?dwrite_day(AddDeath(DDay2))
-    end.
 
 is_last_non_letter(HStr) ->
     is_first_non_letter(?lrev(HStr)).
@@ -598,19 +551,13 @@ replace2(G, M, New, Old, true) ->
 -spec replace3(#mafia_game{}, #message{}, #user{}, #user{}) ->
                       {ok, #mafia_game{}} | {?game_ended, #mafia_game{}}.
 replace3(G, M, New, Old) ->
-    %% replace ALSO in #mafia_day.players_rem
     Phase = mafia_time:calculate_phase(G, M#message.time),
     if Phase#phase.ptype == ?game_ended ->
             {?game_ended, G};
        true ->
-            DayNum = if Phase#phase.ptype == ?game_start -> 1;
-                        true -> Phase#phase.num
-                     end,
-            Day = ?rday(G, DayNum),
             NewP = ?e1(New#user.name),
             OldP = ?e1(Old#user.name),
             ?dbg(M#message.time, {?b2l(NewP), replaces, ?b2l(OldP)}),
-            Rems2 = repl_user(OldP, NewP, Day#mafia_day.players_rem),
             Replacement = #replacement{
               new_player = NewP,
               replaced_player = OldP,
@@ -618,9 +565,6 @@ replace3(G, M, New, Old) ->
               msg_key = M#message.msg_key,
               time = M#message.time
              },
-            DeathsD2 = [Replacement | Day#mafia_day.player_deaths],
-            ?dwrite_day(Day#mafia_day{players_rem = Rems2,
-                                      player_deaths = DeathsD2}),
             DeathsG2 = [Replacement | G#mafia_game.player_deaths],
             G2 = G#mafia_game{player_deaths = DeathsG2},
             replace4(G2, OldP, NewP)

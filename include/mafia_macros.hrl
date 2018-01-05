@@ -23,6 +23,7 @@
 -define(DaySecs, (?DayHours * ?HourSecs)).
 
 -define(MAX_GM_DL_MINS, 20).
+-define(MAX_GM_DL_SECS, (?MAX_GM_DL_MINS * ?MinuteSecs)).
 
 -define(BotUrl, "http://mafia.peterlund.se/").
 

@@ -4,8 +4,6 @@
 %% ##RESURRECT PLAYER
 %% - reinsert PLAYER into #mafia_game.player_rem
 %% - remove #death in #mafia_game.player_deaths
-%% - reinsert PLAYER into one or more #mafia_day.player_rem
-%% - remove #death in one or more #mafia_day.player_deaths
 %% - replay messages for PLAYER since death to resurrection
 
 %% MUST add site into thread_page dir name!!
@@ -441,9 +439,9 @@ unend_game(GNum, MsgId) ->
 replace_player(GNum, MsgId, OldPlayer, NewPlayer) ->
     case find_mess_game(GNum, MsgId) of
         {ok, G, M} ->
-            case mafia_vote:replace_player(G, M,
-                                           NewPlayer,
-                                           OldPlayer) of
+            case mafia_op:replace_player(G, M,
+                                         NewPlayer,
+                                         OldPlayer) of
                 {ok, _} ->
                     Cmd =
                         #cmd{time = M#message.time,
@@ -476,10 +474,10 @@ set_death_msgid(GNum, MsgId, Player, DeathMsgId, DeathComment) ->
                        mfa = {mafia, set_death_msgid,
                               [GNum, MsgId, Player, DeathMsgId, DeathComment]}},
             PlayerB = ?l2b(Player),
-            case mafia_vote:set_death_msgid(G, M,
-                                            PlayerB,
-                                            ?rmess({DeathMsgId, Site}),
-                                            DeathComment) of
+            case mafia_op:set_death_msgid(G, M,
+                                          PlayerB,
+                                          ?rmess({DeathMsgId, Site}),
+                                          DeathComment) of
                 ok ->
                     ?man(Time, Cmd),
                     mafia_file:manual_cmd_to_file(G, Cmd),
@@ -510,7 +508,7 @@ kill_player(GNum, MsgId, Player, Comment) ->
                        mfa = {mafia, kill_player,
                               [GNum, MsgId, Player, Comment]}},
             PlayerB = ?l2b(Player),
-            case mafia_vote:kill_player(G, M, PlayerB, Comment) of
+            case mafia_op:kill_player(G, M, PlayerB, Comment) of
                 {{ok, DeathPhase}, _G2} ->
                     ?man(Time, Cmd),
                     mafia_file:manual_cmd_to_file(G, Cmd),

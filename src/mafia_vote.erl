@@ -96,23 +96,41 @@ check_for_gm_cmds(Re, M, G, DoGenerate) ->
     G3 = check_for_early_end(Re, M#message.time, G),
     G4 = check_for_deadline_move(Re, M, G3),
     G5 = check_for_player_replacement(Re, M, G4),
+    G6 = check_for_player_resurrect(Re, M, G5),
     %% Switched order of next 2 to regenerate last day with
     %% possible deaths in mafia_time:end_game
-    G6 = check_for_deaths(Re, M, G5),
-    G7 = check_for_game_end(Re, M, G6),
+    G7 = check_for_deaths(Re, M, G6),
+    IsSomeoneDead = G7 /= G6,
+    G8 = check_for_game_end(Re, M, G7),
 
     %% if time is 0 - 20 min after a deadline generate a history page
-    {RelTimeSecs, _PT} = mafia_time:nearest_deadline(G7, M#message.time),
+    {RelTimeSecs, _PT} = mafia_time:nearest_deadline(G8, M#message.time),
     if not DoGenerate,
-       G6 /= G5, %% someone died
+       IsSomeoneDead,
        RelTimeSecs >= 0,
        RelTimeSecs =< ?MAX_GM_DL_SECS,
-       G7#mafia_game.game_end == ?undefined ->
+       G8#mafia_game.game_end == ?undefined ->
             ?regen_history(died, M, G7);
        true ->
             ok
     end,
-    G7.
+    G8.
+
+check_for_player_resurrect(Reg = #regex{}, M, G) ->
+    SearchU1 = "##RESURRECT",
+    case regex_find_words(SearchU1, Reg) of
+        {?nomatch, _} -> G;
+        {?match, Reg2} ->
+            PostMatch = Reg2#regex.msg_text,
+            [Player | _] = string:tokens(PostMatch, ".\n"),
+            PlayerB = ?l2b(string:strip(Player)),
+            case mafia_op:resurrect_player(G, M, PlayerB) of
+                {ok, G2} ->
+                    check_for_player_resurrect(Reg2, M, G2);
+                not_found ->
+                    G
+            end
+    end.
 
 check_for_deaths(Reg = #regex{}, M, G) ->
     %% find "has died" on line

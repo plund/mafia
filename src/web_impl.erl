@@ -291,7 +291,7 @@ game_status_out_hist(GNum, Phase, FileName, _) ->
     case mafia_time:get_time_for_phase(GNum, Phase) of
         PhaseTime when PhaseTime =< Time, is_integer(PhaseTime) ->
             %% Normally there should be a file and this generate should not run
-            game:regen_history(PhaseTime, {GNum, Phase}),
+            ?regen_history(no_file, PhaseTime, {GNum, Phase}),
             case read_file(FileName) of
                 {ok, Bin} ->
                     Bin;

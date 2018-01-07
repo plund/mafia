@@ -35,6 +35,7 @@
          next_deadlines/3,
          calculate_phase/1,
          calculate_phase/2,
+         game_phases/3,
          phases_upto/1,
          find_phase_with_time/2,
          get_nxt_deadline/2,
@@ -512,6 +513,35 @@ calculate_phase(Game, Time) ->
     DL = get_nxt_deadline(Game, Time),
     DL#dl.phase.
 
+%% game_phases from T1 upto T2 when T1 < T2
+game_phases(G = #mafia_game{}, T1, T2)
+  when is_integer(T1), is_integer(T2) ->
+    element(
+      2,
+      lists:foldr(
+        fun(#dl{time = DT, phase = Ph}, {init, Acc})
+              when DT > T2 ->
+                {stop, [Ph | Acc]};
+           (#dl{time = DT}, Acc = {init, _})
+              when DT < T1 ->
+                Acc;
+           (#dl{time = DT, phase = Ph}, {init, Acc})
+              when DT > T1 ->
+                {f1, [Ph | Acc]};
+           (#dl{time = DT, phase = Ph}, {f1, Acc})
+              when DT < T2 ->
+                {f1, [Ph | Acc]};
+           (#dl{time = DT, phase = Ph}, {f1, Acc})
+              when DT > T2 ->
+                {stop, [Ph | Acc]};
+           (_, Acc = {stop, _}) ->
+                Acc;
+           (_, Acc) ->
+                Acc
+        end,
+        {init, []},
+        G#mafia_game.deadlines)).
+
 phases_upto(EndPhase) ->
     phases_upto(EndPhase, #phase{num = 1, ptype = ?day}, []).
 
@@ -640,7 +670,7 @@ end_phase(G, Phase = #phase{}, Time, false) ->
     NewDLs = change_dl_time(G#mafia_game.deadlines, Phase, Time),
     G2 = G#mafia_game{deadlines = NewDLs},
     ?dwrite_game(game_t3, G2),
-    game:regen_history(Time, G), %% Change to G2?
+    ?regen_history(end_phase, Time, G2),
     G2;
 end_phase(G, _Phase, _Time, _DL) ->
     G.
@@ -745,10 +775,14 @@ end_game(M, G) ->
     NextPhase = inc_phase(hd(DLs2)),
     LastDL = #dl{phase = NextPhase, time = EndTime},
     DLs3 = [LastDL | DLs2],
+
+    %% Regen right before ending!
+    ?regen_history(end_game_1, EndTime, G),
     G2 = G#mafia_game{deadlines = DLs3,
                       game_end = {EndTime, ?e1(MsgKey)}},
     ?dwrite_game(game_t6, G2),
-    game:regen_history(EndTime, G2),
+    %% regenerate final game_status files
+    ?regen_history(end_game_2, EndTime, G2),
     {?game_ended, G2}.
 
 %% -----------------------------------------------------------------------------

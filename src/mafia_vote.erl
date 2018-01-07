@@ -51,18 +51,15 @@ check_cmds_votes2(G, Re, M) ->
               end,
     PhaseM = mafia_time:calculate_phase(G, M#message.time),
     IsStarted = PhaseM#phase.ptype /= ?game_start,
+    %% Is this a phase change?
     DoGenerate =
         case mafia_lib:prev_msg(M) of
-            ?none -> false;
+            ?none -> ?false;
             PrevM ->
                 PhasePrevM = mafia_time:calculate_phase(G, PrevM#message.time),
                 PhasePrevM /= PhaseM
                     andalso PhasePrevM#phase.ptype /= ?game_start
         end,
-    if DoGenerate ->
-            game:regen_history(M, G);
-       true -> ok
-    end,
     if not IsStarted ->
             case player_type(M, G) of
                 ?gm -> check_for_gm_cmds(Re, M, G, true);
@@ -83,6 +80,9 @@ check_cmds_votes2(G, Re, M) ->
                 _ -> ignore
             end
     end,
+    if DoGenerate -> ?regen_history(change_phase, M, G);
+       ?true -> ok
+    end,
     M#message.time.
 
 log_unallowed_msg(Type, M) ->
@@ -96,16 +96,19 @@ check_for_gm_cmds(Re, M, G, DoGenerate) ->
     G3 = check_for_early_end(Re, M#message.time, G),
     G4 = check_for_deadline_move(Re, M, G3),
     G5 = check_for_player_replacement(Re, M, G4),
-    G6 = check_for_game_end(Re, M, G5),
-    G7 = check_for_deaths(Re, M, G6),
+    %% Switched order of next 2 to regenerate last day with
+    %% possible deaths in mafia_time:end_game
+    G6 = check_for_deaths(Re, M, G5),
+    G7 = check_for_game_end(Re, M, G6),
 
     %% if time is 0 - 20 min after a deadline generate a history page
     {RelTimeSecs, _PT} = mafia_time:nearest_deadline(G7, M#message.time),
     if not DoGenerate,
-       G7 /= G6, %% someone died
+       G6 /= G5, %% someone died
        RelTimeSecs >= 0,
-       RelTimeSecs =< ?MAX_GM_DL_SECS ->
-            game:regen_history(M, G7);
+       RelTimeSecs =< ?MAX_GM_DL_SECS,
+       G7#mafia_game.game_end == ?undefined ->
+            ?regen_history(died, M, G7);
        true ->
             ok
     end,
@@ -135,7 +138,16 @@ check_for_deaths(Reg = #regex{}, M, G) ->
                 ?noone_died -> %% no match
                     check_for_deaths(Reg2, M, G);
                 _ ->
-                    {_, G2} = mafia_op:kill_player(G, M, KilledUserB, DeathComment),
+                    G2 = case lists:member(KilledUserB,
+                                           G#mafia_game.players_rem) of
+                             ?true ->
+                                 element(2,
+                                         mafia_op:kill_player(G, M, KilledUserB,
+                                                              DeathComment));
+                             ?false ->
+                                 %% GM cannot kill non-remaining player
+                                 G
+                         end,
                     check_for_deaths(Reg2, M, G2)
             end
     end.

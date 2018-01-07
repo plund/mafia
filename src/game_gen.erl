@@ -10,6 +10,7 @@
 
 %% API
 -export([regenerate_history/2,
+         regenerate_history_phase/2,
          update_current_txt/2,
          update_current_html/3,
          get_html/2
@@ -26,6 +27,10 @@
 %% @end
 %%--------------------------------------------------------------------
 regenerate_history(M, G) -> regen_history(M, G).
+
+regenerate_history_phase(GNum, Phase = #phase{})
+  when is_integer(GNum) ->
+    regen_historyI2(GNum, Phase).
 
 %%--------------------------------------------------------------------
 %% @doc Generate current text page
@@ -85,25 +90,25 @@ regen_historyI(Time, {GKey, Phase = #phase{}}) ->
 
 regen_historyI(_, _, #phase{ptype = ?game_start}, _) -> ok;
 regen_historyI(Time, GNum, Phase = #phase{}, [G]) ->
-    ?dbg(Time, {"DO REGENERATE_HISTORY 3", Phase, Time}),
+    ?dbg(Time, {"=== REGENERATE HISTORY ===", Phase}),
+    regen_historyI2(GNum, Phase),
+    case G#mafia_game.game_end of
+        ?undefined -> ok;
+        _ ->
+            ?dbg(Time, {"=== REGENERATE GAME STATUS ==="}),
+            %% ?dbg(stacktrace()),
+            regen_historyI2(GNum, #phase{ptype = ?game_ended})
+    end,
+    ok.
+
+regen_historyI2(GNum, Phase) ->
+    [G] = ?rgame(GNum),
     Opts = [{?game_key, GNum},
             {?phase, Phase}],
     FNTxt = mafia_file:game_phase_full_fn(G, Phase),
     FNHtml= mafia_file:game_phase_full_fn(?html, G, Phase),
     regen_hist_txt(FNTxt, Opts),
-    regen_hist_html(FNHtml, Phase, Opts),
-    case G#mafia_game.game_end of
-        ?undefined -> ok;
-        _ ->
-            ?dbg(Time, {"REGENERATE GAME_STATUS"}),
-            Opts2 = [{?game_key, GNum},
-                     {?phase, #phase{ptype = ?game_ended}}],
-            FNTxt2 = mafia_file:game_phase_full_fn(G, ?current),
-            FNHtml2 = mafia_file:game_phase_full_fn(?html, G, ?current),
-            regen_hist_txt(FNTxt2, Opts2),
-            regen_hist_html(FNHtml2, Phase, Opts2)
-    end,
-    ok.
+    regen_hist_html(FNHtml, Phase, Opts).
 
 regen_hist_txt(FNTxt, Opts) ->
     write_text(FNTxt, Opts).

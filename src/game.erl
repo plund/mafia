@@ -16,7 +16,7 @@
          start_polling/1,
          stop_polling/1,
          poll_minutes/1,
-         regen_history/2,
+         regen_history/4,
          update_current/0,
          get_id/1
         ]).
@@ -58,7 +58,12 @@ get_id(GNum) when is_integer(GNum) -> ?l2a("game_" ++ ?i2l(GNum)).
 %% @doc Regenerate history text page
 %% @end
 %%--------------------------------------------------------------------
-regen_history(M, G) -> game_gen:regenerate_history(M, G).
+regen_history(Mod, Term, #message{time = T}, G) ->
+    regen_history(Mod, Term, T, G);
+regen_history(Mod, Term, Time, G)
+  when is_integer(Time) ->
+    mafia_lib:dbg(Mod, {regen_history, Term}),
+    game_gen:regenerate_history(Time, G).
 
 %%--------------------------------------------------------------------
 %% @doc Update current text page
@@ -173,7 +178,7 @@ handle_info({?deadline, DL}, State) ->
     mafia_data:downl_web(State#state.game_num,
                          DL,
                          ?getv(?ntp_offset_secs)),
-    regen_history(DL#dl.time, State#state.game_num),
+    game_gen:regenerate_history(DL#dl.time, State#state.game_num),
     S2 = set_dl_timer(State, DL#dl.time),
     {noreply, S2};
 handle_info(do_polling, State) ->

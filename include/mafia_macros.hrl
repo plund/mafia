@@ -89,22 +89,12 @@
 -define(rgame(ThId), mafia_lib:rgame(ThId)).
 -define(rday(GK, Phase), mafia_lib:rday(GK, Phase)).
 
--define(dbg(Term),
-        io:format("~s DBG ~p ~999p\n",
-                  [mafia_print:print_time(?console),
-                   ?MODULE, Term])).
--define(dbg(Time, Term),
-        io:format("~s DBG ~p ~999p\n",
-                  [mafia_print:print_time(?console, Time),
-                   ?MODULE, Term])).
--define(dbg_str(Str),
-        io:format("~s DBG ~s\n",
-                  [mafia_print:print_time(?console),
-                   Str])).
--define(man(Time, Cmd),
-        io:format("~s MANUAL ~999p\n",
-                  [mafia_print:print_time(?console, Time),
-                   Cmd])).
+-define(regen_history(Term, M, G), game:regen_history(?MODULE, Term, M, G)).
+
+-define(dbg(Term), mafia_lib:dbg(?MODULE, Term)).
+-define(dbg(Time, Term), mafia_lib:dbg(?MODULE, Time, Term)).
+-define(dbg_str(Str), mafia_lib:dbg_str(Str)).
+-define(man(Time, Cmd), mafia_lib:man(Time, Cmd)).
 
 -define(HTML_TAB_START_LINKS(Title, TabAttrStr, PrevL, NextL),
  "<!DOCTYPE html>

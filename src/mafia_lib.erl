@@ -41,12 +41,22 @@
          all_msgids/2,
          all_msgids/3,
 
+         iterate_all_msg_ids/2,
+         iterate_all_msg_ids/3,
+         iter_msgids/4,
+
          inc_cnt/1,
          inc_cnt/2,
          inc_cnt/3,
          print_all_cnts/0,
          print_all_cnts/1,
-         save_cnts_to_file/0
+         save_cnts_to_file/0,
+
+         dbg/2,
+         dbg/3,
+         dbg_str/1,
+         man/2,
+         stacktrace/0
         ]).
 
 -include("mafia.hrl").
@@ -90,9 +100,14 @@ rpage(Key = {_, _, Site}) ->
                               [] /= ?rmess({MId, Site}) ],
             if MsgIds2 == [] -> [];
                true ->
-                    Complete = P#page_rec.complete andalso
-                        MsgIds2 == P#page_rec.message_ids andalso
-                        length(MsgIds2) > 25,
+                    NumMsgs = case Site of
+                                  ?wd2 -> 20;
+                                  _ -> 30
+                              end,
+                    Complete =
+                        %% P#page_rec.complete andalso
+                        %% MsgIds2 == P#page_rec.message_ids andalso
+                        length(MsgIds2) >= NumMsgs,
                     [P#page_rec{message_ids = MsgIds2,
                                 complete = Complete}]
             end
@@ -536,36 +551,112 @@ merge_overlap(L) ->
 
 %% -----------------------------------------------------------------------------
 
-%/1
+%/2
 %% Returns [{Page::integer(), MsgId :: msg_id()}]
 all_msgids(ThId, Site) ->
     AllPages = pages_for_thread({ThId, Site}),
     all_msgids(ThId, Site, AllPages).
 
-%/2
+%/3
 %% Returns [{Page::integer(), MsgId :: msg_id()}]
 all_msgids(_, _, []) -> [];
 all_msgids(ThId, Site, [PageN|PagesT]) ->
     all_msgids(ThId, Site, PagesT, PageN, ?rpage({ThId, PageN, Site})).
 
-%/4
+%/5
 all_msgids(ThId, Site, PagesT, _PageN, []) ->
     all_msgids(ThId, Site, PagesT);
 all_msgids(ThId, Site, PagesT, PageN, [PR]) ->
     all_msgids2(ThId, Site, PagesT, PageN, PR#page_rec.message_ids).
 
 %% -----------------------------------------------------------------------------
-%/4
+%/5
 all_msgids2(ThId, Site, PagesT, _PageN, []) ->
     all_msgids(ThId, Site, PagesT);
 all_msgids2(ThId, Site, PagesT, PageN, [MId|MIds]) ->
     all_msgids3(ThId, Site, PagesT, PageN, [MId|MIds], ?rmess({MId, Site})).
 
-%/5
+%/6
 %% Returns [{Page::integer(), MsgId :: msg_id()}]
 all_msgids3(_, _, _, _, _, []) -> [];
 all_msgids3(ThId, Site, PagesT, PageN, [MId|MIds], _) ->
     [{PageN, MId} | all_msgids2(ThId, Site, PagesT, PageN, MIds)].
+
+%% -----------------------------------------------------------------------------
+-type last_iter_msg_ref() :: ?none |
+                             {ThId :: integer(),
+                              Page :: integer(),
+                              MsgId :: integer(),
+                              MsgTime :: seconds1970()}.
+
+%% Iterate through all message ids in one thread in time order
+-spec iterate_all_msg_ids({thread_id(), site()},
+                          MsgIdFun :: function()) -> last_iter_msg_ref().
+iterate_all_msg_ids(ThId, Fun) ->
+    iterate_all_msg_ids(ThId, Fun, all).
+
+%% If the MsgIdFun returns an integer, the last returned integer
+%% will also be returned from this fun as the MsgTime
+-spec iterate_all_msg_ids({thread_id(), site()},
+                          MsgIdFun :: function(),
+                          PageFilter:: all | function())
+                         -> last_iter_msg_ref().
+iterate_all_msg_ids(Thread, MsgIdFun, PageFilter) ->
+    iter_msgids(Thread, MsgIdFun, no_acc, PageFilter).
+
+-spec iter_msgids({thread_id(), site()},
+                  MsgIdFun :: function(),
+                  Acc :: any(),
+                  PageFilter:: all | function())
+                 -> last_iter_msg_ref().
+iter_msgids(Thread, MsgIdFun, Acc, PageFilter) ->
+    All = pages_for_thread(Thread),
+    Pages = if PageFilter == all ->
+                    All;
+               is_function(PageFilter) ->
+                    lists:filter(PageFilter, All)
+            end,
+    %% get last page num
+    iterate_all_msg_idsI(Thread, MsgIdFun, Pages, Acc,
+                         erlang:fun_info(MsgIdFun, arity)).
+
+%% Return reference to last iterated message
+-type arity2resp() :: term().
+-spec iterate_all_msg_idsI({thread_id(), site()},
+                           MsgIdFun :: function(),
+                           PageNums :: [integer()],
+                           Acc :: term(),
+                           {arity, integer()}
+                          )
+                          -> last_iter_msg_ref() | arity2resp().
+iterate_all_msg_idsI(Thread = {ThId, Site},
+                     MsgIdFun,
+                     PageNums,
+                     Acc,
+                     {arity, Ar}) ->
+    case mafia_lib:all_msgids(ThId, Site, PageNums) of
+        [] -> ?none;
+        PageMsgIds ->
+            {LastPage, LastMsgId} = lists:last(PageMsgIds),
+            if Ar == 1 ->
+                    LastMsgTime =
+                        lists:foldl(
+                          fun({_, MId}, Acc2) ->
+                                  R = MsgIdFun(MId),
+                                  if is_integer(R) -> R;
+                                     true -> Acc2
+                                  end
+                          end,
+                          none,
+                          PageMsgIds),
+                    {Thread, LastPage, LastMsgId, LastMsgTime};
+               Ar == 2 ->
+                    AccOut =
+                        lists:foldl(MsgIdFun, Acc,
+                                    [Id || {_, Id} <- PageMsgIds]),
+                    MsgIdFun(report, AccOut)
+            end
+    end.
 
 %% -----------------------------------------------------------------------------
 %% Counter updates
@@ -683,3 +774,33 @@ repl(L, In, Out) ->
 to_list(A) when is_atom(A) -> ?a2l(A);
 to_list(I) when is_integer(I) -> ?i2l(I);
 to_list(V) -> V.
+
+%% -----------------------------------------------------------------------------
+
+dbg(Mod, Term) ->
+    io:format("~s DBG ~p ~999p\n",
+              [mafia_print:print_time(?console),
+               Mod, Term]).
+
+dbg(Mod, Time, Term) ->
+    io:format("~s DBG ~p ~999p\n",
+              [mafia_print:print_time(?console, Time),
+               Mod, Term]).
+
+dbg_str(Str) ->
+    io:format("~s DBG ~s\n",
+              [mafia_print:print_time(?console),
+               Str]).
+
+man(Time, Cmd) ->
+    io:format("~s MANUAL ~999p\n",
+              [mafia_print:print_time(?console, Time),
+               Cmd]).
+
+%% -----------------------------------------------------------------------------
+
+stacktrace() ->
+    try throw(a)
+    catch throw:a ->
+            erlang:get_stacktrace()
+    end.

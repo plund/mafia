@@ -1,12 +1,8 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% ##RESURRECT PLAYER
-%% - reinsert PLAYER into #mafia_game.player_rem
-%% - remove #death in #mafia_game.player_deaths
-%% - replay messages for PLAYER since death to resurrection
-
 %% MUST add site into thread_page dir name!!
+%% Check out free CA LetsEncrypt
 %% Add page for serverkeeper to initiate_new_game
 %%  - will a game with signup only, poll the thread?
 %%    - dont think so, BUT it should
@@ -68,6 +64,7 @@
 
          replace_player/4,
          kill_player/4,
+         resurrect_player/3,
          ignore_message/2,
 
          set_death_msgid/5,
@@ -512,7 +509,7 @@ kill_player(GNum, MsgId, Player, Comment) ->
                 {{ok, DeathPhase}, _G2} ->
                     ?man(Time, Cmd),
                     mafia_file:manual_cmd_to_file(G, Cmd),
-                    game:regen_history(M, G),
+                    ?regen_history(mankill, M, G),
                     {player_killed, DeathPhase};
                 {not_remaining_player, _G2} ->
                     case ?ruser(Player, G#mafia_game.site) of
@@ -525,6 +522,36 @@ kill_player(GNum, MsgId, Player, Comment) ->
                                     {not_remaining_player, ?b2l(PlayerB)}
                             end
                     end
+            end;
+        {?error, _} = E -> E
+    end.
+
+%% -----------------------------------------------------------------------------
+%% @doc Read the GM message and add good comment about who the dead player was.
+%% @end
+%% -----------------------------------------------------------------------------
+-spec resurrect_player(GNum :: game_num(),
+                       MsgId :: msg_id(),
+                       Player :: string())
+                 -> ok |
+                    {?error, msg_not_found | game_not_found} |
+                    {player_not_dead}.
+resurrect_player(GNum, MsgId, Player) ->
+    case find_mess_game(GNum, MsgId) of
+        {ok, G, M} ->
+            Time = M#message.time,
+            Cmd = #cmd{time = Time,
+                       msg_id = MsgId,
+                       mfa = {mafia, resurrect_player,
+                              [GNum, MsgId, Player]}},
+            PlayerB = ?l2b(Player),
+            case mafia_op:resurrect_player(G, M, PlayerB) of
+                {ok, _G2} ->
+                    ?man(Time, Cmd),
+                    mafia_file:manual_cmd_to_file(G, Cmd),
+                    ok;
+                not_found ->
+                    not_found
             end;
         {?error, _} = E -> E
     end.

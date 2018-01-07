@@ -207,7 +207,8 @@ setup_pp(PP) when PP#pp.players_vote == ?undefined ->
           end,
           PlayersRem,
           Deaths),
-    setup_pp(PP#pp{players_vote = AllPlayersB});
+    AllPlayersB2 = mafia_lib:to_bin_sort(AllPlayersB),
+    setup_pp(PP#pp{players_vote = AllPlayersB2});
 setup_pp(PP) when PP#pp.phase_type == ?undefined ->
     PhaseType = case PP#pp.phase of
                     #phase{ptype = ?game_start} -> ?game_start;

@@ -43,7 +43,7 @@ web_vote_tracker(PP, [Game], Day) ->
 print_tracker(PP) when PP#pp.day_num == ?undefined ->
     print_tracker(PP#pp{day_num = (PP#pp.phase)#phase.num});
 print_tracker(PP) ->
-    %% player_deaths contains players dying in the middle of the day.
+    %% player_vote contains players dying in the middle of the day.
     AllPlayersB = PP#pp.players_vote,
     Abbrs = mafia_name:get_abbrevs(AllPlayersB),
     if PP#pp.mode == ?text ->

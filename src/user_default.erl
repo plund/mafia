@@ -134,6 +134,8 @@ mafia:ignore_message(GNum, MsgId)
     An mafia:refresh_votes(GNum) will be run.
 mafia:kill_player(GNum, MsgId, Player, Comment)
     Kill a player
+mafia:resurrect_player(GNum, MsgId, Player)
+    Undo a previous kill_player command
 mafia:set_death_msgid(GNum, MsgId, Player, DeathMsgId, Comment).
     Reference a previous msgid as the death message, give comment.
 

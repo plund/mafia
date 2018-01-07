@@ -2,7 +2,8 @@
 
 -export([kill_player/4,
          set_death_msgid/5,
-         replace_player/4
+         replace_player/4,
+         resurrect_player/3
         ]).
 
 -include("mafia.hrl").
@@ -58,13 +59,81 @@ kill_player(G, M, DeadB, DeathComment, false) ->
             NewDeaths = add_modify_deaths(Death, G),
             G2 = G#mafia_game{player_deaths = NewDeaths},
             ?dwrite_game(game_v2, G2),
-            if DeathPhase#phase.num == OldPhase#phase.num ->
-                    game:regen_history(M, {G2, DeathPhase});
+            MsgPhase = mafia_time:calculate_phase(G, M#message.time),
+            if DeathPhase#phase.num == OldPhase#phase.num,
+               DeathPhase /= MsgPhase ->
+                    ?regen_history(update_death, M, {G2, DeathPhase});
                ?true -> ok
             end,
             {{ok, DeathPhase}, G2};
         _ ->
             {not_remaining_player, G}
+    end.
+
+%% -----------------------------------------------------------------------------
+%% @doc
+%% @end
+%% -----------------------------------------------------------------------------
+resurrect_player(G, M, PlayerB) ->
+    %% ##RESURRECT PLAYER
+    case lists:partition(fun(#death{player = P}) -> P == PlayerB;
+                            (_) -> ?false
+                         end,
+                         G#mafia_game.player_deaths) of
+        {[], _} ->
+            not_found;
+        {[#death{msg_key = DMK, time = DTime}], NewDeaths} ->
+            NewRems =
+                mafia_lib:to_bin_sort([PlayerB | G#mafia_game.players_rem]),
+            %% reinsert PLAYER into #mafia_game.player_rem
+            %% remove #death in #mafia_game.player_deaths
+            G2 = G#mafia_game{players_rem = NewRems,
+                              player_deaths = NewDeaths},
+            ?dwrite_game(game_v5, G2),
+            MTime = M#message.time,
+            Site = G#mafia_game.site,
+            ThId = G#mafia_game.thread_id,
+            %% Remove pages with too old messages
+            PageFilter =
+                fun(PNum) ->
+                        case ?rpage(ThId, PNum, Site) of
+                            [#page_rec{message_ids = MsgIds}] ->
+                                case ?rmess({lists:last(MsgIds), Site}) of
+                                    [#message{time = PMsgTime}] ->
+                                        PMsgTime > DTime;
+                                    _ -> false
+                                end
+                        end
+                end,
+            %% Replay all messages after DTime
+            Gtmp = G#mafia_game{page_to_read = 1,
+                                last_msg_id = element(1, DMK),
+                                last_msg_time = DTime},
+            {MsgIdFun0, Acc} = mafia_data:checkvote_fun(Gtmp, false),
+            MsgIdFun =
+                fun(MsgId, Acc2) ->
+                        case ?rmess({MsgId, Site}) of
+                            [#message{msg_key = MK, time = T}]
+                              when MK /= M#message.msg_key,
+                                   MK /= DMK,
+                                   DTime =< T ->
+                                MsgIdFun0(MsgId, Acc2);
+                            _ ->
+                                Acc2
+                        end
+                end,
+            mafia_lib:iter_msgids({ThId, Site}, MsgIdFun, Acc, PageFilter),
+
+            %% for phases prior to the current phase we should regen the history
+            %% from DTime to MTime
+            RegenPhases = mafia_time:game_phases(G2, DTime, MTime),
+            [begin
+                 ?dbg({replay_user, Phase}),
+                 game_gen:regenerate_history_phase(G2#mafia_game.game_num,
+                                                   Phase)
+             end
+             || Phase <- RegenPhases],
+            {ok, G2}
     end.
 
 %% -----------------------------------------------------------------------------
@@ -93,7 +162,7 @@ set_death_msgid(G, M, DeadB, [DeathMsg], DeathComment) ->
             NewDeaths = add_modify_deaths(Death, G),
             G2 = G#mafia_game{player_deaths = NewDeaths},
             if DeathPhase#phase.num == OldPhase#phase.num ->
-                    game:regen_history(DeathMsg, {G2, DeathPhase});
+                    ?regen_history(set_death_msgid, DeathMsg, {G2, DeathPhase});
                ?true -> ok
             end,
             ok;
@@ -152,16 +221,12 @@ replace3(G, M, New, Old) ->
 
 -spec replace4(#mafia_game{}, term(), term()) -> {ok, #mafia_game{}}.
 replace4(G, OldUB, NewUB) ->
-    NewRem = repl_user(OldUB, NewUB, G#mafia_game.players_rem),
-    G2 = G#mafia_game{players_rem = NewRem},
+    Rem2 = G#mafia_game.players_rem -- [OldUB],
+    NewRems = mafia_lib:to_bin_sort([NewUB | Rem2]),
+    %% NewRems = repl_user(OldUB, NewUB, G#mafia_game.players_rem),
+    G2 = G#mafia_game{players_rem = NewRems},
     ?dwrite_game(game_v4, G2),
     {ok, G2}.
-
-repl_user(OldUB, NewUB, Users) ->
-    R = fun(U) when U == OldUB -> NewUB;
-           (U) -> U
-        end,
-    [R(U) || U <- Users].
 
 %% -----------------------------------------------------------------------------
 %% Internal help funs

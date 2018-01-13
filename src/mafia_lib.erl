@@ -304,7 +304,7 @@ set_new_password(User, Site) ->
             PW = base64:encode_to_string(integer_to_list(Rand)),
             PwHash = erlang:phash2(PW, ?PW_SPACE),
             ?dwrite_user(U#user{pw_hash = PwHash}),
-            {ok, {?b2l(Name), Site, PW}}; %% send PW to user
+            {ok, {?b2l(Name), Site, PW, date()}}; %% send PW to user
         _ ->
             {error, user_not_found}
     end.

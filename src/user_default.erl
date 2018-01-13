@@ -110,9 +110,12 @@ help(type())
 
 Game Life Cycle
 ---------------
-mafia:initiate_game(GNum)
 mafia:initiate_game(GNum, Site)
 mafia:initiate_game(GNum, GMs, Site)
+
+Then set game parameters: start_time, time_zone, dst_zone, signup_thid and
+then do start_poll(GNum) and the signup thread will be pulled. Add players,
+gms and more. Finally start the game using the web page that sets the thread_id.
 
 Maintenance
 -----------
@@ -161,6 +164,9 @@ mafia_time:set_time_offset(Off) - Change the time offset
         | {move, Secs}
         | {msg_key, {MsgId, Site}}
         | {days_hours, Days, Hours})
+
+mafia_lib:set_new_password(User, Site).
+mafia_lib:copy_password_between_users(User1, Site1, User2, Site2).
 
 mafia:show_all_users()          - List primary keys in User DB
 mafia:show_all_users(Search)    - List primary keys matching Search

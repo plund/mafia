@@ -16,6 +16,7 @@
 -define(wd2, wd2).       % "w:123"
 
 -define(stop, stop).
+-define(all, all).
 -define(none, none).
 -define(match, match).
 -define(nomatch, nomatch).
@@ -116,6 +117,7 @@
 -define(mod_msg, mod_msg).
 -define(page_to_read, page_to_read).
 -define(server_keeper, server_keeper).
+-define(server_admins, server_admins).
 -define(thread_id, thread_id).
 -define(time_offset, time_offset). %% integer in seconds
 -define(timezone_game, timezone_game).

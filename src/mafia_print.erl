@@ -900,6 +900,8 @@ print_dls_html(DLs, Title, PrintRelative) ->
       || {PhaseStr, {Days, {HH, MM, _}}, TimeStr} <- DLs]].
 
 pr_thread_links(PP, _DoDispTime2DL)
+  when (PP#pp.phase)#phase.ptype == ?game_start -> [];
+pr_thread_links(PP, _DoDispTime2DL)
   when (PP#pp.phase)#phase.ptype == ?game_ended ->
     GameNumStr = integer_to_list((PP#pp.game)#mafia_game.game_num),
     Link = "<a href=\"/e/web/msgs?g=" ++ GameNumStr ++

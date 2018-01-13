@@ -214,11 +214,25 @@ make_game_rec(24) ->
       players_rem = to_bin(?M24_players)
      }.
 
-set(K = ?server_keeper, {U, Site}) when ?IS_SITE_OK(Site) ->
+conv_to_name(L) when is_list(L) ->
+    [conv_to_name(User) || User = {_, _} <- L];
+conv_to_name({U, Site}) when ?IS_SITE_OK(Site) ->
     case ?ruserUB(U, Site) of
         [#user{name = {Name, _}}] ->
-            set_kv(K, {?b2l(Name), Site});
-        [] -> {error, user_not_in_db}
+            {?b2l(Name), Site};
+        [] ->
+            throw({error, {user_not_in_db, {U, Site}}})
+    end;
+conv_to_name({_U, Site}) when not ?IS_SITE_OK(Site) ->
+    throw({error, {site_not_defined, Site}}).
+
+set(K = ?server_keeper, {U, Site}) ->
+    try set_kv(K, conv_to_name({U, Site}))
+    catch {error, Err} -> Err
+    end;
+set(K = ?server_admins, Admins) when is_list(Admins) ->
+    try set_kv(K, conv_to_name(Admins))
+    catch Err = {error, _} -> Err
     end;
 set(K=?thread_id, V) when is_integer(V), V > 0 -> set_kv(K, V);
 set(K=?game_key, V) when is_integer(V), V > 0 -> set_kv(K, V);

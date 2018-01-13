@@ -68,7 +68,8 @@ front_page(Sid, _Env, In) ->
          "</table>"],
     [RolePmSignUp, UserAliasLink, CurGameLinks] =
         case catch get_fp(G) of
-            {'EXIT', _} -> ["", "", ""];
+            {'EXIT', _Reason} ->
+                ["", "", ""];
             GameLink -> GameLink
         end,
     HLinks = [["<a href=\"/m",
@@ -88,8 +89,8 @@ front_page(Sid, _Env, In) ->
     Size = web:deliver(Sid, [Pre,
                              Form,
                              RolePmSignUp,
-                             UserAliasLink,
                              CurGameLinks,
+                             UserAliasLink,
                              OldGamesHistoryLinks,
                              Post]),
     {Size, ?none}.
@@ -705,10 +706,16 @@ dst_changes(Sid, _Env, In) ->
 users(Sid, _Env, In) ->
     PQ = httpd:parse_query(In),
     GNumStr = get_arg(PQ, "g"),
+    Site = case get_arg(PQ, "site") of
+               "all" -> ?all;
+               "webDip" -> ?webDip;
+               "vDip" -> ?vDip;
+               _ -> ?wd2
+           end,
     ?dbg(GNumStr),
     {Title, Html} =
         case get_gnum2(GNumStr) of
-            ?none -> users_all();
+            ?none -> users_all(Site);
             GNum -> users_game(GNum)
         end,
     A = del_start(Sid, Title, 0),
@@ -716,19 +723,38 @@ users(Sid, _Env, In) ->
     C = del_end(Sid),
     {A + B + C, ?none}.
 
-users_all() ->
+users_all(Site) ->
+    Sites = [?wd2, ?vDip, ?webDip, ?all],
+    Attr = fun(S) when S == Site -> " selected";
+              (_) -> ""
+           end,
+    POpt = fun(S) -> ["<option value=\"", ?a2l(S), "\"", Attr(S),
+                       ">", ?a2l(S), "</option>\r\n"]
+           end,
+    Opts = ["<select name=\"site\" onchange='this.form.submit()'>>\r\n",
+            [POpt(S) || S <- Sites],
+            "</select>"],
+    Form = ["<form method=get>\r\n",
+            "Site ", Opts,
+            "</form>"],
     {"Existing Users and Aliases in bot DB",
-     ["<tr><td align=center>"
+     ["<tr><td align=center>",
+      Form,
+      "</td></tr>\r\n"
+      "<tr><td align=center>"
       "<font size=-1><i>A Player must have a user id in the user DB "
       "before they can replace a player in a running game.<br>\r\n"
       "The user id must also be registered on the same site "
-      "(webDip or vDip) as where the game is played.<br>\r\n"
+      "webDip (old forum), <br>\r\n"
+      "vDip (vdiplomacy.com) or wd2 (new forum) as where the game is played."
+      "<br>\r\n"
       "Ask replacement player to send one message in the game thread "
       "in case they are not listed here <br>\r\n"
       "and want to take over a position in your game.</i></font>"
       "</td></tr>\r\n",
-      "<tr><td><pre>",
-      mafia:show_all_users(?return_text),
+      "<tr><td " %"align=center"
+      "><pre>",
+      mafia:show_all_users(Site, ?return_text),
       "</pre></td></tr>"]
     }.
 
@@ -865,7 +891,7 @@ get_gnum2(NumStr) ->
         Int when is_integer(Int) ->
             Int;
         _ ->
-            ?dbg({illegal_game_number, NumStr}),
+            %% ?dbg({illegal_game_number, NumStr}),
             ?none
     end.
 

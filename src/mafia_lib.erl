@@ -22,6 +22,7 @@
 
          set_new_password/2,
          check_password/3,
+         copy_password_between_users/4,
 
          prev_msg/1,
 
@@ -325,6 +326,26 @@ check_password(User, Site, Password) ->
             {error, nomatch_user_password}
     end.
 
+copy_password_between_users(User1, Site1, User2, Site2)
+  when is_list(User1),
+       ?IS_SITE_OK(Site1),
+       is_list(User2),
+       ?IS_SITE_OK(Site2) ->
+    case ruserUB(User1, Site1) of
+        [#user{pw_hash = Pw}] when Pw /= ?undefined ->
+            case ruserUB(User2, Site2) of
+                [U2 = #user{name = {Name2, _}}] ->
+                    ?dwrite_user(U2#user{pw_hash = Pw}),
+                    {pw_copied, {?b2l(Name2), Site2}}; %% send PW to user
+                _ ->
+                    {error, user2_not_found}
+            end;
+        [#user{pw_hash = Pw}] when Pw == ?undefined ->
+            {error, user1_has_no_password};
+        _ ->
+            {error, user1_not_found}
+    end.
+
 %% -----------------------------------------------------------------------------
 
 -spec prev_msg(Msg :: #message{}) -> ?none | #message{}.
@@ -403,6 +424,7 @@ alpha_sort(Strings) ->
     LE = fun(A, B) -> ?l2u(A) =< ?l2u(B) end,
     lists:sort(LE, Strings).
 
+to_bin_sort([]) -> [];
 to_bin_sort(LoL = [[_|_]|_]) ->
     [?l2b(L) || L <- alpha_sort(LoL)];
 to_bin_sort(LoB = [Bin|_]) when is_binary(Bin) ->
@@ -412,7 +434,8 @@ to_bin_sort(LoB = [Bin|_]) when is_binary(Bin) ->
 
 get_url_begin(#mafia_game{site = Site}) -> get_url_begin(Site);
 get_url_begin(?webDip) -> ?UrlBeg;
-get_url_begin(?vDip) -> ?UrlvDip.
+get_url_begin(?vDip) -> ?UrlvDip;
+get_url_begin(?wd2) -> ?UrlWd2.
 
 bgcolor("") ->
     bgcolorI(?TURQUOISE_HEX);

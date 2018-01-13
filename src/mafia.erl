@@ -1,9 +1,12 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% Add page for server admins(keeper+more) to initiate_new_game (GNum and site)
+%% automatic start_poll when signup, site been set for game
+%% init_game(34, wd2), set signup, set start_time, tz, dst, start_poll(GNum),
+%% remove global values timezone_game, dst_game...
 %% MUST add site into thread_page dir name!!
 %% Check out free CA LetsEncrypt
-%% Add page for serverkeeper to initiate_new_game
 %%  - will a game with signup only, poll the thread?
 %%    - dont think so, BUT it should
 %% Poll signup until game start
@@ -55,7 +58,6 @@
          set_signup_thid/2,
          set_role_pm/2,
 
-         initiate_game/1,
          initiate_game/2,
          initiate_game/3,
          write_settings_file/1,
@@ -84,6 +86,7 @@
          show_game_users/2,
          show_all_users/0,
          show_all_users/1,
+         show_all_users/2,
          show_all_aliases/0,
          show_aliases/1,
          add_user/2,
@@ -196,9 +199,6 @@ show_game_data(GNum) ->
 %% @doc Initiate game that has not started yet
 %% @end
 %% -----------------------------------------------------------------------------
-initiate_game(GNum) ->
-    initiate_game(GNum, [], ?webDip).
-
 initiate_game(GNum, Site) when ?IS_SITE_OK(Site) ->
     initiate_game(GNum, [], Site).
 
@@ -631,29 +631,42 @@ show_settings() ->
     [PrintSettings(K) || K <- all_keys(?kv_store)],
     ok.
 
+%% exp
 show_all_users() ->
-    show_usersI(?standard_io, all_keys(user), all).
+    show_usersI(?standard_io, all_keys(user), ?all).
 
-show_all_users(?return_text) ->
-    show_usersI(?return_text, all_keys(user), all);
-show_all_users(Search) ->
+%% exp
+show_all_users(Site) when is_atom(Site) ->
+    UKeys = get_user_keys_for_site(Site),
+    show_usersI(?standard_io, UKeys, ?all);
+show_all_users(Search) when is_list(Search) ->
     UserKeys = match_user_keys(Search),
-    show_usersI(?standard_io, UserKeys, all).
+    show_usersI(?standard_io, UserKeys, ?all).
+
+get_user_keys_for_site(Site) ->
+    if Site == ?all -> all_keys(user);
+       ?true -> [UK || UK = {_, USite} <- all_keys(user),
+                       USite == Site]
+    end.
+
+%% exp
+show_all_users(Site, ?return_text) ->
+    UKeys = get_user_keys_for_site(Site),
+    show_usersI(?return_text, UKeys, ?all).
 
 show_users(UserKeys, M) ->
     show_usersI(?standard_io, UserKeys, M).
 
-show_usersI(Mode, UserKeys, M) when M == alias; M == all ->
+show_usersI(Mode, UserKeys, M) when M == alias; M == ?all ->
     Header = print_header_w_fmt(Mode),
-    Text =
-        [begin
-             U = hd(?ruserUB(UserKey)),
-             if M == all; U#user.aliases /= [] ->
-                     pr_user_line(Mode, U);
-                true -> ""
-             end
-         end
-         || UserKey <- UserKeys],
+    Text = [begin
+                U = hd(?ruserUB(UserKey)),
+                if M == all; U#user.aliases /= [] ->
+                        pr_user_line(Mode, U);
+                   true -> ""
+                end
+            end
+            || UserKey <- UserKeys],
     case Mode of
         ?return_text -> [Header, Text];
         ?standard_io -> ok

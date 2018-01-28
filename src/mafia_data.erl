@@ -716,6 +716,7 @@ get_body2(S2, {ok, Body}) ->
     end,
     {ok, S3}.
 
+%% extracts the needed part of the page's raw html
 get_thread_section(#s{site = ?wd2}, Body) ->
     Body;
 get_thread_section(#s{thread_id = ThId}, Body) ->
@@ -932,7 +933,7 @@ analyse_body(S, User, MsgId, UTime, Msg) ->
 remove_blockquotes(Msg) ->
     remove_blockquotes(Msg, [], 0).
 
-remove_blockquotes("<blockquote>" ++ Msg, Acc, Lvl) ->
+remove_blockquotes("<blockquote" ++ Msg, Acc, Lvl) ->
     remove_blockquotes(Msg, Acc, Lvl + 1);
 remove_blockquotes("</blockquote>" ++ Msg, Acc, Lvl) ->
     remove_blockquotes(Msg, Acc, Lvl - 1);

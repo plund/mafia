@@ -935,6 +935,8 @@ remove_blockquotes(Msg) ->
 
 remove_blockquotes("<blockquote" ++ Msg, Acc, Lvl) ->
     remove_blockquotes(Msg, Acc, Lvl + 1);
+remove_blockquotes("</blockquote>" ++ Msg, Acc, Lvl) when Lvl == 0 ->
+    remove_blockquotes(Msg, Acc, Lvl);
 remove_blockquotes("</blockquote>" ++ Msg, Acc, Lvl) ->
     remove_blockquotes(Msg, Acc, Lvl - 1);
 remove_blockquotes([H | T], Acc, Lvl) when Lvl == 0 ->

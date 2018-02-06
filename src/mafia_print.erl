@@ -30,7 +30,7 @@
          pr_phase_long/1,
          print_time_5d/2,
          print_time_5d_str/2,
-         user_vote_timesort/1,
+         user_vote_msgid_sort/1,
          split_into_groups/2,
          object_rows/1,
          object_rows_text/2,
@@ -481,7 +481,7 @@ print_votesI(PPin) ->
              || {VTime, Voter, Raw} <- ValidVotesS],
 
             %% Part - Invalid Vote text
-            UserVotesTS = user_vote_timesort(Votes),
+            UserVotesTS = user_vote_msgid_sort(Votes),
             InvUserVotesTS =
                 [UV || UV = {_, #vote{valid = false}} <- UserVotesTS],
             io:format(PP#pp.dev,
@@ -1141,9 +1141,9 @@ print_time_5d_str(_, {HH, MM}) ->
     p(HH) ++ ":" ++ p(MM).
 
 %% Flatten a bit sort of plus time sort...
--spec user_vote_timesort([{User :: user(), [#vote{}]}])
+-spec user_vote_msgid_sort([{User :: user(), [#vote{}]}])
                         ->[{User :: user(), #vote{}}].
-user_vote_timesort(Votes) ->
+user_vote_msgid_sort(Votes) ->
     Votes2 =
         lists:foldl(
           fun({UserB, UVotes}, Acc) ->
@@ -1151,9 +1151,12 @@ user_vote_timesort(Votes) ->
           end,
           [],
           Votes),
-    SortF = fun({_, #vote{time = TimeA}},
-                {_, #vote{time = TimeB}}) ->
-                    TimeA =< TimeB
+    %% SortF = fun({_, #vote{time = TimeA}},
+    %%             {_, #vote{time = TimeB}}) ->
+    SortF = fun({_, #vote{msg_key = MsgKeyA}},
+                {_, #vote{msg_key = MsgKeyB}}) ->
+                    %% TimeA =< TimeB
+                    MsgKeyA =< MsgKeyB
             end,
     lists:sort(SortF, Votes2).
 

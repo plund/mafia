@@ -10,7 +10,7 @@
 -import(mafia_print,
         [
          setup_pp/1,
-         user_vote_timesort/1,
+         user_vote_msgid_sort/1,
          print_time_5d/2,
          nbsp/1
         ]).
@@ -66,7 +66,7 @@ print_tracker_tab(PP, Abbrs, AllPlayersB) ->
     Votes0 = (PP#pp.day)#mafia_day.votes,
     Votes = [V || V <- Votes0,
                   lists:member(element(1, V), AllPlayersB)],
-    Votes3 = user_vote_timesort(Votes),
+    Votes3 = user_vote_msgid_sort(Votes),
     PrAbbrF = fun("---") -> "---";
                  ("INV") -> "INV";
                  (V) -> mafia_name:get3l(V, Abbrs, "***")

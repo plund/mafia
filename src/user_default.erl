@@ -117,6 +117,8 @@ Then set game parameters: start_time, time_zone, dst_zone, signup_thid and
 then do start_poll(GNum) and the signup thread will be pulled. Add players,
 gms and more. Finally start the game using the web page that sets the thread_id.
 
+mafia:set_role_pm(GNum, Url) - to set role pm after start
+
 Maintenance
 -----------
 mafia:refresh_votes(GNum) - Recount votes in current game

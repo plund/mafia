@@ -527,7 +527,7 @@ allpos(MsgU, Search, Offset, Acc) ->
             allpos(MsgU2, Search, FoundAt, [FoundAt | Acc])
     end.
 
--define(BoundaryChars, " !\"@#€$%?&/\\|()[]{}=≈≠´`^*'™’-_.:…·,;‚„<>≥≤").
+-define(BoundaryChars, "\s\r\n!\"@#€$%?&/\\|()[]{}=≈≠´`^*'™’-_.:…·,;‚„<>≥≤").
 
 %% returns boolean()
 is_word(MsgU, Pos, LenMsg, LenSea, {IsWcAtBeg, IsWcAtEnd}) ->

@@ -44,6 +44,8 @@
 -include("mafia.hrl").
 -include("mafia_print.hrl").
 
+-record(vinfo, {msg_key, time, voter, raw}).
+
 %% -----------------------------------------------------------------------------
 
 po(P, [{?game_key, K} | T]) -> po(P#pp{game_key = K}, T);
@@ -478,7 +480,7 @@ print_votesI(PPin) ->
                        [print_time_5d(G, VTime),
                         ?b2l(Voter),
                         rm_nl(?b2l(Raw))])
-             || {VTime, Voter, Raw} <- ValidVotesS],
+             || #vinfo{time = VTime, voter = Voter, raw = Raw} <- ValidVotesS],
 
             %% Part - Invalid Vote text
             UserVotesTS = user_vote_msgid_sort(Votes),
@@ -986,7 +988,7 @@ pr_votes(PP) ->
                      io:format(PP#pp.dev, "~s (~p): ", [?b2l(Vote), N]),
                      VoterNames =
                          [?b2l(Voter) ++ star_if_endvote(Day, Voter)
-                          || {_Time, Voter, _Raw3} <- VoteInfos],
+                          || #vinfo{voter = Voter} <- VoteInfos],
                      io:format(PP#pp.dev, "~s\n",
                                [string:join(VoterNames, ", ")])
                  end
@@ -1002,9 +1004,10 @@ pr_votes(PP) ->
                    "<td><table><tr>",
                    [["<td", bgcolor(Voter), ">", nbsp(?b2l(Voter)),
                      star_if_endvote(Day, Voter), "</td>"]
-                    || {_Time, Voter, _Raw3} <- VoteInfos],
+                    || #vinfo{voter = Voter} <- VoteInfos],
                    "</tr></table></td>",
-                   "</tr>\r\n"] || {Vote, N, VoteInfos} <- VoteSumSort],
+                   "</tr>\r\n"]
+                  || {Vote, N, VoteInfos} <- VoteSumSort],
                  "</table></td></tr>"
                 ]
         end,
@@ -1020,7 +1023,7 @@ vote_summary(Day, Players) ->
     Votes = rem_play_votes(Day, Players),
     {VoteSummary, InvalidVotes} =
         lists:foldl(
-          %% UserVotes are time ordered
+          %% UserVotes are msg_id/time ordered
           fun({User, UserVotes}, {Acc, Acc2}) ->
                   %% Look for vote when user starts to vote for end vote
                   case user_vote(UserVotes) of
@@ -1054,6 +1057,7 @@ vote_summary(Day, Players) ->
     VoteSumSort = lists:sort(GtEq, VoteSum2),
     {VoteSumSort, InvalidVotes}.
 
+%% removes votes from playes that have died during the day (often no change)
 rem_play_votes(Day, Players) ->
     Votes = Day#mafia_day.votes,
     [V || V <- Votes,
@@ -1064,17 +1068,17 @@ rem_play_votes(Day, Players) ->
 user_vote(UserVotes) ->
     case lists:foldr(
            fun %% no_vote state
-               (V = #vote{valid = false}, no_vote) -> {inv, V};
-               (V = #vote{valid = true},  no_vote) -> {val, V};
+               (V = #vote{valid = ?false}, no_vote) -> {?invalid, V};
+               (V = #vote{valid = ?true},  no_vote) -> {?valid, V};
                %% invalid state
-               (V = #vote{valid = true}, {inv, _V}) -> {val, V};
+               (V = #vote{valid = ?true}, {?invalid, _V}) -> {?valid, V};
                %% valid state
-               (V = #vote{valid = true}, {val, Vacc})
+               (V = #vote{valid = ?true}, {?valid, Vacc})
                  when V#vote.vote == Vacc#vote.vote ->
-                   {val, V};
-               (#vote{valid = true}, {val, Vacc}) ->
-                   {pval, Vacc};  %% permanent valid
-               %% inv, val or pval states
+                   {?valid, V};
+               (#vote{valid = ?true}, {?valid, Vacc}) ->
+                   {pvalid, Vacc};  %% permanent valid
+               %% invalid, valid or pvalid states
                (_V, Vacc) -> Vacc
            end,
            no_vote,  %% initial state
@@ -1097,18 +1101,21 @@ pr_phase_long(#phase{num = Num, ptype = Ptype}) ->
     pr_ptype(Ptype) ++ " " ++ ?i2l(Num);
 pr_phase_long(?total_stats) -> "Game Global Statistics".
 
-%%%%%%%%%%
 
-%% [{Vote, Num, [{Time, User, Raw}]}]
+%% [{Vote, Num, [#vinfo{}]}]
 add_vote(V, User, Acc) ->
-    add_vote(V#vote.vote, V#vote.raw, V#vote.time, User, Acc).
-
-add_vote(Vote, Raw, Time, User, Acc) ->
+    Vote = V#vote.vote,
+    Vinfo = #vinfo{time = V#vote.time,
+                   msg_key = V#vote.msg_key,
+                   voter = User,
+                   raw =  V#vote.raw
+                  },
     case lists:keyfind(Vote, 1, Acc) of
         false ->
-            [{Vote, 1, [{Time, User, Raw}]} | Acc];
+            [{Vote, 1, [Vinfo]}
+             | Acc];
         {_, _NumV, Voters} ->
-            Voters2 = Voters ++ [{Time, User, Raw}],
+            Voters2 = Voters ++ [Vinfo],
             NumV2 = length(Voters2),
             lists:keystore(Vote, 1, Acc, {Vote, NumV2, Voters2})
     end.

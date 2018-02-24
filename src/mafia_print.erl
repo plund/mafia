@@ -44,7 +44,8 @@
 -include("mafia.hrl").
 -include("mafia_print.hrl").
 
--record(vinfo, {msg_key, time, voter, raw}).
+-record(wagon, {vote, num, voters}).
+-record(vinfo, {msg_key, time, voter, raw}). %% voter info
 
 %% -----------------------------------------------------------------------------
 
@@ -985,14 +986,17 @@ pr_votes(PP) ->
                           "------------\n",
                           [pr_phase_long(PP#pp.phase)]),
                 [begin
-                     io:format(PP#pp.dev, "~s (~p): ", [?b2l(Vote), N]),
+                     io:format(PP#pp.dev, "~s (~p): ",
+                               [?b2l(Vote), N]),
                      VoterNames =
                          [?b2l(Voter) ++ star_if_endvote(Day, Voter)
                           || #vinfo{voter = Voter} <- VoteInfos],
                      io:format(PP#pp.dev, "~s\n",
                                [string:join(VoterNames, ", ")])
                  end
-                 || {Vote, N, VoteInfos} <- VoteSumSort],
+                 || #wagon{vote = Vote,
+                           num = N,
+                           voters = VoteInfos} <- VoteSumSort],
                 [];
            PP#pp.mode == ?html ->
                 ["<tr><th>","<br>",
@@ -1007,7 +1011,8 @@ pr_votes(PP) ->
                     || #vinfo{voter = Voter} <- VoteInfos],
                    "</tr></table></td>",
                    "</tr>\r\n"]
-                  || {Vote, N, VoteInfos} <- VoteSumSort],
+                  || #wagon{vote = Vote, num = N, voters = VoteInfos}
+                         <- VoteSumSort],
                  "</table></td></tr>"
                 ]
         end,
@@ -1019,16 +1024,17 @@ star_if_endvote(Day, Voter) ->
         false -> ""
     end.
 
+%% Converts mafia_day.votes into a wagon listing with current votes only.
+%% [{Voter, [Vote]}] -> [{Vote, [Voter]}]
 vote_summary(Day, Players) ->
     Votes = rem_play_votes(Day, Players),
-    {VoteSummary, InvalidVotes} =
+    {Wagons, InvalidVotes} =
         lists:foldl(
           %% UserVotes are msg_id/time ordered
           fun({User, UserVotes}, {Acc, Acc2}) ->
-                  %% Look for vote when user starts to vote for end vote
-                  case user_vote(UserVotes) of
+                  case user_vote_to_use(UserVotes) of
                       #vote{valid = true} = V ->
-                          {add_vote(V, User, Acc), Acc2};
+                          {add_voter_to_wagon(V, User, Acc), Acc2};
                       #vote{valid = false} = V ->
                           {Acc, [{User, V} | Acc2]};
                       no_vote -> % no votes at all
@@ -1037,25 +1043,24 @@ vote_summary(Day, Players) ->
           end,
           {[], []},
           Votes),
-    %% Sort votes in each wagons on time so we have oldest first
-    VoteSum2 = [setelement(3, Wgn, lists:sort(VoteInfos))
-                || Wgn = {_, _, VoteInfos} <- VoteSummary],
 
-    %% Sort Wagons first on number of received votes, if equal
-    %% second sort should be on having the oldest vote
+    %% Sort votes in each wagon on msg_key() so we have oldest first
+    Wagons2 = [Wgn#wagon{voters = lists:sort(VoteInfos)}
+               || Wgn = #wagon{voters = VoteInfos} <- Wagons],
+
+    %% First sort Wagons first on number of received votes
+    %% Second sort is the "time" msg_key() of the oldest vote, if needed
     GtEq =
         fun(A, B) ->
-                NumVotesA = element(2, A),
-                NumVotesB = element(2, B),
-                if NumVotesA /= NumVotesB ->
-                        NumVotesA > NumVotesB;
+                if A#wagon.num /= B#wagon.num ->
+                        A#wagon.num > B#wagon.num;
                    true ->
-                        %% Sort on oldest vote in wagon
-                        element(3, A) =< element(3, B)
+                        %% Sort on oldest first vote in wagon
+                        A#wagon.voters =< B#wagon.voters
                 end
         end,
-    VoteSumSort = lists:sort(GtEq, VoteSum2),
-    {VoteSumSort, InvalidVotes}.
+    WagonsSorted = lists:sort(GtEq, Wagons2),
+    {WagonsSorted, InvalidVotes}.
 
 %% removes votes from playes that have died during the day (often no change)
 rem_play_votes(Day, Players) ->
@@ -1063,9 +1068,10 @@ rem_play_votes(Day, Players) ->
     [V || V <- Votes,
           lists:member(element(1, V), Players)].
 
-%% find oldest vote in unbroken sequence, for ppl reiterating their last votes
--spec user_vote([#vote{}]) -> no_vote | #vote{}.
-user_vote(UserVotes) ->
+%% Find the vote when the user started to vote for the current end vote
+%% (for users reiterating their votes)
+-spec user_vote_to_use([#vote{}]) -> no_vote | #vote{}.
+user_vote_to_use(UserVotes) ->
     case lists:foldr(
            fun %% no_vote state
                (V = #vote{valid = ?false}, no_vote) -> {?invalid, V};
@@ -1082,9 +1088,9 @@ user_vote(UserVotes) ->
                (_V, Vacc) -> Vacc
            end,
            no_vote,  %% initial state
-           UserVotes) of
-        {_, Vote2Use} ->
-            Vote2Use;
+           UserVotes)
+    of
+        {_, Vote2Use} -> Vote2Use;
         no_vote -> no_vote
     end.
 
@@ -1102,22 +1108,23 @@ pr_phase_long(#phase{num = Num, ptype = Ptype}) ->
 pr_phase_long(?total_stats) -> "Game Global Statistics".
 
 
-%% [{Vote, Num, [#vinfo{}]}]
-add_vote(V, User, Acc) ->
+%% Generate the wagon info. Vote and Voters
+%% Acc in and out = [#wagon{vote = Vote, num = Num, voters = [#vinfo{}]}]
+add_voter_to_wagon(V, User, Acc) ->
     Vote = V#vote.vote,
-    Vinfo = #vinfo{time = V#vote.time,
-                   msg_key = V#vote.msg_key,
+    Vinfo = #vinfo{msg_key = V#vote.msg_key,
+                   time = V#vote.time,
                    voter = User,
                    raw =  V#vote.raw
                   },
-    case lists:keyfind(Vote, 1, Acc) of
+    case lists:keyfind(Vote, #wagon.vote, Acc) of
         false ->
-            [{Vote, 1, [Vinfo]}
+            [#wagon{vote = Vote, num = 1, voters = [Vinfo]}
              | Acc];
-        {_, _NumV, Voters} ->
+        #wagon{voters = Voters} = Wgn ->
             Voters2 = Voters ++ [Vinfo],
             NumV2 = length(Voters2),
-            lists:keystore(Vote, 1, Acc, {Vote, NumV2, Voters2})
+            lists:keystore(Vote, #wagon.vote, Acc, Wgn#wagon{num = NumV2, voters = Voters2})
     end.
 
 %% -----------------------------------------------------------------------------

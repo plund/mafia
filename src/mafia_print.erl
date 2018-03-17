@@ -467,8 +467,8 @@ print_votesI(PPin) ->
     if PhaseType == ?day, PP#pp.mode == ?text ->
             ValidVotesS =
                 lists:sort(
-                  lists:foldl(fun({_, _, VoteInfos}, Acc) ->
-                                      Acc ++ VoteInfos
+                  lists:foldl(fun(#wagon{voters = VoteInfos}, Acc) ->
+                                        Acc ++ VoteInfos
                               end,
                               [],
                               VoteSumSort)),

@@ -1,6 +1,8 @@
 -module(mafia).
 
 -include("mafia.hrl").
+%% move msg/2 into web_msgs.erl
+%% Change title "M35 Game Status Day 1"  "M35 History"
 %% Add page for server admins(keeper+more) to initiate_new_game (GNum and site)
 %% automatic start_poll when signup, site been set for game
 %% init_game(34, wd2), set signup, set start_time, tz, dst, start_poll(GNum),

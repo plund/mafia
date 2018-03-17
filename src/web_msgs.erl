@@ -217,7 +217,7 @@ msgs2(Sid, [G], In, PQ, []) ->
                                 pr2dig(HH), ":", pr2dig(MM), "<br>",
                                 HPage,
                                 "</td><td valign=\"top\">",
-                                break_long_words(ModifiedMsg),
+                                ModifiedMsg,
                                 "</td></tr>\r\n"]),
                         SizeOut = web:deliver(Sid, OutB),
                         MI#miter{bytes = MI#miter.bytes + SizeDiv + SizeOut,
@@ -321,26 +321,6 @@ is_part_ok(G, IMsg, MsgPhase, {Ua, Na, Ub, Nb}) ->
         end,
     IsAok() andalso IsBok() andalso IsNotLateSuMsg().
 
--define(MAX_WORD, 60).
--define(BRNCH, "&#8203;"). %% breaking non-character
-
-break_long_words(Msg) ->
-    dblw(Msg, ?MAX_WORD, out).
-
-%% do_break_long_words
-dblw([], _, _) -> [];
-dblw([$\s | T], _, out) -> [$\s | dblw(T, ?MAX_WORD, out)];
-
-dblw([$< | T], N, out)  -> [$< | dblw(T, N - 1, html)];
-dblw([$> | T], N, html) -> [$> | dblw(T, N - 1, out)];
-
-dblw([$& | T], N, out) -> [$\& | dblw(T, N - 1, amp)];
-dblw([$; | T], N, amp) -> [$\; | dblw(T, N - 1, out)];
-
-dblw(Str, N, out) when N =< 0 -> ?BRNCH ++ dblw(Str, ?MAX_WORD, out);
-dblw([H | T], N, Mode) -> [H | dblw(T, N - 1, Mode)].
-
-
 deliver_div(Sid, DivStr) ->
     deliver_div(Sid, DivStr, "#aaaaff").
 
@@ -379,14 +359,53 @@ add_cond(QStrs, Acc) ->
 %% 1) fixes http links
 %% 2) bold marks search words
 modify_message(Msg, WordsU) ->
+    Parts1 = remove_links(Msg),
+    Parts2 =
+        lists:foldl(
+          fun({out, S}, Acc) ->
+                  Acc ++ split_msg_on_urls(S);
+             ({fix, _} = F, Acc) ->
+                  Acc ++ [F]
+          end,
+          [],
+          Parts1
+         ),
+    Parts3 = break_long_words_in_out(Parts2),
     lists:foldl(
-      fun({no_url, SubMsg}, Acc) ->
+      fun({out, SubMsg}, Acc) ->
               Acc ++ bold_mark_words(SubMsg, WordsU);
+         ({fix, Fix}, Acc) ->
+              Acc ++ Fix;
          ({url, Url}, Acc) ->
               Acc ++ ["<a href=\"", Url, "\">", Url, "</a>"]
       end,
       "",
-      split_msg_on_urls(remove_links(Msg))).
+      Parts3).
+
+break_long_words_in_out(Parts) ->
+    [case P of
+         {out, Str} -> {out, break_long_words(Str)};
+         _ -> P
+     end || P <- Parts].
+
+-define(MAX_WORD, 60).
+-define(BRNCH, "&#8203;"). %% breaking non-character
+
+break_long_words(Msg) ->
+    dblw(Msg, ?MAX_WORD, out).
+
+%% do_break_long_words
+dblw([], _, _) -> [];
+dblw([$\s | T], _, out) -> [$\s | dblw(T, ?MAX_WORD, out)];
+
+dblw([$< | T], N, out)  -> [$< | dblw(T, N - 1, html)];
+dblw([$> | T], N, html) -> [$> | dblw(T, N - 1, out)];
+
+dblw([$& | T], N, out) -> [$\& | dblw(T, N - 1, amp)];
+dblw([$; | T], N, amp) -> [$\; | dblw(T, N - 1, out)];
+
+dblw(Str, N, out) when N =< 0 -> ?BRNCH ++ dblw(Str, ?MAX_WORD, out);
+dblw([H | T], N, Mode) -> [H | dblw(T, N - 1, Mode)].
 
 bold_mark_words(Msg, WordsU) ->
     MsgU = ?l2u(Msg),
@@ -423,24 +442,57 @@ bold_mark_words(Msg, WordsU) ->
                     Intervals),
     Out2 ++ In2.
 
-%% removes <a> tags
-remove_links(Msg) -> remove_links(Msg, out).
 
-remove_links("<a href=\"forum.php?" ++ Msg, out) ->
-    "<a href=\"forum.php?" ++ remove_links(Msg, keep);
-remove_links("<a" ++ Msg, out) -> remove_links(Msg, in);
-remove_links(">" ++ Msg, in) -> remove_links(Msg, out);
-remove_links("</a>" ++ Msg, out) -> remove_links(Msg, out);
-remove_links("</a>" ++ Msg, keep) -> "</a>" ++ remove_links(Msg, out);
-remove_links([H|T], S) when S == out; S == keep ->
-    [H | remove_links(T, S)];
-remove_links([_|T], in) -> remove_links(T, in);
-remove_links([], _) -> [].
+-define(H1, "<a href=\"forum.php?").
+-define(H2, "<a href=\"contrib/phpBB3/viewtopic.php?").
+-define(H3, "<a href=\"http://www.webdiplomacy.net/forum.php?").
+-define(H4, "<a href=\"http://www.webdiplomacy.net/contrib/phpBB3/"
+        "viewtopic.php?").
+-define(H5, "<a href=\"https://www.webdiplomacy.net/forum.php?").
+-define(H6, "<a href=\"https://www.webdiplomacy.net/contrib/phpBB3/"
+        "viewtopic.php?").
+
+%% removes some <a href tags
+%% The accepted tags are marked with 'fix' so they will not be bold marked or
+%% interrupted with line breaks
+%% return [{out|fix, string()}]
+remove_links(Msg) -> remove_links(Msg, {out, ""}, []).
+
+remove_links(?H1 ++ Msg, {out, B}, Acc) ->
+    remove_links(Msg, {keep, ?H1}, [{out, B} | Acc]);
+remove_links(?H2 ++ Msg, {out, B}, Acc) ->
+    remove_links(Msg, {keep, ?H2}, [{out, B} | Acc]);
+remove_links(?H3 ++ Msg, {out, B}, Acc) ->
+    remove_links(Msg, {keep, ?H3}, [{out, B} | Acc]);
+remove_links(?H4 ++ Msg, {out, B}, Acc) ->
+    remove_links(Msg, {keep, ?H4}, [{out, B} | Acc]);
+remove_links(?H5 ++ Msg, {out, B}, Acc) ->
+    remove_links(Msg, {keep, ?H5}, [{out, B} | Acc]);
+remove_links(?H6 ++ Msg, {out, B}, Acc) ->
+    remove_links(Msg, {keep, ?H6}, [{out, B} | Acc]);
+remove_links("</a>" ++ Msg, {keep, B}, Acc) ->
+    remove_links(Msg, {out, ""}, [{fix, B ++ "</a>"} | Acc]);
+
+remove_links("<a" ++ Msg, {out, B}, Acc) -> remove_links(Msg, {in, B}, Acc);
+remove_links(">" ++ Msg, {in, B}, Acc) -> remove_links(Msg, {out, B}, Acc);
+
+remove_links("</a>" ++ Msg, {out, B}, Acc) ->
+    remove_links(Msg, {out, B}, Acc);
+
+remove_links([H | T], {S, B}, Acc) when S == out; S == keep ->
+    remove_links(T, {S, B ++ [H]}, Acc);
+remove_links([_|T], {in, B}, Acc) -> remove_links(T, {in, B}, Acc);
+
+remove_links([], {keep, B}, Acc) -> ?lrev([{fix, B} | Acc]);
+remove_links([], {out, B}, Acc) -> ?lrev([{out, B} | Acc]);
+remove_links([], {in, _}, Acc) -> ?lrev(Acc).
 
 -define(UrlBoundaryChars, " ()[]{}<>").
 
+%% Split string into url and no_url segments, so no bold marking is performed
+%% in the url sections
 -spec split_msg_on_urls(Msg :: string())
-                       -> [{url | no_url, SubMsg :: string()}].
+                       -> [{out | fix, SubMsg :: string()}].
 split_msg_on_urls(Msg) ->
     split_msg_on_urls(Msg, []).
 
@@ -458,11 +510,11 @@ split_msg_on_urls(Msg, Acc) ->
         end,
     case Res of
         ?nomatch ->
-            ?lrev([{no_url, Msg}|Acc]);
+            ?lrev([{out, Msg}|Acc]);
         {HPos, Search} ->
             HLen = length(Search),
             Pre = string:substr(Msg, 1, HPos - 1),
-            A2 = [{no_url, Pre} | Acc],
+            A2 = [{out, Pre} | Acc],
             Rest1 = string:substr(Msg, HPos + HLen),
             case string:tokens(Rest1, ?UrlBoundaryChars) of
                 [] ->

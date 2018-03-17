@@ -679,7 +679,8 @@ game_settings_start(Sid, Env, _Button, PQ) ->
     ThreadId = web_impl:get_arg(PQ, "thread_id"),
     [G] = ?rgame(?l2i(GNStr)),
     WasThreadSet = ?undefined /= G#mafia_game.thread_id,
-    {IsThreadSet, Responses} = maybe_set_thread_id(G, User, Pass, ThreadId),
+    {IsThreadSet, Responses} =
+        maybe_set_thread_id(G, User, Pass, catch ?l2i(ThreadId)),
     Body =
         if WasThreadSet;
            IsThreadSet ->
@@ -709,8 +710,8 @@ game_settings_start(Sid, Env, _Button, PQ) ->
                 [present_responses(Responses),
                  "<tr><td><table width=600>"
                  "<tr><td>After you have started the game thread on "
-                 "webdiplomacy.net you need to tell the bot what thread id "
-                 "your new game thread has.\r\n"
+                 "webdiplomacy.net or on vdiplomacy.com you need to tell the "
+                 "bot what thread id your new game thread has.\r\n"
                  "<p>"
                  "Find out the game thread id this way: \r\n"
                  "<ol><li>"
@@ -718,7 +719,8 @@ game_settings_start(Sid, Env, _Button, PQ) ->
                  "read the game thread.<br>\r\n"
                  "</li><li>"
                  "In the location window in the top you find an URL that looks "
-                 "like this:<br>\r\n"
+                 "like this (What number do you have in the position marked "
+                 "with 'NNN'?):<br>\r\n"
                  "<pre>\r\n"
                  "New forum:\r\n"
                  "   http://webdiplomacy.net/contrib/phpBB3/viewtopic.php"
@@ -734,7 +736,7 @@ game_settings_start(Sid, Env, _Button, PQ) ->
                  "</li><li>"
                  "Insert this number in the below field, and press the \"",
                  ?BStartNow,
-                 "\" button. (Do NOT use the number shown in this example.)\r\n"
+                 "\" button. \r\n"
                  "</li></ol></td></tr>\r\n"
                  "</table></td></tr>\r\n"
                  "<tr><td>"
@@ -755,8 +757,8 @@ game_settings_start(Sid, Env, _Button, PQ) ->
     C = web_impl:del_end(Sid),
     {A + B + C, ?none}.
 
-maybe_set_thread_id(_, _, _, "") ->
-    {false, [{error, "No Thread Id Given."}]};
+maybe_set_thread_id(_, _, _, {'EXIT', _}) ->
+    {false, [{error, "Thread id is not an integer"}]};
 maybe_set_thread_id(_, User, Pass, _)
   when User == ""; Pass == "" ->
     Es = if User == "" -> [{warning, "No User Given."}];
@@ -766,19 +768,26 @@ maybe_set_thread_id(_, User, Pass, _)
              true -> Es
           end,
     {false, Es2};
+maybe_set_thread_id(#mafia_game{signup_thid = SuId}, _, _, _)
+  when not is_integer(SuId) ->
+    {false,
+     [{error, "The signup thread id must be set before starting the game"}]};
+maybe_set_thread_id(#mafia_game{signup_thid = SuId},
+                    _, _, ThId)
+  when ThId =< SuId ->
+    {false,
+     [{error, "Game thread is not a later thread than the sign-up thread"}]};
 maybe_set_thread_id(G, User, Pass, ThreadId) ->
     case is_user_and_password_ok(G, User, Pass) of
         true ->
             msti2(G,
-                  catch ?l2i(ThreadId),
+                  ThreadId,
                   min_thid(G),
                   max_thid(G));
         false ->
             [{error, "This combination of user and password does not exist."}]
     end.
 
-msti2(_G, {'EXIT', _}, _, _) ->
-    {false, [{error, "Thread id is not an integer"}]};
 msti2(_G, ThId, MinThId, _) when ThId =< MinThId ->
     {false, [{error, "Thread id has a too low value"}]};
 msti2(_G, ThId, _, MaxThId) when ThId >  MaxThId ->

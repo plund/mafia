@@ -937,12 +937,24 @@ replace_blockquotes(Msg) ->
 
 replace_blockquotes("<blockquote" ++ Msg, Acc, Lvl) ->
     replace_blockquotes(Msg, Acc, Lvl + 1);
-replace_blockquotes("<a href=\"./viewtopic.php?p=" ++ Msg, Acc, Lvl) ->
+replace_blockquotes("<a href=\"./memberlist.php?mode=viewprofile&amp;u=" ++ Msg,
+                    Acc, Lvl) ->
+    %% 77&amp;sid=9aec1ea2e15bf669516a01a921067d15">Durga</a> wrote:
+    {match, [{_, N}]} =
+        re:run(Msg, "^(.*>).*", [{capture, [1]}, ungreedy]),
+    Msg2 = string:substr(Msg, N + 1),
+    {match, [{_, N2}]} =
+        re:run(Msg2, "^(.*)(</a>).*", [{capture, [1]}, ungreedy]),
+    RefUser = string:left(Msg2, N2),     %% "Durga"
+    Msg3 = string:substr(Msg2, N2 + 1),
+    replace_blockquotes(Msg3, {Acc, RefUser}, Lvl);
+replace_blockquotes("<a href=\"./viewtopic.php?p=" ++ Msg,
+                    {Acc, RefUser}, Lvl) ->
     {match, [{_, N}]} = re:run(Msg, "^([0-9]*).*", [{capture, [1]}]),
     RefIdStr = string:left(Msg, N),     %% "1221"
-    Msg2 = string:substr(Msg, 9),
+    Msg2 = string:substr(Msg, N + 1),
     Link = "<a href=\"#msg_id=w:" ++ RefIdStr ++
-        "\" style=\"text-decoration:none\">" ++ ?UpArrow ++ "</a>",
+        "\" style=\"text-decoration:none\">" ++ ?UpArrow ++ RefUser ++ "</a>",
     Acc2 = preapp(Acc, [?lrev(Link), " "]),
     replace_blockquotes(Msg2, Acc2, Lvl);
 replace_blockquotes("</blockquote>" ++ Msg, Acc, Lvl) when Lvl == 0 ->

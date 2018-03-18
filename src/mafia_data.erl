@@ -706,7 +706,6 @@ make_url(S) when S#s.site == ?wd2 ->
 -spec get_body2(#s{}, term()) -> {ok, Body::term()} | {error, term()}.
 get_body2(_S2, {error, _} = Error) -> Error;
 get_body2(S2, {ok, Body}) ->
-    %%file:write_file("last_downloaded_page", Body),
     Body2 = get_thread_section(S2, Body),
     S3 = check_this_page(S2#s{body = Body2}),
     if not S3#s.is_last_page; S3#s.do_store_last_page ->
@@ -890,7 +889,7 @@ analyse_body(S) when S#s.site == ?wd2 ->
             end,
     B8 = rm_to_after(B7, ["<div class=\"content\">"]),
     {B9, MsgRaw} = read_to_before(B8, "<div class=\"back2top\">"),
-    Msg2 = remove_blockquotes(MsgRaw),
+    Msg2 = replace_blockquotes(MsgRaw),
     {_, Msg3} = read_to_before(Msg2, "</div>"),
     Msg = strip(Msg3),
     analyse_body(S#s{body = B9}, {UserStr, MsgIdStr, UTime, Msg}).
@@ -930,21 +929,39 @@ analyse_body(S, User, MsgId, UTime, Msg) ->
 
 %% -----------------------------------------------------------------------------
 
-remove_blockquotes(Msg) ->
-    remove_blockquotes(Msg, [], 0).
+-define(BrRev, ">rb<").
+-define(UpArrow, "&uarr;").
 
-remove_blockquotes("<blockquote" ++ Msg, Acc, Lvl) ->
-    remove_blockquotes(Msg, Acc, Lvl + 1);
-remove_blockquotes("</blockquote>" ++ Msg, Acc, Lvl) when Lvl == 0 ->
-    remove_blockquotes(Msg, Acc, Lvl);
-remove_blockquotes("</blockquote>" ++ Msg, Acc, Lvl) ->
-    remove_blockquotes(Msg, Acc, Lvl - 1);
-remove_blockquotes([H | T], Acc, Lvl) when Lvl == 0 ->
-    remove_blockquotes(T, [H | Acc], Lvl);
-remove_blockquotes([_ | T], Acc, Lvl) when Lvl > 0 ->
-    remove_blockquotes(T, Acc, Lvl);
-remove_blockquotes([], Acc, _) ->
+replace_blockquotes(Msg) ->
+    replace_blockquotes(Msg, [], 0).
+
+replace_blockquotes("<blockquote" ++ Msg, Acc, Lvl) ->
+    replace_blockquotes(Msg, Acc, Lvl + 1);
+replace_blockquotes("<a href=\"./viewtopic.php?p=" ++ Msg, Acc, Lvl) ->
+    {match, [{_, N}]} = re:run(Msg, "^([0-9]*).*", [{capture, [1]}]),
+    RefIdStr = string:left(Msg, N),     %% "1221"
+    Msg2 = string:substr(Msg, 9),
+    Link = "<a href=\"#msg_id=w:" ++ RefIdStr ++
+        "\" style=\"text-decoration:none\">" ++ ?UpArrow ++ "</a>",
+    Acc2 = preapp(Acc, [?lrev(Link), " "]),
+    replace_blockquotes(Msg2, Acc2, Lvl);
+replace_blockquotes("</blockquote>" ++ Msg, Acc, Lvl) when Lvl == 0 ->
+    replace_blockquotes(Msg, Acc, Lvl);
+replace_blockquotes("</blockquote>" ++ Msg, Acc, Lvl) ->
+    Acc2 = if Lvl > 1 -> Acc;
+              true -> preapp(Acc, [?BrRev, ?BrRev])
+           end,
+    replace_blockquotes(Msg, Acc2, Lvl - 1);
+replace_blockquotes([H | T], Acc, Lvl) when Lvl == 0 ->
+    replace_blockquotes(T, [H | Acc], Lvl);
+replace_blockquotes([_ | T], Acc, Lvl) when Lvl > 0 ->
+    replace_blockquotes(T, Acc, Lvl);
+replace_blockquotes([], Acc, _) ->
     ?lrev(Acc).
+
+preapp(Acc, [H|T]) -> preapp(H ++ Acc, T);
+preapp(Acc, []) -> Acc.
+
 
 rm_to_after(Str, []) -> Str;
 rm_to_after(Str, [Search|T]) when is_list(Search) ->

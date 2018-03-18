@@ -443,6 +443,7 @@ bold_mark_words(Msg, WordsU) ->
     Out2 ++ In2.
 
 
+-define(H0, "<a href=\"#msg_id=w:").
 -define(H1, "<a href=\"forum.php?").
 -define(H2, "<a href=\"contrib/phpBB3/viewtopic.php?").
 -define(H3, "<a href=\"http://www.webdiplomacy.net/forum.php?").
@@ -458,6 +459,8 @@ bold_mark_words(Msg, WordsU) ->
 %% return [{out|fix, string()}]
 remove_links(Msg) -> remove_links(Msg, {out, ""}, []).
 
+remove_links(?H0 ++ Msg, {out, B}, Acc) ->
+    remove_links(Msg, {keep, ?H0}, [{out, B} | Acc]);
 remove_links(?H1 ++ Msg, {out, B}, Acc) ->
     remove_links(Msg, {keep, ?H1}, [{out, B} | Acc]);
 remove_links(?H2 ++ Msg, {out, B}, Acc) ->

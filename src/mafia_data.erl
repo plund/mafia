@@ -931,14 +931,15 @@ analyse_body(S, User, MsgId, UTime, Msg) ->
 
 -define(BrRev, ">rb<").
 -define(UpArrow, "&uarr;").
+-record(bq, {acc, ref_user, ref_msgid}).
 
 replace_blockquotes(Msg) ->
-    replace_blockquotes(Msg, [], 0).
+    replace_blockquotes(Msg, #bq{acc = ""}, 0).
 
-replace_blockquotes("<blockquote" ++ Msg, Acc, Lvl) ->
-    replace_blockquotes(Msg, Acc, Lvl + 1);
+replace_blockquotes("<blockquote" ++ Msg, BQ, Lvl) ->
+    replace_blockquotes(Msg, BQ, Lvl + 1);
 replace_blockquotes("<a href=\"./memberlist.php?mode=viewprofile&amp;u=" ++ Msg,
-                    Acc, Lvl) ->
+                    BQ, Lvl) ->
     %% 77&amp;sid=9aec1ea2e15bf669516a01a921067d15">Durga</a> wrote:
     {match, [{_, N}]} =
         re:run(Msg, "^(.*>).*", [{capture, [1]}, ungreedy]),
@@ -947,29 +948,32 @@ replace_blockquotes("<a href=\"./memberlist.php?mode=viewprofile&amp;u=" ++ Msg,
         re:run(Msg2, "^(.*)(</a>).*", [{capture, [1]}, ungreedy]),
     RefUser = string:left(Msg2, N2),     %% "Durga"
     Msg3 = string:substr(Msg2, N2 + 1),
-    replace_blockquotes(Msg3, {Acc, RefUser}, Lvl);
+    replace_blockquotes(Msg3, BQ#bq{ref_user = RefUser}, Lvl);
 replace_blockquotes("<a href=\"./viewtopic.php?p=" ++ Msg,
-                    {Acc, RefUser}, Lvl) ->
+                    BQ = #bq{acc = Acc, ref_user = RefUser},
+                    Lvl) ->
     {match, [{_, N}]} = re:run(Msg, "^([0-9]*).*", [{capture, [1]}]),
     RefIdStr = string:left(Msg, N),     %% "1221"
     Msg2 = string:substr(Msg, N + 1),
     Link = "<a href=\"#msg_id=w:" ++ RefIdStr ++
         "\" style=\"text-decoration:none\">" ++ ?UpArrow ++ RefUser ++ "</a>",
     Acc2 = preapp(Acc, [?lrev(Link), " "]),
-    replace_blockquotes(Msg2, Acc2, Lvl);
-replace_blockquotes("</blockquote>" ++ Msg, Acc, Lvl) when Lvl == 0 ->
-    replace_blockquotes(Msg, Acc, Lvl);
-replace_blockquotes("</blockquote>" ++ Msg, Acc, Lvl) ->
-    Acc2 = if Lvl > 1 -> Acc;
-              true -> preapp(Acc, [?BrRev, ?BrRev])
-           end,
-    replace_blockquotes(Msg, Acc2, Lvl - 1);
-replace_blockquotes([H | T], Acc, Lvl) when Lvl == 0 ->
-    replace_blockquotes(T, [H | Acc], Lvl);
-replace_blockquotes([_ | T], Acc, Lvl) when Lvl > 0 ->
-    replace_blockquotes(T, Acc, Lvl);
-replace_blockquotes([], Acc, _) ->
-    ?lrev(Acc).
+    replace_blockquotes(Msg2, BQ#bq{acc = Acc2, ref_msgid = RefIdStr}, Lvl);
+replace_blockquotes("</blockquote>" ++ Msg, BQ, Lvl) when Lvl == 0 ->
+    replace_blockquotes(Msg, BQ, Lvl);
+replace_blockquotes("</blockquote>" ++ Msg, BQ, Lvl) ->
+    BQ2 = if Lvl > 1 -> BQ;
+             true -> BQ#bq{acc = preapp(BQ#bq.acc, [?BrRev, ?BrRev])}
+          end,
+    replace_blockquotes(Msg, BQ2, Lvl - 1);
+replace_blockquotes([H | T], BQ, Lvl) when Lvl == 0 ->
+    replace_blockquotes(T,
+                        BQ#bq{acc = [H | BQ#bq.acc]},
+                        Lvl);
+replace_blockquotes([_ | T], BQ, Lvl) when Lvl > 0 ->
+    replace_blockquotes(T, BQ, Lvl);
+replace_blockquotes([], BQ, _) ->
+    ?lrev(BQ#bq.acc).
 
 preapp(Acc, [H|T]) -> preapp(H ++ Acc, T);
 preapp(Acc, []) -> Acc.

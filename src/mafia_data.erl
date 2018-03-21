@@ -890,7 +890,7 @@ analyse_body(S) when S#s.site == ?wd2 ->
     B8 = rm_to_after(B7, ["<div class=\"content\">"]),
     {B9, MsgRaw} = read_to_before(B8, "<div class=\"back2top\">"),
     Msg2 = replace_blockquotes(MsgRaw),
-    {_, Msg3} = read_to_before(Msg2, "</div>"),
+    {_, Msg3} = read_to_before(Msg2, "<div style=\"float:"),
     Msg = strip(Msg3),
     analyse_body(S#s{body = B9}, {UserStr, MsgIdStr, UTime, Msg}).
 
@@ -931,15 +931,31 @@ analyse_body(S, User, MsgId, UTime, Msg) ->
 
 -define(BrRev, ">rb<").
 -define(UpArrow, "&uarr;").
--record(bq, {acc, ref_user, ref_msgid}).
+-define(BlockQuote, "<blockquote").
+-define(BQ_END, "</blockquote>").
+-define(bq_start, bq_start).
+-define(bq_text, bq_text).
+-define(cite, cite).
+-record(bq, {loc = out, acc = "", lvl = 0, ref_user, ref_msgid, stack}).
 
 replace_blockquotes(Msg) ->
-    replace_blockquotes(Msg, #bq{acc = ""}, 0).
+    replace_blockquotes(Msg, #bq{}).
 
-replace_blockquotes("<blockquote" ++ Msg, BQ, Lvl) ->
-    replace_blockquotes(Msg, BQ, Lvl + 1);
+replace_blockquotes("<div>" ++ Msg, BQ) -> replace_blockquotes(Msg, BQ);
+replace_blockquotes("</div>" ++ Msg, BQ) -> replace_blockquotes(Msg, BQ);
+replace_blockquotes(?BlockQuote ++ Msg, BQ = #bq{loc = Loc, lvl = Lvl}) ->
+    if Loc /= ?cite ->
+            BQnew = #bq{loc = ?bq_start, stack = BQ},
+            replace_blockquotes(Msg, BQnew);
+       Loc == ?cite ->
+            replace_blockquotes(Msg, BQ#bq{loc = Loc, lvl = Lvl + 1})
+    end;
+replace_blockquotes([$> | Msg], BQ = #bq{loc = ?bq_start}) ->
+    replace_blockquotes(Msg, BQ#bq{loc = ?bq_text});
+replace_blockquotes("<cite>" ++ Msg, BQ = #bq{loc = ?bq_text}) ->
+    replace_blockquotes(Msg, BQ#bq{loc = ?cite});
 replace_blockquotes("<a href=\"./memberlist.php?mode=viewprofile&amp;u=" ++ Msg,
-                    BQ, Lvl) ->
+                    BQ = #bq{loc = ?cite, ref_user = ?undefined}) ->
     %% 77&amp;sid=9aec1ea2e15bf669516a01a921067d15">Durga</a> wrote:
     {match, [{_, N}]} =
         re:run(Msg, "^(.*>).*", [{capture, [1]}, ungreedy]),
@@ -948,35 +964,76 @@ replace_blockquotes("<a href=\"./memberlist.php?mode=viewprofile&amp;u=" ++ Msg,
         re:run(Msg2, "^(.*)(</a>).*", [{capture, [1]}, ungreedy]),
     RefUser = string:left(Msg2, N2),     %% "Durga"
     Msg3 = string:substr(Msg2, N2 + 1),
-    replace_blockquotes(Msg3, BQ#bq{ref_user = RefUser}, Lvl);
+    replace_blockquotes(Msg3, BQ#bq{ref_user = RefUser});
 replace_blockquotes("<a href=\"./viewtopic.php?p=" ++ Msg,
-                    BQ = #bq{acc = Acc, ref_user = RefUser},
-                    Lvl) ->
+                    BQ = #bq{loc = ?cite, ref_msgid = ?undefined}) ->
     {match, [{_, N}]} = re:run(Msg, "^([0-9]*).*", [{capture, [1]}]),
     RefIdStr = string:left(Msg, N),     %% "1221"
     Msg2 = string:substr(Msg, N + 1),
-    Link = "<a href=\"#msg_id=w:" ++ RefIdStr ++
-        "\" style=\"text-decoration:none\">" ++ ?UpArrow ++ RefUser ++ "</a>",
-    Acc2 = preapp(Acc, [?lrev(Link), " "]),
-    replace_blockquotes(Msg2, BQ#bq{acc = Acc2, ref_msgid = RefIdStr}, Lvl);
-replace_blockquotes("</blockquote>" ++ Msg, BQ, Lvl) when Lvl == 0 ->
-    replace_blockquotes(Msg, BQ, Lvl);
-replace_blockquotes("</blockquote>" ++ Msg, BQ, Lvl) ->
-    BQ2 = if Lvl > 1 -> BQ;
-             true -> BQ#bq{acc = preapp(BQ#bq.acc, [?BrRev, ?BrRev])}
-          end,
-    replace_blockquotes(Msg, BQ2, Lvl - 1);
-replace_blockquotes([H | T], BQ, Lvl) when Lvl == 0 ->
-    replace_blockquotes(T,
-                        BQ#bq{acc = [H | BQ#bq.acc]},
-                        Lvl);
-replace_blockquotes([_ | T], BQ, Lvl) when Lvl > 0 ->
-    replace_blockquotes(T, BQ, Lvl);
-replace_blockquotes([], BQ, _) ->
-    ?lrev(BQ#bq.acc).
+    replace_blockquotes(Msg2, BQ#bq{ref_msgid = RefIdStr});
+replace_blockquotes(?BQ_END ++ Msg,
+                    #bq{loc = Loc,
+                        acc = Acc,
+                        ref_user = RefUser,
+                        ref_msgid = RefIdStr,
+                        stack = BQprev,
+                        lvl = Lvl} = BQ
+                   ) ->
+    if Loc == ?cite, Lvl > 0 ->
+            replace_blockquotes(Msg, BQ#bq{lvl = Lvl - 1});
+       Loc == ?cite, Lvl == 0,
+       is_list(RefUser),
+       is_list(RefIdStr) ->
+            Link = "<a href=\"#msg_id=w:" ++ RefIdStr ++
+                "\" style=\"text-decoration:none\">" ++ ?UpArrow
+                ++ RefUser ++ "</a>",
+            Appends =
+                if BQprev#bq.acc /= [] -> [?BrRev, ?BrRev];
+                   true -> []
+                end ++ [?lrev(Link), ?BrRev, ?BrRev],
+            Acc2 = preapp(BQprev#bq.acc, Appends),
+            BQ2 = BQprev#bq{acc = Acc2, lvl = Lvl - 1},
+            replace_blockquotes(Msg, BQ2);
+       true ->
+            Acc2 = preapp(BQprev#bq.acc,
+                          [?lrev(?BlockQuote), ">",
+                           %% ?lrev("<table border=1><tr><td>"),
+                           ?lrev("<i>\""),
+                           strip_br_white(Acc),
+                           ?lrev("\"</i>"),
+                           %% ?lrev("</td></td></table>"),
+                           ?lrev(?BQ_END)]),
+            BQ2 = BQprev#bq{acc = Acc2},
+            replace_blockquotes(Msg, BQ2)
+    end;
+replace_blockquotes([H | T], BQ = #bq{loc = Loc})
+  when Loc == ?bq_text; Loc == out ->
+    BQ2 = BQ#bq{acc = [H | BQ#bq.acc]},
+    replace_blockquotes(T, BQ2);
+replace_blockquotes([_ | T], BQ) ->
+    replace_blockquotes(T, BQ);
+replace_blockquotes([], #bq{acc = Acc}) ->
+    case get(dbg) of
+        true -> io:format("~s\n", [?lrev(Acc)]);
+        _ -> ok
+    end,
+    ?lrev(Acc).
 
 preapp(Acc, [H|T]) -> preapp(H ++ Acc, T);
 preapp(Acc, []) -> Acc.
+
+%% Msg comes in reverted.
+strip_br_white(MsgR) ->
+    MsgR2 = strip_br_white_b(MsgR),
+    ?lrev(strip_br_white_f(?lrev(MsgR2))).
+
+strip_br_white_f([H | T]) when H =< $\s -> strip_br_white_f(T);
+strip_br_white_f("<br>" ++ Msg) -> strip_br_white_f(Msg);
+strip_br_white_f(Msg) -> Msg.
+
+strip_br_white_b([H | T]) when H =< $\s -> strip_br_white_b(T);
+strip_br_white_b(">rb<" ++ Msg) -> strip_br_white_b(Msg);
+strip_br_white_b(Msg) -> Msg.
 
 
 rm_to_after(Str, []) -> Str;

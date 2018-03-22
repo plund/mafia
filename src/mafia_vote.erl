@@ -44,16 +44,12 @@ check_cmds_votes(G = #mafia_game{}, Re, M = #message{}) ->
     Re2 = Re#regex{msg_text_u = MsgU, msg_text = Msg},
     check_cmds_votes2(G, Re2, M).
 
-remove_blockquotes("<blockquote>" ++ Msg) ->
-    remove_blockquotes(rm_until_end(Msg));
-remove_blockquotes([H|T]) -> [H | remove_blockquotes(T)];
-remove_blockquotes([]) -> [].
-
-rm_until_end("</blockquote>" ++ Msg) -> Msg;
-rm_until_end([_ | T]) -> rm_until_end(T);
-rm_until_end([]) -> [].
-
-    %% remove <blockquote> sections
+remove_blockquotes(Msg) -> rm_bq(Msg, 0).
+rm_bq("<blockquote>" ++ Msg, Lvl)  -> rm_bq(Msg, Lvl + 1);
+rm_bq("</blockquote>" ++ Msg, Lvl) -> rm_bq(Msg, Lvl - 1);
+rm_bq([H | T], 0) -> [H | rm_bq(T, 0)];
+rm_bq([_ | T], Lvl) -> rm_bq(T, Lvl);
+rm_bq([], _) -> [].
 
 check_cmds_votes2(G, Re, M) ->
     IsEnded = case G#mafia_game.game_end of

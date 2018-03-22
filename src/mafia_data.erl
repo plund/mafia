@@ -931,18 +931,21 @@ analyse_body(S, User, MsgId, UTime, Msg) ->
 
 -define(BrRev, ">rb<").
 -define(UpArrow, "&uarr;").
--define(BlockQuote, "<blockquote").
+-define(BlockQuote, "<blockquote").  %% Note ">" is obmitted here.
 -define(BQ_END, "</blockquote>").
 -define(bq_start, bq_start).
 -define(bq_text, bq_text).
 -define(cite, cite).
--record(bq, {loc = out, acc = "", lvl = 0, ref_user, ref_msgid, stack}).
+-record(bq, {loc = out, acc = "", cite_acc = "", lvl = 0,
+             ref_user, ref_msgid, stack}).
 
 replace_blockquotes(Msg) ->
     replace_blockquotes(Msg, #bq{}).
 
-replace_blockquotes("<div>" ++ Msg, BQ) -> replace_blockquotes(Msg, BQ);
-replace_blockquotes("</div>" ++ Msg, BQ) -> replace_blockquotes(Msg, BQ);
+replace_blockquotes("<div>" ++ Msg, BQ = #bq{loc = L}) when L /= ?cite ->
+    replace_blockquotes(Msg, BQ);
+replace_blockquotes("</div>" ++ Msg, BQ = #bq{loc = L}) when L /= ?cite ->
+    replace_blockquotes(Msg, BQ);
 replace_blockquotes(?BlockQuote ++ Msg, BQ = #bq{loc = Loc, lvl = Lvl}) ->
     if Loc /= ?cite ->
             BQnew = #bq{loc = ?bq_start, stack = BQ},
@@ -954,6 +957,8 @@ replace_blockquotes([$> | Msg], BQ = #bq{loc = ?bq_start}) ->
     replace_blockquotes(Msg, BQ#bq{loc = ?bq_text});
 replace_blockquotes("<cite>" ++ Msg, BQ = #bq{loc = ?bq_text}) ->
     replace_blockquotes(Msg, BQ#bq{loc = ?cite});
+replace_blockquotes("</cite>" ++ Msg, BQ = #bq{loc = ?cite}) ->
+    replace_blockquotes(Msg, BQ#bq{loc = ?bq_text});
 replace_blockquotes("<a href=\"./memberlist.php?mode=viewprofile&amp;u=" ++ Msg,
                     BQ = #bq{loc = ?cite, ref_user = ?undefined}) ->
     %% 77&amp;sid=9aec1ea2e15bf669516a01a921067d15">Durga</a> wrote:
@@ -967,28 +972,41 @@ replace_blockquotes("<a href=\"./memberlist.php?mode=viewprofile&amp;u=" ++ Msg,
     replace_blockquotes(Msg3, BQ#bq{ref_user = RefUser});
 replace_blockquotes("<a href=\"./viewtopic.php?p=" ++ Msg,
                     BQ = #bq{loc = ?cite, ref_msgid = ?undefined}) ->
+%%% <a href="./viewtopic.php?p=11109&amp;sid=9aec1ea2e15bf669516a01a921067d15\
+%%% #p11109" data-post-id="11109" onclick="if(document.getElementById(hash.\
+%%% substr(1)))href=hash">↑</a>
     {match, [{_, N}]} = re:run(Msg, "^([0-9]*).*", [{capture, [1]}]),
     RefIdStr = string:left(Msg, N),     %% "1221"
     Msg2 = string:substr(Msg, N + 1),
-    replace_blockquotes(Msg2, BQ#bq{ref_msgid = RefIdStr});
+    {match, [{N2a, N2b}]} =
+        re:run(Msg2, ".*(</a>)", [{capture, [1]}, ungreedy]),
+    Msg3 = string:substr(Msg2, N2a + N2b + 1),
+    replace_blockquotes(Msg3, BQ#bq{ref_msgid = RefIdStr});
+replace_blockquotes("<div" ++ Msg,
+                    BQ = #bq{loc = ?cite, ref_msgid = ?undefined}) ->
+    {match, [{Na, Nb}]} =
+        re:run(Msg, ".*(</div>)", [{capture, [1]}, ungreedy]),
+    Msg2 = string:substr(Msg, Na + Nb + 1),
+    replace_blockquotes(Msg2, BQ);
 replace_blockquotes(?BQ_END ++ Msg,
-                    #bq{loc = Loc,
-                        acc = Acc,
+                    #bq{acc = Acc,
+                        cite_acc = CiteAcc,
                         ref_user = RefUser,
                         ref_msgid = RefIdStr,
                         stack = BQprev,
                         lvl = Lvl} = BQ
                    ) ->
-    if Loc == ?cite, Lvl > 0 ->
-            replace_blockquotes(Msg, BQ#bq{lvl = Lvl - 1});
-       Loc == ?cite, Lvl == 0,
+
+    if Lvl > 0 -> replace_blockquotes(Msg, BQ#bq{lvl = Lvl - 1});
        is_list(RefUser),
        is_list(RefIdStr) ->
-            Link = "<a href=\"#msg_id=w:" ++ RefIdStr ++
+            Link =
+                "<a href=\"msg?id=w:"
+                ++ RefIdStr ++
                 "\" style=\"text-decoration:none\">" ++ ?UpArrow
                 ++ RefUser ++ "</a>",
             Appends =
-                if BQprev#bq.acc /= [] -> [?BrRev, ?BrRev];
+                if BQprev#bq.acc /= [] -> [?BrRev];
                    true -> []
                 end ++ [?lrev(Link), ?BrRev, ?BrRev],
             Acc2 = preapp(BQprev#bq.acc, Appends),
@@ -997,26 +1015,26 @@ replace_blockquotes(?BQ_END ++ Msg,
        true ->
             Acc2 = preapp(BQprev#bq.acc,
                           [?lrev(?BlockQuote), ">",
-                           %% ?lrev("<table border=1><tr><td>"),
+                           ?lrev("<b>"),
+                           ?lrev("<cite>"), CiteAcc, ?lrev("</cite>"),
+                           ?lrev("</b><br>"),
                            ?lrev("<i>\""),
                            strip_br_white(Acc),
                            ?lrev("\"</i>"),
-                           %% ?lrev("</td></td></table>"),
                            ?lrev(?BQ_END)]),
             BQ2 = BQprev#bq{acc = Acc2},
             replace_blockquotes(Msg, BQ2)
     end;
+replace_blockquotes([H | T], BQ = #bq{loc = ?cite}) ->
+    BQ2 = BQ#bq{cite_acc = [H | BQ#bq.cite_acc]},
+    replace_blockquotes(T, BQ2);
 replace_blockquotes([H | T], BQ = #bq{loc = Loc})
-  when Loc == ?bq_text; Loc == out ->
+    when Loc == ?bq_text; Loc == out ->
     BQ2 = BQ#bq{acc = [H | BQ#bq.acc]},
     replace_blockquotes(T, BQ2);
 replace_blockquotes([_ | T], BQ) ->
     replace_blockquotes(T, BQ);
 replace_blockquotes([], #bq{acc = Acc}) ->
-    case get(dbg) of
-        true -> io:format("~s\n", [?lrev(Acc)]);
-        _ -> ok
-    end,
     ?lrev(Acc).
 
 preapp(Acc, [H|T]) -> preapp(H ++ Acc, T);

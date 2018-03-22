@@ -443,7 +443,7 @@ bold_mark_words(Msg, WordsU) ->
     Out2 ++ In2.
 
 
--define(H0, "<a href=\"#msg_id=w:").
+-define(H0, "<a href=\"msg?id=w:").
 -define(H1, "<a href=\"forum.php?").
 -define(H2, "<a href=\"contrib/phpBB3/viewtopic.php?").
 -define(H3, "<a href=\"http://www.webdiplomacy.net/forum.php?").

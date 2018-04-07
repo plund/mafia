@@ -31,7 +31,12 @@
          my_string_substr/3,
          alpha_sort/1,
          to_bin_sort/1,
+
+         is_url_char/1,
+         get_url/1,
+         split_on_url_boundary/1,
          get_url_begin/1,
+
          bgcolor/1,
          split_on_first_char/2,
          replace_p/3,
@@ -431,6 +436,31 @@ to_bin_sort(LoB = [Bin|_]) when is_binary(Bin) ->
     to_bin_sort([?b2l(L) || L <- LoB]).
 
 %% -----------------------------------------------------------------------------
+
+
+%% URL Chars: A-Za-z0-9-._~:/?#[]@!$&'()*+,;=%
+-spec is_url_char(Char :: integer()) -> boolean().
+is_url_char(C) when $A =< C, C =< $Z -> true;
+is_url_char(C) when $a =< C, C =< $z -> true;
+is_url_char(C) when $0 =< C, C =< $9 -> true;
+is_url_char(C) -> lists:member(C, "-._~:/?#[]@!$&'()*+,;=%").
+
+get_url([H | T]) ->
+    case is_url_char(H) of
+        true -> [H | get_url(T)];
+        false -> ""
+    end.
+
+-spec split_on_url_boundary(string()) -> {URL :: string(), string()}.
+split_on_url_boundary(Msg) ->
+    split_on_url_boundary(Msg, "").
+
+split_on_url_boundary([], Acc) -> {?lrev(Acc), ""};
+split_on_url_boundary([H | T] = Msg, Acc) ->
+    case is_url_char(H) of
+        true -> split_on_url_boundary(T, [H | Acc]);
+        false -> {?lrev(Acc), Msg}
+    end.
 
 get_url_begin(#mafia_game{site = Site}) -> get_url_begin(Site);
 get_url_begin(?webDip) -> ?UrlBeg;

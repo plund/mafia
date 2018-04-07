@@ -359,18 +359,21 @@ add_cond(QStrs, Acc) ->
 %% 1) fixes http links
 %% 2) bold marks search words
 modify_message(Msg, WordsU) ->
-    Parts1 = remove_links(Msg),
+    Parts1 = normalize_links(Msg),
     Parts2 =
         lists:foldl(
           fun({out, S}, Acc) ->
                   Acc ++ split_msg_on_urls(S);
              ({fix, _} = F, Acc) ->
+                  Acc ++ [F];
+             ({url, _} = F, Acc) ->
                   Acc ++ [F]
           end,
           [],
           Parts1
          ),
     Parts3 = break_long_words_in_out(Parts2),
+    Parts4 = remove_same_text(Parts3),
     lists:foldl(
       fun({out, SubMsg}, Acc) ->
               Acc ++ bold_mark_words(SubMsg, WordsU);
@@ -380,7 +383,15 @@ modify_message(Msg, WordsU) ->
               Acc ++ ["<a href=\"", Url, "\">", Url, "</a>"]
       end,
       "",
-      Parts3).
+      Parts4).
+
+remove_same_text([Url = {url, TextUrl}, Out = {fix, TextOut} | T]) ->
+    case add_parenteses(TextUrl) of
+        TextOut -> [Url | remove_same_text(T)];
+        _ -> [Url, Out | remove_same_text(T)]
+    end;
+remove_same_text([H | T]) -> [H | remove_same_text(T)];
+remove_same_text([]) -> [].
 
 break_long_words_in_out(Parts) ->
     [case P of
@@ -442,60 +453,66 @@ bold_mark_words(Msg, WordsU) ->
                     Intervals),
     Out2 ++ In2.
 
-
 -define(H0, "<a href=\"msg?id=w:").
--define(H1, "<a href=\"forum.php?").
--define(H2, "<a href=\"contrib/phpBB3/viewtopic.php?").
--define(H3, "<a href=\"http://www.webdiplomacy.net/forum.php?").
--define(H4, "<a href=\"http://www.webdiplomacy.net/contrib/phpBB3/"
-        "viewtopic.php?").
--define(H5, "<a href=\"https://www.webdiplomacy.net/forum.php?").
--define(H6, "<a href=\"https://www.webdiplomacy.net/contrib/phpBB3/"
-        "viewtopic.php?").
+-define(HREF, "<a href=\"").
+-define(U1, "forum.php?").
+-define(R1, "http://webdiplomacy.net/forum.php?").
+-define(U2, "contrib/phpBB3/viewtopic.php?").
+-define(R2, "http://www.webdiplomacy.net/contrib/phpBB3/viewtopic.php?").
 
-%% removes some <a href tags
-%% The accepted tags are marked with 'fix' so they will not be bold marked or
-%% interrupted with line breaks
-%% return [{out|fix, string()}]
-remove_links(Msg) -> remove_links(Msg, {out, ""}, []).
+norm_url(?U1 ++ Msg) -> ?R1 ++ Msg;
+norm_url(?U2 ++ Msg) -> ?R2 ++ Msg;
+norm_url(Msg) -> Msg.
 
-remove_links(?H0 ++ Msg, {out, B}, Acc) ->
-    remove_links(Msg, {keep, ?H0}, [{out, B} | Acc]);
-remove_links(?H1 ++ Msg, {out, B}, Acc) ->
-    remove_links(Msg, {keep, ?H1}, [{out, B} | Acc]);
-remove_links(?H2 ++ Msg, {out, B}, Acc) ->
-    remove_links(Msg, {keep, ?H2}, [{out, B} | Acc]);
-remove_links(?H3 ++ Msg, {out, B}, Acc) ->
-    remove_links(Msg, {keep, ?H3}, [{out, B} | Acc]);
-remove_links(?H4 ++ Msg, {out, B}, Acc) ->
-    remove_links(Msg, {keep, ?H4}, [{out, B} | Acc]);
-remove_links(?H5 ++ Msg, {out, B}, Acc) ->
-    remove_links(Msg, {keep, ?H5}, [{out, B} | Acc]);
-remove_links(?H6 ++ Msg, {out, B}, Acc) ->
-    remove_links(Msg, {keep, ?H6}, [{out, B} | Acc]);
-remove_links("</a>" ++ Msg, {keep, B}, Acc) ->
-    remove_links(Msg, {out, ""}, [{fix, B ++ "</a>"} | Acc]);
+%% removes all '<a' tags
+%% Only the URL part of the links are kept and marked with 'url' so they will
+%% not be bold marked or interrupted with line breaks
+-spec normalize_links(string()) -> [{out | url | fix, string()}].
+normalize_links(Msg) ->
+    normalize_links(Msg, {out, ""}, []).
 
-remove_links("<a" ++ Msg, {out, B}, Acc) -> remove_links(Msg, {in, B}, Acc);
-remove_links(">" ++ Msg, {in, B}, Acc) -> remove_links(Msg, {out, B}, Acc);
+%% Cite links should be unchanged - state 'keep'
+normalize_links(?H0 ++ Msg, {out, B}, Acc) ->
+    normalize_links(Msg, {keep, ?H0}, [{out, B} | Acc]);
+normalize_links("</a>" ++ Msg, {keep, B}, Acc) ->
+    normalize_links(Msg, {out, ""}, [{fix, B ++ "</a>"} | Acc]);
 
-remove_links("</a>" ++ Msg, {out, B}, Acc) ->
-    remove_links(Msg, {out, B}, Acc);
+%% non '<a' with 'href="' - ignore link text - state 'link'
+normalize_links(?HREF ++ Msg, {out, B}, Acc) ->
+    {Url, Rest} = mafia_lib:split_on_url_boundary(Msg),
+    NUrl = norm_url(Url),
+    normalize_links(Rest, {link, ""}, [{url, NUrl}, {out, B} | Acc]);
+normalize_links(">" ++ Msg, {link, _}, Acc) ->
+    normalize_links(Msg, {link_text, ""}, Acc);
+normalize_links("</a>" ++ Msg, {link_text, B}, Acc) ->
+    normalize_links(Msg, {out, ""}, [{fix, add_parenteses(B)} | Acc]);
 
-remove_links([H | T], {S, B}, Acc) when S == out; S == keep ->
-    remove_links(T, {S, B ++ [H]}, Acc);
-remove_links([_|T], {in, B}, Acc) -> remove_links(T, {in, B}, Acc);
+%% non '<a' without 'href="' - keep link text  - state 'in'
+normalize_links("<a" ++ Msg, {out, B}, Acc) ->
+    normalize_links(Msg, {in, B}, Acc);
+normalize_links(">" ++ Msg, {in, B}, Acc) ->
+    normalize_links(Msg, {out, B}, Acc);
 
-remove_links([], {keep, B}, Acc) -> ?lrev([{fix, B} | Acc]);
-remove_links([], {out, B}, Acc) -> ?lrev([{out, B} | Acc]);
-remove_links([], {in, _}, Acc) -> ?lrev(Acc).
+normalize_links("</a>" ++ Msg, {out, B}, Acc) ->
+    normalize_links(Msg, {out, B}, Acc);
 
--define(UrlBoundaryChars, " ()[]{}<>").
+normalize_links([H | T], {S, B}, Acc)
+  when S == out; S == link_text; S == keep ->
+    normalize_links(T, {S, B ++ [H]}, Acc);
+
+normalize_links([_ | T], {S, B}, Acc) when S == in; S == link ->
+    normalize_links(T, {S, B}, Acc);
+
+normalize_links([], {out, B}, Acc) -> ?lrev([{out, B} | Acc]);
+normalize_links([], {S, _}, Acc)
+  when S == in; S == link; S == link_text ->
+    ?lrev(Acc).
+
+add_parenteses(B) -> " (" ++ B ++ ")".
 
 %% Split string into url and no_url segments, so no bold marking is performed
 %% in the url sections
--spec split_msg_on_urls(Msg :: string())
-                       -> [{out | fix, SubMsg :: string()}].
+-spec split_msg_on_urls(string()) -> [{out | url, string()}].
 split_msg_on_urls(Msg) ->
     split_msg_on_urls(Msg, []).
 
@@ -513,16 +530,16 @@ split_msg_on_urls(Msg, Acc) ->
         end,
     case Res of
         ?nomatch ->
-            ?lrev([{out, Msg}|Acc]);
+            Acc ++ [{out, Msg}];
         {HPos, Search} ->
             HLen = length(Search),
             Pre = string:substr(Msg, 1, HPos - 1),
             A2 = [{out, Pre} | Acc],
             Rest1 = string:substr(Msg, HPos + HLen),
-            case string:tokens(Rest1, ?UrlBoundaryChars) of
-                [] ->
+            case mafia_lib:get_url(Rest1) of
+                "" ->
                     ?lrev([{url, Search} | A2]);
-                [T1|_] ->
+                T1 ->
                     A3 = [{url, Search ++ T1} | A2],
                     Msg2 = string:substr(Rest1, 1 + length(T1)),
                     split_msg_on_urls(Msg2, A3)

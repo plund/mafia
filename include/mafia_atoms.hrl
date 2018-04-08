@@ -5,6 +5,8 @@
 -define(success, success).
 -define(failure, failure).
 -define(ok, ok).
+-define(in, in).
+-define(out, out).
 -define(error, error).
 -define(valid, valid).
 -define(invalid, invalid).

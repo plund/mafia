@@ -936,7 +936,7 @@ analyse_body(S, User, MsgId, UTime, Msg) ->
 -define(bq_start, bq_start).
 -define(bq_text, bq_text).
 -define(cite, cite).
--record(bq, {loc = out, acc = "", loc_acc = "", cite_acc = "", lvl = 0,
+-record(bq, {loc = ?out, acc = "", loc_acc = "", cite_acc = "", lvl = 0,
              ref_user, ref_msgid, stack}).
 
 replace_blockquotes(Msg) ->
@@ -1035,14 +1035,16 @@ replace_blockquotes(?BQ_END ++ Msg,
 replace_blockquotes([H | T], BQ = #bq{loc = ?cite}) ->
     BQ2 = BQ#bq{cite_acc = [H | BQ#bq.cite_acc]},
     replace_blockquotes(T, BQ2);
-replace_blockquotes([H | T], BQ = #bq{loc = Loc})
-  when Loc == ?bq_text; Loc == out ->
+replace_blockquotes([H | T], BQ = #bq{loc = ?bq_text}) ->
     BQ2 = BQ#bq{loc_acc = [H | BQ#bq.loc_acc]},
+    replace_blockquotes(T, BQ2);
+replace_blockquotes([H | T], BQ = #bq{loc = ?out}) ->
+    BQ2 = BQ#bq{acc = [H | BQ#bq.acc]},
     replace_blockquotes(T, BQ2);
 replace_blockquotes([_ | T], BQ) ->
     replace_blockquotes(T, BQ);
 replace_blockquotes([], #bq{acc = Acc, loc_acc = LocAcc}) ->
-    ?lrev(LocAcc ++ Acc).
+    ?lrev(Acc).
 
 preapp(Acc, [H|T]) -> preapp(H ++ Acc, T);
 preapp(Acc, []) -> Acc.
@@ -1052,18 +1054,18 @@ preapp(Acc, []) -> Acc.
 limit_clean_r(MsgR) ->
     Msg = ?lrev(MsgR),
     %% return reverted
-    limit_clean_r(Msg, out, ?NUM_QUOTE_CHAR, "").
+    limit_clean_r(Msg, ?out, ?NUM_QUOTE_CHAR, "").
 
 limit_clean_r("", _, _, Acc) -> Acc;
 limit_clean_r(_, _, 0, Acc) -> "... " ++ Acc;
-limit_clean_r("<" ++ T, out, Num, Acc) ->
-    limit_clean_r(T, in, Num, [$< | Acc]);
-limit_clean_r(">" ++ T, in, Num, Acc) ->
-    limit_clean_r(T, out, Num, [$> | Acc]);
-limit_clean_r([H | T], in, Num, Acc) ->
-    limit_clean_r(T, in, Num, [H | Acc]);
-limit_clean_r([H | T], out, Num, Acc) ->
-    limit_clean_r(T, out, Num - 1, [H | Acc]).
+limit_clean_r("<" ++ T, ?out, Num, Acc) ->
+    limit_clean_r(T, ?in, Num, [$< | Acc]);
+limit_clean_r(">" ++ T, ?in, Num, Acc) ->
+    limit_clean_r(T, ?out, Num, [$> | Acc]);
+limit_clean_r([H | T], ?in, Num, Acc) ->
+    limit_clean_r(T, ?in, Num, [H | Acc]);
+limit_clean_r([H | T], ?out, Num, Acc) ->
+    limit_clean_r(T, ?out, Num - 1, [H | Acc]).
 
 %% Msg comes in and is returned reverted.
 strip_br_white(MsgR) ->

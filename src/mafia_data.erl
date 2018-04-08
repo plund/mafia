@@ -1057,7 +1057,7 @@ limit_clean_r(MsgR) ->
     limit_clean_r(Msg, ?out, ?NUM_QUOTE_CHAR, "").
 
 limit_clean_r("", _, _, Acc) -> Acc;
-limit_clean_r(_, _, 0, Acc) -> "... " ++ Acc;
+limit_clean_r(_, _, 0, Acc) -> "..." ++ Acc;
 limit_clean_r("<" ++ T, ?out, Num, Acc) ->
     limit_clean_r(T, ?in, Num, [$< | Acc]);
 limit_clean_r(">" ++ T, ?in, Num, Acc) ->

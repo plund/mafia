@@ -445,6 +445,7 @@ is_url_char(C) when $a =< C, C =< $z -> true;
 is_url_char(C) when $0 =< C, C =< $9 -> true;
 is_url_char(C) -> lists:member(C, "-._~:/?#[]@!$&'()*+,;=%").
 
+get_url([]) -> "";
 get_url([H | T]) ->
     case is_url_char(H) of
         true -> [H | get_url(T)];

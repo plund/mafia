@@ -38,14 +38,14 @@ get_regexs() ->
                       -> MsgTime :: seconds1970().
 check_cmds_votes(G = #mafia_game{}, Re, M = #message{}) ->
     mafia_data:update_stat(G, M),
-    Msg0 = remove_blockquotes(?b2l(M#message.message)),
+    Msg0 = remove_blockquotes(unicode:characters_to_list(M#message.message)),
     Msg = mafia_print:html2txt(Msg0),
     MsgU = ?l2u(Msg),
     Re2 = Re#regex{msg_text_u = MsgU, msg_text = Msg},
     check_cmds_votes2(G, Re2, M).
 
 remove_blockquotes(Msg) -> rm_bq(Msg, 0).
-rm_bq("<blockquote>" ++ Msg, Lvl)  -> rm_bq(Msg, Lvl + 1);
+rm_bq("<blockquote" ++ Msg, Lvl)  -> rm_bq(Msg, Lvl + 1);
 rm_bq("</blockquote>" ++ Msg, Lvl) -> rm_bq(Msg, Lvl - 1);
 rm_bq([H | T], 0) -> [H | rm_bq(T, 0)];
 rm_bq([_ | T], Lvl) -> rm_bq(T, Lvl);
@@ -341,7 +341,7 @@ check_for_deadline_move(#regex{msg_text_u = MsgText}, M, G) ->
                            {?error, term()}.
 find_deadline_move(MsgTextU) ->
     Reg = "DEADLINE(.*)MOVED(.*)(LATER|EARLIER)",
-    case re:run(MsgTextU, Reg) of
+    case re:run(MsgTextU, Reg, [unicode]) of
         nomatch -> not_found;
         {match, Ms} ->
             [_, _, TimeStr, Dir] = mafia_lib:re_matches(MsgTextU, Ms),
@@ -368,13 +368,13 @@ find_time(Text) ->
     RegMins = "^\\W*([0-9]+) *(MINUTES?|M)",
     {NumM, RestM} = find_expr(RestH, RegMins),
     RegEnd = "^\\W+$",
-    case re:run(RestM, RegEnd) of
+    case re:run(RestM, RegEnd, [unicode]) of
         nomatch -> {?error, bad_time};
         _ -> {ok, NumD, NumH, NumM}
     end.
 
 find_expr(Text, Reg) ->
-    case re:run(Text, Reg) of
+    case re:run(Text, Reg, [unicode]) of
         {match, Matches} ->
             {S, L} = hd(Matches),
             Rest = string:substr(Text, S + L + 1),
@@ -414,7 +414,7 @@ regex_player_replacement() ->
     Reg = "(^|\\s)([^\\s].*[^\\s]) +(HAS +REPLACED|IS +REPLACING)"
         " +([^\\s].*[^\\s])(\\s|$)",
     %% fprof did not see any performance improvment with comiled regexs.
-    element(2, re:compile(Reg)).
+    element(2, re:compile(Reg, [unicode])).
 
 find_player_replacement(Reg = #regex{play_repl = RE}) ->
     case re:run(Reg#regex.msg_text_u, RE, [{capture, [2, 4, 5]}]) of
@@ -450,7 +450,7 @@ check_for_game_end(S, M, G) ->
 regex_game_end() ->
     Reg = "(^|\\W)GAME +((HAS +)?ENDED|IS +OVER)(\\W|$)",
     %% Reg = "^((.|\\s)*\\s)?GAME +((HAS +)?ENDED|IS +OVER)(\\s(.|\\s)*)?$",
-    element(2, re:compile(Reg)).
+    element(2, re:compile(Reg, [unicode])).
 
 find_game_end(#regex{msg_text_u = MsgTextU, game_end = RE}) ->
     re:run(MsgTextU, RE).
@@ -468,7 +468,7 @@ check_for_game_unend(S, M, G) ->
 
 regex_game_unend() ->
     Reg = "^((.|\\s)*\\s)?(GAME +(HAS +)?UNENDED|UNEND +GAME)(\\s(.|\\s)*)?$",
-    element(2, re:compile(Reg)).
+    element(2, re:compile(Reg, [unicode])).
 
 find_game_unend(#regex{msg_text_u = MsgTextU, game_unend = RE}) ->
     re:run(MsgTextU, RE).
@@ -1056,8 +1056,8 @@ check_for_votes2_test() ->
                         [])
       ),
     ?assertMatch(
-        {{vote, <<"ghi">>, <<"ghill, dd">>, true},
-         ?undefined},
+       {{vote, <<"ghi">>, <<"ghill, dd">>, true},
+        ?undefined},
        check_for_votes2(ut_game(["abc", "def", "ghi"]),
                         ut_regex("##vote hej, ##end, ##vote abc, "
                                  "##end ##vote ghill, dd"),
@@ -1102,7 +1102,7 @@ check_for_votes2_test() ->
                         ut_regex("##voteunend"),
                         [])
       ),
-     %% Vote similar users "abc" "abcde"
+    %% Vote similar users "abc" "abcde"
     ?assertMatch(
        {{vote, <<"abc">>, <<"abc ef ##end">>, true}, end_vote},
        check_for_votes2(ut_game(["abc", "abcde"]),

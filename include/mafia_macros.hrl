@@ -96,12 +96,26 @@
 -define(dbg_str(Str), mafia_lib:dbg_str(Str)).
 -define(man(Time, Cmd), mafia_lib:man(Time, Cmd)).
 
+%% background: #ffeeff;
 -define(HTML_TAB_START_LINKS(Title, TabAttrStr, PrevL, NextL),
  "<!DOCTYPE html>
 <html>
   <head>
-    <meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\">
+    <meta http-equiv=\"Content-Type\" content=\"text/html;charset=utf-8\">
     <title>" ++ Title ++ "</title>
+    <style>
+       blockquote {
+          display: block;
+          margin-top: 8px;
+          margin-bottom: 8px;
+          margin-left: 30px;
+          margin-right: 30px;
+          padding: 6px;
+          border-left: 6px solid #707070;
+          quotes: \"\\201C\"\"\\201D\"\"\\2018\"\"\\2019\";
+
+      }
+  </style>
   </head>
   <body bgcolor=\"#cfffaf\">
     <center>

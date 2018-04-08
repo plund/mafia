@@ -71,7 +71,7 @@ msgs(Sid, _Env, In) ->
             msgs2(Sid, ?rgame(GNum), In, PQ, NotAllowed);
         ?none ->
             error_resp(Sid, ["Bad or missing game id"])
-        end.
+    end.
 
 msgs2(Sid, _, _In, _PQ, NotAllowed) when NotAllowed /= [] ->
     error_resp(Sid, ["Params not allowed: ",
@@ -83,7 +83,7 @@ msgs2(Sid, [G], In, PQ, []) ->
     Url2 = "e/web/msgs?",
     In3 = [string:tokens(I, "=") || I <- string:tokens(In, "&")],
     Url3 = string:join(
-            [[K, "=", V] || [K, V] <- In3, K /= "button", V /= ""], "&"),
+             [[K, "=", V] || [K, V] <- In3, K /= "button", V /= ""], "&"),
     SearchLink = ["<a href=\"", "/", Url2, Url3, "\">", Url3, "</a>"],
     GnumText = "M" ++ ?i2l(GNum),
     UsersText = get_arg(PQ, "user"),
@@ -110,8 +110,10 @@ msgs2(Sid, [G], In, PQ, []) ->
                        ?invalid;
                   ?true -> ?undefined
                end,
-    DoCont = PartMode /= ?invalid andalso
-        (IsUserCond orelse IsWordCond orelse PartMode == ?valid),
+    DoCont =
+        PartMode /= ?invalid
+        andalso
+          (IsUserCond orelse IsWordCond orelse PartMode == ?valid),
     Fun =
         fun(acc, init) -> #miter{};
            (#message{msg_key = MsgKey,
@@ -121,7 +123,7 @@ msgs2(Sid, [G], In, PQ, []) ->
                      message = MsgB} = IMsg,
             MI) when MI#miter.bytes < ?OUT_LIMIT  ->
                 MsgPhase = mafia_time:calculate_phase(GNum, Time),
-                Msg = ?b2l(MsgB),
+                Msg = unicode:characters_to_list(MsgB),
                 B2U = fun(B) -> string:to_upper(binary_to_list(B)) end,
                 MsgUserU = B2U(MsgUserB),
                 TestFuns =
@@ -208,17 +210,17 @@ msgs2(Sid, [G], In, PQ, []) ->
                              "\">page ", ?i2l(Page),
                              "</a>"],
                         OutB =
-                            ?l2b(
-                               ["<tr", BgColor, ">"
-                                "<td valign=\"top\">"
-                                "<a name=\"", MsgRef, "\">"
-                                "<b>", MsgUserB,
-                                "</b></a><br>", DayStr, " ",
-                                pr2dig(HH), ":", pr2dig(MM), "<br>",
-                                HPage,
-                                "</td><td valign=\"top\">",
-                                ModifiedMsg,
-                                "</td></tr>\r\n"]),
+                            unicode:characters_to_binary(
+                              ["<tr", BgColor, ">"
+                               "<td valign=\"top\">"
+                               "<a name=\"", MsgRef, "\">"
+                               "<b>", MsgUserB,
+                               "</b></a><br>", DayStr, " ",
+                               pr2dig(HH), ":", pr2dig(MM), "<br>",
+                               HPage,
+                               "</td><td valign=\"top\">",
+                               ModifiedMsg,
+                               "</td></tr>\r\n"]),
                         SizeOut = web:deliver(Sid, OutB),
                         MI#miter{bytes = MI#miter.bytes + SizeDiv + SizeOut,
                                  phase = MsgPhase,
@@ -258,10 +260,10 @@ msgs2(Sid, [G], In, PQ, []) ->
                 B1 + B2 + SizeDiv + B3;
            ?true ->
                 MsgB = ?l2b(["<tr><td valign=\"top\">",
-                            "Error: Minimum one condition needs to be "
-                            "specified: User name, Word or a "
-                            "single Day number!",
-                            "</td></tr>"]),
+                             "Error: Minimum one condition needs to be "
+                             "specified: User name, Word or a "
+                             "single Day number!",
+                             "</td></tr>"]),
                 web:deliver(Sid, MsgB)
         end,
     C = del_end(Sid),
@@ -334,9 +336,9 @@ deliver_div(Sid, DivStr, Color) ->
 
 find_word_searches(WordText) ->
     [?l2u(Str) || Str <- fws(WordText,
-                            _InQuotes = out,
-                            _QStrs = [],
-                            _CharAcc = "")].
+                             _InQuotes = out,
+                             _QStrs = [],
+                             _CharAcc = "")].
 
 fws("", _IsInQ, QStrs, Acc) ->
     QStrs2 = add_cond(QStrs, Acc),
@@ -624,7 +626,7 @@ find_part2(TextU) ->
     %% NEW: end, p55-end = 55-
     Re = "^\\s*((S|D|N|P|DAY|NIGHT|PAGE|END)? *([0-9]*))? *"
         "(- *((S|D|N|P|DAY|NIGHT|PAGE|END)? *([0-9]*))?)?\\s*$",
-    case re:run(TextU, Re, [{capture, [2, 3, 4, 6, 7], list}]) of
+    case re:run(TextU, Re, [{capture, [2, 3, 4, 6, 7], list}, unicode]) of
         nomatch ->
             ?undefined;
         {match, [Ua0, Na0, Dash, Ub0, Nb0]} ->

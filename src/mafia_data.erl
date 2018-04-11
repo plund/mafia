@@ -1003,22 +1003,23 @@ replace_blockquotes(?BQ_END ++ Msg,
                                "\" style=\"text-decoration:none\">" ++ ?UpArrow
                                ++ RefUser ++ "</a>";
                       true -> "" end,
+            LocAccStrip = strip_br_white(LocAcc),
             {CiteApp, QText} =
                 if is_list(RefUser), is_list(RefIdStr) ->
-                        {[?lrev(Link), " :"], limit_clean_r(LocAcc)};
+                        {[?lrev(Link), " :"], limit_clean_r(LocAccStrip)};
                    is_list(RefUser) ->
                         {[?lrev("<b>"),
                           ?lrev("<cite>"), User, CiteAcc,
                           ?lrev("</cite>"),
                           ?lrev("</b><br>")],
-                         strip_br_white(LocAcc)};
+                         LocAccStrip};
                    true ->
                         {[?lrev("<b>"),
                           ?lrev("<cite>"), User, CiteAcc, ?lrev(Link),
                           ?lrev("</cite>"),
                           ?lrev("</b><br>")
                          ],
-                         strip_br_white(LocAcc)}
+                         LocAccStrip}
                 end,
             Acc2 = preapp(BQprev#bq.acc,
                           [?lrev(?BlockQuote),
@@ -1043,7 +1044,7 @@ replace_blockquotes([H | T], BQ = #bq{loc = ?out}) ->
     replace_blockquotes(T, BQ2);
 replace_blockquotes([_ | T], BQ) ->
     replace_blockquotes(T, BQ);
-replace_blockquotes([], #bq{acc = Acc, loc_acc = LocAcc}) ->
+replace_blockquotes([], #bq{acc = Acc}) ->
     ?lrev(Acc).
 
 preapp(Acc, [H|T]) -> preapp(H ++ Acc, T);

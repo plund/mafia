@@ -113,7 +113,9 @@ resurrect_player(G, M, PlayerB) ->
             MsgIdFun =
                 fun(MsgId, Acc2) ->
                         case ?rmess({MsgId, Site}) of
-                            [#message{msg_key = MK, time = T}]
+                            [#message{msg_key = MK, time = T,
+                                      user_name = PlayerB
+                                     }]
                               when MK /= M#message.msg_key,
                                    MK /= DMK,
                                    DTime =< T ->

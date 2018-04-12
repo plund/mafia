@@ -2,7 +2,8 @@
 
 -export([get_regexs/0,
          check_cmds_votes/3,
-         find_parts/2
+         find_parts/2,
+         player_type/2
         ]).
 
 -include("mafia.hrl").

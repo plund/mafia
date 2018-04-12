@@ -113,13 +113,14 @@ resurrect_player(G, M, PlayerB) ->
             MsgIdFun =
                 fun(MsgId, Acc2) ->
                         case ?rmess({MsgId, Site}) of
-                            [#message{msg_key = MK, time = T,
-                                      user_name = PlayerB
-                                     }]
+                            [#message{msg_key = MK, time = T} = M2]
                               when MK /= M#message.msg_key,
                                    MK /= DMK,
                                    DTime =< T ->
-                                MsgIdFun0(MsgId, Acc2);
+                                case mafia_vote:player_type(M2, G2) of
+                                    ?player -> MsgIdFun0(MsgId, Acc2);
+                                    _ -> Acc2
+                                end;
                             _ ->
                                 Acc2
                         end

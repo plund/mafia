@@ -497,11 +497,12 @@ normalize_links(">" ++ Msg, {in, B}, Acc) ->
 
 %%<img class="smilies" src="./images/smilies/icon_e_smile.gif"
 %% Add http://webdiplomacy.net/contrib/phpBB3/
-normalize_links("<img class=\"smilies\" src=\"./images" ++ Msg,
+normalize_links("<img " ++ Msg,
                 {S, B}, Acc) ->
-    Repl = "<img class=\"smilies\" "
-        "src=\"http://webdiplomacy.net/contrib/phpBB3/images",
-    normalize_links(Msg, {img, Repl}, [{S, B} | Acc]);
+    normalize_links(Msg, {img, "<img "}, [{S, B} | Acc]);
+normalize_links("src=\"./images" ++ Msg, {img, B}, Acc) ->
+    Repl = "src=\"http://webdiplomacy.net/contrib/phpBB3/images",
+    normalize_links(Msg, {img, B ++ Repl}, Acc);
 normalize_links(">" ++ Msg, {img, B}, [{S, _} | _] = Acc) ->
     normalize_links(Msg, {S, ""}, [{fix, B ++ ">"} | Acc]);
 

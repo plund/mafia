@@ -14,6 +14,7 @@
          set/2,
          getv/1,
          show/0,
+         show_msg/2,
          show_cnts/0,
          show_cnts/1,
          clr_cnts/0,
@@ -39,6 +40,13 @@ rgame(GNum) when is_integer(GNum) -> ?rgame(GNum).
 ruser(Name, Site) -> ?ruser(Name, Site).
 
 show() -> mafia:show_settings().
+show_msg(Id, Site) ->
+    case rmess({Id, Site}) of
+        [M] ->
+            Msg = unicode:characters_to_list(M#message.message),
+            io:format("~ts\n", [Msg]);
+        _ -> not_found
+    end.
 show_cnts() -> mafia_lib:print_all_cnts().
 show_cnts(Cnt) -> mafia_lib:print_all_cnts(Cnt).
 clr_cnts() -> mnesia:clear_table(cnt).
@@ -72,12 +80,13 @@ user_data.txt    - User table exported, may be imported
 DBG: rmess/1, rpage/2, rday/2, rgame/1
 
 COMMANDS:
-show()           - Show server settings
-show_cnts()      - Show all counters
-show_cnts(M)     - Show counters M is int, atom or list
-clr_cnts()       - Clear all counters
-set(K, V)        - Set a key value pair
-getv(K)          - Get a value for a key
+show()             - Show server settings
+show_msg(Id, Site) - Show message text
+show_cnts()        - Show all counters
+show_cnts(M)       - Show counters M is int, atom or list
+clr_cnts()         - Clear all counters
+set(K, V)          - Set a key value pair
+getv(K)            - Get a value for a key
 
 pm(MsgId, Site)       - Display one complete message
 pp(ThId, Page, Site)  - Display thread message page

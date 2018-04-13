@@ -495,11 +495,21 @@ normalize_links("<a" ++ Msg, {out, B}, Acc) ->
 normalize_links(">" ++ Msg, {in, B}, Acc) ->
     normalize_links(Msg, {out, B}, Acc);
 
+%%<img class="smilies" src="./images/smilies/icon_e_smile.gif"
+%% Add http://webdiplomacy.net/contrib/phpBB3/
+normalize_links("<img class=\"smilies\" src=\"./images" ++ Msg,
+                {S, B}, Acc) ->
+    Repl = "<img class=\"smilies\" "
+        "src=\"http://webdiplomacy.net/contrib/phpBB3/images",
+    normalize_links(Msg, {img, Repl}, [{S, B} | Acc]);
+normalize_links(">" ++ Msg, {img, B}, [{S, _} | _] = Acc) ->
+    normalize_links(Msg, {S, ""}, [{fix, B ++ ">"} | Acc]);
+
 normalize_links("</a>" ++ Msg, {out, B}, Acc) ->
     normalize_links(Msg, {out, B}, Acc);
 
 normalize_links([H | T], {S, B}, Acc)
-  when S == out; S == link_text; S == keep ->
+  when S == out; S == link_text; S == keep; S == img ->
     normalize_links(T, {S, B ++ [H]}, Acc);
 
 normalize_links([_ | T], {S, B}, Acc) when S == in; S == link ->

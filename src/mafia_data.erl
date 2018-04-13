@@ -728,21 +728,21 @@ get_thread_section(#s{thread_id = ThId}, Body) ->
 http_request(S2) ->
     ?inc_cnt(http_requests),
     A = erlang:monotonic_time(millisecond),
-    case httpc:request(S2#s.url) of
-        {ok, {_StatusLine, _Headers, Body}} ->
+    case httpc:request(get, {S2#s.url, []}, [], [{body_format, binary}]) of
+        {ok, {_StatusLine, _Headers, BodyBin}} ->
             ?inc_cnt(http_responses),
             B = erlang:monotonic_time(millisecond),
             ?dbg({download_wait_ms,
                   {S2#s.game_num, S2#s.site, S2#s.page_to_read},
                   B - A}),
-            {ok, Body};
-        {ok, {_StatusCode, Body}} ->
+            {ok, unicode:characters_to_list(BodyBin)};
+        {ok, {_StatusCode, BodyBin}} ->
             ?inc_cnt(http_responses),
             B = erlang:monotonic_time(millisecond),
             ?dbg({download_wait_ms_2,
                   {S2#s.game_num, S2#s.site, S2#s.page_to_read},
                   B - A}),
-            {ok, Body};
+            {ok, unicode:characters_to_list(BodyBin)};
         {ok, _ReqId} ->
             ?inc_cnt(http_errors),
             {error, no_body};
@@ -772,7 +772,7 @@ store_page(S, Body) ->
     {FileName, TarBallName} = th_filenames_store(S),
     case file:read_file_info(TarBallName) of
         {error, enoent} ->
-            file:write_file(FileName, Body),
+            file:write_file(FileName, unicode:characters_to_binary(Body)),
             erl_tar:create(TarBallName, [FileName], [compressed, verbose]),
             file:delete(FileName);
         _ ->

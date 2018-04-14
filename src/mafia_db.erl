@@ -332,15 +332,17 @@ read_ef(Fd) ->
                      list_to_binary(
                        lists:nth(2, Toks)))),
             EscSeq = string:strip(hd(Toks), right, $\s),
+            UcpDecStr = lists:nth(2, string:tokens(lists:nth(3, Toks), "()")),
             io:format("~ts, ~s, ~p : ~s",
                       [[UnicodePoint],
-                       lists:nth(3, Toks),
+                       UcpDecStr,
                        EscSeq,
                        lists:nth(7, Toks)]),
+            UCP2 = list_to_integer(UcpDecStr),
             mnesia:dirty_write(
               #?escape_sequence{?escape_sequence = ?l2b(EscSeq),
                                 esc_seq_upper = ?l2ub(EscSeq),
-                                unicode_point = UnicodePoint}),
+                                unicode_point = UCP2}),
             read_ef(Fd);
         eof -> file:close(Fd);
         {error, _} = Err ->

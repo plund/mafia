@@ -305,7 +305,10 @@ print_votesI(PPin) ->
 
     %% Part - Display time Left to Deadline or display End of Game message
     HDeadLine =
-        if PhaseType == ?game_ended ->
+        if PhaseType == ?game_ended,
+           G#mafia_game.game_end == ?undefined ->
+                ["", ""];
+           PhaseType == ?game_ended ->
                 %% Use game end time to calculate phase
                 {EndTime, EndMsgId} = G#mafia_game.game_end,
                 {TzH, Dst} = mafia_time:get_tz_dst(G, EndTime),
@@ -795,7 +798,9 @@ print_time_left_to_dl(PP) ->
              "</center></th></tr>"]
     end.
 
-print_num_dls(PP, _, _) when PP#pp.phase_type == ?game_ended ->
+print_num_dls(PP, _, _)
+  when PP#pp.phase_type == ?game_ended,
+       (PP#pp.game)#mafia_game.game_end /= ?undefined ->
     %% print all deadlines including EndOfGame, without relative times
     G = PP#pp.game,
     DLs = G#mafia_game.deadlines,

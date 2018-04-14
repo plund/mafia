@@ -20,7 +20,6 @@
          print_pages_for_thread/0,
          print_pages_for_thread/1,
 
-         html2txt/1,
          nbsp/1
         ]).
 
@@ -1296,7 +1295,7 @@ print_message_full(PP = #pp{}) ->
                print_timeI(PP#pp{t_mode = ?long}),
                ?i2l(M#message.thread_id),
                ?i2l(?e1(M#message.msg_key)),
-               html2txt(?b2l(M#message.message))
+               mafia_lib:html2txt(?b2l(M#message.message))
               ]).
 
 %% -----------------------------------------------------------------------------
@@ -1306,7 +1305,7 @@ print_message_summary(M = #message{}) ->
     print_message_summary(#pp{message = M, time_zone = TzH, dst = Dst});
 print_message_summary(PP = #pp{}) ->
     #pp{message = M} = PP,
-    Msg = rm_nl(html2txt(?b2l(M#message.message))),
+    Msg = rm_nl(mafia_lib:html2txt(?b2l(M#message.message))),
     MsgLen = length(Msg),
     Max = 80,
     MsgShort = if MsgLen > Max ->
@@ -1460,25 +1459,3 @@ p(I) -> string:right(?i2l(I), 2, $0).
 rm_nl([$\n|T]) -> [$\s|rm_nl(T)];
 rm_nl([H|T]) -> [H|rm_nl(T)];
 rm_nl("") -> "".
-
-%% skip unicode for a while
-html2txt("&gt;" ++ T) -> [$> | html2txt(T)];
-html2txt("&lt;" ++ T) -> [$< | html2txt(T)];
-html2txt("&amp;" ++ T) -> [$& | html2txt(T)];
-html2txt("&nbsp;" ++ T) -> [$\s | html2txt(T)];
-html2txt("&acute;" ++ T) -> [$´ | html2txt(T)];
-html2txt("&lsquo;" ++ T) -> [$' | html2txt(T)];
-html2txt("&rsquo;" ++ T) -> [$' | html2txt(T)];
-html2txt("&ldquo;" ++ T) -> [$\" | html2txt(T)];
-html2txt("&rdquo;" ++ T) -> [$\" | html2txt(T)];
-html2txt("&hellip;" ++ T) -> [$\., $\., $\. | html2txt(T)];
-%% html2txt("&lsquo;" ++ T) -> [$‘ | html2txt(T)];
-%% html2txt("&rsquo;" ++ T) -> [$’ | html2txt(T)];
-%% html2txt("&ldquo;" ++ T) -> [$“ | html2txt(T)];
-%% html2txt("&rdquo;" ++ T) -> [$” | html2txt(T)];
-html2txt("<br>\n" ++ T) -> [$\n | html2txt(T)];
-html2txt("<br>" ++ T) -> [$\n | html2txt(T)];
-html2txt("<br />" ++ T) ->  [$\n | html2txt(T)];
-html2txt([H | T]) when H > 127 -> [$\s | html2txt(T)];
-html2txt([H | T]) -> [H | html2txt(T)];
-html2txt("") -> "".

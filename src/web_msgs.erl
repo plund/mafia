@@ -87,9 +87,10 @@ msgs2(Sid, [G], In, PQ, []) ->
     SearchLink = ["<a href=\"", "/", Url2, Url3, "\">", Url3, "</a>"],
     GnumText = "M" ++ ?i2l(GNum),
     UsersText = get_arg(PQ, "user"),
-    WordsText =
+    WordsText0 =
         unicode:characters_to_list(
           list_to_binary(get_arg(PQ, "word"))),
+    WordsText = mafia_lib:escapes_to_unicode(WordsText0),
     PartsText = get_arg(PQ, "part"),
     IsUserOrWord = case proplists:get_value("UorW", PQ) of
                        ?undefined -> ?false;
@@ -130,7 +131,8 @@ msgs2(Sid, [G], In, PQ, []) ->
                      message = MsgB} = IMsg,
             MI) when MI#miter.bytes < ?OUT_LIMIT  ->
                 MsgPhase = mafia_time:calculate_phase(GNum, Time),
-                Msg = unicode:characters_to_list(MsgB),
+                Msg0 = unicode:characters_to_list(MsgB),
+                Msg = mafia_lib:escapes_to_unicode(Msg0),
                 B2U = fun(B) -> string:to_upper(binary_to_list(B)) end,
                 MsgUserU = B2U(MsgUserB),
                 TestFuns =

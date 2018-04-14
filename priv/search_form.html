@@ -144,13 +144,10 @@
                 Insert "s4-s" to search the signup thread starting at signup
                 page 4.
               <p>
-                <b>Word</b> searches including UNICODE letters are supported.
-                But beware that searching for unicode characters "ÅÄÖåäö" is
-                not the same as searching for "&amp;AUML;" or "&amp;ouml;"
-                since they are encoded differently even if both look the
-                same in a browser. This depend on how the message was
-                originally written. To catch both you can search for
-                "*wordbegin* *wordend*".
+                <b>Word</b> searches using UNICODE letters are supported.
+                (All html escape sequences in the search string and in the
+                stored messages are converted to unicode before matching is
+                performed.)
             </td>
           </tr>
         </table>

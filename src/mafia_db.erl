@@ -12,6 +12,7 @@
          remove_mnesia/0,
          create_tables/0,
          create_table/1,
+         add_table_indices/0,
          get_game_rec/1,
 
          reset_game/1,
@@ -33,8 +34,10 @@ getv(Key, Default) ->
                         schema_existed_already |
                         {error, Reason::term()}.
 setup_mnesia() ->
+    io:format("~p\n", [setup_mnesia]),
     case mnesia:system_info(is_running) of
         no ->
+            io:format("~p\n", [setup_mnesia_no]),
             case mnesia:create_schema([node()]) of
                 {error,{_,{already_exists,_}}} ->
                     start_mnesia(already_exists),
@@ -42,12 +45,17 @@ setup_mnesia() ->
                     schema_existed_already;
                 Other ->
                     start_mnesia(do_create),
-                    mnesia:add_table_index(user, #user.name),
+                    add_table_indices(),
                     Other
             end;
         yes ->
+            io:format("~p\n", [setup_mnesia_running]),
             already_started
     end.
+
+add_table_indices() ->
+    mnesia:add_table_index(user, #user.name),
+    mnesia:add_table_index(?escape_sequence, #?escape_sequence.esc_seq_upper).
 
 remove_mnesia() ->
     mnesia:stop(),
@@ -57,7 +65,7 @@ remove_mnesia() ->
                   -> mnesia_start_ok |
                      {error, Reason::term()}.
 start_mnesia(Op) ->
-    io:format(": start_mnesia ~p\n", [Op]),
+    io:format("=== start_mnesia ~p\n", [Op]),
     case mnesia:start() of
         ok ->
             if Op == do_create ->
@@ -66,7 +74,7 @@ start_mnesia(Op) ->
                     ok
             end,
             timer:sleep(500),
-            ?dbg({start_mnesia, ok}),
+            io:format("~p\n", [{start_mnesia, ok}]),
             mnesia_start_ok;
         Other ->
             io:format("start_mnesia, other"),
@@ -266,7 +274,8 @@ create_tables() ->
     create_table(mafia_game),
     create_table(user),
     create_table(stat),
-    create_table(cnt).
+    create_table(cnt),
+    create_table(?escape_sequence).
 
 create_table(RecName) ->
     Opts = create_table_opts(RecName),
@@ -286,6 +295,10 @@ create_table(RecName) ->
             end;
         {atomic, ok} ->
             io:format("Created table '~p'\n",[RecName])
+    end,
+    case mnesia:table_info(?escape_sequence, size) of
+        0 -> read_escape_file();
+        _ -> ok
     end.
 
 create_table_opts(Table) ->
@@ -299,4 +312,37 @@ rec_info(mafia_day) -> record_info(fields, mafia_day);
 rec_info(mafia_game) -> record_info(fields, mafia_game);
 rec_info(user) -> record_info(fields, user);
 rec_info(stat) -> record_info(fields, stat);
-rec_info(cnt) -> record_info(fields, cnt).
+rec_info(cnt) -> record_info(fields, cnt);
+rec_info(?escape_sequence) -> record_info(fields, ?escape_sequence).
+
+read_escape_file() ->
+    {ok, Fd} = file:open("priv/escapes.txt", [read]),
+    read_ef(Fd).
+
+read_ef(Fd) ->
+    case file:read_line(Fd) of
+        {ok, "#" ++ _ = Comment} ->
+            io:format("Comment ~s", [Comment]),
+            read_ef(Fd);
+        {ok, Line} ->
+            Toks = string:split(Line, "\t", all),
+            UnicodePoint =
+                hd(unicode:characters_to_list(
+                     list_to_binary(
+                       lists:nth(2, Toks)))),
+            EscSeq = string:strip(hd(Toks), right, $\s),
+            io:format("~ts, ~s, ~p : ~s",
+                      [[UnicodePoint],
+                       lists:nth(3, Toks),
+                       EscSeq,
+                       lists:nth(7, Toks)]),
+            mnesia:dirty_write(
+              #?escape_sequence{?escape_sequence = ?l2b(EscSeq),
+                                esc_seq_upper = ?l2ub(EscSeq),
+                                unicode_point = UnicodePoint}),
+            read_ef(Fd);
+        eof -> file:close(Fd);
+        {error, _} = Err ->
+            io:format("Err ~p\n", [Err]),
+            file:close(Fd)
+    end.

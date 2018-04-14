@@ -40,7 +40,7 @@ get_regexs() ->
 check_cmds_votes(G = #mafia_game{}, Re, M = #message{}) ->
     mafia_data:update_stat(G, M),
     Msg0 = remove_blockquotes(unicode:characters_to_list(M#message.message)),
-    Msg = mafia_print:html2txt(Msg0),
+    Msg = mafia_lib:html2txt(Msg0),
     MsgU = ?l2u(Msg),
     Re2 = Re#regex{msg_text_u = MsgU, msg_text = Msg},
     check_cmds_votes2(G, Re2, M).
@@ -867,7 +867,7 @@ reg_end_vote(G, M, Op) ->
 -include_lib("eunit/include/eunit.hrl").
 
 get_pl_re(Text) ->
-    Txt = mafia_print:html2txt(Text),
+    Txt = mafia_lib:html2txt(Text),
     #regex{msg_text_u = ?l2u(Txt),
            msg_text = Txt,
            play_repl = regex_player_replacement()}.
@@ -894,7 +894,7 @@ find_player_replacement_test_() ->
             "Aaa    has  replaced   Bbb")))
     ].
 
-tu(Str) -> ?l2u(mafia_print:html2txt(Str)).
+tu(Str) -> ?l2u(mafia_lib:html2txt(Str)).
 
 find_deadline_move_test_() ->
     [
@@ -944,7 +944,7 @@ find_deadline_move_test_() ->
     ].
 
 get_game_end(Text) ->
-    #regex{msg_text_u = ?l2u(mafia_print:html2txt(Text)),
+    #regex{msg_text_u = ?l2u(mafia_lib:html2txt(Text)),
            game_end = regex_game_end()}.
 
 %% GAME ((HAS )?ENDED|IS OVER)
@@ -967,7 +967,7 @@ find_game_end_test_() ->
     ].
 
 get_game_unend(Text) ->
-    #regex{msg_text_u = ?l2u(mafia_print:html2txt(Text)),
+    #regex{msg_text_u = ?l2u(mafia_lib:html2txt(Text)),
            game_unend = regex_game_unend()}.
 
 find_game_unend_test_() ->

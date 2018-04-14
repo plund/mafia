@@ -17,6 +17,8 @@
 -define(vDip, vDip).     % "v:123"
 -define(wd2, wd2).       % "w:123"
 
+-define(escape_sequence, escape_sequence).
+
 -define(stop, stop).
 -define(all, all).
 -define(none, none).

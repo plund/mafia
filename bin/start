@@ -127,6 +127,8 @@ fi
 
 # Compile in repo and copy code to run location
 REPO_DIR=$(dirname $SCRIPT_DIR)
+mkdir -p $RUN_DIR/priv
+\cp $REPO_DIR/priv/escapes.txt $RUN_DIR/priv/escapes.txt
 cd $REPO_DIR
 REBAR=rebar3
 $REBAR compile

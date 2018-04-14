@@ -186,3 +186,9 @@
          time1,
          time2
         }).
+
+-record(?escape_sequence,
+        {?escape_sequence :: binary(),  % <<"aring">>
+         esc_seq_upper :: binary(),  % <<"ARING">>
+         unicode_point :: integer()    % 229
+        }).

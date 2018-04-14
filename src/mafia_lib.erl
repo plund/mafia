@@ -19,6 +19,8 @@
          rmessI/1,
 
          is_alpha_num/1,
+         html2txt/1,
+         escapes_to_unicode/1,
 
          set_new_password/2,
          check_password/3,
@@ -297,6 +299,89 @@ is_alpha_num(C) when C =< $Z -> ?true;
 is_alpha_num(C) when C < $a -> ?false;
 is_alpha_num(C) when C =< $z -> ?true;
 is_alpha_num(C) when C > $z -> ?false.
+
+%% skip unicode for a while
+html2txt("&gt;" ++ T) -> [$> | html2txt(T)];
+html2txt("&lt;" ++ T) -> [$< | html2txt(T)];
+html2txt("&amp;" ++ T) -> [$& | html2txt(T)];
+html2txt("&nbsp;" ++ T) -> [$\s | html2txt(T)];
+html2txt("&acute;" ++ T) -> [$´ | html2txt(T)];
+html2txt("&lsquo;" ++ T) -> [$' | html2txt(T)];
+html2txt("&rsquo;" ++ T) -> [$' | html2txt(T)];
+html2txt("&ldquo;" ++ T) -> [$\" | html2txt(T)];
+html2txt("&rdquo;" ++ T) -> [$\" | html2txt(T)];
+html2txt("&hellip;" ++ T) -> [$\., $\., $\. | html2txt(T)];
+%% html2txt("&lsquo;" ++ T) -> [$‘ | html2txt(T)];
+%% html2txt("&rsquo;" ++ T) -> [$’ | html2txt(T)];
+%% html2txt("&ldquo;" ++ T) -> [$“ | html2txt(T)];
+%% html2txt("&rdquo;" ++ T) -> [$” | html2txt(T)];
+html2txt("<br>\n" ++ T) -> [$\n | html2txt(T)];
+html2txt("<br>" ++ T) -> [$\n | html2txt(T)];
+html2txt("<br />" ++ T) ->  [$\n | html2txt(T)];
+html2txt([H | T]) when H > 127 -> [$\s | html2txt(T)];
+html2txt([H | T]) -> [H | html2txt(T)];
+html2txt("") -> "".
+
+-spec escapes_to_unicode(Msg :: string()) -> string().
+escapes_to_unicode("&#x" ++ T) ->
+    %% Hexadecimal
+    case find_semicolon(T) of
+        not_found -> "&#x" ++ escapes_to_unicode(T);
+        {EscStr, Rest} ->
+            case catch list_to_integer(EscStr, 16) of
+                {'EXIT', _} -> "&#x" ++ escapes_to_unicode(T);
+                UCP -> [UCP | escapes_to_unicode(Rest)]
+            end
+    end;
+escapes_to_unicode("&#" ++ T) ->
+    %% Decimal
+    case find_semicolon(T) of
+        not_found -> "&#" ++ escapes_to_unicode(T);
+        {EscStr, Rest} ->
+            case catch list_to_integer(EscStr) of
+                {'EXIT', _} -> "&#" ++ escapes_to_unicode(T);
+                UCP -> [UCP | escapes_to_unicode(Rest)]
+            end
+    end;
+escapes_to_unicode([$& | T]) ->
+    case find_semicolon(T) of
+        not_found -> [$& | escapes_to_unicode(T)];
+        {EscStr, Rest} ->
+            case find_ucp(EscStr) of
+                not_found -> [$& | escapes_to_unicode(T)];
+                UCP ->  [UCP | escapes_to_unicode(Rest)]
+            end
+    end;
+escapes_to_unicode([H | T]) -> [H | escapes_to_unicode(T)];
+escapes_to_unicode([]) -> [].
+
+-spec find_semicolon(list()) -> not_found | {list(), list()}.
+find_semicolon(Msg) ->
+    %% read upto 11 chars between & and ;
+    find_semicolon(Msg, 0, "").
+
+find_semicolon([$; | T], _N, Acc) -> {?lrev(Acc), T};
+find_semicolon(_, 11, _) -> not_found;
+find_semicolon([], _, _) -> not_found;
+find_semicolon([H | T], N, Acc) -> find_semicolon(T, N + 1, [H | Acc]).
+
+-spec find_ucp(list()) -> not_found | integer().
+find_ucp(EscStr) -> %55.
+    Key = ?l2b(EscStr),
+    case mnesia:dirty_read(?escape_sequence, Key) of
+        [#?escape_sequence{unicode_point = UCP}] ->
+            UCP;
+        [] ->
+            KeyU = ?l2ub(EscStr),
+            case mnesia:dirty_index_read(?escape_sequence,
+                                         KeyU,
+                                         #?escape_sequence.esc_seq_upper) of
+                [#?escape_sequence{unicode_point = UCP} | _] ->
+                    UCP;
+                [] ->
+                    not_found
+            end
+    end.
 
 %% -----------------------------------------------------------------------------
 

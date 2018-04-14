@@ -87,7 +87,9 @@ msgs2(Sid, [G], In, PQ, []) ->
     SearchLink = ["<a href=\"", "/", Url2, Url3, "\">", Url3, "</a>"],
     GnumText = "M" ++ ?i2l(GNum),
     UsersText = get_arg(PQ, "user"),
-    WordsText = get_arg(PQ, "word"),
+    WordsText =
+        unicode:characters_to_list(
+          list_to_binary(get_arg(PQ, "word"))),
     PartsText = get_arg(PQ, "part"),
     IsUserOrWord = case proplists:get_value("UorW", PQ) of
                        ?undefined -> ?false;
@@ -95,8 +97,13 @@ msgs2(Sid, [G], In, PQ, []) ->
                        "false" -> ?false
                    end,
     Title = string:join(
-              [Arg || Arg <- [GnumText, UsersText, WordsText, PartsText],
-                      Arg /= ""],
+              [Arg
+               || Arg <- [GnumText, UsersText,
+                          ?b2l(unicode:characters_to_binary(WordsText)),
+                          %% Do: [226,153,164,226,153,161,226,150,160],
+                          %% Not: [9828,9825,9632] and not unicode-binary
+                          PartsText],
+                  Arg /= ""],
               ", "),
     PartCond = find_part(PartsText),
     UsersU = find_word_searches(UsersText),
@@ -138,7 +145,7 @@ msgs2(Sid, [G], In, PQ, []) ->
                                    UsersU)
                      end,
 
-                     %% 2. Test Words with ANY instead of all
+                     %% 2. Test Words
                      fun() ->
                              MsgU = ?l2u(Msg),
                              lists:all(

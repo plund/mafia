@@ -78,7 +78,7 @@ deliver(Sid, Html) ->
     mod_esi:deliver(Sid, Html),
     size(l2b(Html)).
 
-l2b(L) when is_list(L) -> ?l2b(L);
+l2b(L) when is_list(L) -> unicode:characters_to_binary(L);
 l2b(B) when is_binary(B) -> B.
 
 -spec is_secure(Env) -> boolean() when

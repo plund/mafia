@@ -144,11 +144,13 @@
                 Insert "s4-s" to search the signup thread starting at signup
                 page 4.
               <p>
-                <b>Word</b> searches including UNICODE letters are at the moment
-                not supported.
-                If you want to search for "doppelg&auml;nger" you need to use
-                the "*" in your search. Word searching for "doppelg* *nger"
-                returns all variations.
+                <b>Word</b> searches including UNICODE letters are supported.
+                But beware that searching for unicode characters "ÅÄÖåäö" is
+                not the same as searching for "&amp;AUML;" or "&amp;ouml;"
+                since they are encoded differently even if both look the
+                same in a browser. This depend on how the message was
+                originally written. To catch both you can search for
+                "*wordbegin* *wordend*".
             </td>
           </tr>
         </table>

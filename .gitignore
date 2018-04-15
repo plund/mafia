@@ -14,3 +14,4 @@ src/game_info.txt
 /src/my_discord_data.txt
 /priv/tls_cert/server.*
 /priv/tls_cert/old
+/Mnesia.mafia@lundata_preupgrade_*

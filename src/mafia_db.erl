@@ -9,11 +9,13 @@
          getv/2,
 
          setup_mnesia/0,
+         add_table_indices/0,
+         populate_tables/0,
          remove_mnesia/0,
+         get_game_rec/1,
+
          create_tables/0,
          create_table/1,
-         add_table_indices/0,
-         get_game_rec/1,
 
          reset_game/1,
          write_game/1,
@@ -41,25 +43,15 @@ setup_mnesia() ->
             case mnesia:create_schema([node()]) of
                 {error,{_,{already_exists,_}}} ->
                     start_mnesia(already_exists),
-                    mnesia:add_table_index(user, #user.name),
                     schema_existed_already;
                 Other ->
                     start_mnesia(do_create),
-                    add_table_indices(),
                     Other
             end;
         yes ->
             io:format("~p\n", [setup_mnesia_running]),
             already_started
     end.
-
-add_table_indices() ->
-    mnesia:add_table_index(user, #user.name),
-    mnesia:add_table_index(?escape_sequence, #?escape_sequence.esc_seq_upper).
-
-remove_mnesia() ->
-    mnesia:stop(),
-    mnesia:delete_schema([node()]).
 
 -spec start_mnesia(Op :: already_exists | do_create )
                   -> mnesia_start_ok |
@@ -68,18 +60,36 @@ start_mnesia(Op) ->
     io:format("=== start_mnesia ~p\n", [Op]),
     case mnesia:start() of
         ok ->
+            %% The mafia_game table was not available immediately
+            %% after start so we wait 1 sec here to make sure.
+            timer:sleep(1000),
+            io:format("~p\n", [{start_mnesia, ok}]),
             if Op == do_create ->
-                    create_tables();
+                    create_tables(),
+                    add_table_indices(),
+                    populate_tables();
                true ->
                     ok
             end,
-            timer:sleep(500),
-            io:format("~p\n", [{start_mnesia, ok}]),
             mnesia_start_ok;
         Other ->
-            io:format("start_mnesia, other"),
+            io:format("start_mnesia, other: ~p\n", [Other]),
             Other
     end.
+
+add_table_indices() ->
+    mnesia:add_table_index(user, #user.name),
+    mnesia:add_table_index(?escape_sequence, #?escape_sequence.esc_seq_upper).
+
+populate_tables() ->
+    case mnesia:table_info(?escape_sequence, size) of
+        0 -> read_escape_file();
+        _ -> ok
+    end.
+
+remove_mnesia() ->
+    mnesia:stop(),
+    mnesia:delete_schema([node()]).
 
 %% List of lists
 to_bin(LoL = [[_|_]|_]) -> [?l2b(L) || L <- LoL].
@@ -295,10 +305,6 @@ create_table(RecName) ->
             end;
         {atomic, ok} ->
             io:format("Created table '~p'\n",[RecName])
-    end,
-    case mnesia:table_info(?escape_sequence, size) of
-        0 -> read_escape_file();
-        _ -> ok
     end.
 
 create_table_opts(Table) ->

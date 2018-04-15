@@ -331,8 +331,7 @@ read_ef(Fd) ->
             io:format("Comment ~s", [Comment]),
             read_ef(Fd);
         {ok, Line} ->
-            Toks = %% string:split(Line, "\t", all), % OTP 20
-                split_at_tab(Line), % temporary own implementation
+            Toks = string:split(Line, "\t", all),
             UnicodePoint =
                 hd(unicode:characters_to_list(
                      list_to_binary(
@@ -355,9 +354,3 @@ read_ef(Fd) ->
             io:format("Err ~p\n", [Err]),
             file:close(Fd)
     end.
-
-split_at_tab(Line) -> split_at_tab(Line, "",  []).
-
-split_at_tab([$\t | T], Buff, Acc) -> split_at_tab(T, "", [?lrev(Buff) | Acc]);
-split_at_tab([H | T], Buff, Acc) -> split_at_tab(T, [H | Buff], Acc);
-split_at_tab([], Buff, Acc) -> ?lrev([?lrev(Buff) | Acc]).

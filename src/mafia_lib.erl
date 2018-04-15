@@ -156,6 +156,17 @@ all_page_keys() ->
 
 all_day_keys(GNum) -> [K || K = {GN, _} <- all_keys(mafia_day), GN == GNum].
 
+all_keys(Tab = mafia_game) ->
+    OrderF = fun(?undefined, ?undefined) -> ?true; % true is A =< B
+                (?undefined, _) -> ?false;
+                (_, ?undefined) -> ?true;
+                (T1, T2) -> T1 =< T2
+             end,
+    SortF = fun(G1, G2) ->
+                    OrderF(G1#mafia_game.start_time,
+                           G2#mafia_game.start_time)
+            end,
+    [G#mafia_game.game_num || G <- lists:sort(SortF, ets:tab2list(Tab))];
 all_keys(Tab) -> lists:sort(mnesia:dirty_all_keys(Tab)).
 
 %% -----------------------------------------------------------------------------

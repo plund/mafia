@@ -878,7 +878,7 @@ get_arg(PQ, ArgStr) ->
     end.
 
 game_nums_rev_sort() ->
-    ?lrev(lists:sort(mnesia:dirty_all_keys(mafia_game))).
+    ?lrev(mafia_lib:all_keys(mafia_game)).
 
 get_gnum("") -> ?getv(?game_key);
 get_gnum(V) -> get_gnum2(V).

@@ -269,12 +269,14 @@ delete_game_data_in_other_tabs([]) -> {error, no_game};
 delete_game_data_in_other_tabs([G]) ->
     delete_game_data_in_other_tabs(G);
 delete_game_data_in_other_tabs(#mafia_game{game_num = GNum,
+                                           signup_thid = SuId,
                                            thread_id = ThId,
                                            site = Site}) ->
     %% Delete mafia_day
     _ = [mnesia:dirty_delete(mafia_day, K)
          || K = {GN, _} <- mnesia:dirty_all_keys(mafia_day), GN == GNum],
 
+    delete_msgs_and_pages_for_thread(SuId, Site),
     delete_msgs_and_pages_for_thread(ThId, Site),
 
     %% Delete all stat data
@@ -288,7 +290,10 @@ delete_msgs_and_pages_for_thread(ThId, Site)
     %% Delete page_recs for thread
     [mnesia:dirty_delete(page_rec, K)
      || K = {ThId0, _P, Site0} <- mnesia:dirty_all_keys(page_rec),
-        ThId0 == ThId, Site0 == Site0].
+        ThId0 == ThId, Site0 == Site0],
+    ok;
+delete_msgs_and_pages_for_thread(_, _) ->
+    ok.
 
 %% Old game reset (having destroyed players_orig AND
 %% having a mafia_db:make_game_rec/1 fun clause)

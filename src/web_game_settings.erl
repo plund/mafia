@@ -7,6 +7,8 @@
 -include("mafia.hrl").
 
 -define(UNSET, "(unset)").
+-define(BInitGame, "Initiate New Game").
+-define(BCreateGame, "Create New Game").
 -define(BUpdate, "Update Game Settings").
 -define(BReload, "Reload Game").
 -define(BStart, "Start Game").
@@ -18,6 +20,8 @@ game_settings(Sid, Env, In) ->
     GNum = proplists:get_value("game_num", PQ),
     if Button == ?undefined, GNum == ?undefined  ->
             game_settings_list(Sid);
+       Button == ?BInitGame; Button == ?BCreateGame  ->
+            init_new_game(Sid, Env, PQ);
        Button == ?undefined, GNum /= ?undefined  ->
             game_settings_update(Sid, Env, Button, PQ);
        Button == ?BUpdate;
@@ -39,15 +43,126 @@ game_settings_list(Sid) ->
          end || GNum <- GNums],
     {A, Body} =
         {web_impl:del_start(Sid, "Game Settings", 0),
-         [["<tr><td>",
-           "<a href=\"?game_num=", ?i2l(GNum), "\">",
-           ?i2l(GNum), " - ", Title, "</a>"
-           "</td></tr>\r\n"]
-          || {GNum, Title} <- GNumTitles]
+         [[["<tr><td>\r\n",
+            "<a href=\"?game_num=", ?i2l(GNum), "\">",
+            ?i2l(GNum), " - ", Title, "</a>"
+            "</td></tr>\r\n"]
+           || {GNum, Title} <- GNumTitles],
+          "<tr><td align=center>"
+          "<form action=\"/e/web/game_settings\" method=post>\r\n"
+          "<input name=button value=\"", ?BInitGame, "\" type=submit>\r\n"
+          "</form>\r\n"
+          "</td></tr>\r\n"]
         },
     B = web:deliver(Sid, Body),
     C = web_impl:del_end(Sid),
     {A + B + C, ?none}.
+
+init_new_game(Sid, Env, PQ) ->
+    IsSecure = web:is_secure(Env),
+    Pass = web_impl:get_arg(PQ, "password"),
+    GNStr = web_impl:get_arg(PQ, "game_num"),
+    Site = case web_impl:get_arg(PQ, "site") of
+               ?undefined -> ?wd2;
+               SiteStr -> ?l2a(SiteStr)
+           end,
+    Responses = init_game(IsSecure, Pass, catch ?l2i(GNStr), Site),
+    GNums = web_impl:game_nums_rev_sort(),
+    GNumsGrps = mafia_lib:split_into_groups(10, GNums),
+    ExStrs = string:join(
+               [string:join([?i2l(N) || N <- GNs], ", ")
+                || GNs <- GNumsGrps], "<br>"),
+    ServerKeeperInfo =
+        case ?getv(?server_keeper) of
+            {SK, _} ->
+                ["Server Keeper (", SK, ")"];
+            _ ->
+                ""
+        end,
+    PwF =
+        fun(user) -> "serverkeeper";
+           (pass) -> Pass;
+           (info) ->
+                [
+                 "<tr><td colspan=2 width=400>\r\n"
+                 "<font size=-1>\r\n"
+                 "Only the \r\n",
+                 ServerKeeperInfo,
+                 " may initiate the creation of a new game.<br>\r\n"
+                 "</font>"
+                 "</td></tr>"
+                ];
+           (buttons) -> [?BCreateGame];
+           (extra_fields) -> []
+        end,
+    Sites = [?wd2, ?vDip, ?webDip],
+    Attr = fun(S) when S == Site -> " selected";
+              (_) -> ""
+           end,
+    POpt = fun(S) ->
+                   ["<option value=\"", ?a2l(S), "\"", Attr(S),
+                    ">", ?a2l(S), "</option>\r\n"]
+           end,
+    Opts = ["<select name=\"site\">>\r\n",
+            [POpt(S) || S <- Sites],
+            "</select>"],
+
+    {A, Body} =
+        {web_impl:del_start(Sid, ?BInitGame, 0),
+         ["<tr><td align=center>"
+          "<form action=\"/e/web/game_settings\" method=post>\r\n"
+          "New Game Number: <input name=game_num type=text size=5 value=\"",
+          GNStr, "\"> "
+          "Site: ", Opts,
+          "</td></tr>\r\n"
+          "<tr><td align=center>"
+          "<font size=-2>\r\n"
+          "(Existing non-selectable game numbers: <br>", ExStrs, ")"
+          "</font>"
+          "</td></tr>\r\n"
+          "<tr><td  align=center>\r\n",
+          if not IsSecure ->
+                  display_tls_info(Env, "?button=" ++ ?BInitGame);
+             true ->
+                  enter_user_pw_box(PwF)
+          end,
+          "\r\n</form>\r\n",
+          "</td></tr>"
+          "<tr><td  align=center>\r\n",
+          "<a href=\"/\">Back to Front Page</a>"
+          "</td></tr>"
+         ]
+        },
+    RBody = present_responses(Responses),
+    R = web:deliver(Sid, RBody),
+    B = web:deliver(Sid, Body),
+    C = web_impl:del_end(Sid),
+    {A + R + B + C, ?none}.
+
+init_game(IsSec, Pass, GNum, Site) ->
+    Fun =
+        fun({sec, false}) ->
+                {true, {error, "You must use secure connection"}};
+           ({gn, {'EXIT', _}}) ->
+                {true, {error, "You must give a game number"}};
+           ({gn, GN}) when is_integer(GN) ->
+                case ?rgame(GN) of
+                    [] -> false;
+                    _ -> {true, {error, "Game exists already"}}
+                end;
+           (password) ->
+                case is_serverkeeper_password_ok(Pass) of
+                    true -> false;
+                    false -> {true, {error, "Wrong password"}}
+                end;
+           (_) -> false
+        end,
+    case lists:filtermap(Fun, [{sec, IsSec}, {gn, GNum}, password]) of
+        [] ->
+            mafia:initiate_game(GNum, Site),
+            [{info, "Game number " ++ ?i2l(GNum) ++ " created"}];
+        Errors -> Errors
+    end.
 
 game_settings_update(Sid, Env, Button, PQ) ->
     IsSecure = web:is_secure(Env),
@@ -144,13 +259,16 @@ pres_resp({Type, Txt}, Acc) ->
             "</font></td></tr>\r\n"].
 
 display_tls_info(Env) ->
+    display_tls_info(Env, "").
+
+display_tls_info(Env, Extra) ->
     {IsNumeric, Host, ScriptName} = web:host_info(Env),
     SecureUrl = "https://" ++ Host ++
         if IsNumeric ->
                 ":" ++ ?i2l(?SECUREPORT);
            true -> ""
         end ++
-        ScriptName,
+        ScriptName ++ Extra,
     ["<table align=center cellpadding=1 ", ?BG_TURQUOISE, ">\r\n",
      "<tr><td><center>"
      "Warning: Your connection is <b>not encrypted!</b><br>"
@@ -321,12 +439,7 @@ mug0(G, User, Pass, GameSett) ->
     end.
 
 is_user_and_password_ok(_, "serverkeeper", Pass) ->
-    case ?getv(?server_keeper) of
-        {SkName, SkSite} ->
-            ok == mafia_lib:check_password(SkName, SkSite, Pass);
-        _ ->
-            false
-    end;
+    is_serverkeeper_password_ok(Pass);
 is_user_and_password_ok(G, User, Pass) ->
     GSite = G#mafia_game.site,
     Allowed = [?b2l(U) || U <- G#mafia_game.gms],
@@ -334,6 +447,14 @@ is_user_and_password_ok(G, User, Pass) ->
         false -> false;
         true ->
             ok == mafia_lib:check_password(User, GSite, Pass)
+    end.
+
+is_serverkeeper_password_ok(Pass) ->
+    case ?getv(?server_keeper) of
+        {SkName, SkSite} ->
+            ok == mafia_lib:check_password(SkName, SkSite, Pass);
+        _ ->
+            false
     end.
 
 mug2(G, GameSett) ->

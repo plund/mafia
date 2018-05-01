@@ -30,7 +30,6 @@
          print_time_5d/2,
          print_time_5d_str/2,
          user_vote_msgid_sort/1,
-         split_into_groups/2,
          object_rows/1,
          object_rows_text/2,
          ptype_arg/1,
@@ -409,7 +408,7 @@ print_votesI(PPin) ->
                 NoVoteTitle = if NonVoted == [] -> "Non-votes: -";
                                  true -> "Non-votes"
                               end,
-                NVRows = split_into_groups(?NumColsInGrp, NonVoted),
+                NVRows = mafia_lib:split_into_groups(?NumColsInGrp, NonVoted),
                 if PP#pp.mode == ?text ->
                         if NonVoted == [] ->
                                 io:format(PP#pp.dev,
@@ -445,7 +444,8 @@ print_votesI(PPin) ->
                true -> Ph =< PP#pp.phase
             end],
     %% split up remaining players into groups of ?NumColsInGrp (10)
-    RPRows = split_into_groups(?NumColsInGrp, RealRemPlayers -- DeathsUptoNow),
+    RPRows = mafia_lib:split_into_groups(?NumColsInGrp,
+                                         RealRemPlayers -- DeathsUptoNow),
     HRemPlayers =
         if PP#pp.mode == ?text ->
                 RPStr = object_rows_text(RPRows, fun(U) -> ?b2l(U) end),
@@ -757,21 +757,6 @@ object_rows(Groups) ->
        "</tr>"
      ]
      || Group <- Groups].
-
-%% for mafia_lib...
-split_into_groups(NumPerRow, Objects) ->
-    {LastRow, Rows2} =
-        lists:foldl(
-          fun(U, {R, Rows1}) ->
-                  if length(R) == NumPerRow ->
-                          {[U], Rows1 ++ [R]};
-                     true ->
-                          {R ++[U], Rows1}
-                  end
-          end,
-          {[], []},
-          Objects),
-    Rows2 ++ [LastRow].
 
 print_time_left_to_dl(PP) ->
     {{Days, {HH, MM, _}},

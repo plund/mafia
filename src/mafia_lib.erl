@@ -34,6 +34,8 @@
          alpha_sort/1,
          to_bin_sort/1,
 
+         split_into_groups/2,
+
          is_url_char/1,
          get_url/1,
          split_on_url_boundary/1,
@@ -530,6 +532,26 @@ to_bin_sort(LoL = [[_|_]|_]) ->
     [?l2b(L) || L <- alpha_sort(LoL)];
 to_bin_sort(LoB = [Bin|_]) when is_binary(Bin) ->
     to_bin_sort([?b2l(L) || L <- LoB]).
+
+%% -----------------------------------------------------------------------------
+
+%% for mafia_lib...
+-spec split_into_groups(NumPerRow :: integer(),
+                        [Obj :: any()]) ->
+                               [[Obj :: any()]].
+split_into_groups(NumPerRow, Objects) ->
+    {LastRow, Rows2} =
+        lists:foldl(
+          fun(U, {R, Rows1}) ->
+                  if length(R) == NumPerRow ->
+                          {[U], Rows1 ++ [R]};
+                     true ->
+                          {R ++[U], Rows1}
+                  end
+          end,
+          {[], []},
+          Objects),
+    Rows2 ++ [LastRow].
 
 %% -----------------------------------------------------------------------------
 

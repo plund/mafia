@@ -11,7 +11,6 @@
          setup_pp/1,
          pr_phase_long/1,
          print_time_5d_str/2,
-         split_into_groups/2,
          object_rows/1,
          object_rows_text/2,
          ptype_arg/1,
@@ -298,7 +297,7 @@ do_print_stats(PP, PrStats) ->
         if NonPosters == [] -> "Non-posters: -";
            true -> "Non-posters"
         end,
-    NPRows = split_into_groups(?NumColsInGrp, NonPosters),
+    NPRows = mafia_lib:split_into_groups(?NumColsInGrp, NonPosters),
     if PP#pp.mode == ?text ->
             NPStr = object_rows_text(NPRows, fun(U) -> ?b2l(U) end),
             if NonPosters == [] ->

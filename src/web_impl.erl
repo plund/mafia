@@ -78,12 +78,15 @@ front_page(Sid, _Env, In) ->
                ?i2l(GNum),
                "</a>"
               ] || GNum <- GameNums],
+    HLinksGrps = mafia_lib:split_into_groups(10, HLinks),
+    HLinksStr = string:join([string:join(HLs, ", \r\n")
+                             || HLs <- HLinksGrps], "<br>"),
     OldGamesHistoryLinks =
         ["<table>"
          "<tr><td align=center>",
          "<br>"
          "<b>Game History for All Games</b><br>",
-         string:join(HLinks, ", \r\n"),
+         HLinksStr,
          "</td></tr>\r\n"
          "</table>"],
     Size = web:deliver(Sid, [Pre,

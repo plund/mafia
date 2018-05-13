@@ -1,7 +1,7 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% move msg/2 into web_msgs.erl and get emojs/Unicode to work
+%% get links/emojs/Unicode to work for web_msgs:msg/3
 %% Change title "M35 Game Status Day 1"  "M35 History"
 %% Add page for server admins(keeper+more) to initiate_new_game (GNum and site)
 %% automatic start_poll when signup, site been set for game

@@ -32,6 +32,7 @@ PageFun(Sid, Env, In) ->
 
 mod(search) -> web_msgs;
 mod(msgs) -> web_msgs;
+mod(msg) -> web_msgs;
 mod(_) -> web_impl.
 
 %% forwards to web_impl module.

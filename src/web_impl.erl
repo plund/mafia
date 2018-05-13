@@ -4,15 +4,11 @@
 -export([front_page/3,
          game_status/3,
          vote_tracker/3,
-         msg/3,
          stats/3,
          'forum.php'/3,
          dst_changes/3,
          users/3,
          game_settings/3,
-
-         show_msg/2,
-
          hist_link/5
         ]).
 
@@ -21,10 +17,10 @@
          game_nums_rev_sort/0]).
 
 %% for web_msgs
--export([get_gnum2/1,
+-export([get_gnum/1,
+         get_gnum2/1,
          error_resp/2,
-         page_context/2,
-         pr2dig/1
+         make_args/2
         ]).
 
 -include("mafia.hrl").
@@ -434,7 +430,7 @@ vote_tracker2(GNum, DayStr, _) when DayStr /= "" ->
 vote_tracker2(GNum, "", MsgIdStr) when MsgIdStr /= "" ->
     try
         MsgKey = web:str2msg_key(MsgIdStr),
-        show_message(?rgame(GNum), ?rmess(MsgKey), vote)
+        web_msgs:show_message(?rgame(GNum), ?rmess(MsgKey), vote)
     catch _:_ ->
             {error,
              "<tr><td>"
@@ -443,66 +439,6 @@ vote_tracker2(GNum, "", MsgIdStr) when MsgIdStr /= "" ->
     end;
 vote_tracker2(_, "", "") ->
     {error, "<tr><td>bad_request</td></tr>"}.
-
-%% -----------------------------------------------------------------------------
-%% http://mafia.peterlund.se/e/web/msg?\
-%% g=24&id=(msgid)&var=vote&player=(playername)
-msg(Sid, _Env, In) ->
-    %% msgs
-    PQ = httpd:parse_query(In),
-    GNumStr = get_arg(PQ, "g"),
-    GNum = get_gnum(GNumStr),
-    MsgIdText = get_arg(PQ, "id"),
-    Variant = get_arg(PQ, "var"),
-    MsgKey = web:str2msg_key(MsgIdText),
-    Msg = case ?rmess(MsgKey) of
-              [] -> {no_msg_found, MsgIdText};
-              [Msg2 | _] -> Msg2
-          end,
-    {HStart, Html} = msg2(?rgame(GNum), Msg, Variant, PQ),
-    A = del_start(Sid, HStart, 0),
-    B = web:deliver(Sid, Html),
-    C = del_end(Sid),
-    Args = make_args(PQ, ["var"]),
-    {A + B + C, Args}.
-
-msg2(_, Err = {no_msg_found, MsgIdStr} , _, _) ->
-    ?dbg(Err),
-    {"Error",
-     ["<tr><td><table cellpadding=6 cellspacing=3>",
-      "No message found with this id: " ++ MsgIdStr,
-      "</table></td></tr>"
-     ]};
-msg2([], _, _, _) ->
-    {"Error",
-     ["<tr><td><table cellpadding=6 cellspacing=3>",
-      "Game not found",
-      "</table></td></tr>"
-     ]};
-msg2([G], M = #message{}, Variant, PQ) ->
-    case Variant of
-        "death" ->
-            Player = get_arg(PQ, "player"),
-            {"Death Announcement - " ++ Player,
-             show_message(G, M, death)};
-        "replacement" ->
-            Player = get_arg(PQ, "player"),
-            {"Replacement - " ++ Player,
-             show_message(G, M, replacement)};
-        "vote" ->
-            Player = get_arg(PQ, "player"),
-            {"Vote - " ++ Player,
-             show_message(G, M, vote)};
-        "last_msg" ->
-            Phase = get_arg(PQ, "phase"),
-            User = get_arg(PQ, "user"),
-            {"Last Message - " ++ Phase ++ " - " ++ User,
-             show_message(G, M, msg)};
-        _ ->
-            Player = get_arg(PQ, "player"),
-            {"Message - " ++ Player,
-             show_message(G, M, msg)}
-    end.
 
 %% -----------------------------------------------------------------------------
 %% http://mafia.peterlund.se/e/web/stats?phase=day&num=1
@@ -775,88 +711,6 @@ game_settings(Sid, Env, In) ->
 
 %% -----------------------------------------------------------------------------
 
-%% insert row into row_tab
-show_message([], _, _) ->
-    "Game not found";
-show_message([G], Msg, Variant) ->
-    show_message(G, Msg, Variant);
-show_message(_, [], _) ->
-    "Message not found";
-show_message(G, [M], Variant) ->
-    show_message(G, M, Variant);
-show_message(G = #mafia_game{}, M = #message{}, Variant) ->
-    ["<tr><td><table cellpadding=6 cellspacing=3>",
-     show_message2(G, M, Variant),
-     "</table></td></tr>"
-    ].
-
-show_message2(G, M, vote) ->
-    show_message3(G, M, " where the vote is found");
-show_message2(G, M, death) ->
-    show_message3(G, M, " where the announcement is found");
-show_message2(G, M, replacement) ->
-    show_message3(G, M, " where the replacement message is found");
-show_message2(G, M, msg) ->
-    show_message3(G, M, "").
-
-show_message3(G, M, Str) ->
-    ["<tr><td><table cellpadding=6 cellspacing=3>",
-     show_msg(G, M),
-     page_links(G, M, Str),
-     "</table></td></tr>"
-    ].
-
-page_links(G, M, Str) ->
-    PageNum = M#message.page_num,
-    MsgKey = M#message.msg_key,
-    UrlPart1 = ["/e/web/msgs?g=", ?i2l(G#mafia_game.game_num), "&part=p"],
-    PageStr = ?i2l(PageNum),
-    {PageCont, VPPrev, VPNext} = page_context(PageNum, 1),
-    LinkEnd = "#msg_id=" ++ web:msg_key2str(MsgKey),
-    Link1 = UrlPart1 ++ PageStr ++ LinkEnd,
-    Link3 = UrlPart1 ++ PageCont ++ LinkEnd,
-    ["<tr><td colspan=2 align=center><br>"
-     "<a href=\"", Link1 ,"\">Page ", PageStr, Str, "</a>"
-     "<p>"
-     "<a href=\"", Link3 ,"\">Pages ", VPPrev, " to ", VPNext, "</a>"
-     "</td></tr>\r\n"].
-
-page_context(PageNum, Context) ->
-    VPPrev = ?i2l(max(PageNum - Context, 1)),
-    VPNext = ?i2l(PageNum + Context),
-    {VPPrev ++ "-" ++ VPNext, VPPrev, VPNext}.
-
-show_msg(G = #mafia_game{}, M = #message{}) ->
-    show_msgI(G, M);
-show_msg(G = #mafia_game{site = Site}, MsgId) when is_integer(MsgId) ->
-     show_msgI(G, hd(?rmess({MsgId, Site}))).
-
-%% show_msgI(_, []) -> "<tr><td>No message found with this id</td></tr>";
-%% show_msgI(G, [M]) -> show_msgI(G, M);
-show_msgI(G, #message{user_name = MsgUserB,
-                      page_num = PageNum,
-                      time = Time,
-                      message = MsgB}) ->
-    MsgPhase = mafia_time:calculate_phase(G, Time),
-    DayStr =
-        case MsgPhase of
-            #phase{num = DNum, ptype = ?day} ->
-                "Day-" ++ ?i2l(DNum);
-            #phase{num = DNum, ptype = ?night} ->
-                "Night-" ++ ?i2l(DNum);
-            #phase{ptype = ?game_start} -> "Game Start";
-            #phase{ptype = ?game_ended} -> "Game End "
-        end,
-    Color = mafia_lib:bgcolor(MsgUserB),
-    {HH, MM} = mafia_time:hh_mm_to_deadline(G, Time),
-    ?l2b(["<tr", Color, "><td valign=\"top\"><b>", MsgUserB,
-          "</b><br>",
-          DayStr, " ", pr2dig(HH), ":", pr2dig(MM),
-          "<br> page ", ?i2l(PageNum),
-          "</td><td valign=\"top\">", MsgB,
-          "</td></tr>"
-         ]).
-
 %% ----------------------------------------------------------------------------
 %% API for other modules
 %% ----------------------------------------------------------------------------
@@ -922,6 +776,3 @@ make_args(PQ, Keys) ->
                 end,
                 [],
                 PQ).
-
-pr2dig(I) when I > 9 -> ?i2l(I);
-pr2dig(I) when I =< 9 -> "0" ++ ?i2l(I).

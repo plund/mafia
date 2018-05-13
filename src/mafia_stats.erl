@@ -92,6 +92,7 @@ mk_prstat(S = #stat{}, PP) ->
     LastMsgId = lists:max(S#stat.msg_ids),
     M = hd(?rmess({LastMsgId, Site})),
     #prstat{key = S#stat.key,
+            seq_no = 1,
             msg_ids = S#stat.msg_ids,
             num_chars = S#stat.num_chars,
             num_words = S#stat.num_words,
@@ -260,7 +261,8 @@ do_print_stats(PP, PrStats) ->
                  pr_phase_long(Phase),
                  ")\n",
                  "</th></tr>",
-                 "<tr><th align=\"right\">", PostTitle, "</th>"
+                 "<tr><th></th>"
+                 "<th align=\"right\">", PostTitle, "</th>"
                  "<th align=\"right\">", WordTitle, "</th>"
                  "<th align=\"right\">Chars</th>"
                  "<th align=\"right\">", WPostTitle, "</th>"
@@ -273,10 +275,12 @@ do_print_stats(PP, PrStats) ->
     {SumStat, Html1} =
         lists:foldl(
           fun(S, {Sum, Html}) ->
-                  {mafia_data:sum_stat(S, Sum),
-                   Html ++ print_stat_row(PP, S, PrFn)}
+                  Sum2 = mafia_data:sum_stat(S, Sum),
+                  {Sum2,
+                   Html ++ print_stat_row(PP, S, Sum2#prstat.seq_no, PrFn)}
           end,
           {#prstat{msg_ids = [],
+                   seq_no = 0,
                    num_chars = 0,
                    num_words = 0,
                    num_postings = 0,
@@ -286,11 +290,14 @@ do_print_stats(PP, PrStats) ->
           ?lrev(StatsSorted)),
     print_stat_div(PP),
     Html2 = Html1 ++
-        print_stat_row(PP, SumStat, fun(cell, _) -> "th";
-                                       (tr, _) -> "Total Counts";
-                                       (link, _) -> "Total Counts";
-                                       (_, _) -> []
-                                    end),
+        print_stat_row(PP,
+                       SumStat,
+                       sum,
+                       fun(cell, _) -> "th";
+                          (tr, _) -> "Total Counts";
+                          (link, _) -> "Total Counts";
+                          (_, _) -> []
+                       end),
     HtmlStats = ["<br><table align=center ", ?BG_TURQUOISE, ">",
                  Html2, "</table>"],
     NonPostTitle =
@@ -347,7 +354,7 @@ print_stat_div(PP) when PP#pp.mode == ?text ->
 print_stat_div(_PP) ->
     [].
 
-print_stat_row(PP, S, PrFn) when PP#pp.mode == ?text ->
+print_stat_row(PP, S, _, PrFn) when PP#pp.mode == ?text ->
     io:format(PP#pp.dev,
               "~5s ~6s ~7s ~6.2f ~s\n",
               [i2l(S#prstat.num_postings, 5),
@@ -357,11 +364,18 @@ print_stat_row(PP, S, PrFn) when PP#pp.mode == ?text ->
                PrFn(tr, S)
               ]),
     [];
-print_stat_row(PP, S, PrFn) when PP#pp.mode == ?html ->
+print_stat_row(PP, S, SeqNo, PrFn) when PP#pp.mode == ?html ->
+    SeqNoStr =
+        if SeqNo == sum -> "<td></td>";
+           true -> ["<td align=\"center\">"
+                    "<font size=-2><i>", ?i2l(SeqNo), "</i></font></td>"]
+        end,
+    %% PrFn(cell, S) :: "th" | "td"
     CBegR = ["<", PrFn(cell, S), " align=\"right\">"],
     CBegL = ["<", PrFn(cell, S), " align=\"left\">"],
     CEnd = ["</", PrFn(cell, S), ">"],
     ["<tr", PrFn(bgcolor, S), ">",
+     SeqNoStr,
      CBegR, ?i2l(S#prstat.num_postings),
      CEnd, CBegR, ?i2l(S#prstat.num_words),
      CEnd, CBegR, ?i2l(S#prstat.num_chars),

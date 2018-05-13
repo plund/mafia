@@ -1,7 +1,6 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% Add sequence number in stats presentation
 %% move msg/2 into web_msgs.erl and get emojs/Unicode to work
 %% Change title "M35 Game Status Day 1"  "M35 History"
 %% Add page for server admins(keeper+more) to initiate_new_game (GNum and site)

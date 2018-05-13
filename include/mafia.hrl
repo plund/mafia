@@ -156,6 +156,7 @@
                  ?game_ended | {day_num(), phase_type()}}
               | ?undefined,
          msg_ids :: [msg_id()],
+         seq_no :: integer(),
          num_chars :: integer(),
          num_words :: integer(),
          num_postings :: integer(),

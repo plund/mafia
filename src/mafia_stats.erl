@@ -256,7 +256,7 @@ do_print_stats(PP, PrStats) ->
                              Last
                             }
                     end,
-                ["<tr><th colspan=6>",
+                ["<tr><th colspan=7>",
                  "Posting statistics (",
                  pr_phase_long(Phase),
                  ")\n",

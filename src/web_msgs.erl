@@ -725,31 +725,28 @@ msg2([], _, _, _) ->
       "Game not found",
       "</table></td></tr>"
      ]};
-msg2([G], M = #message{}, Variant, PQ) ->
-    case Variant of
-        "death" ->
-            Player = get_arg(PQ, "player"),
-            {"Death Announcement - " ++ Player,
-             show_message(G, M, death)};
-        "replacement" ->
-            Player = get_arg(PQ, "player"),
-            {"Replacement - " ++ Player,
-             show_message(G, M, replacement)};
-        "vote" ->
-            Player = get_arg(PQ, "player"),
-            {"Vote - " ++ Player,
-             show_message(G, M, vote)};
-        "last_msg" ->
-            Phase = get_arg(PQ, "phase"),
-            User = get_arg(PQ, "user"),
-            {"Last Message - " ++ Phase ++ " - " ++ User,
-             show_message(G, M, msg)};
-        _ ->
-            Player = get_arg(PQ, "player"),
-            {"Message - " ++ Player,
-             show_message(G, M, msg)}
-    end.
-
+msg2([G], M, "death", PQ) ->
+    Player = get_arg(PQ, "player"),
+    {"Death Announcement - " ++ Player, show_message(G, M, "death")};
+msg2([G], M, "replacement", PQ) ->
+    Player = get_arg(PQ, "player"),
+    {"Replacement - " ++ Player, show_message(G, M, "replacement")};
+msg2([G], M, "vote", PQ) ->
+    Player = get_arg(PQ, "player"),
+    {"Vote - " ++ Player, show_message(G, M, "vote")};
+msg2([G], M, "last_msg", PQ) ->
+    Phase = get_arg(PQ, "phase"),
+    User = get_arg(PQ, "user"),
+    {"Last Message - " ++ Phase ++ " - " ++ User,
+     show_message(G, M, "msg")};
+msg2([G], M, _, PQ) ->
+    Player =
+        case get_arg(PQ, "player") of
+            "" -> ?b2l(M#message.user_name);
+            Name -> Name
+        end,
+    {"Message - " ++ Player,
+     show_message(G, M, "msg")}.
 
 %% insert row into row_tab
 show_message([], _, _) ->
@@ -762,22 +759,18 @@ show_message(G, [M], Variant) ->
     show_message(G, M, Variant);
 show_message(G = #mafia_game{}, M = #message{}, Variant) ->
     ["<tr><td><table cellpadding=6 cellspacing=3>",
-     show_message2(G, M, Variant),
+     show_message3(G, M, Variant, add_text(Variant)),
      "</table></td></tr>"
     ].
 
-show_message2(G, M, vote) ->
-    show_message3(G, M, " where the vote is found");
-show_message2(G, M, death) ->
-    show_message3(G, M, " where the announcement is found");
-show_message2(G, M, replacement) ->
-    show_message3(G, M, " where the replacement message is found");
-show_message2(G, M, msg) ->
-    show_message3(G, M, "").
+add_text("vote") -> " where the vote is found";
+add_text("death") -> " where the announcement is found";
+add_text("replacement") -> " where the replacement message is found";
+add_text("msg") -> "".
 
-show_message3(G, M, Str) ->
+show_message3(G, M, Variant, Str) ->
     ["<tr><td><table cellpadding=6 cellspacing=3>",
-     show_msg(G, M),
+     show_msg(G, M, Variant),
      page_links(G, M, Str),
      "</table></td></tr>"
     ].
@@ -802,20 +795,32 @@ page_context(PageNum, Context) ->
     VPNext = ?i2l(PageNum + Context),
     {VPPrev ++ "-" ++ VPNext, VPPrev, VPNext}.
 
-show_msg(G = #mafia_game{}, M = #message{}) ->
-    show_msgI(G, M);
-show_msg(G = #mafia_game{site = Site}, MsgId) when is_integer(MsgId) ->
-     show_msgI(G, hd(?rmess({MsgId, Site}))).
+show_msg(G, M) -> show_msg(G, M, "msg").
+
+show_msg(G = #mafia_game{}, M = #message{}, Variant) ->
+    show_msgI(G, M, Variant);
+show_msg(G = #mafia_game{site = Site}, MsgId, Variant)
+  when is_integer(MsgId) ->
+     show_msgI(G, hd(?rmess({MsgId, Site})), Variant).
 
 %% show_msgI(_, []) -> "<tr><td>No message found with this id</td></tr>";
 %% show_msgI(G, [M]) -> show_msgI(G, M);
-show_msgI(G, #message{user_name = MsgUserB,
-                      page_num = PageNum,
-                      time = Time,
-                      message = MsgB}) ->
+show_msgI(G,
+          #message{user_name = MsgUserB,
+                   page_num = PageNum,
+                   time = Time,
+                   message = MsgB},
+          Variant) ->
+    HiLight =
+        case Variant of
+            "vote" -> ["*##VOTE*", "*##UNVOTE*"];
+            "replacement" -> ["*HAS REPLACED*", "*IS REPLACING*"];
+            "death" -> ["*DIED*", "*DEAD*", "*BEEN LYNCHED*"];
+            _ -> []
+        end,
     Msg0 = unicode:characters_to_list(MsgB),
     Msg = mafia_lib:escapes_to_unicode(Msg0),
-    ModifiedMsg = modify_message(Msg, []),
+    ModifiedMsg = modify_message(Msg, HiLight),
     MsgPhase = mafia_time:calculate_phase(G, Time),
     DayStr =
         case MsgPhase of

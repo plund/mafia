@@ -430,7 +430,7 @@ vote_tracker2(GNum, DayStr, _) when DayStr /= "" ->
 vote_tracker2(GNum, "", MsgIdStr) when MsgIdStr /= "" ->
     try
         MsgKey = web:str2msg_key(MsgIdStr),
-        web_msgs:show_message(?rgame(GNum), ?rmess(MsgKey), vote)
+        web_msgs:show_message(?rgame(GNum), ?rmess(MsgKey), "vote")
     catch _:_ ->
             {error,
              "<tr><td>"

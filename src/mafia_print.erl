@@ -335,7 +335,7 @@ print_votesI(PPin) ->
                                      time_zone = TzH,
                                      dst = Dst});
                         ?html ->
-                            GmMessage = web_impl:show_msg(G, EndMsgId),
+                            GmMessage = web_msgs:show_msg(G, EndMsgId),
                             ["<tr><td align=center>"
                              "<table cellpadding=6 cellspacing=3>",
                              GmMessage, "</table></td></tr>"

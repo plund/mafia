@@ -813,6 +813,9 @@ show_msgI(G, #message{user_name = MsgUserB,
                       page_num = PageNum,
                       time = Time,
                       message = MsgB}) ->
+    Msg0 = unicode:characters_to_list(MsgB),
+    Msg = mafia_lib:escapes_to_unicode(Msg0),
+    ModifiedMsg = modify_message(Msg, []),
     MsgPhase = mafia_time:calculate_phase(G, Time),
     DayStr =
         case MsgPhase of
@@ -825,13 +828,14 @@ show_msgI(G, #message{user_name = MsgUserB,
         end,
     Color = mafia_lib:bgcolor(MsgUserB),
     {HH, MM} = mafia_time:hh_mm_to_deadline(G, Time),
-    ?l2b(["<tr", Color, "><td valign=\"top\"><b>", MsgUserB,
-          "</b><br>",
-          DayStr, " ", pr2dig(HH), ":", pr2dig(MM),
-          "<br> page ", ?i2l(PageNum),
-          "</td><td valign=\"top\">", MsgB,
-          "</td></tr>"
-         ]).
+    unicode:characters_to_binary(
+      ["<tr", Color, "><td valign=\"top\"><b>", MsgUserB,
+       "</b><br>",
+       DayStr, " ", pr2dig(HH), ":", pr2dig(MM),
+       "<br> page ", ?i2l(PageNum),
+          "</td><td valign=\"top\">", ModifiedMsg,
+       "</td></tr>"
+      ]).
 
 pr2dig(I) when I > 9 -> ?i2l(I);
 pr2dig(I) when I =< 9 -> "0" ++ ?i2l(I).

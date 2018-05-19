@@ -31,6 +31,12 @@ get_regexs() ->
            game_unend = regex_game_unend()
           }.
 
+insert_msg_into_re(Msg, Re) ->
+    Msg1 = remove_blockquotes(unicode:characters_to_list(Msg)),
+    Msg2 = mafia_lib:html2txt(Msg1),
+    MsgU = ?l2u(Msg2),
+    Re#regex{msg_text_u = MsgU, msg_text = Msg2}.
+
 %% -----------------------------------------------------------------------------
 %% Returns ignore when #message or #mafia_game cannot be found
 %% -----------------------------------------------------------------------------
@@ -39,10 +45,7 @@ get_regexs() ->
                       -> MsgTime :: seconds1970().
 check_cmds_votes(G = #mafia_game{}, Re, M = #message{}) ->
     mafia_data:update_stat(G, M),
-    Msg0 = remove_blockquotes(unicode:characters_to_list(M#message.message)),
-    Msg = mafia_lib:html2txt(Msg0),
-    MsgU = ?l2u(Msg),
-    Re2 = Re#regex{msg_text_u = MsgU, msg_text = Msg},
+    Re2 = insert_msg_into_re(M#message.message, Re),
     check_cmds_votes2(G, Re2, M).
 
 remove_blockquotes(Msg) -> rm_bq(Msg, 0).
@@ -142,6 +145,27 @@ check_for_player_resurrect(Reg = #regex{}, M, G) ->
     end.
 
 check_for_deaths(Reg = #regex{}, M, G) ->
+    Deaths = [D#death.player || D = #death{} <- G#mafia_game.player_deaths],
+    LookForUsers = G#mafia_game.players_rem ++ Deaths,
+    case check_for_deaths2(Reg, M, LookForUsers) of
+        ?nomatch -> G;
+        {?noone_died, _, Reg2} ->
+            check_for_deaths(Reg2, M, G);
+        {KilledUserB, DeathComment, Reg2} ->
+            G2 = case lists:member(KilledUserB,
+                                   G#mafia_game.players_rem) of
+                     ?true ->
+                         element(2,
+                                 mafia_op:kill_player(G, M, KilledUserB,
+                                                      DeathComment));
+                     ?false ->
+                         %% GM cannot kill non-remaining player
+                         G
+                 end,
+            check_for_deaths(Reg2, M, G2)
+    end.
+
+check_for_deaths2(Reg = #regex{}, M, LookForUsers) ->
     %% find "has died" on line
     SearchU1 = "DIED",
     SearchU2 = "DEAD",
@@ -153,42 +177,28 @@ check_for_deaths(Reg = #regex{}, M, G) ->
           regex_find_words(SearchU4, Reg)] of
         [{?nomatch, _}, {?nomatch, _}, {?nomatch, _}, {?nomatch, _}] ->
             %% no-one has died
-            G;
+            ?nomatch;
         Matches ->
             Rs = [ReRes || {MRes, ReRes} <- Matches, MRes == ?match],
             Reg2 = lists:min(Rs),
-            ?dbg(M#message.time,
-                 {msgid_pos, M#message.msg_key, Reg2#regex.pos}),
+            if is_record(M, message) ->
+                    ?dbg(M#message.time,
+                         {msgid_pos, M#message.msg_key, Reg2#regex.pos});
+               true -> ok
+            end,
             {KilledUserB, DeathComment} =
-                read_death_line(G, Reg#regex.msg_text, Reg2),
-            case KilledUserB of
-                ?noone_died -> %% no match
-                    check_for_deaths(Reg2, M, G);
-                _ ->
-                    G2 = case lists:member(KilledUserB,
-                                           G#mafia_game.players_rem) of
-                             ?true ->
-                                 element(2,
-                                         mafia_op:kill_player(G, M, KilledUserB,
-                                                              DeathComment));
-                             ?false ->
-                                 %% GM cannot kill non-remaining player
-                                 G
-                         end,
-                    check_for_deaths(Reg2, M, G2)
-            end
+                read_death_line(Reg#regex.msg_text, Reg2, LookForUsers),
+            {KilledUserB, DeathComment, Reg2}
     end.
 
 %% Returns exact User binary.
--spec read_death_line(#mafia_game{}, string(), #regex{})
+-spec read_death_line(string(), #regex{}, [user()])
                      -> {user() | ?noone_died,
                          Comment :: ?use_full_line | string()}.
-read_death_line(G, MsgLong, Reg) ->
+read_death_line(MsgLong, Reg, LookForUsers) ->
     %% find one remaining player before on the same line.
     %% Extend the search list with already dead players to make an update
     %% of the death comment possible.
-    Deaths = [D#death.player || D = #death{} <- G#mafia_game.player_deaths],
-    LookForUsers = G#mafia_game.players_rem ++ Deaths,
     PreLineU = pre_to_nl(Reg#regex.pre_match_u),
     Users =
         lists:dropwhile(
@@ -765,7 +775,7 @@ find_parts_I(Str, Search, Mode) ->
                      Str,
                      Search).
 
-find_parts_reply(no_match, 0, Str, _Search) ->
+find_parts_reply(no_match, 0, Str, _) ->
     {0, Str, ""};
 find_parts_reply(no_match, P, Str, Search) ->
     {P,
@@ -1130,3 +1140,30 @@ check_for_votes2_test() ->
                         [])
       ),
     meck:unload(Mods).
+
+-define(DeathTxt1, "Golfinger heard footsteps approaching. Multiple people – and at a rapid pace no less. He quickly ducked behind a couch at the edge of the room. Suddenly the power went out. There was blackness. He remained still, trying to control his breathing. He couldn’t make it to the doorway in the darkness so he sat. The footsteps were in the room, and he heard labored breath. It was a scuffle.<br>
+The lights flickered on momentarily! There were many forms in the room. It was pure mayhem. And just as quickly as the light came, they were taken back to darkness.<br>
+<br>
+Suddenly muzzle flashes alit the room, and Golfinger’s ears were enveloped. with the ringing from the shots. He covered his ears and continued to hide. The footsteps left the room. He sat for what seemed like an eternity.<br>
+The lights came back on, a generator humming somewhere from the back of the estate. He peeked his head over the couch expecting the worst but instead saw nothing. Suddenly he heard something behind him. His world went black.<br>
+<br>
+<br>
+<br>
+Balki Bartokomous has died. He was Auric Goldfinger a VANILLA TOWN.<br>
+<br>
+<br>
+<br>
+NIGHT 4 HAS BEGUN. YOU MAY NOW POST").
+
+check_for_deaths2_test() ->
+    ?assertMatch(
+       {<<"Balki Bartokomous">>,
+        "He was Auric Goldfinger a VANILLA TOWN.", _},
+       check_for_deaths2(death_re(?DeathTxt1),
+                         ?undefined,
+                         [<<"peterlund">>, <<"Balki Bartokomous">>])
+      ).
+
+death_re(Msg) ->
+    MsgUni = unicode:characters_to_binary(Msg),
+    insert_msg_into_re(MsgUni, get_regexs()).

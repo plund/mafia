@@ -624,8 +624,6 @@ allpos(MsgU, Search, Offset, Acc) ->
             allpos(MsgU2, Search, FoundAt, [FoundAt | Acc])
     end.
 
--define(BoundaryChars, "\s\t\r\n!\"@#€$%?&/\\|()[]{}=≈≠´`^*'™’-_.:…·,;‚„<>≥≤").
-
 %% returns boolean()
 is_word(MsgU, Pos, LenMsg, LenSea, {IsWcAtBeg, IsWcAtEnd}) ->
     IsWordAtBeg = Pos == 1,
@@ -633,9 +631,9 @@ is_word(MsgU, Pos, LenMsg, LenSea, {IsWcAtBeg, IsWcAtEnd}) ->
     LastPosInSearch = NextPosAfterSearch - 1,
     IsWordAtEnd = LenMsg == LastPosInSearch,
     IsBoundA = IsWordAtBeg orelse
-        lists:member(lists:nth(Pos - 1, MsgU), ?BoundaryChars),
+        lists:member(lists:nth(Pos - 1, MsgU), ?WordBoundaryChars),
     IsBoundB = IsWordAtEnd orelse
-        lists:member(lists:nth(NextPosAfterSearch, MsgU), ?BoundaryChars),
+        lists:member(lists:nth(NextPosAfterSearch, MsgU), ?WordBoundaryChars),
     (IsBoundA or IsWcAtBeg) and (IsBoundB or IsWcAtEnd).
 
 -define(undef(X), (X == ?undefined)).

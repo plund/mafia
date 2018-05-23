@@ -20,6 +20,7 @@
 
          is_alpha_num/1,
          html2txt/1,
+         remove_blockquotes/1,
          escapes_to_unicode/1,
 
          set_new_password/2,
@@ -334,6 +335,13 @@ html2txt("<br />" ++ T) ->  [$\n | html2txt(T)];
 html2txt([H | T]) when H > 127 -> [$\s | html2txt(T)];
 html2txt([H | T]) -> [H | html2txt(T)];
 html2txt("") -> "".
+
+remove_blockquotes(Msg) -> rm_bq(Msg, 0).
+rm_bq("<blockquote" ++ Msg, Lvl)  -> rm_bq(Msg, Lvl + 1);
+rm_bq("</blockquote>" ++ Msg, Lvl) -> rm_bq(Msg, Lvl - 1);
+rm_bq([H | T], 0) -> [H | rm_bq(T, 0)];
+rm_bq([_ | T], Lvl) -> rm_bq(T, Lvl);
+rm_bq([], _) -> [].
 
 -spec escapes_to_unicode(Msg :: string()) -> string().
 escapes_to_unicode("&#x" ++ T) ->

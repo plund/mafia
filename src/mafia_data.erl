@@ -563,10 +563,11 @@ update_stat(G = #mafia_game{}, M = #message{}) ->
             end,
     Key1 = {UserB, GNum},
     Key2 = {UserB, GNum, Phase},
-    Msg = ?b2l(MsgBin),
+    Msg = mafia_lib:remove_blockquotes(
+            unicode:characters_to_list(MsgBin)),
     Count = #stat{msg_ids = [MsgId],
                   num_chars = size(MsgBin),
-                  num_words = length(string:tokens(Msg , " ,.\t\r\n")),
+                  num_words = length(string:tokens(Msg , ?WordBoundaryChars)),
                   num_postings = 1
                  },
     update_stats_db(Key1, MsgId, Count),

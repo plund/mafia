@@ -1290,7 +1290,11 @@ print_message_summary(M = #message{}) ->
     print_message_summary(#pp{message = M, time_zone = TzH, dst = Dst});
 print_message_summary(PP = #pp{}) ->
     #pp{message = M} = PP,
-    Msg = rm_nl(mafia_lib:html2txt(?b2l(M#message.message))),
+    Msg = string:trim(
+            rm_nl(
+              mafia_lib:html2txt(
+                mafia_lib:remove_blockquotes(
+                  unicode:characters_to_list(M#message.message))))),
     MsgLen = length(Msg),
     Max = 80,
     MsgShort = if MsgLen > Max ->

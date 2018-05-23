@@ -32,8 +32,10 @@ get_regexs() ->
           }.
 
 insert_msg_into_re(Msg, Re) ->
-    Msg1 = remove_blockquotes(unicode:characters_to_list(Msg)),
-    Msg2 = mafia_lib:html2txt(Msg1),
+    Msg2 =
+        mafia_lib:html2txt(
+          mafia_lib:remove_blockquotes(
+            unicode:characters_to_list(Msg))),
     MsgU = ?l2u(Msg2),
     Re#regex{msg_text_u = MsgU, msg_text = Msg2}.
 
@@ -47,13 +49,6 @@ check_cmds_votes(G = #mafia_game{}, Re, M = #message{}) ->
     mafia_data:update_stat(G, M),
     Re2 = insert_msg_into_re(M#message.message, Re),
     check_cmds_votes2(G, Re2, M).
-
-remove_blockquotes(Msg) -> rm_bq(Msg, 0).
-rm_bq("<blockquote" ++ Msg, Lvl)  -> rm_bq(Msg, Lvl + 1);
-rm_bq("</blockquote>" ++ Msg, Lvl) -> rm_bq(Msg, Lvl - 1);
-rm_bq([H | T], 0) -> [H | rm_bq(T, 0)];
-rm_bq([_ | T], Lvl) -> rm_bq(T, Lvl);
-rm_bq([], _) -> [].
 
 check_cmds_votes2(G, Re, M) ->
     IsEnded = case G#mafia_game.game_end of

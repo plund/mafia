@@ -96,6 +96,8 @@
 -define(dbg_str(Str), mafia_lib:dbg_str(Str)).
 -define(man(Time, Cmd), mafia_lib:man(Time, Cmd)).
 
+-define(WordBoundaryChars, "\s\t\r\n!\"@#€$%?&/\\|()[]{}=≈≠´`^*'™’-_.:…·,;‚„<>≥≤").
+
 %% background: #ffeeff;
 -define(HTML_TAB_START_LINKS(Title, TabAttrStr, PrevL, NextL),
  "<!DOCTYPE html>

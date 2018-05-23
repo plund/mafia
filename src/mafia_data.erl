@@ -566,8 +566,8 @@ update_stat(G = #mafia_game{}, M = #message{}) ->
     Msg = mafia_lib:remove_blockquotes(
             unicode:characters_to_list(MsgBin)),
     Count = #stat{msg_ids = [MsgId],
-                  num_chars = size(MsgBin),
-                  num_words = length(string:tokens(Msg , ?WordBoundaryChars)),
+                  num_chars = length(Msg),
+                  num_words = length(string:lexemes(Msg , ?WordBoundaryChars)),
                   num_postings = 1
                  },
     update_stats_db(Key1, MsgId, Count),

@@ -374,6 +374,8 @@ print_votesI(PPin) ->
     EndVotes =
         if PhaseType == ?day ->
                 EndVoters = Day#mafia_day.end_votes,
+                HiEndVNum = Day#mafia_day.endvote_high_num,
+                HiEndVTime = Day#mafia_day.endvote_high_time,
                 EndNums = "(" ++ ?i2l(length(EndVoters)) ++ "/" ++
                     ?i2l(length(Day#mafia_day.players_rem)) ++ ")",
                 EndVoteTitle0 = "End-votes " ++ EndNums,
@@ -386,13 +388,37 @@ print_votesI(PPin) ->
                           PP#pp.dev,
                           "\n~s~s\n",
                           [EndVoteTitle,
-                           string:join([?b2l(Ev) || Ev <- EndVoters], ", ")]);
+                           string:join([?b2l(Ev) || Ev <- EndVoters], ", ")]),
+                        if HiEndVNum > 0 ->
+                                io:format(
+                                  PP#pp.dev,
+                                  "Highest end-vote count ~s at ~s "
+                                  "before deadline.\n",
+                                  [?i2l(HiEndVNum),
+                                   print_time_5d(G, HiEndVTime)]);
+                           true -> ok
+                        end;
                    PP#pp.mode == ?html ->
-                        ["<tr><td><table align=center>",
-                         "<tr><th>", EndVoteTitle, "</th>",
+                        ["<tr><td>"
+                         "<table align=center>",
+                         "<tr><th>", EndVoteTitle, "</th>"
+                         "<td><table><tr>",
                          [["<td", bgcolor(Ev), ">", ?b2l(Ev), "</td>"]
                           || Ev <- EndVoters],
-                         "</tr></table></td></tr>"]
+                         "</tr></table></td>"
+                         "</tr>",
+                         if HiEndVNum > 0 ->
+                                 ["<tr align=center>"
+                                  "<td colspan=2>"
+                                  "<font size=\"-2\"><i>"
+                                  "Highest end-vote count ",
+                                  ?i2l(HiEndVNum), " at ",
+                                  print_time_5d(G, HiEndVTime),
+                                  " before deadline."
+                                  "</i></font></td></tr>"];
+                            true -> []
+                         end,
+                         "</table></td></tr>"]
                 end;
            true -> []
         end,

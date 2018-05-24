@@ -98,10 +98,12 @@
          thread_id :: ?undefined | thread_id(),
          day :: ?undefined | day_num(),
          votes = [] :: [{player(), [#vote{}]}],
-         end_votes = [] :: [player()],
          players_rem = [] :: [player()],
          %% Deaths and replacements in mid day
-         player_deaths = [] :: [#death{} | #replacement{}]
+         player_deaths = [] :: [#death{} | #replacement{}],
+         end_votes = [] :: [player()],
+         endvote_high_num = 0 :: integer(),
+         endvote_high_time :: ?undefined | seconds1970()
         }).
 
 -record(mafia_game,

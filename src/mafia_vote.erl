@@ -862,7 +862,15 @@ reg_end_vote(G, M, Op) ->
                     remove ->
                         OldEndVotes -- [M#message.user_name]
                 end,
-            ?dwrite_day(Day#mafia_day{end_votes = NewEndVotes});
+            NumEndVotes = length(NewEndVotes),
+            Day2 = Day#mafia_day{end_votes = NewEndVotes},
+            Day3 =
+                if NumEndVotes > Day#mafia_day.endvote_high_num ->
+                        Day2#mafia_day{endvote_high_num = NumEndVotes,
+                                       endvote_high_time = M#message.time};
+                   true -> Day2
+                end,
+            ?dwrite_day(Day3);
         _ ->
             ok
     end.

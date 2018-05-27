@@ -101,9 +101,9 @@
          players_rem = [] :: [player()],
          %% Deaths and replacements in mid day
          player_deaths = [] :: [#death{} | #replacement{}],
-         end_votes = [] :: [player()],
+         end_votes = [] :: [{player(), player()}],
          endvote_high_num = 0 :: integer(),
-         endvote_high_time :: ?undefined | seconds1970()
+         endvote_high :: ?undefined | {seconds1970(), player()}
         }).
 
 -record(mafia_game,

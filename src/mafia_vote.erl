@@ -505,15 +505,15 @@ check_for_votes(G, M, Reg = #regex{}, #phase{ptype = ?day, num = DayNum}) ->
                               lists:last(ValUVotes)
                       end
               end,
-    IsEndVote = lists:member(User, EndVotes),
+    IsEndVote = lists:keymember(User, 1, EndVotes),
 
     %% Analyze message text and figure out what that needs to change
     Actions = check_for_votes1(G, Reg, CurVote, IsEndVote),
     _ = [case Action of
-             remove_end ->
-                 reg_end_vote(G, M, remove);
-             add_end ->
-                 reg_end_vote(G, M, add);
+             remove_end = Op ->
+                 reg_end_vote(G, M, Op);
+             {add_end, _} = Op ->
+                 reg_end_vote(G, M, Op);
              {vote, NewVote, RawVote, IsValid} ->
                  reg_vote(G, M, NewVote, RawVote, IsValid);
              {unvote} ->
@@ -529,18 +529,18 @@ check_for_votes(_, _, _, _) ->
 check_for_votes1(G, Reg, CurVote, IsEndVote) ->
     %% ?dbg(CurVote),
     {Vote, EndVote} = check_for_votes2(G, Reg, []),
-    {IsStillEndVote, Actions1} =
+    {IsStillEndVote, Actions1, NewVote2} =
         case Vote of
             {vote, NewVote, _, _} when NewVote /= CurVote ->
-                {false, [remove_end, Vote]};
+                {false, [remove_end, Vote], NewVote};
             {vote, NewVote, _, _}  when NewVote == CurVote ->
-                {IsEndVote, [Vote]};
+                {IsEndVote, [Vote], NewVote};
             {unvote} = V when CurVote /= ?undefined ->
-                {false, [remove_end, V]};
+                {false, [remove_end, V], ?undefined};
             ?undefined ->
-                {IsEndVote, []};
+                {IsEndVote, [], CurVote};
             _ ->
-                {false, []}
+                {false, [], CurVote}
         end,
     %% Find out if there is a vote after this message
     IsVote = case {CurVote, Vote} of
@@ -552,7 +552,7 @@ check_for_votes1(G, Reg, CurVote, IsEndVote) ->
     Actions2 =
         case EndVote of
             end_vote when not IsStillEndVote, IsVote ->
-                [add_end];
+                [{add_end, NewVote2}];
             unend_vote when IsEndVote ->
                 [remove_end];
             ?undefined -> [];
@@ -615,14 +615,17 @@ check_for_votes2(G, Reg, Acc) ->
             end
     end.
 
-remove_double_votes([V|_], EndVote)
+%% Votes comes in reverser 'time' order
+%% Find first vote or unvote in list
+remove_double_votes([V | _], EndVote)
   when ?e1(V) == vote; ?e1(V) == unvote ->
     {V, EndVote};
-remove_double_votes([V|T], EndVote)
+%% Find first end_vote and unend_vote in list before vote/unvote
+remove_double_votes([V | T], EndVote)
   when EndVote == ?undefined andalso
        (V == end_vote orelse V == unend_vote) ->
     remove_double_votes(T, V);
-remove_double_votes([_|T], EndVote) ->
+remove_double_votes([_ | T], EndVote) ->
     remove_double_votes(T, EndVote);
 remove_double_votes([], EndVote) ->
     {?undefined, EndVote}.
@@ -847,6 +850,8 @@ reg_vote(G, M, Vote, RawVote, IsOkVote) ->
     end.
 
 reg_end_vote(G, M, Op) ->
+    %% end_votes is [{User, Voted}] so that max end votes for one Voted
+    %% can be counted.
     case mafia_time:calculate_phase(G, M#message.time) of
         Phase = #phase{ptype = ?day} ->
             Day = ?rday(G, Phase),
@@ -854,20 +859,38 @@ reg_end_vote(G, M, Op) ->
             OldEndVotes = Day#mafia_day.end_votes,
             NewEndVotes =
                 case Op of
-                    add ->
-                        case lists:member(User, OldEndVotes) of
-                            false -> OldEndVotes ++ [User];
-                            true ->  OldEndVotes
-                        end;
-                    remove ->
-                        OldEndVotes -- [M#message.user_name]
+                    {add_end, Vote} ->
+                        lists:keystore(User, 1, OldEndVotes, {User, Vote});
+                    remove_end ->
+                        lists:keydelete(User, 1, OldEndVotes)
                 end,
-            NumEndVotes = length(NewEndVotes),
             Day2 = Day#mafia_day{end_votes = NewEndVotes},
+
+            %% Calculate higest end vote target
+            NewTop =
+                lists:sort(
+                  fun(A, B) -> A >= B end, % reverse sort
+                  lists:foldl(
+                    fun({_, V}, Cnt) ->
+                            case lists:keyfind(V, 2, Cnt) of
+                                false ->
+                                    [{1, V} | Cnt];
+                                {C, _} ->
+                                    lists:keystore(V, 2, Cnt, {C + 1, V})
+                            end
+                    end,
+                    [],
+                    NewEndVotes)),
+            {TopNum, TopVote} =
+                case NewTop of
+                    [] -> {0, ?undefined};
+                    [H | _] -> H
+                end,
             Day3 =
-                if NumEndVotes > Day#mafia_day.endvote_high_num ->
-                        Day2#mafia_day{endvote_high_num = NumEndVotes,
-                                       endvote_high_time = M#message.time};
+                if TopNum > Day#mafia_day.endvote_high_num ->
+                        Day2#mafia_day{
+                          endvote_high_num = TopNum,
+                          endvote_high = {M#message.time, TopVote}};
                    true -> Day2
                 end,
             ?dwrite_day(Day3);

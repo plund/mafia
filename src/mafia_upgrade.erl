@@ -386,6 +386,7 @@ update_db_attributes(mafia_game) ->
                            ignore,
                            record_info(fields, mafia_game));
 update_db_attributes(mafia_day) ->
+    %% mnesia:clear_table(mafia_day) may be needed when doing this.
     mnesia:transform_table(mafia_day,
                            ignore,
                            record_info(fields, mafia_day)).

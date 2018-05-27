@@ -373,9 +373,8 @@ print_votesI(PPin) ->
     %% Part - End votes
     EndVotes =
         if PhaseType == ?day ->
-                EndVoters = Day#mafia_day.end_votes,
+                EndVoters = [U || {U, _} <- Day#mafia_day.end_votes],
                 HiEndVNum = Day#mafia_day.endvote_high_num,
-                HiEndVTime = Day#mafia_day.endvote_high_time,
                 EndNums = "(" ++ ?i2l(length(EndVoters)) ++ "/" ++
                     ?i2l(length(Day#mafia_day.players_rem)) ++ ")",
                 EndVoteTitle0 = "End-votes " ++ EndNums,
@@ -390,11 +389,14 @@ print_votesI(PPin) ->
                           [EndVoteTitle,
                            string:join([?b2l(Ev) || Ev <- EndVoters], ", ")]),
                         if HiEndVNum > 0 ->
+                                {HiEndVTime, HiVote} =
+                                    Day#mafia_day.endvote_high,
                                 io:format(
                                   PP#pp.dev,
-                                  "Highest end-vote count ~s at ~s "
+                                  "Highest end-vote count was ~s for ~s at ~s "
                                   "before deadline.\n",
                                   [?i2l(HiEndVNum),
+                                   ?b2l(HiVote),
                                    print_time_5d(G, HiEndVTime)]);
                            true -> ok
                         end;
@@ -406,19 +408,26 @@ print_votesI(PPin) ->
                          [["<td", bgcolor(Ev), ">", ?b2l(Ev), "</td>"]
                           || Ev <- EndVoters],
                          "</tr></table></td>"
-                         "</tr>",
+                         "</tr>"
+                         "</table></td></tr>",
                          if HiEndVNum > 0 ->
-                                 ["<tr align=center>"
+                                 {HiEndVTime, HiVote} =
+                                     Day#mafia_day.endvote_high,
+                                 ["<tr><td>"
+                                  "<table align=center>",
+                                  "<tr align=center>"
                                   "<td colspan=2>"
-                                  "<font size=\"-2\"><i>"
-                                  "Highest end-vote count ",
-                                  ?i2l(HiEndVNum), " at ",
+                                  "<font size=\"-1\"><i>"
+                                  "Highest end-vote count was ",
+                                  ?i2l(HiEndVNum), " for ", HiVote, " at ",
                                   print_time_5d(G, HiEndVTime),
                                   " before deadline."
-                                  "</i></font></td></tr>"];
+                                  "</i></font></td></tr>"
+                                  "</table></td></tr>"
+                                 ];
                             true -> []
-                         end,
-                         "</table></td></tr>"]
+                         end
+                        ]
                 end;
            true -> []
         end,
@@ -1034,7 +1043,7 @@ pr_votes(PP) ->
     Html.
 
 star_if_endvote(Day, Voter) ->
-    case lists:member(Voter, Day#mafia_day.end_votes) of
+    case lists:keymember(Voter, 1, Day#mafia_day.end_votes) of
         true -> "*";
         false -> ""
     end.

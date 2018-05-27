@@ -115,9 +115,10 @@ get_fp(G) ->
         if G#mafia_game.signup_thid /= ?undefined ->
                 SignUpThid = ?i2l(G#mafia_game.signup_thid),
                 [" href=\"", mafia_lib:get_url_begin(G),
-                 SignUpThid, "#", SignUpThid,
-                 "\""
-                ];
+                 SignUpThid] ++
+                    if G#mafia_game.site == ?wd2 -> [];
+                       true -> ["#", SignUpThid]
+                    end ++ ["\""];
            true -> ""
         end,
     RolePmSignUp =

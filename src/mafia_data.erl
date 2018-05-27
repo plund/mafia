@@ -302,16 +302,38 @@ reset_game(#mafia_game{game_num = GNum}) when 24 =< GNum, GNum =< 29 ->
     hd(?rgame(GNum));
 %% New game reset
 reset_game(G = #mafia_game{}) ->
-    G2 = G#mafia_game{
-           players_rem = G#mafia_game.players_orig,
+    G2 = update_with_newest_settings_file(G),
+    ?dwrite_game(game_l2, G2),
+    G2.
+
+update_with_newest_settings_file(G) ->
+    Prefix = "m" ++ ?i2l(G#mafia_game.game_num) ++ "_",
+    Files = element(2, file:list_dir("game_settings")),
+    GFiles = [Fn || Fn <- Files,
+                    nomatch /= string:prefix(Fn, Prefix),
+                    nomatch /= string:prefix(?lrev(Fn), "txt.")],
+    SortedGFiles = lists:sort(fun(A, B) -> A >= B end, GFiles),
+    G2 =
+        case SortedGFiles of
+            [Newest | _] ->
+                RelFn = filename:join("game_settings", Newest),
+                {ok, Bin} = file:read_file(RelFn),
+                {NewG, _Err} =
+                    web_game_settings:update_game_settings(
+                      G, binary_to_list(Bin)),
+                NewG;
+            _ ->
+                ?dbg(no_settings_file),
+                G
+        end,
+    G3 = G2#mafia_game{
+           players_rem = G2#mafia_game.players_orig,
            player_deaths = [],
            page_to_read = 1,
            game_end = ?undefined,
            last_msg_id = ?undefined,
            last_msg_time = ?undefined},
-    G3 = mafia_time:initial_deadlines(G2),
-    ?dwrite_game(game_l2, G3),
-    G3.
+    mafia_time:initial_deadlines(G3).
 
 %% -spec refresh_votes() -> ok.
 refresh_votes() ->

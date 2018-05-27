@@ -90,12 +90,12 @@ regen_historyI(Time, {GKey, Phase = #phase{}}) ->
 
 regen_historyI(_, _, #phase{ptype = ?game_start}, _) -> ok;
 regen_historyI(Time, GNum, Phase = #phase{}, [G]) ->
-    ?dbg(Time, {"=== REGENERATE HISTORY ===", Phase}),
+    ?dbg(Time, {"=== REGENERATE HISTORY ===", GNum, Phase}),
     regen_historyI2(GNum, Phase),
     case G#mafia_game.game_end of
         ?undefined -> ok;
         _ ->
-            ?dbg(Time, {"=== REGENERATE GAME STATUS ==="}),
+            ?dbg(Time, {"=== REGENERATE GAME STATUS ===", GNum}),
             %% ?dbg(stacktrace()),
             regen_historyI2(GNum, #phase{ptype = ?game_ended})
     end,

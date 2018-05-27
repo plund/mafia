@@ -2,7 +2,10 @@
 
 -export([game_settings/3,
          is_ready_to_go/2,
-         write_settings_file/1]).
+         write_settings_file/1,
+
+         update_game_settings/2
+        ]).
 
 -include("mafia.hrl").
 
@@ -433,7 +436,7 @@ mug0(_G, User, Pass, _GameSett)
 mug0(G, User, Pass, GameSett) ->
     case is_user_and_password_ok(G, User, Pass) of
         true ->
-            mug2(G, GameSett);
+            update_game_settings(G, GameSett);
         false ->
             [{error, "This combination of user and password does not exist."}]
     end.
@@ -456,19 +459,6 @@ is_serverkeeper_password_ok(Pass) ->
         _ ->
             false
     end.
-
-mug2(G, GameSett) ->
-    NewConf = [split_on_first_equal_sign(P)
-               || P <- string:tokens(GameSett, "\r\n")],
-    %% [{"gms","peterlund"}, ...]
-    {Values, _Unset} =
-        lists:partition(fun({_, ?UNSET}) -> false; (_) -> true end,
-                        NewConf),
-    Values2 = [{K, string:strip(V)} || {K, V} <- Values],
-    process_input(Values2, {G, []}).
-
-split_on_first_equal_sign(P) ->
-    mafia_lib:split_on_first_char(P, $=).
 
 is_ready_to_go(CurG, {G, Es}) ->
     %% Check if ready to update and go
@@ -589,6 +579,19 @@ is_ready_to_go(start_info, _, {IsOk, G, Es}) ->
                       <<>> -> ?undefined;
                       _ -> B
                   end).
+
+%% @doc read in settings to #mafia_game{}
+update_game_settings(G, GameSett) ->
+    NewConf = [split_on_first_equal_sign(P)
+               || P <- string:tokens(GameSett, "\r\n")],
+    {Values, _Unset} =
+        lists:partition(fun({_, ?UNSET}) -> false; (_) -> true end,
+                        NewConf),
+    Values2 = [{K, string:strip(V)} || {K, V} <- Values],
+    process_input(Values2, {G, []}).
+
+split_on_first_equal_sign(P) ->
+    mafia_lib:split_on_first_char(P, $=).
 
 process_input(KeyValues, Acc) -> pri(KeyValues, Acc).
 

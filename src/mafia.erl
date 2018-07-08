@@ -116,7 +116,9 @@
 
          print_all_cnts/0,
          print_all_cnts/1,
-         save_cnts_to_file/0
+         save_cnts_to_file/0,
+
+         fix_user_bug/0, fix_user_bug/1
         ]).
 
 -export([cmp_vote_raw/0
@@ -910,3 +912,79 @@ cmp_vote_raw() ->
               || V <- Votes],
          {?b2l(User), VoteSum}
      end || {User, Votes} <- GVotes].
+
+%% =============================================================================
+%% Bugfixes
+%% =============================================================================
+
+%% Fix faulty User names in user and message tables 2018-07-08
+fix_user_bug() ->
+    fix_user_bug(report_only).
+
+-spec fix_user_bug(report_only | fix_errors) -> ok.
+fix_user_bug(Mode) ->
+    Faults =
+        [{"bo_sox48  (4271", "bo_sox48"},
+         {"brainbomb  (456", "brainbomb"},
+         {"Chaqa  (3134", "Chaqa"},
+         {"ghug  (3734", "ghug"},
+         {"Jamiet99uk  (100", "Jamiet99uk"},
+         {"ND  (647", "ND"},
+         {"teacon7  (306", "teacon7"}],
+
+    %% check/fix user table
+    lists:foreach(fun(Fault) ->
+                          fix_user(Mode, Fault)
+                  end,
+                  Faults),
+
+    %% check/fix messages
+    FaultsB = [{?l2b(Er), ?l2b(Co)} || {Er, Co} <- Faults],
+    AMKs = mnesia:dirty_all_keys(message),
+    lists:foreach(fun(MsgKey) ->
+                          fix_message(Mode, MsgKey, FaultsB)
+                  end,
+                  AMKs).
+
+fix_user(Mode, {Er, Co}) ->
+    case {?ruser(Er, webDip), ?ruser(Co, webDip)} of
+        {[], _} -> ok;
+        {[ErUser], CoUsers} ->
+            io:format("Error: ~p\n", [ErUser]),
+            case {Mode, CoUsers} of
+                {_, []} ->
+                    io:format("No remove ~p. There is no correct user ~p.\n",
+                              [Er, Co]);
+                {fix_errors, [CoUser]} ->
+                    io:format("Correct: ~p\n", [CoUser]),
+                    %% remove error user
+                    mnesia:dirty_delete(user, ErUser#user.name_upper);
+                _ -> ok
+            end
+    end.
+
+fix_message(Mode, MsgKey, FaultsB) ->
+    [M] = ?rmess(MsgKey),
+    U = M#message.user_name,
+    U2 = fix_maybe_update_name(U, FaultsB),
+    if U2 /= U ->
+            io:format("~p\n~p -> ~p\n---\n",
+                      [M, U, U2]),
+            if Mode == fix_errors ->
+                    M2 = M#message{user_name = U2},
+                    ?dwrite_msg(M2);
+               true -> ok
+            end;
+       true -> ok
+    end.
+
+%% return updated UserB
+fix_maybe_update_name(UserB, FaultsB) ->
+    lists:foldl(fun({ErB, CoB}, Acc) ->
+                        case UserB of
+                            ErB -> CoB;
+                            _ -> Acc
+                        end
+                end,
+                UserB,
+                FaultsB).

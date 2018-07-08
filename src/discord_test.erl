@@ -104,7 +104,7 @@
 %% Host https://discordapp.com/api
 %% client
 
--compile(export_all).
+-compile([nowarn_export_all, export_all]).
 
 -export([discord_client/0]).
 

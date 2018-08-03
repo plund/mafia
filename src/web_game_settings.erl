@@ -258,8 +258,14 @@ pres_resp({Type, Txt}, Acc) ->
             error -> "red";
             warning -> "blue"
         end,
-    Acc ++ ["<tr><td><font color=", TextColour, ">", Txt,
-            "</font></td></tr>\r\n"].
+    Acc ++
+        case Type of
+            info ->
+                ["<tr><td><i><font color=", TextColour, ">", Txt,
+                 "</font></i></td></tr>\r\n"];
+            _ -> ["<tr><td><font color=", TextColour, ">", Txt,
+                  "</font></td></tr>\r\n"]
+        end.
 
 display_tls_info(Env) ->
     display_tls_info(Env, "").
@@ -388,42 +394,68 @@ maybe_update_game(Button, GNStr, User, Pass, GameSett) ->
     GNum = ?l2i(GNStr),
     G = hd(?rgame(GNum)),
     if G#mafia_game.thread_id == ?undefined ->
-            {G2, Es2} =
-                if Button == ?BUpdate ->
-                        case mug0(G, User, Pass, GameSett) of
-                            Acc = {#mafia_game{}, _} -> Acc;
-                            Es -> {G, Es}
-                        end;
-                   true -> {G, []}
-                end,
-            {IsReady, G3, Es3} = is_ready_to_go(G, {G2, Es2}),
-
-            UpdateInfo =
-                if G3 /= G ->
-                        G4 = if G#mafia_game.signup_thid /=
-                                G3#mafia_game.signup_thid ->
-                                     G3#mafia_game{page_to_read = 1};
-                                true -> G3
-                             end,
-                        %% generate new deadlines if possible
-                        G5 = if G4#mafia_game.start_time /= ?undefined,
-                                G4#mafia_game.time_zone /= ?undefined,
-                                G4#mafia_game.dst_zone /= ?undefined ->
-                                     mafia_time:initial_deadlines(G4);
-                                true -> G4
-                             end,
-                        ?dwrite_game(game_w1, G5),
-                        [{info, "The game was updated"}];
-                   Button == ?BUpdate ->
-                        [{info, "The game was NOT updated"}];
-                   true -> []
-                end,
-            Es4 = Es3 ++ UpdateInfo,
-            {false, IsReady, Es4};
+            if Button == ?BUpdate ->
+                    maybe_update_game2(G, User, Pass, GameSett);
+               true ->
+                    {?false, ?false, []}
+            end;
        true ->
-            {true, false,
+            {?true, ?false,
              [{info, "Game is running and cannot be edited"}]}
     end.
+
+maybe_update_game2(G, User, Pass, GameSett) ->
+    {G2, Es2} =
+        case mug0(G, User, Pass, GameSett) of
+            Acc = {#mafia_game{}, _} -> Acc;
+            Es -> {G, Es}
+        end,
+    {IsReady, G3, Es3} = is_ready_to_go(G, {G2, Es2}),
+
+    %% signup thread polling requires these to be set:
+    %% signup_thid, name, time_zone, start_time, dst_zone
+    SignupDef =
+        fun(#mafia_game{signup_thid = ?undefined}) -> ?false;
+           (_) -> ?true
+        end,
+    CanDLsBeGenerated =
+        fun(#mafia_game{start_time = ?undefined}) -> ?false;
+           (#mafia_game{time_zone = ?undefined}) -> ?false;
+           (#mafia_game{dst_zone = ?undefined}) -> ?false;
+           (_) -> ?true
+        end,
+    SignupPolling =
+        fun(_G) ->
+                SignupDef(_G) and CanDLsBeGenerated(_G)
+        end,
+    UpdateInfo =
+        if G3 /= G ->
+                G4 =
+                    if G#mafia_game.signup_thid /=
+                       G3#mafia_game.signup_thid ->
+                            G3#mafia_game{page_to_read = 1};
+                       true -> G3
+                    end,
+                %% generate new deadlines if possible
+                DoGenDLs = CanDLsBeGenerated(G4),
+                G5 =
+                    if DoGenDLs ->
+                            mafia_time:initial_deadlines(G4);
+                       true -> G4
+                    end,
+                ?dwrite_game(game_w1, G5),
+                Res1 = [{info, "The game was updated"}],
+                case not SignupPolling(G) and SignupPolling(G5) of
+                    ?true ->
+                        game:start_polling(G#mafia_game.game_num),
+                        Res1 ++ [{info, "Thread polling started"}];
+                    ?false -> Res1
+                end;
+           true ->
+                [{info, "The game was NOT updated"}]
+        end,
+    Es4 = Es3 ++ UpdateInfo,
+    {false, IsReady, Es4}.
 
 mug0(_G, User, Pass, _GameSett)
   when User == ""; Pass == "" ->

@@ -1126,6 +1126,8 @@ pr_eo_ptype(false, Ph = #phase{}) -> print_phase(Ph).
 
 pr_eo_ptype(#phase{num = Num, ptype = ?day}) -> "EoD"++ ?i2l(Num);
 pr_eo_ptype(#phase{num = Num, ptype = ?night}) -> "EoN"++ ?i2l(Num);
+%% Next needed for N0 games
+pr_eo_ptype(#phase{num = Num, ptype = ?game_start}) -> "EoN"++ ?i2l(Num);
 pr_eo_ptype(#phase{ptype = ?game_ended}) -> "at end of game".
 
 pr_phase_long(#phase{ptype = ?game_ended}) -> "Game End";

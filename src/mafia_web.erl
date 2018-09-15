@@ -16,7 +16,6 @@
 
          start_web/0,
          stop_httpd/0,
-         stop_httpd/1,
 
          get_state/0,
          get_ntp_offset/0
@@ -70,27 +69,34 @@ stop() -> gen_server:call(?SERVER, 'stop').
 
 stop_httpd() ->
     IpStr = bind_address(),
-    RespStr = os:cmd("telnet " ++ IpStr ++ " " ++ ?i2l(?WEBPORT)),
-    case string:str(RespStr, "Escape character is") of
-        0 -> %% nothing running on port
-            io:format("Verify no webserver running at ~s, port ~p\n",
-                      [IpStr, ?WEBPORT]);
-        _ ->
-            io:format("Stopping webserver running at ~s, port ~p\n",
-                      [IpStr, ?WEBPORT]),
-            IP = list_to_tuple([?l2i(Str)
-                                || Str <- string:tokens(IpStr, ".")]),
-            inets:stop(httpd, {IP, ?WEBPORT})
+    case verify_telnet() of
+        ?true ->
+            RespStr = os:cmd("telnet " ++ IpStr ++ " " ++ ?i2l(?WEBPORT)),
+            case string:str(RespStr, "Escape character is") of
+                0 -> %% nothing running on port
+                    io:format("Verify no webserver running at ~s, port ~p\n",
+                              [IpStr, ?WEBPORT]);
+                _ ->
+                    stop_httpd(IpStr)
+            end;
+        ?false ->
+            io:format("WARNING: the telnet command is not available\n"),
+            stop_httpd(IpStr)
     end.
 
-stop_httpd(a) ->
-    io:format("Stopping webserver at ~p, port ~p\n",
-              [{192,168,0,100}, ?WEBPORT]),
-    inets:stop(httpd, {{192,168,0,100}, ?WEBPORT});
-stop_httpd(b) ->
-    io:format("Stopping webserver at ~p, port ~p\n",
-              [{192,168,0,3}, ?WEBPORT]),
-    inets:stop(httpd, {{192,168,0,3}, ?WEBPORT}).
+stop_httpd(IpStr) ->
+    io:format("Stopping webserver running at ~s, port ~p\n", [IpStr, ?WEBPORT]),
+    IP = list_to_tuple([?l2i(Str) || Str <- string:tokens(IpStr, ".")]),
+    inets:stop(httpd, {IP, ?WEBPORT}).
+
+%% Verify that telnet is available
+verify_telnet() ->
+    case string:str(os:cmd("telnet"), "command not found") of
+        0 -> ?true;
+        _ ->
+            io:format("Please install the telnet command.\n"),
+            ?false
+    end.
 
 %%--------------------------------------------------------------------
 %% @doc Show gen_server internal state
@@ -256,25 +262,12 @@ code_change(_OldVsn, State, _Extra) ->
 %%% Internal functions
 %%%===================================================================
 
-get_interface_ip(IfName) ->
-    ?dbg("Looking for IPv4 on interface " ++ IfName),
-    case lists:dropwhile(
-           fun("inet") -> false; (_) -> true end,
-           %% string:tokens(os:cmd("ifconfig en1"), "\t\n\s"))).
-           string:tokens(os:cmd("ifconfig " ++ IfName), "\t\n\s")) of
-        L when length(L) >=2 ->
-            lists:nth(2, L);
-        _ ->
-            throw("No IPv4 found on " ++ IfName)
-    end.
-
 bind_address() ->
     case mafia_lib:get_arg(?http_ip) of
         false ->
             case mafia_lib:get_arg(?http_interface) of
                 false ->
-                    %% default look for IPv4 on en1 (MacOS)
-                    get_interface_ip("en1");
+                    get_ip_on_any_if(["en0", "en1", "eth0", "eth1"]);
                 {ok, IfName} ->
                     IP  = get_interface_ip(IfName),
                     ?dbg({interface_arg, IfName, use_ip, IP}),
@@ -284,6 +277,28 @@ bind_address() ->
             ?dbg({ip_arg, IpAddress}),
             IpAddress
     end.
+
+get_ip_on_any_if([]) ->
+    throw("No IPv4 found on any if");
+get_ip_on_any_if([IfName | T]) ->
+    case get_interface_ip(IfName) of
+        {ok, IPv4} -> IPv4;
+        {error, no_ipv4_found} ->
+            get_ip_on_any_if(T)
+    end.
+
+get_interface_ip(IfName) ->
+    ?dbg("Looking for IPv4 on interface " ++ IfName),
+    case lists:dropwhile(
+           fun("inet") -> false; (_) -> true end,
+           string:tokens(os:cmd("ifconfig " ++ IfName), "\t\n\s")) of
+        L when length(L) >=2 ->
+            {ok, lists:nth(2, L)};
+        _ ->
+            {error, no_ipv4_found}
+    end.
+
+%% -----------------------------------------------------------------------------
 
 start_web(S) ->
     inets:start(),

@@ -2,8 +2,13 @@
 
 # Use one of $HTTP_IP or $HTTP_INTERFACE for the mafia webserver to listen to.
 # If interface is given it will look for an IPv4 address on this interface
+
 #HTTP_IP="192.168.0.3"
-HTTP_INTERFACE="en0"
+#HTTP_INTERFACE="en0"
+
+# If neither of the above is given here and if not found in file HTTP_CONFIG.txt
+# the server will look for one IPv4 address to use on the interfaces: en0, en1,
+# eth0, eth1 in that order.
 
 # directory path setup
 # $HOME needs to be defined here or by the OS

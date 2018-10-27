@@ -127,15 +127,13 @@ msgs2(Sid, [G], In, PQ, []) ->
           (IsUserCond orelse IsWordCond orelse PartMode == ?valid),
     Fun =
         fun(acc, init) -> #miter{};
-           (#message{msg_key = MsgKey,
-                     user_name = MsgUserB,
+           (#message{user_name = MsgUserB,
                      page_num = Page,
                      time = Time,
                      message = MsgB} = IMsg,
             MI) when MI#miter.bytes < ?OUT_LIMIT  ->
                 MsgPhase = mafia_time:calculate_phase(GNum, Time),
-                Msg0 = unicode:characters_to_list(MsgB),
-                Msg = mafia_lib:escapes_to_unicode(Msg0),
+                Msg = get_unicode_msg(MsgB),
                 B2U = fun(B) -> string:to_upper(binary_to_list(B)) end,
                 MsgUserU = B2U(MsgUserB),
                 TestFuns =
@@ -196,9 +194,7 @@ msgs2(Sid, [G], In, PQ, []) ->
                                          [DS1 ++ DS2, " : ", SearchLink]
                                  end,
                         SizeDiv = deliver_div(Sid, DivStr),
-                        ModifiedMsg = modify_message(Msg, WordsU),
-                        OutB = show_msgI2(G, MsgKey, ModifiedMsg, Time,
-                                          Page, MsgUserB, MsgPhase),
+                        OutB = msg_display(G, IMsg, WordsU, Msg, MsgPhase),
                         SizeOut = web:deliver(Sid, OutB),
                         MI#miter{bytes = MI#miter.bytes + SizeDiv + SizeOut,
                                  phase = MsgPhase,
@@ -769,27 +765,31 @@ show_msg(G = #mafia_game{site = Site}, MsgId, Variant)
 
 %% show_msgI(_, []) -> "<tr><td>No message found with this id</td></tr>";
 %% show_msgI(G, [M]) -> show_msgI(G, M);
-show_msgI(G,
-          #message{msg_key = MsgKey,
-                   user_name = MsgUserB,
-                   page_num = PageNum,
-                   time = Time,
-                   message = MsgB},
-          Variant) ->
-    HiLight =
+show_msgI(G, M, Variant) ->
+    HighLigths =
         case Variant of
             "vote" -> ["*##VOTE*", "*##UNVOTE*"];
             "replacement" -> ["*HAS REPLACED*", "*IS REPLACING*"];
             "death" -> ["*DIED*", "*DEAD*", "*BEEN LYNCHED*"];
             _ -> []
         end,
-    Msg0 = unicode:characters_to_list(MsgB),
-    Msg = mafia_lib:escapes_to_unicode(Msg0),
-    ModifiedMsg = modify_message(Msg, HiLight),
-    MsgPhase = mafia_time:calculate_phase(G, Time),
-    show_msgI2(G, MsgKey, ModifiedMsg, Time, PageNum, MsgUserB, MsgPhase).
+    msg_display(G, M, HighLigths).
 
-show_msgI2(G, MsgKey, ModifiedMsg, Time, PageNum, MsgUserB, MsgPhase) ->
+get_unicode_msg(MsgB) ->
+    Msg0 = unicode:characters_to_list(MsgB),
+    mafia_lib:escapes_to_unicode(Msg0).
+
+msg_display(G, M, HighLigths) ->
+    Msg = get_unicode_msg(M#message.message),
+    MsgPhase = mafia_time:calculate_phase(G, M#message.time),
+    msg_display(G, M, HighLigths, Msg, MsgPhase).
+
+msg_display(G, M, HighLigths, Msg, MsgPhase) ->
+    #message{msg_key = MsgKey,
+             user_name = MsgUserB,
+             page_num = PageNum,
+             time = Time} = M,
+    ModifiedMsg = modify_message(Msg, HighLigths),
     GNum = G#mafia_game.game_num,
     DayStr =
         case MsgPhase of

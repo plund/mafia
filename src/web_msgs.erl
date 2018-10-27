@@ -196,57 +196,9 @@ msgs2(Sid, [G], In, PQ, []) ->
                                          [DS1 ++ DS2, " : ", SearchLink]
                                  end,
                         SizeDiv = deliver_div(Sid, DivStr),
-                        DayStr =
-                            case MsgPhase of
-                                #phase{num = DNum, ptype = ?day} ->
-                                    "Day-" ++ ?i2l(DNum);
-                                #phase{num = DNum, ptype = ?night} ->
-                                    "Night-" ++ ?i2l(DNum);
-                                #phase{ptype = ?game_start} ->
-                                    "Game Start ";
-                                #phase{ptype = ?game_ended} ->
-                                    "Game End "
-                            end,
                         ModifiedMsg = modify_message(Msg, WordsU),
-                        BgColor = mafia_lib:bgcolor(MsgUserB),
-                        {HH, MM} = mafia_time:hh_mm_to_deadline(GNum, Time),
-                        %% Add context link when doing User/Word search
-                        MsgRef = ["msg_id=", web:msg_key2str(MsgKey)],
-                        OrigLink =
-                            case MsgKey of
-                                {MsgId, ?wd2} ->
-                                    MsgIdStr = ?i2l(MsgId),
-                                    ["<font size=-2> / "
-                                     "<a href=\""
-                                     "http://webdiplomacy.net/contrib/phpBB3/"
-                                     "viewtopic.php?p=", MsgIdStr, "#p", MsgIdStr,
-                                     "\">orig</a>",
-                                     "</font>"];
-                                _ ->
-                                    ""
-                            end,
-
-                        {Pages, _, _} = page_context(Page, 1),
-                        HPage =
-                            ["<a href=\"msgs"
-                             "?g=", ?i2l(GNum),
-                             "&part=p", Pages,
-                             "#", MsgRef,
-                             "\">page ", ?i2l(Page),
-                             "</a>"],
-                        OutB =
-                            unicode:characters_to_binary(
-                              ["<tr", BgColor, ">"
-                               "<td valign=\"top\">"
-                               "<a name=\"", MsgRef, "\">"
-                               "<b>", MsgUserB,
-                               "</b></a><br>", DayStr, " ",
-                               pr2dig(HH), ":", pr2dig(MM), "<br>",
-                               HPage,
-                               OrigLink,
-                               "</td><td valign=\"top\">",
-                               ModifiedMsg,
-                               "</td></tr>\r\n"]),
+                        OutB = show_msgI2(G, MsgKey, ModifiedMsg, Time,
+                                          Page, MsgUserB, MsgPhase),
                         SizeOut = web:deliver(Sid, OutB),
                         MI#miter{bytes = MI#miter.bytes + SizeDiv + SizeOut,
                                  phase = MsgPhase,
@@ -818,7 +770,8 @@ show_msg(G = #mafia_game{site = Site}, MsgId, Variant)
 %% show_msgI(_, []) -> "<tr><td>No message found with this id</td></tr>";
 %% show_msgI(G, [M]) -> show_msgI(G, M);
 show_msgI(G,
-          #message{user_name = MsgUserB,
+          #message{msg_key = MsgKey,
+                   user_name = MsgUserB,
                    page_num = PageNum,
                    time = Time,
                    message = MsgB},
@@ -834,6 +787,10 @@ show_msgI(G,
     Msg = mafia_lib:escapes_to_unicode(Msg0),
     ModifiedMsg = modify_message(Msg, HiLight),
     MsgPhase = mafia_time:calculate_phase(G, Time),
+    show_msgI2(G, MsgKey, ModifiedMsg, Time, PageNum, MsgUserB, MsgPhase).
+
+show_msgI2(G, MsgKey, ModifiedMsg, Time, PageNum, MsgUserB, MsgPhase) ->
+    GNum = G#mafia_game.game_num,
     DayStr =
         case MsgPhase of
             #phase{num = DNum, ptype = ?day} ->
@@ -843,16 +800,46 @@ show_msgI(G,
             #phase{ptype = ?game_start} -> "Game Start";
             #phase{ptype = ?game_ended} -> "Game End "
         end,
-    Color = mafia_lib:bgcolor(MsgUserB),
+    BgColor = mafia_lib:bgcolor(MsgUserB),
     {HH, MM} = mafia_time:hh_mm_to_deadline(G, Time),
-    unicode:characters_to_binary(
-      ["<tr", Color, "><td valign=\"top\"><b>", MsgUserB,
-       "</b><br>",
-       DayStr, " ", pr2dig(HH), ":", pr2dig(MM),
-       "<br> page ", ?i2l(PageNum),
-          "</td><td valign=\"top\">", ModifiedMsg,
-       "</td></tr>"
-      ]).
+    {Pages, _, _} = page_context(PageNum, 1),
+    MsgRef = ["msg_id=", web:msg_key2str(MsgKey)],
+    HPage =
+        ["<a href=\"msgs"
+         "?g=", ?i2l(GNum),
+         "&part=p", Pages,
+         "#", MsgRef,
+         "\">page ", ?i2l(PageNum),
+         "</a>"],
+    OrigLink = orig_link(MsgKey),
+    MsgPresentation =
+        ["<tr", BgColor, ">"
+         "<td valign=\"top\">"
+         "<a name=\"", MsgRef, "\">"
+         "<b>", MsgUserB,
+         "</b></a><br>",
+         DayStr, " ",
+         pr2dig(HH), ":", pr2dig(MM), "<br>",
+         HPage,
+         OrigLink,
+         "</td><td valign=\"top\">", ModifiedMsg,
+         "</td></tr>"
+        ],
+    unicode:characters_to_binary(MsgPresentation).
+
+orig_link(MsgKey) ->
+    case MsgKey of
+        {MsgId, ?wd2} ->
+            MsgIdStr = ?i2l(MsgId),
+            ["<font size=-2> / "
+             "<a href=\""
+             "http://webdiplomacy.net/contrib/phpBB3/"
+             "viewtopic.php?p=", MsgIdStr, "#p", MsgIdStr,
+             "\">orig</a>",
+             "</font>"];
+        _ ->
+            ""
+    end.
 
 pr2dig(I) when I > 9 -> ?i2l(I);
 pr2dig(I) when I =< 9 -> "0" ++ ?i2l(I).

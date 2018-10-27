@@ -212,6 +212,19 @@ msgs2(Sid, [G], In, PQ, []) ->
                         {HH, MM} = mafia_time:hh_mm_to_deadline(GNum, Time),
                         %% Add context link when doing User/Word search
                         MsgRef = ["msg_id=", web:msg_key2str(MsgKey)],
+                        OrigLink =
+                            case MsgKey of
+                                {MsgId, ?wd2} ->
+                                    MsgIdStr = ?i2l(MsgId),
+                                    ["<font size=-2> / "
+                                     "<a href=\""
+                                     "http://webdiplomacy.net/contrib/phpBB3/"
+                                     "viewtopic.php?p=", MsgIdStr, "#p", MsgIdStr,
+                                     "\">orig</a>",
+                                     "</font>"];
+                                _ ->
+                                    ""
+                            end,
 
                         {Pages, _, _} = page_context(Page, 1),
                         HPage =
@@ -230,6 +243,7 @@ msgs2(Sid, [G], In, PQ, []) ->
                                "</b></a><br>", DayStr, " ",
                                pr2dig(HH), ":", pr2dig(MM), "<br>",
                                HPage,
+                               OrigLink,
                                "</td><td valign=\"top\">",
                                ModifiedMsg,
                                "</td></tr>\r\n"]),

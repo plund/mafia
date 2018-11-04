@@ -574,7 +574,9 @@ check_for_votes2(G, Reg, Acc) ->
             case Reg2#regex.match_u of
                 ?V_VOTE ->
                     Msg = Reg2#regex.msg_text,
-                    RawVote = ?l2b(string:strip(string:left(Msg, 60))),
+                    RawVote = unicode:characters_to_binary(
+                                string:strip(
+                                  string:left(Msg, 60))),
                     RestUC = Reg2#regex.msg_text_u,
                     {Vote, IsValid} =
                         case rank_options(G, RestUC) of

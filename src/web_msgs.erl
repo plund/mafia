@@ -133,7 +133,7 @@ msgs2(Sid, [G], In, PQ, []) ->
                      message = MsgB} = IMsg,
             MI) when MI#miter.bytes < ?OUT_LIMIT  ->
                 MsgPhase = mafia_time:calculate_phase(GNum, Time),
-                Msg = get_unicode_msg(MsgB),
+                Msg = mafia_lib:get_unicode_msg(MsgB),
                 B2U = fun(B) -> string:to_upper(binary_to_list(B)) end,
                 MsgUserU = B2U(MsgUserB),
                 TestFuns =
@@ -775,12 +775,8 @@ show_msgI(G, M, Variant) ->
         end,
     msg_display(G, M, HighLigths).
 
-get_unicode_msg(MsgB) ->
-    Msg0 = unicode:characters_to_list(MsgB),
-    mafia_lib:escapes_to_unicode(Msg0).
-
 msg_display(G, M, HighLigths) ->
-    Msg = get_unicode_msg(M#message.message),
+    Msg = mafia_lib:get_unicode_msg(M#message.message),
     MsgPhase = mafia_time:calculate_phase(G, M#message.time),
     msg_display(G, M, HighLigths, Msg, MsgPhase).
 

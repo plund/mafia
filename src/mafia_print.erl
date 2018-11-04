@@ -281,7 +281,7 @@ print_votesI(PPin) ->
                              "</td></tr>\r\n"];
                        true -> ""
                     end,
-                {Href, Link} =
+                {Href, LinkName} =
                     mafia_file:game_link_and_text(PP#pp.game, LinkPhase),
                 ["<tr><th>", GName, "</th></tr>\r\n",
                  ModMsg,
@@ -297,7 +297,7 @@ print_votesI(PPin) ->
                  "<tr><td align=center>",
                  "Text version of this page is found at "
                  "<a href=\"", Href, "\">",
-                 Link, "</a>",
+                 LinkName, "</a>",
                  "</td></tr>"]
         end,
 
@@ -603,17 +603,17 @@ print_votesI(PPin) ->
                               Fmt,
                               [string:join(
                                  [?b2l(DeadPl) ++ PrFun(IsEnd, Ph) ++
-                                      if Com == ?undefined ->
+                                      if Comment == ?undefined ->
                                               " - msg: " ++
                                                   web:msg_key2str(MsgKey);
-                                         is_binary(Com) ->
-                                              " - " ++ ?b2l(Com)
+                                         is_binary(Comment) ->
+                                              [" - ", Comment]
                                       end
                                   || #death{player = DeadPl,
                                             is_end = IsEnd,
                                             phase = Ph,
                                             msg_key = MsgKey,
-                                            comment = Com}
+                                            comment = Comment}
                                          <- DeathsToReport],
                                  Div)]);
                true -> ok
@@ -645,7 +645,7 @@ print_votesI(PPin) ->
                                      is_end = IsEnd,
                                      phase = Ph,
                                      msg_key = MsgKey,
-                                     comment = Com} ->
+                                     comment = Comment} ->
                                   ["<tr><td><table align=left><tr><td",
                                    bgcolor(DeadPl), ">", ?b2l(DeadPl), "</td>"
                                    "<td><a href=\"/e/web/msg"
@@ -654,11 +654,11 @@ print_votesI(PPin) ->
                                    "&player=", ?b2l(DeadPl),
                                    "&var=death\">",
                                    PrFun(IsEnd, Ph), "</a>",
-                                   if Com == ?undefined ->
+                                   if Comment == ?undefined ->
                                            " - msg: " ++
                                                web:msg_key2str(MsgKey);
-                                      is_binary(Com) ->
-                                           " - " ++ ?b2l(Com)
+                                      is_binary(Comment) ->
+                                           [" - ", Comment]
                                    end,
                                    "</td></tr></table></td></tr>\r\n"];
                               #replacement{new_player = NewPl,

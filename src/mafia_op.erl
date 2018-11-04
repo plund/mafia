@@ -31,7 +31,7 @@ kill_player(G, M, DeadB, DeathComment, true) ->
                    phase = DeathPhase,
                    msg_key = M#message.msg_key,
                    time = M#message.time,
-                   comment = ?l2b(DeathComment),
+                   comment = unicode:characters_to_binary(DeathComment),
                    is_deleted = false
                   },
     NewDeaths = add_modify_deaths(Death, G),

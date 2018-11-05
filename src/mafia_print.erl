@@ -1340,6 +1340,7 @@ print_message_summary(PP = #pp{}) ->
                        string:left(Msg, Max) ++ "...";
                   true -> Msg
                end,
+    MsgShortB = unicode:characters_to_binary(MsgShort),
     Str = io_lib:format("~-10s "
                         "~-3s"
                         " ~-11s "
@@ -1349,7 +1350,7 @@ print_message_summary(PP = #pp{}) ->
                          ?i2l(M#message.page_num),
                          print_timeI(PP#pp{t_mode = ?short}),
                          ?i2l(?e1(M#message.msg_key)),
-                         MsgShort
+                         MsgShortB
                         ]),
     io:format("~s", [Str]).
 

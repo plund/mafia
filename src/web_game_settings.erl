@@ -613,6 +613,9 @@ is_ready_to_go(start_info, _, {IsOk, G, Es}) ->
                   end).
 
 %% @doc read in settings to #mafia_game{}
+-type error_list() :: [{'error', string()}].
+-spec update_game_settings(#mafia_game{}, string()
+                          ) -> {#mafia_game{}, error_list()}.
 update_game_settings(G, GameSett) ->
     NewConf = [split_on_first_equal_sign(P)
                || P <- string:tokens(GameSett, "\r\n")],
@@ -620,7 +623,14 @@ update_game_settings(G, GameSett) ->
         lists:partition(fun({_, ?UNSET}) -> false; (_) -> true end,
                         NewConf),
     Values2 = [{K, string:strip(V)} || {K, V} <- Values],
-    process_input(Values2, {G, []}).
+    {G2, EL} = process_input(Values2, {G, []}),
+    if G2#mafia_game.day_hours == 0,
+       G2#mafia_game.night_hours == 0 ->
+            {G2, EL ++
+                 [{error, "Both day_hours and night_hours can not be 0"}]};
+       true ->
+            {G2, EL}
+    end.
 
 split_on_first_equal_sign(P) ->
     mafia_lib:split_on_first_char(P, $=).
@@ -648,7 +658,8 @@ pri([{Par, Value} | T], {G, Es}) ->
 pri([], Acc) -> Acc.
 
 pr_user_list({Field, GmStr}, {G, Es}) ->
-    ReadF = fun(U) -> case ?ruserUB(U, G#mafia_game.site) of
+    Site = G#mafia_game.site,
+    ReadF = fun(U) -> case ?ruserUB(U, Site) of
                           [#user{name = {Name, _}}] ->
                               {true, ?b2l(Name)};
                           _ ->
@@ -658,7 +669,9 @@ pr_user_list({Field, GmStr}, {G, Es}) ->
     Users = [ReadF(string:strip(U)) || U <- string:tokens(GmStr, ",")],
     {Good, Bad} = lists:partition(fun({Bool, _}) -> Bool end, Users),
     Users2 = [?l2b(U) || {_, U} <- Good],
-    Es2 = Es ++ [{error, Field ++ ": User '" ++ U ++ "' does not exist" }
+    Es2 = Es ++ [{error,
+                  Field ++ ": User '" ++ U ++
+                      "' does not exist on site " ++ ?a2l(Site) }
                  || {_, U} <- Bad],
     case Field of
         "gms" ->
@@ -694,9 +707,9 @@ pr_int({Field, IntStr}, {G, Es}) ->
                             " is too high."}]};
         Int when ((Field == "day_hours")
                   or (Field == "night_hours")) and
-                 (Int < 1) ->
+                 (Int < 0) ->
             {G, Es ++ [{error, Field ++ ": " ++ IntStr ++
-                            " is zero or negative"}]};
+                            " is negative"}]};
         Int when (Field == "time_zone") and
                  ((Int < -12) or (Int > 12)) ->
             {G, Es ++ [{error, Field ++ ": " ++ IntStr ++

@@ -48,14 +48,18 @@ print_usage () {
     cat <<EOF
 Description
   Compiles, installs, configures and starts up the Mafia bot.
-  In order to run as a internet service a DOMAIN_NAME needs to point to the
-  public IP address of your home router.
-  The router needs to redirect http traffic to port 80 for your domain name to
-  this machine port 50666.
+  In order to run as a internet service you should have a domain name pointing
+  to the public IP address of your home router.
+
+  Your router needs to redirect incoming traffic to this machine where you run
+  the bot:
+  - Incoming http traffic on port 80 to port 50666
+  - Incoming https traffic on port 443 to port 50667
+
 Usage
-  $CMD              - Manual interactive start
-  $CMD -s|--silent  - Start silently with no questions
-  $CMD -h|--help    - Prints this help text
+  $CMD                - Manual interactive start
+  $CMD -s | --silent  - Start silently with no questions
+  $CMD -h | --help    - Prints this help text
 EOF
 }
 

@@ -291,7 +291,7 @@ display_tls_info(Env, Extra) ->
      "When accessing this site using an encrypted connection "
      "first time with a new web browser, "
      "you will need to <b>accept the self-signed server certificate</b> "
-     "(and make a security exception). "
+     "(and make a security exemption). "
      "The certificate is self-signed since the server keeper does not want "
      "to pay money to a Certificate Authority."
      "</center></td></tr></table>"].

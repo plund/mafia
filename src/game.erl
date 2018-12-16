@@ -2,7 +2,10 @@
 %%% @author Peter Lund <peter@liber>
 %%% @copyright (C) 2017, Peter Lund
 %%% @doc
-%%%
+%%% This module handles the deadline and poll timers for one game
+%%% 2 weeks after game end it stops polling
+%%% There is a message ?deadline3min sent 3 min before deadline
+%%% and a message ?deadline sent at deadline.
 %%% @end
 %%% Created : 26 Oct 2017 by Peter Lund <peter@liber>
 %%%-------------------------------------------------------------------

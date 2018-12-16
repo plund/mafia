@@ -5,9 +5,9 @@
 
 %% Supervision tree (one_for_one)
 %%
-%% +----+
-%% |1.MS|
-%% +----+
+%% +------+
+%% |1.Sup |
+%% +------+
 %%   |
 %%   +------+-----+----------+
 %%   |      |     |          |
@@ -20,6 +20,12 @@
 %% +---+  +---+
 %% |web|  |tls|
 %% +---+  +---+
+
+%% Sup = mafia supervisor
+%% MW = mafia web
+%% g21 = game 21
+%% web = http server
+%% tls = tls server
 
 -module(mafia_sup).
 

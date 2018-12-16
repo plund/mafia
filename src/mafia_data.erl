@@ -1028,12 +1028,15 @@ replace_blockquotes(?BQ_END ++ Msg,
             replace_blockquotes(Msg, BQprev);
        true ->
             User = if is_list(RefUser) -> ?lrev(RefUser); true -> "" end,
-            Link = if is_list(RefIdStr) ->
-                           "<a href=\"msg?id=w:"
-                               ++ RefIdStr ++
-                               "\" style=\"text-decoration:none\">" ++ ?UpArrow
-                               ++ RefUser ++ "</a>";
-                      true -> "" end,
+            Link =
+                if is_list(RefIdStr),
+                   is_list(RefUser) ->
+                        "<a href=\"msg?id=w:"
+                            ++ RefIdStr ++
+                            "\" style=\"text-decoration:none\">" ++ ?UpArrow
+                            ++ RefUser ++ "</a>";
+                   true -> ""
+                end,
             LocAccStrip = strip_br_white(LocAcc),
             {CiteApp, QText} =
                 if is_list(RefUser), is_list(RefIdStr) ->

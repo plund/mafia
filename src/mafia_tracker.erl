@@ -302,7 +302,8 @@ pr_stand_txt(User, {OldVote, NewVote}, Abbrs, PrStand) ->
 pr_stand_html(G, User, MsgKey, {OldVote, NewVote}, Abbrs, PrStand) ->
     UserA = mafia_name:get3l(User, Abbrs, "***"),
     Voter = ["<td align=center", bgcolor(User),">", UserA, "</td>",
-             "<td align=center>", OldVote, ">",
+             "<td align=center>", OldVote,
+             unicode:characters_to_binary("➙"),
              ["<a href=\"/e/web/msg"
               "?g=", ?i2l(G#mafia_game.game_num),
               "&id=", web:msg_key2str(MsgKey),

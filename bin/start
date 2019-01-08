@@ -187,7 +187,7 @@ export RUN_ERL_LOG_GENERATIONS=20
 run_erl -daemon $PIPE $LOG_DIR "exec erl -pa $ERLPATH $PATCHES \
 -h_srv_root $SERVER_ROOT -h_doc_root $DOC_ROOT -h_log_root $LOG_ROOT \
 -h_tls_dir $TLS_DIR \
--repo_dir $REPO_DIR $EXTRA -sname $NODE_NAME -s mafia"
+-repo_dir $REPO_DIR $EXTRA -sname $NODE_NAME -s $APP_NAME"
 
 echo "Connect to system with:"
 echo "to_erl $PIPE"

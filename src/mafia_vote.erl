@@ -217,13 +217,16 @@ read_death_line(MsgLong, Reg, LookForUsers) ->
     {_, Reg2} = regex_find("\n", Reg), %% Get text to/before next new-line
     WasComment =
         case {regex_pre_find("SHE WAS", Reg2),
-              regex_pre_find("HE WAS", Reg2)} of
-            {{?nomatch, _}, {?nomatch, _}} -> % Neither found use full line
+              regex_pre_find("HE WAS", Reg2),
+              regex_pre_find("THEY WERE", Reg2)} of
+            {{?nomatch, _}, {?nomatch, _}, {?nomatch, _}} ->
+                %% Neither found use full line
                 get_line_at(Reg#regex.pos, MsgLong);
-            {Find1, Find2} ->
+            {Find1, Find2, Find3} ->
                 {?match, #regex{match = Match, msg_text = After}} =
                     if element(1, Find1) == ?match -> Find1;
-                       true -> Find2
+                       element(1, Find2) == ?match -> Find2;
+                       true -> Find3
                     end,
                 Match ++ After
         end,

@@ -533,6 +533,9 @@ my_string_substr([], _First, _Last, _Cur) -> [].
 
 %% -----------------------------------------------------------------------------
 
+alpha_sort(Bs = [Bin | _]) when is_binary(Bin) ->
+    Ls = alpha_sort([?b2l(B) || B <- Bs]),
+    [?l2b(L)||L <- Ls];
 alpha_sort(Strings) ->
     LE = fun(A, B) -> ?l2u(A) =< ?l2u(B) end,
     lists:sort(LE, Strings).

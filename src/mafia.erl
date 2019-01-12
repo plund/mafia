@@ -688,7 +688,13 @@ show_game_users(Mode, GNum) ->
                 [begin [U] = ?ruser(UName, G#mafia_game.site),
                        pr_user_line(Mode, U)
                  end
-                 || UName <- G#mafia_game.players_orig];
+                 || UName <-
+                        mafia_lib:alpha_sort(
+                          G#mafia_game.players_orig ++
+                              [New
+                               || #replacement{new_player = New}
+                                      <- G#mafia_game.player_deaths])
+                ];
             _ ->
                 "error: game_not_found"
         end,

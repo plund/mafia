@@ -624,12 +624,14 @@ get_time_for_prev_phase(G, Phase) ->
         Time -> Time
     end.
 
--spec nearest_deadline(integer() | #mafia_game{} | [#mafia_game{}])
-                      -> {integer(), #dl{}} | none.
-nearest_deadline(GameKey) when is_integer(GameKey) ->
-    nearest_deadline(?rgame(GameKey));
-nearest_deadline([]) -> none;
-nearest_deadline([G]) ->
+-spec nearest_deadline(integer() | {integer(), [#mafia_game{}]})
+                      -> {integer(), #dl{}} | ?none.
+nearest_deadline(GNum) when is_integer(GNum) ->
+    nearest_deadline({GNum, ?rgame(GNum)});
+nearest_deadline({GNum, []}) ->
+    ?dbg({nearest_deadline_1, no_game_found, GNum}),
+    ?none;
+nearest_deadline({_, [G]}) ->
     Now = utc_secs1970(),
     case G#mafia_game.game_end of
         ?undefined ->
@@ -640,13 +642,16 @@ nearest_deadline([G]) ->
                  time = EoGTime}}
     end.
 
--spec nearest_deadline(integer() | #mafia_game{} | [#mafia_game{}],
-                       seconds1970())
-                      -> {integer(), phase_type()} | none.
+-spec nearest_deadline(
+        integer() | #mafia_game{} | {integer(), [#mafia_game{}]},
+        seconds1970()
+       ) -> {integer(), phase_type()} | none.
 nearest_deadline(GNum, Time) when is_integer(GNum) ->
-    nearest_deadline(?rgame(GNum), Time);
-nearest_deadline([], _) -> ?none;
-nearest_deadline([G = #mafia_game{}], Time) ->
+    nearest_deadline({GNum, ?rgame(GNum)}, Time);
+nearest_deadline({GNum, []}, _) ->
+    ?dbg({nearest_deadline_2, no_game_found, GNum}),
+    ?none;
+nearest_deadline({_, [G = #mafia_game{}]}, Time) ->
     nearest_deadline(G, Time);
 nearest_deadline(#mafia_game{deadlines = []}, _) -> ?none;
 nearest_deadline(G = #mafia_game{}, Time) ->

@@ -186,8 +186,8 @@ handle_info({?deadline, DL}, State) ->
     {noreply, S2};
 handle_info(do_polling, State) ->
     {_Reply, S2} = maybe_change_poll_int(State),
-    if is_integer(State#state.game_num) ->
-            mafia_data:downl_web(State#state.game_num),
+    if is_integer(S2#state.game_num) ->
+            mafia_data:downl_web(S2#state.game_num),
             flush(do_polling);
        true -> ok
     end,
@@ -325,7 +325,7 @@ cancel_poll_timer(S) ->
        true -> ok
     end,
     flush(do_polling),
-    S#state{poll_timer = undefined}.
+    S#state{poll_timer = ?undefined}.
 
 flush({Msg, X}) ->
     receive {Msg, _} -> flush({Msg, X})

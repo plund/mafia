@@ -21,18 +21,22 @@ game_settings(Sid, Env, In) ->
     PQ = httpd:parse_query(In),
     Button = proplists:get_value("button", PQ),
     GNum = proplists:get_value("game_num", PQ),
-    if Button == ?undefined, GNum == ?undefined  ->
+
+    if GNum == ?undefined  ->
             game_settings_list(Sid);
-       Button == ?BInitGame; Button == ?BCreateGame  ->
+
+       Button == ?BInitGame;
+       Button == ?BCreateGame  ->
             init_new_game(Sid, Env, PQ);
-       Button == ?undefined, GNum /= ?undefined  ->
-            game_settings_update(Sid, Env, Button, PQ);
-       Button == ?BUpdate;
-       Button == ?BReload ->
-            game_settings_update(Sid, Env, Button, PQ);
+
        Button == ?BStart;
        Button == ?BStartNow ->
-            game_settings_start(Sid, Env, Button, PQ)
+            game_settings_start(Sid, Env, Button, PQ);
+
+       Button == ?undefined;
+       Button == ?BUpdate;
+       Button == ?BReload ->
+            game_settings_update(Sid, Env, Button, PQ)
     end.
 
 game_settings_list(Sid) ->
@@ -173,12 +177,14 @@ game_settings_update(Sid, Env, Button, PQ) ->
     GameSett = web_impl:get_arg(PQ, "game_settings"),
     User = web_impl:get_arg(PQ, "user"),
     Pass = web_impl:get_arg(PQ, "password"),
-    if IsSecure ->
-            ?dbg({update, user_password, User, Pass});
-       not IsSecure -> ok
-    end,
-    {IsRunning, StartAllowed, Responses} =
-        maybe_update_game(Button, GNStr, User, Pass, GameSett),
+    {IsRunning, TmpStartAllowed, TmpResponses} =
+        maybe_update_game(GNStr, User, Pass, GameSett),
+    {StartAllowed, Responses} =
+        if IsSecure ->
+                {TmpStartAllowed, TmpResponses};
+           not IsSecure ->
+                {?false, []}
+        end,
     GNum = ?l2i(GNStr),
     SettingsText =
         if Button == ?BReload ->
@@ -390,15 +396,11 @@ game_time_zone(#mafia_game{time_zone = TZ}) -> ?i2l(TZ).
 game_dst_zone(#mafia_game{dst_zone = ?undefined}) -> ?UNSET;
 game_dst_zone(#mafia_game{dst_zone = DstZone}) -> ?a2l(DstZone).
 
-maybe_update_game(Button, GNStr, User, Pass, GameSett) ->
+maybe_update_game(GNStr, User, Pass, GameSett) ->
     GNum = ?l2i(GNStr),
     G = hd(?rgame(GNum)),
     if G#mafia_game.thread_id == ?undefined ->
-            if Button == ?BUpdate ->
-                    maybe_update_game2(G, User, Pass, GameSett);
-               true ->
-                    {?false, ?false, []}
-            end;
+            maybe_update_game2(G, User, Pass, GameSett);
        true ->
             {?true, ?false,
              [{info, "Game is running and cannot be edited"}]}
@@ -882,31 +884,62 @@ game_settings_start(Sid, Env, _Button, PQ) ->
                  "webdiplomacy.net or on vdiplomacy.com you need to tell the "
                  "bot what thread id your new game thread has.\r\n"
                  "<p>"
-                 "Find out the game thread id this way: \r\n"
+
                  "<ol><li>"
-                 "In a web browser, open the forum game thread so you can "
-                 "read the game thread.<br>\r\n"
+                 "Find the game thread id\r\n"
+
+                 "<ol type=a><li>"
+                 "For a webdiplomacy.net/New forum game do the following: "
+                 "<ol type=i><li>"
+                 "Go to the Game Forum by clicking "
+                 "<a href=\""
+                 "http://webdiplomacy.net/contrib/phpBB3/viewforum.php?f=4"
+                 "\">"
+                 "http://webdiplomacy.net/contrib/phpBB3/viewforum.php?f=4"
+                 "</a>"
+                 "</li><li>"
+                 "Click on the <b>TITLE</b> of the game thread"
+                 "\r\n"
                  "</li><li>"
                  "In the location window in the top you find an URL that looks "
-                 "like this (What number do you have in the position marked "
-                 "with 'NNN'?):<br>\r\n"
+                 "like this:<br>\r\n"
                  "<pre>\r\n"
-                 "New forum:\r\n"
                  "   http://webdiplomacy.net/contrib/phpBB3/viewtopic.php"
                  "?f=4&t=NNN\r\n"
-                 "vDip forum:\r\n"
+                 "</li><li>"
+                 "The thread id, that you are looking for, is the "
+                 "number marked above as NNN that you find after "
+                 "<code>\"?f=4&t=\"</code>\r\n"
+                 "</li></ol>"
+
+                 "<li>"
+                 "For a vdiplomacy.com game do the following: "
+                 "<ol type=i><li>"
+                 "Open the newly created game thread,"
+                 "</li><li>"
+                 "In the location window in your browser you find an URL that "
+                 "looks like shown below:<br>\r\n"
+                 "<pre>\r\n"
                  "   http://vdiplomacy.com/forum.php?threadID=NNN\r\n"
                  "</pre>\r\n"
                  "</li><li>"
-                 "The thread id, that you are looking for, is the first "
-                 "number you find after <code>\"?f=4&t=\"</code> (new "
-                 "forum)<br>"
-                 "or after <code>\"?threadID=\"</code> (vDip)\r\n"
-                 "</li><li>"
-                 "Insert this number in the below field, and press the \"",
+                 "The thread id, that you are looking for, is the "
+                 "number marked above as NNN, that you find after "
+                 "<code>\"?threadID=\"</code>\r\n"
+                 "</li>"
+                 "</ol></li>"
+
+                 "</li></ol>"
+
+                 "<li>"
+                 "Start your game by inserting the game thread id in the "
+                 "field below, and press the \"",
                  ?BStartNow,
                  "\" button. \r\n"
-                 "</li></ol></td></tr>\r\n"
+                 "</li></ol>"
+                 "</ol>"
+
+                 "</td></tr>\r\n"
                  "</table></td></tr>\r\n"
                  "<tr><td>"
                  %% Form

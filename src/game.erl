@@ -248,7 +248,9 @@ maybe_change_poll_int(S = #state{poll_timer = TRef,
                                  game_num = GNum}) ->
     Mins = poll_minutes(GNum),
     if TMins == ?stopped -> {no_change, S};
-       Mins == ?none -> {cancelled, cancel_poll_timer(S)};
+       Mins == ?none ->
+            ?dbg({cancel_poll_timer, GNum, ?rgame(GNum)}),
+            {cancelled, cancel_poll_timer(S)};
        TRef == ?undefined; Mins /= TMins ->
             set_poll_timer(S, Mins);
        true -> {no_change, S}

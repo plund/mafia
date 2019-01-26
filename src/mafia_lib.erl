@@ -11,6 +11,8 @@
          all_day_keys/1,
          all_keys/1,
 
+         set_current_game/0,
+
          rday/2,
          rgame/1,
          ruser/2,
@@ -173,6 +175,63 @@ all_keys(Tab = mafia_game) ->
             end,
     [G#mafia_game.game_num || G <- lists:sort(SortF, ets:tab2list(Tab))];
 all_keys(Tab) -> lists:sort(mnesia:dirty_all_keys(Tab)).
+
+
+%% set default game for front page.
+%% Order games this way:
+%% 1. Oldest ongoing game, 2. oldest "upcoming" game. 3 last finished game
+set_current_game() ->
+    case sort_for_current(ets:tab2list(mafia_game)) of
+        [CurGame | _] ->
+            mafia_db:set(?game_key, CurGame#mafia_game.game_num);
+        _ -> ok
+    end.
+
+sort_for_current(Gs) ->
+    IsOngGame =
+        fun(G) ->
+                G#mafia_game.thread_id /= ?undefined andalso
+                    G#mafia_game.game_end == ?undefined
+        end,
+    IsUpcGame =
+        fun(G) ->
+                G#mafia_game.thread_id == ?undefined andalso
+                    G#mafia_game.game_end == ?undefined
+        end,
+    Type =
+        fun(G) ->
+                case IsOngGame(G) of
+                    ?true -> 1;
+                    ?false ->
+                        case IsUpcGame(G) of
+                            ?true -> 2;
+                            ?false -> 3
+                        end
+                end
+        end,
+    TimeOrderF =
+        fun(?undefined, ?undefined) -> ?true; % true is A =< B
+           (?undefined, _) -> ?false;
+           (_, ?undefined) -> ?true;
+           (T1, T2) -> T1 =< T2
+        end,
+    SortF =
+        fun(G1, G2) ->
+                Type1 = Type(G1),
+                Type2 = Type(G2),
+                if Type1 < Type2 -> ?true;
+                   Type1 > Type2 -> ?false;
+                   Type1 < 3 ->
+                        %% order on oldest start time
+                        TimeOrderF(G1#mafia_game.start_time,
+                                   G2#mafia_game.start_time);
+                   Type1 == 3 ->
+                        %% order on last finished (use msg_id())
+                        element(2, G1#mafia_game.game_end)
+                            >= element(2, G2#mafia_game.game_end)
+                end
+        end,
+    lists:sort(SortF, Gs).
 
 %% -----------------------------------------------------------------------------
 
@@ -989,3 +1048,57 @@ stacktrace() ->
     catch throw:a ->
             erlang:get_stacktrace()
     end.
+
+%% -----------------------------------------------------------------------------
+%% EUNIT tests
+%% -----------------------------------------------------------------------------
+
+-include_lib("eunit/include/eunit.hrl").
+
+-define(OnG1,
+        #mafia_game{thread_id = 1,
+                    start_time = {{2000, 1, 2}, {0,0,0}},
+                    game_end = ?undefined}).
+
+-define(OnG2,
+        #mafia_game{thread_id = 1,
+                    start_time = {{2000, 1, 3}, {0,0,0}},
+                    game_end = ?undefined}).
+
+-define(UpG1,
+        #mafia_game{thread_id = ?undefined,
+                    start_time = {{2000, 2, 4}, {0,0,0}},
+                    game_end = ?undefined}).
+
+-define(UpG2,
+        #mafia_game{thread_id = ?undefined,
+                    start_time = {{2000, 2, 5}, {0,0,0}},
+                    game_end = ?undefined}).
+
+-define(FiG1,
+        #mafia_game{thread_id = 1,
+                    start_time = {{1999, 12, 1}, {0,0,0}},
+                    game_end = {11, 11}}).
+
+-define(FiG2,
+        #mafia_game{thread_id = 1,
+                    start_time = {{1999, 12, 2}, {0,0,0}},
+                    game_end = {11, 12}
+                   }).
+
+sort_for_current_test_() ->
+    [?_assertMatch([?FiG2, ?FiG1], sort_for_current([?FiG1, ?FiG2])),
+     ?_assertMatch([?FiG2, ?FiG1], sort_for_current([?FiG2, ?FiG1])),
+
+     ?_assertMatch([?OnG1, ?OnG2], sort_for_current([?OnG2, ?OnG1])),
+     ?_assertMatch([?OnG1, ?OnG2], sort_for_current([?OnG1, ?OnG2])),
+
+     ?_assertMatch([?UpG1, ?UpG2], sort_for_current([?UpG1, ?UpG2])),
+     ?_assertMatch([?UpG1, ?UpG2], sort_for_current([?UpG2, ?UpG1])),
+
+     ?_assertMatch(
+        [?OnG1, ?OnG2, ?UpG1, ?UpG2, ?FiG2, ?FiG1],
+        sort_for_current([?UpG2, ?UpG1, ?OnG1, ?OnG2, ?FiG1, ?FiG2]))
+    ].
+
+%% set_current_game

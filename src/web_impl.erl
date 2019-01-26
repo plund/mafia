@@ -32,6 +32,7 @@
 
 front_page(Sid, _Env, In) ->
     PQ = httpd:parse_query(In),
+    mafia_lib:set_current_game(),
     CurGameNum = mafia_db:getv(game_key),
     GameNum = get_gnum(get_arg(PQ, "g")),
     DocRoot = mafia_file:get_path(h_doc_root),

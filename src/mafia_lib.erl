@@ -12,6 +12,7 @@
          all_keys/1,
 
          set_current_game/0,
+         is_ongoing_game/1,
 
          rday/2,
          rgame/1,
@@ -187,23 +188,24 @@ set_current_game() ->
         _ -> ok
     end.
 
+is_ongoing_game(#mafia_game{thread_id = ?undefined}) -> ?false;
+is_ongoing_game(#mafia_game{game_end = GE}) -> GE == ?undefined;
+is_ongoing_game(GNum) when is_integer(GNum) ->
+    is_ongoing_game(hd(?rgame(GNum))).
+
+is_upcoming_game(#mafia_game{thread_id = Thid})
+  when Thid /= ?undefined -> ?false;
+is_upcoming_game(#mafia_game{game_end = GE})
+  when GE /= ?undefined -> ?false;
+is_upcoming_game(#mafia_game{}) -> ?true.
+
 sort_for_current(Gs) ->
-    IsOngGame =
-        fun(G) ->
-                G#mafia_game.thread_id /= ?undefined andalso
-                    G#mafia_game.game_end == ?undefined
-        end,
-    IsUpcGame =
-        fun(G) ->
-                G#mafia_game.thread_id == ?undefined andalso
-                    G#mafia_game.game_end == ?undefined
-        end,
     Type =
         fun(G) ->
-                case IsOngGame(G) of
+                case is_ongoing_game(G) of
                     ?true -> 1;
                     ?false ->
-                        case IsUpcGame(G) of
+                        case is_upcoming_game(G) of
                             ?true -> 2;
                             ?false -> 3
                         end
@@ -226,7 +228,7 @@ sort_for_current(Gs) ->
                         TimeOrderF(G1#mafia_game.start_time,
                                    G2#mafia_game.start_time);
                    Type1 == 3 ->
-                        %% order on last finished (use msg_id())
+                        %% order on last finished game
                         element(1, G1#mafia_game.game_end)
                             >= element(1, G2#mafia_game.game_end)
                 end

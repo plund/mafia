@@ -249,7 +249,10 @@ maybe_change_poll_int(S = #state{poll_timer = TRef,
     Mins = poll_minutes(GNum),
     if TMins == ?stopped -> {no_change, S};
        Mins == ?none ->
-            ?dbg({cancel_poll_timer, GNum, ?rgame(GNum)}),
+            case mafia_lib:is_ongoing_game(GNum) of
+                true -> ?dbg({cancel_poll_timer, GNum, ?rgame(GNum)});
+                _ -> ok
+            end,
             {cancelled, cancel_poll_timer(S)};
        TRef == ?undefined; Mins /= TMins ->
             set_poll_timer(S, Mins);

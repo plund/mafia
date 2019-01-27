@@ -227,8 +227,8 @@ sort_for_current(Gs) ->
                                    G2#mafia_game.start_time);
                    Type1 == 3 ->
                         %% order on last finished (use msg_id())
-                        element(2, G1#mafia_game.game_end)
-                            >= element(2, G2#mafia_game.game_end)
+                        element(1, G1#mafia_game.game_end)
+                            >= element(1, G2#mafia_game.game_end)
                 end
         end,
     lists:sort(SortF, Gs).
@@ -1083,7 +1083,7 @@ stacktrace() ->
 -define(FiG2,
         #mafia_game{thread_id = 1,
                     start_time = {{1999, 12, 2}, {0,0,0}},
-                    game_end = {11, 12}
+                    game_end = {12, 12}
                    }).
 
 sort_for_current_test_() ->

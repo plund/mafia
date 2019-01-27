@@ -104,6 +104,7 @@
 <html>
   <head>
     <meta http-equiv=\"Content-Type\" content=\"text/html;charset=utf-8\">
+    <META NAME=\"ROBOTS\" CONTENT=\"NOINDEX, NOFOLLOW\">
     <title>" ++ Title ++ "</title>
     <style>
        blockquote {

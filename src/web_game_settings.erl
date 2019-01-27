@@ -22,12 +22,12 @@ game_settings(Sid, Env, In) ->
     Button = proplists:get_value("button", PQ),
     GNum = proplists:get_value("game_num", PQ),
 
-    if GNum == ?undefined  ->
-            game_settings_list(Sid);
-
-       Button == ?BInitGame;
+    if Button == ?BInitGame;
        Button == ?BCreateGame  ->
             init_new_game(Sid, Env, PQ);
+
+       GNum == ?undefined  ->
+            game_settings_list(Sid);
 
        Button == ?BStart;
        Button == ?BStartNow ->
@@ -59,6 +59,7 @@ game_settings_list(Sid) ->
           "<form action=\"/e/web/game_settings\" method=post>\r\n"
           "<input name=button value=\"", ?BInitGame, "\" type=submit>\r\n"
           "</form>\r\n"
+          "<br><a href=\"/\">Back to Front Page</a>\r\n"
           "</td></tr>\r\n"]
         },
     B = web:deliver(Sid, Body),
@@ -241,6 +242,7 @@ game_settings_update(Sid, Env, Button, PQ) ->
              true -> ""
           end,
           "\r\n</form>\r\n"
+          "<br><a href=\"/\">Back to Front Page</a>\r\n"
           "</center>",
           settings_info(),
           "</td></tr>"]
@@ -951,6 +953,8 @@ game_settings_start(Sid, Env, _Button, PQ) ->
                          enter_user_pw_box(F)
                  end,
                  "\r\n</form>\r\n"
+                 "<center><br><a href=\"/\">Back to Front Page</a>"
+                 "</center>\r\n"
                  "</td></tr>"
                 ]
         end,

@@ -87,6 +87,14 @@ l2b(B) when is_binary(B) -> B.
 is_secure(Env) ->
     ?SECUREPORT == proplists:get_value(server_port, Env).
 
+%% Apache adds this to Env, showing the original source IP
+%% {http_x_forwarded_for,"2601:545:4401:9de0:a51e:5def:558a:7e4c, 66.249.83.16"},
+%% {http_user_agent,"Mozilla/5.0 (compatible; AhrefsBot/6.1; +http://ahrefs.co
+%% m/robot/)"},
+%% {http_x_forwarded_for,"54.36.148.205"},
+%% {http_x_forwarded_host,"mafia.peterlund.se"},
+%% {http_x_forwarded_server,"mafia.peterlund.se"},
+
 %% http_host is either "192.168.0.100:50667" or "mafia.peterlund.se"
 -spec host_info(Env) -> {boolean(), Host, ScriptName} when
       Env :: proplists:proplist(),

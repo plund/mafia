@@ -756,10 +756,14 @@ get_thread_section(#s{thread_id = ThId}, Body) ->
     {_, ThreadStr} = read_to_before(B2, ThEndStr),
     ThreadStr.
 
+-define('2secs', 2000).
+
 http_request(S2) ->
     ?inc_cnt(http_requests),
     A = erlang:monotonic_time(millisecond),
-    case httpc:request(get, {S2#s.url, []}, [], [{body_format, binary}]) of
+    HttpOpts = [{timeout, ?'2secs'}],
+    Opts = [{body_format, binary}],
+    case httpc:request(get, {S2#s.url, []}, HttpOpts, Opts) of
         {ok, {_StatusLine, _Headers, BodyBin}} ->
             ?inc_cnt(http_responses),
             B = erlang:monotonic_time(millisecond),
@@ -777,8 +781,9 @@ http_request(S2) ->
         {ok, _ReqId} ->
             ?inc_cnt(http_errors),
             {error, no_body};
-        {error, _Reason} ->
+        {error, Reason} ->
             ?inc_cnt(http_errors),
+            ?dbg({http_error, Reason}),
             {error, http_req}
     end.
 

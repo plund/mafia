@@ -926,7 +926,7 @@ analyse_body(S) when S#s.site == ?wd2 ->
             end,
     B8 = rm_to_after(B7, ["<div class=\"content\">"]),
     {B9, MsgRaw} = read_to_before(B8, "<div class=\"back2top\">"),
-    Msg2 = replace_blockquotes(MsgRaw),
+    Msg2 = shorten_blockquotes(MsgRaw),
     {_, Msg3} = read_to_before(Msg2, "<div style=\"float:"),
     Msg = strip(Msg3),
     analyse_body(S#s{body = B9}, {UserStr, MsgIdStr, UTime, Msg}).
@@ -976,23 +976,23 @@ analyse_body(S, User, MsgId, UTime, Msg) ->
 -record(bq, {loc = ?out, acc = "", loc_acc = "", cite_acc = "", lvl = 0,
              ref_user, ref_msgid, stack}).
 
-replace_blockquotes(Msg) ->
-    replace_blockquotes(Msg, #bq{}).
+shorten_blockquotes(Msg) ->
+    shorten_blockquotes(Msg, #bq{}).
 
-replace_blockquotes("<div>" ++ Msg, BQ = #bq{loc = L}) when L /= ?cite ->
-    replace_blockquotes(Msg, BQ);
-replace_blockquotes("</div>" ++ Msg, BQ = #bq{loc = L}) when L /= ?cite ->
-    replace_blockquotes(Msg, BQ);
-replace_blockquotes(?BlockQuote ++ Msg, BQ = #bq{loc = _Loc, lvl = Lvl}) ->
+shorten_blockquotes("<div>" ++ Msg, BQ = #bq{loc = L}) when L /= ?cite ->
+    shorten_blockquotes(Msg, BQ);
+shorten_blockquotes("</div>" ++ Msg, BQ = #bq{loc = L}) when L /= ?cite ->
+    shorten_blockquotes(Msg, BQ);
+shorten_blockquotes(?BlockQuote ++ Msg, BQ = #bq{loc = _Loc, lvl = Lvl}) ->
     BQnew = #bq{loc = ?bq_start, stack = BQ, lvl = Lvl + 1},
-    replace_blockquotes(Msg, BQnew);
-replace_blockquotes([$> | Msg], BQ = #bq{loc = ?bq_start}) ->
-    replace_blockquotes(Msg, BQ#bq{loc = ?bq_text});
-replace_blockquotes("<cite>" ++ Msg, BQ = #bq{loc = ?bq_text}) ->
-    replace_blockquotes(Msg, BQ#bq{loc = ?cite});
-replace_blockquotes("</cite>" ++ Msg, BQ = #bq{loc = ?cite}) ->
-    replace_blockquotes(Msg, BQ#bq{loc = ?bq_text});
-replace_blockquotes("<a href=\"./memberlist.php?mode=viewprofile&amp;u=" ++ Msg,
+    shorten_blockquotes(Msg, BQnew);
+shorten_blockquotes([$> | Msg], BQ = #bq{loc = ?bq_start}) ->
+    shorten_blockquotes(Msg, BQ#bq{loc = ?bq_text});
+shorten_blockquotes("<cite>" ++ Msg, BQ = #bq{loc = ?bq_text}) ->
+    shorten_blockquotes(Msg, BQ#bq{loc = ?cite});
+shorten_blockquotes("</cite>" ++ Msg, BQ = #bq{loc = ?cite}) ->
+    shorten_blockquotes(Msg, BQ#bq{loc = ?bq_text});
+shorten_blockquotes("<a href=\"./memberlist.php?mode=viewprofile&amp;u=" ++ Msg,
                     BQ = #bq{loc = ?cite, ref_user = ?undefined}) ->
     %% 77&amp;sid=9aec1ea2e15bf669516a01a921067d15">Durga</a> wrote:
     {match, [{_, N}]} =
@@ -1002,8 +1002,8 @@ replace_blockquotes("<a href=\"./memberlist.php?mode=viewprofile&amp;u=" ++ Msg,
         re:run(Msg2, "^(.*)(</a>).*", [{capture, [1]}, ungreedy, unicode]),
     RefUser = string:left(Msg2, N2),     %% "Durga"
     Msg3 = string:substr(Msg2, N2 + 1),
-    replace_blockquotes(Msg3, BQ#bq{ref_user = RefUser});
-replace_blockquotes("<a href=\"./viewtopic.php?p=" ++ Msg,
+    shorten_blockquotes(Msg3, BQ#bq{ref_user = RefUser});
+shorten_blockquotes("<a href=\"./viewtopic.php?p=" ++ Msg,
                     BQ = #bq{loc = ?cite, ref_msgid = ?undefined}) ->
 %%% <a href="./viewtopic.php?p=11109&amp;sid=9aec1ea2e15bf669516a01a921067d15\
 %%% #p11109" data-post-id="11109" onclick="if(document.getElementById(hash.\
@@ -1014,14 +1014,14 @@ replace_blockquotes("<a href=\"./viewtopic.php?p=" ++ Msg,
     {match, [{N2a, N2b}]} =
         re:run(Msg2, ".*(</a>)", [{capture, [1]}, ungreedy, unicode]),
     Msg3 = string:substr(Msg2, N2a + N2b + 1),
-    replace_blockquotes(Msg3, BQ#bq{ref_msgid = RefIdStr});
-replace_blockquotes("<div" ++ Msg,
+    shorten_blockquotes(Msg3, BQ#bq{ref_msgid = RefIdStr});
+shorten_blockquotes("<div" ++ Msg,
                     BQ = #bq{loc = ?cite, ref_msgid = ?undefined}) ->
     {match, [{Na, Nb}]} =
         re:run(Msg, ".*(</div>)", [{capture, [1]}, ungreedy, unicode]),
     Msg2 = string:substr(Msg, Na + Nb + 1),
-    replace_blockquotes(Msg2, BQ);
-replace_blockquotes(?BQ_END ++ Msg,
+    shorten_blockquotes(Msg2, BQ);
+shorten_blockquotes(?BQ_END ++ Msg,
                     #bq{acc = Acc,
                         loc_acc = LocAcc,
                         cite_acc = CiteAcc,
@@ -1031,7 +1031,7 @@ replace_blockquotes(?BQ_END ++ Msg,
                         lvl = Lvl}
                    ) ->
     if Lvl > 1 ->
-            replace_blockquotes(Msg, BQprev);
+            shorten_blockquotes(Msg, BQprev);
        true ->
             User = if is_list(RefUser) -> ?lrev(RefUser); true -> "" end,
             Link =
@@ -1044,22 +1044,21 @@ replace_blockquotes(?BQ_END ++ Msg,
                    true -> ""
                 end,
             LocAccStrip = strip_br_white(LocAcc),
-            {CiteApp, QText} =
+            QText = limit_clean_r(LocAccStrip),
+            CiteApp =
                 if is_list(RefUser), is_list(RefIdStr) ->
-                        {[?lrev(Link), " :"], limit_clean_r(LocAccStrip)};
+                        [?lrev(Link), " :"];
                    is_list(RefUser) ->
-                        {[?lrev("<b>"),
-                          ?lrev("<cite>"), User, CiteAcc,
-                          ?lrev("</cite>"),
-                          ?lrev("</b><br>")],
-                         limit_clean_r(LocAccStrip)};
+                        [?lrev("<b>"),
+                         ?lrev("<cite>"), User, CiteAcc,
+                         ?lrev("</cite>"),
+                         ?lrev("</b><br>")];
                    true ->
-                        {[?lrev("<b>"),
-                          ?lrev("<cite>"), User, CiteAcc, ?lrev(Link),
-                          ?lrev("</cite>"),
-                          ?lrev("</b><br>")
-                         ],
-                         limit_clean_r(LocAccStrip)}
+                        [?lrev("<b>"),
+                         ?lrev("<cite>"), User, CiteAcc, ?lrev(Link),
+                         ?lrev("</cite>"),
+                         ?lrev("</b><br>")
+                        ]
                 end,
             Acc2 = preapp(BQprev#bq.acc,
                           [?lrev(?BlockQuote),
@@ -1071,20 +1070,20 @@ replace_blockquotes(?BQ_END ++ Msg,
                                ?lrev("\"</i>"),
                                ?lrev(?BQ_END)]),
             BQ2 = BQprev#bq{acc = Acc2},
-            replace_blockquotes(Msg, BQ2)
+            shorten_blockquotes(Msg, BQ2)
     end;
-replace_blockquotes([H | T], BQ = #bq{loc = ?cite}) ->
+shorten_blockquotes([H | T], BQ = #bq{loc = ?cite}) ->
     BQ2 = BQ#bq{cite_acc = [H | BQ#bq.cite_acc]},
-    replace_blockquotes(T, BQ2);
-replace_blockquotes([H | T], BQ = #bq{loc = ?bq_text}) ->
+    shorten_blockquotes(T, BQ2);
+shorten_blockquotes([H | T], BQ = #bq{loc = ?bq_text}) ->
     BQ2 = BQ#bq{loc_acc = [H | BQ#bq.loc_acc]},
-    replace_blockquotes(T, BQ2);
-replace_blockquotes([H | T], BQ = #bq{loc = ?out}) ->
+    shorten_blockquotes(T, BQ2);
+shorten_blockquotes([H | T], BQ = #bq{loc = ?out}) ->
     BQ2 = BQ#bq{acc = [H | BQ#bq.acc]},
-    replace_blockquotes(T, BQ2);
-replace_blockquotes([_ | T], BQ) ->
-    replace_blockquotes(T, BQ);
-replace_blockquotes([], #bq{acc = Acc}) ->
+    shorten_blockquotes(T, BQ2);
+shorten_blockquotes([_ | T], BQ) ->
+    shorten_blockquotes(T, BQ);
+shorten_blockquotes([], #bq{acc = Acc}) ->
     ?lrev(Acc).
 
 preapp(Acc, [H|T]) -> preapp(H ++ Acc, T);
@@ -1095,7 +1094,7 @@ preapp(Acc, []) -> Acc.
 %% in and out are both reverted
 limit_clean_r(MsgR) ->
     Msg = ?lrev(MsgR),
-    Tags = #{b => ?out, i => ?out, a => ?out},
+    Tags = #{tags => []},
     limit_clean_r(Msg, ?out, ?NUM_QUOTE_CHAR, Tags, "").
 
 limit_clean_r("", _, _, Tags, Acc) -> maybe_add_tags(Tags, "", Acc);
@@ -1111,27 +1110,33 @@ limit_clean_r([H | T], ?in, Num, Tags, Acc) ->
 limit_clean_r([H | T], ?out, Num, Tags, Acc) ->
     limit_clean_r(T, ?out, Num - 1, Tags, [H | Acc]).
 
-maybe_add_tags(#{b := B, i := I, a := A}, Dots, Acc) ->
+maybe_add_tags(#{tags := Tags}, Dots, Acc) ->
     TagEnds =
-        if B == ?in -> ?lrev("</b>") ; true -> "" end ++
-        if I == ?in -> ?lrev("</i>") ; true -> "" end ++
-        if A == ?in -> ?lrev("</a>") ; true -> "" end,
+        lists:foldl(fun(b, Acc2) -> ?lrev("</b>") ++ Acc2;
+                       (i, Acc2) -> ?lrev("</i>") ++ Acc2;
+                       (a, Acc2) -> ?lrev("</a>") ++ Acc2;
+                       (strong, Acc2) -> ?lrev("</strong>") ++ Acc2
+                    end,
+                    "",
+                    Tags),
     Dots ++ TagEnds ++ Acc.
 
-check_tags_beg(Tags, T) ->
-    case T of
-        "b>" ++ _ -> Tags#{b => ?in};
-        "i>" ++ _ -> Tags#{i => ?in};
-        "a " ++ _ -> Tags#{a => ?in};
-        "a>" ++ _ -> Tags#{a => ?in};
+check_tags_beg(Tags = #{tags := Ts}, Cont) ->
+    case Cont of
+        "b>" ++ _ -> Tags#{tags => [ b | Ts]};
+        "i>" ++ _ -> Tags#{tags => [ i | Ts]};
+        "a " ++ _ -> Tags#{tags => [ a | Ts]};
+        "a>" ++ _ -> Tags#{tags => [ a | Ts]};
+        "strong" ++ _ -> Tags#{tags => [ strong | Ts]};
         _ -> Tags
     end.
 
-check_tags_end(Tags, Acc) ->
-    case ?lrev(Acc) of
-        "</b" ++ _ -> Tags#{b => ?out};
-        "</i" ++ _ -> Tags#{i => ?out};
-        "</a" ++ _ -> Tags#{a => ?out};
+check_tags_end(Tags = #{tags := Ts}, Acc) ->
+    case {?lrev(Acc), Ts} of
+        {"</b" ++ _, [ b | Ts2]} -> Tags#{tags => Ts2};
+        {"</i" ++ _, [ i | Ts2]} -> Tags#{tags => Ts2};
+        {"</a" ++ _, [ a | Ts2]} -> Tags#{tags => Ts2};
+        {"</strong" ++ _, [ strong | Ts2]} -> Tags#{tags => Ts2};
         _ -> Tags
     end.
 

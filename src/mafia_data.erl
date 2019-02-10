@@ -926,10 +926,19 @@ analyse_body(S) when S#s.site == ?wd2 ->
             end,
     B8 = rm_to_after(B7, ["<div class=\"content\">"]),
     {B9, MsgRaw} = read_to_before(B8, "<div class=\"back2top\">"),
+    %% if MsgIdStr == "58897" -> put(xxx, true); true -> ok end,
     Msg2 = shorten_blockquotes(MsgRaw),
+    %% if MsgIdStr == "58897" -> erase(xxx); true -> ok end,
     {_, Msg3} = read_to_before(Msg2, "<div style=\"float:"),
     Msg = strip(Msg3),
     analyse_body(S#s{body = B9}, {UserStr, MsgIdStr, UTime, Msg}).
+
+%% mydeb(X) ->
+%%     case get(xxx) of
+%%         true ->
+%%             ?dbg(X);
+%%         _ -> ok
+%%     end.
 
 %% /2
 analyse_body(S, {"", _MsgIdStr, _UTime, _Msg}) -> S;
@@ -1099,22 +1108,25 @@ limit_clean_r(MsgR) ->
 
 limit_clean_r("", _, _, Tags, Acc) -> maybe_add_tags(Tags, "", Acc);
 limit_clean_r(_, _, 0, Tags, Acc) -> maybe_add_tags(Tags, "...", Acc);
-limit_clean_r("<" ++ T, ?out, Num, Tags, Acc) ->
+limit_clean_r("<" ++ T, _, Num, Tags, Acc) ->
     Tags2 = check_tags_beg(Tags, T),
     limit_clean_r(T, ?in, Num, Tags2, [$< | Acc]);
-limit_clean_r(">" ++ T, ?in, Num, Tags, Acc) ->
+limit_clean_r(">" ++ T, _, Num, Tags, Acc) ->
     Tags2 = check_tags_end(Tags, Acc),
     limit_clean_r(T, ?out, Num, Tags2, [$> | Acc]);
-limit_clean_r([H | T], ?in, Num, Tags, Acc) ->
-    limit_clean_r(T, ?in, Num, Tags, [H | Acc]);
-limit_clean_r([H | T], ?out, Num, Tags, Acc) ->
-    limit_clean_r(T, ?out, Num - 1, Tags, [H | Acc]).
+limit_clean_r([H | T], InOut, Num, Tags, Acc) ->
+    Num2 = case InOut of
+               ?in -> Num;
+               ?out -> Num - 1
+           end,
+    limit_clean_r(T, InOut, Num2, Tags, [H | Acc]).
 
 maybe_add_tags(#{tags := Tags}, Dots, Acc) ->
     TagEnds =
         lists:foldl(fun(b, Acc2) -> ?lrev("</b>") ++ Acc2;
                        (i, Acc2) -> ?lrev("</i>") ++ Acc2;
                        (a, Acc2) -> ?lrev("</a>") ++ Acc2;
+                       (span, Acc2) -> ?lrev("</span>") ++ Acc2;
                        (strong, Acc2) -> ?lrev("</strong>") ++ Acc2
                     end,
                     "",
@@ -1127,16 +1139,19 @@ check_tags_beg(Tags = #{tags := Ts}, Cont) ->
         "i>" ++ _ -> Tags#{tags => [ i | Ts]};
         "a " ++ _ -> Tags#{tags => [ a | Ts]};
         "a>" ++ _ -> Tags#{tags => [ a | Ts]};
+        "span" ++ _ -> Tags#{tags => [ span | Ts]};
         "strong" ++ _ -> Tags#{tags => [ strong | Ts]};
         _ -> Tags
     end.
 
 check_tags_end(Tags = #{tags := Ts}, Acc) ->
-    case {?lrev(Acc), Ts} of
-        {"</b" ++ _, [ b | Ts2]} -> Tags#{tags => Ts2};
-        {"</i" ++ _, [ i | Ts2]} -> Tags#{tags => Ts2};
-        {"</a" ++ _, [ a | Ts2]} -> Tags#{tags => Ts2};
-        {"</strong" ++ _, [ strong | Ts2]} -> Tags#{tags => Ts2};
+    %% mydeb({Acc, Ts}),
+    case {Acc, Ts} of
+        {"b/<" ++ _, [ b | Ts2]} -> Tags#{tags => Ts2};
+        {"i/<" ++ _, [ i | Ts2]} -> Tags#{tags => Ts2};
+        {"a/<" ++ _, [ a | Ts2]} -> Tags#{tags => Ts2};
+        {"naps/<" ++ _, [ span | Ts2]} -> Tags#{tags => Ts2};
+        {"gnorts/<" ++ _, [ strong | Ts2]} -> Tags#{tags => Ts2};
         _ -> Tags
     end.
 

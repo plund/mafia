@@ -586,7 +586,8 @@ update_stat(G = #mafia_game{}, M = #message{}) ->
     Key1 = {UserB, GNum},
     Key2 = {UserB, GNum, Phase},
     Msg = mafia_lib:remove_blockquotes(
-            unicode:characters_to_list(MsgBin)),
+            mafia_lib:escapes_to_unicode(
+              unicode:characters_to_list(MsgBin))),
     Count = #stat{msg_ids = [MsgId],
                   num_chars = length(Msg),
                   num_words = length(string:lexemes(Msg , ?WordBoundaryChars)),
@@ -1051,14 +1052,14 @@ replace_blockquotes(?BQ_END ++ Msg,
                           ?lrev("<cite>"), User, CiteAcc,
                           ?lrev("</cite>"),
                           ?lrev("</b><br>")],
-                         LocAccStrip};
+                         limit_clean_r(LocAccStrip)};
                    true ->
                         {[?lrev("<b>"),
                           ?lrev("<cite>"), User, CiteAcc, ?lrev(Link),
                           ?lrev("</cite>"),
                           ?lrev("</b><br>")
                          ],
-                         LocAccStrip}
+                         limit_clean_r(LocAccStrip)}
                 end,
             Acc2 = preapp(BQprev#bq.acc,
                           [?lrev(?BlockQuote),
@@ -1091,22 +1092,50 @@ preapp(Acc, []) -> Acc.
 
 -define(NUM_QUOTE_CHAR, 120).
 
+%% in and out are both reverted
 limit_clean_r(MsgR) ->
     Msg = ?lrev(MsgR),
-    %% return reverted
-    limit_clean_r(Msg, ?out, ?NUM_QUOTE_CHAR, "").
+    Tags = #{b => ?out, i => ?out, a => ?out},
+    limit_clean_r(Msg, ?out, ?NUM_QUOTE_CHAR, Tags, "").
 
-limit_clean_r("", _, _, Acc) -> Acc;
-limit_clean_r(_, _, 0, Acc) -> "..." ++ Acc;
-limit_clean_r("<" ++ T, ?out, Num, Acc) ->
-    limit_clean_r(T, ?in, Num, [$< | Acc]);
-limit_clean_r(">" ++ T, ?in, Num, Acc) ->
-    limit_clean_r(T, ?out, Num, [$> | Acc]);
-limit_clean_r([H | T], ?in, Num, Acc) ->
-    limit_clean_r(T, ?in, Num, [H | Acc]);
-limit_clean_r([H | T], ?out, Num, Acc) ->
-    limit_clean_r(T, ?out, Num - 1, [H | Acc]).
+limit_clean_r("", _, _, Tags, Acc) -> maybe_add_tags(Tags, "", Acc);
+limit_clean_r(_, _, 0, Tags, Acc) -> maybe_add_tags(Tags, "...", Acc);
+limit_clean_r("<" ++ T, ?out, Num, Tags, Acc) ->
+    Tags2 = check_tags_beg(Tags, T),
+    limit_clean_r(T, ?in, Num, Tags2, [$< | Acc]);
+limit_clean_r(">" ++ T, ?in, Num, Tags, Acc) ->
+    Tags2 = check_tags_end(Tags, Acc),
+    limit_clean_r(T, ?out, Num, Tags2, [$> | Acc]);
+limit_clean_r([H | T], ?in, Num, Tags, Acc) ->
+    limit_clean_r(T, ?in, Num, Tags, [H | Acc]);
+limit_clean_r([H | T], ?out, Num, Tags, Acc) ->
+    limit_clean_r(T, ?out, Num - 1, Tags, [H | Acc]).
 
+maybe_add_tags(#{b := B, i := I, a := A}, Dots, Acc) ->
+    TagEnds =
+        if B == ?in -> ?lrev("</b>") ; true -> "" end ++
+        if I == ?in -> ?lrev("</i>") ; true -> "" end ++
+        if A == ?in -> ?lrev("</a>") ; true -> "" end,
+    Dots ++ TagEnds ++ Acc.
+
+check_tags_beg(Tags, T) ->
+    case T of
+        "b>" ++ _ -> Tags#{b => ?in};
+        "i>" ++ _ -> Tags#{i => ?in};
+        "a " ++ _ -> Tags#{a => ?in};
+        "a>" ++ _ -> Tags#{a => ?in};
+        _ -> Tags
+    end.
+
+check_tags_end(Tags, Acc) ->
+    case ?lrev(Acc) of
+        "</b" ++ _ -> Tags#{b => ?out};
+        "</i" ++ _ -> Tags#{i => ?out};
+        "</a" ++ _ -> Tags#{a => ?out};
+        _ -> Tags
+    end.
+
+%% Remove "<br>" and white space in both ends of string (but not elsewhere)
 %% Msg comes in and is returned reverted.
 strip_br_white(MsgR) ->
     MsgR2 = strip_br_white_b(MsgR),
@@ -1119,7 +1148,6 @@ strip_br_white_f(Msg) -> Msg.
 strip_br_white_b([H | T]) when H =< $\s -> strip_br_white_b(T);
 strip_br_white_b(">rb<" ++ Msg) -> strip_br_white_b(Msg);
 strip_br_white_b(Msg) -> Msg.
-
 
 rm_to_after(Str, []) -> Str;
 rm_to_after(Str, [Search|T]) when is_list(Search) ->

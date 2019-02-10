@@ -22,7 +22,6 @@
          rmessI/1,
 
          is_alpha_num/1,
-         html2txt/1,
          remove_blockquotes/1,
 
          get_unicode_msg/1,
@@ -376,23 +375,6 @@ is_alpha_num(C) when C =< $Z -> ?true;
 is_alpha_num(C) when C < $a -> ?false;
 is_alpha_num(C) when C =< $z -> ?true;
 is_alpha_num(C) when C > $z -> ?false.
-
-%% skip unicode for a while
-html2txt("&gt;" ++ T) -> [$> | html2txt(T)];
-html2txt("&lt;" ++ T) -> [$< | html2txt(T)];
-html2txt("&amp;" ++ T) -> [$& | html2txt(T)];
-html2txt("&nbsp;" ++ T) -> [$\s | html2txt(T)];
-html2txt("&acute;" ++ T) -> [$´ | html2txt(T)];
-html2txt("&lsquo;" ++ T) -> [$' | html2txt(T)];
-html2txt("&rsquo;" ++ T) -> [$' | html2txt(T)];
-html2txt("&ldquo;" ++ T) -> [$\" | html2txt(T)];
-html2txt("&rdquo;" ++ T) -> [$\" | html2txt(T)];
-html2txt("&hellip;" ++ T) -> [$\., $\., $\. | html2txt(T)];
-html2txt("<br>\n" ++ T) -> [$\n | html2txt(T)];
-html2txt("<br>" ++ T) -> [$\n | html2txt(T)];
-html2txt("<br />" ++ T) ->  [$\n | html2txt(T)];
-html2txt([H | T]) -> [H | html2txt(T)];
-html2txt("") -> "".
 
 remove_blockquotes(Msg) -> rm_bq(Msg, 0).
 rm_bq("<blockquote" ++ Msg, Lvl)  -> rm_bq(Msg, Lvl + 1);

@@ -1312,14 +1312,15 @@ print_message_full(PP = #pp{}) ->
               "Time  : ~s\n"
               "Thread: ~s\n"
               "Msg id: ~s\n"
-              "Wrote : \"~s\"\n"
+              "Wrote : \"~ts\"\n"
               "\n",
               [?b2l(M#message.user_name),
                ?i2l(M#message.page_num),
                print_timeI(PP#pp{t_mode = ?long}),
                ?i2l(M#message.thread_id),
                ?i2l(?e1(M#message.msg_key)),
-               mafia_lib:html2txt(?b2l(M#message.message))
+               mafia_lib:escapes_to_unicode(
+                 unicode:characters_to_list(M#message.message))
               ]).
 
 %% -----------------------------------------------------------------------------
@@ -1331,8 +1332,8 @@ print_message_summary(PP = #pp{}) ->
     #pp{message = M} = PP,
     Msg = string:trim(
             rm_nl(
-              mafia_lib:html2txt(
-                mafia_lib:remove_blockquotes(
+              mafia_lib:remove_blockquotes(
+                mafia_lib:escapes_to_unicode(
                   unicode:characters_to_list(M#message.message))))),
     MsgLen = length(Msg),
     Max = 80,

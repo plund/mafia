@@ -533,7 +533,11 @@ is_ready_to_go(gms, CurG, {_, G, Es}) ->
 is_ready_to_go(thread_id, _, {_, G, Es}) ->
     {true, G, Es};
 is_ready_to_go(signup_thid, _, {_, G, Es}) ->
-    {true, G, Es};
+    IsOk = ?undefined /= G#mafia_game.signup_thid,
+    Es2 = if IsOk -> Es;
+             true -> Es ++ [{error, "Parameter 'signup_thid' must be set."}]
+          end,
+    {IsOk, G, Es2};
 is_ready_to_go(name, _, {_, G, Es}) ->
     IsOk = ?undefined /= G#mafia_game.name,
     Es2 = if IsOk -> Es;
@@ -686,47 +690,111 @@ pr_user_list({Field, GmStr}, {G, Es}) ->
                           players_rem = Players}, Es2}
     end.
 
-min_thid(#mafia_game{site = ?webDip}) -> ?MinThId;
-min_thid(#mafia_game{site = ?vDip}) -> ?MinThIdvDip;
-min_thid(#mafia_game{site = ?wd2}) -> 0.
+min_thid(#mafia_game{site = Site}) -> min_thid(Site);
+min_thid(?webDip) -> ?MinThId;
+min_thid(?vDip) -> ?MinThIdvDip;
+min_thid(?wd2) ->
+    %% check max value of signup_thid and thread_id in games older than 2 weeks
+    Ginfo =
+        [#{utc_day => mafia_time:date2utc_day(Date),
+           game_th => T,
+           signup_th => S}
+         || #mafia_game{site = ?wd2, thread_id = T,
+                        signup_thid = S, start_time = {Date,_}}
+                <- ets:tab2list(mafia_game)],
+    Today = mafia_time:utc_day1970(),
+    Gs2weeksOld = [G || G = #{utc_day := GStart} <- Ginfo,
+                        GStart < Today - 14],
+    MinThId =
+        lists:foldl(
+          fun(#{signup_th := S, game_th := T}, Top) ->
+                  Top2 = if is_integer(S), S > Top -> S; true -> Top end,
+                  if is_integer(T), T > Top2 -> T; true -> Top2 end
+          end,
+          0,
+          Gs2weeksOld),
+    ?dbg({min_thid, MinThId}),
+    MinThId.
 
-max_thid(#mafia_game{site = ?webDip}) -> ?MaxThId;
-max_thid(#mafia_game{site = ?vDip}) -> ?MaxThIdvDip;
-max_thid(#mafia_game{site = ?wd2}) -> 99999.
+max_thid(?webDip) -> {?MaxThId, []};
+max_thid(?vDip) -> {?MaxThIdvDip, []};
+max_thid(?wd2) ->
+    case mafia_data:get_wd2_threads() of
+        no_thread_ids_found = Wd2Threads ->
+            {0, Wd2Threads};
+        Wd2Threads ->
+            MaxThId = lists:max([ThId || {ThId, _ThTitle} <- Wd2Threads]),
+            ?dbg({max_thid, MaxThId}),
+            {MaxThId, Wd2Threads}
+    end.
+
+show_threads() ->
+    show_threads(mafia_data:get_wd2_threads()).
+
+show_threads(no_thread_ids_found) ->
+    "No game forum threads found. Please try again.";
+show_threads(Threads) ->
+    ["The last 5 game forum threads are:<br>",
+     string:left([[?i2l(Id), " - ", Title, "<br>"]
+                  || {Id, Title} <- Threads], 5)
+    ].
+
+check_thread_id(ThId, MinThId, Site, ThreadIdName) ->
+    if ThId < MinThId ->
+            [{error, [ThreadIdName, " has a too low value. It needs to be "
+                      "some value higher than ", ?i2l(MinThId - 1)]},
+             {info, show_threads()}];
+       true ->
+            {MaxThId, Threads} = max_thid(Site),
+            if ThId > MaxThId ->
+                    [{error, [ThreadIdName, " has a too high value. It needs "
+                              "to be some value lower than ",
+                              ?i2l(MaxThId + 1)]},
+                     {info, show_threads(Threads)}];
+               true ->
+                    case {Site,
+                          lists:member(ThId, [T || {T, _} <- Threads])} of
+                        {?wd2, ?false} ->
+                            [{error, [ThreadIdName, " must be a thread on "
+                                      "the game forum."]},
+                             {info, show_threads(Threads)}];
+                        _ ->
+                            thread_id_ok
+                    end
+            end
+    end.
 
 pr_int({Field, IntStr}, {G, Es}) ->
-    MinThId = min_thid(G),
-    MaxThId = max_thid(G),
     case catch ?l2i(IntStr) of
         {'EXIT', _} ->
             {G, Es ++ [{error, Field ++ ": " ++ IntStr ++
                             " is not and integer."}]};
-        Int when (Field == "signup_thid") and
-                 (Int < MinThId) ->
-            {G, Es ++ [{error, Field ++ ": " ++ IntStr ++
-                            " is too low."}]};
-        Int when (Field == "signup_thid") and
-                 (Int > MaxThId) ->
-            {G, Es ++ [{error, Field ++ ": " ++ IntStr ++
-                            " is too high."}]};
-        Int when ((Field == "day_hours")
-                  or (Field == "night_hours")) and
-                 (Int < 0) ->
-            {G, Es ++ [{error, Field ++ ": " ++ IntStr ++
-                            " is negative"}]};
-        Int when (Field == "time_zone") and
-                 ((Int < -12) or (Int > 12)) ->
-            {G, Es ++ [{error, Field ++ ": " ++ IntStr ++
-                            " must be an integer between -12 and +12"}]};
         Int ->
-            G2 = case Field of
-                     "signup_thid" -> G#mafia_game{signup_thid = Int};
-                     "day_hours" -> G#mafia_game{day_hours = Int};
-                     "night_hours" -> G#mafia_game{night_hours = Int};
-                     "time_zone" -> G#mafia_game{time_zone = Int}
-                 end,
-            {G2, Es}
+            pr_int2({Field, Int}, {G, Es})
     end.
+
+pr_int2({"signup_thid" = Field, Int}, {G, Es}) ->
+    case check_thread_id(Int, min_thid(G), G#mafia_game.site, Field) of
+        thread_id_ok ->
+            G2 = G#mafia_game{signup_thid = Int},
+            {G2, Es};
+        ErrMsgs ->
+            {G, Es ++ ErrMsgs}
+    end;
+pr_int2({Field, Int}, {G, Es})
+  when Field == "day_hours" orelse Field == "night_hours",
+       Int < 0 ->
+    {G, Es ++ [{error, Field ++ ": " ++ ?i2l(Int) ++ " is negative"}]};
+pr_int2({Field = "time_zone", Int}, {G, Es})
+  when Int < -12; Int > 12 ->
+            {G, Es ++ [{error, Field ++ ": " ++ ?i2l(Int) ++
+                            " must be an integer between -12 and +12"}]};
+pr_int2({"day_hours", Int}, {G, Es}) ->
+    {G#mafia_game{day_hours = Int}, Es};
+pr_int2({"night_hours", Int}, {G, Es}) ->
+    {G#mafia_game{night_hours = Int}, Es};
+pr_int2({"time_zone", Int}, {G, Es}) ->
+    {G#mafia_game{time_zone = Int}, Es}.
 
 pr_start_time({F, TimeStr}, {G, Es}) ->
     %% 2017-03-26 18:00:00
@@ -846,7 +914,7 @@ game_settings_start(Sid, Env, _Button, PQ) ->
     User = web_impl:get_arg(PQ, "user"),
     Pass = web_impl:get_arg(PQ, "password"),
     if IsSecure ->
-            ?dbg({start, user_password, User, Pass});
+            ?dbg({start, user_password, User, "*****"});
        not IsSecure -> ok
     end,
     ThreadId = web_impl:get_arg(PQ, "thread_id"),
@@ -978,27 +1046,25 @@ maybe_set_thread_id(#mafia_game{signup_thid = SuId}, _, _, _)
   when not is_integer(SuId) ->
     {false,
      [{error, "The signup thread id must be set before starting the game"}]};
-maybe_set_thread_id(#mafia_game{signup_thid = SuId},
-                    _, _, ThId)
-  when ThId =< SuId ->
-    {false,
-     [{error, "Game thread is not a later thread than the sign-up thread"}]};
 maybe_set_thread_id(G, User, Pass, ThreadId) ->
     case is_user_and_password_ok(G, User, Pass) of
         true ->
-            msti2(G,
-                  ThreadId,
-                  min_thid(G),
-                  max_thid(G));
+            msti(G, ThreadId);
         false ->
-            [{error, "This combination of user and password does not exist."}]
+            {false,
+             [{error, "This combination of user and password "
+               "does not exist."}]}
     end.
 
-msti2(_G, ThId, MinThId, _) when ThId =< MinThId ->
-    {false, [{error, "Thread id has a too low value"}]};
-msti2(_G, ThId, _, MaxThId) when ThId >  MaxThId ->
-    {false, [{error, "Thread id has a too high value"}]};
-msti2(G, ThId, _, _) ->
+msti(G, ThId) ->
+    MinThId = 1 + max(min_thid(G), G#mafia_game.signup_thid),
+    case check_thread_id(ThId, MinThId, G#mafia_game.site, "Thread id") of
+        thread_id_ok ->
+            msti2(G, ThId);
+        Error -> {false, Error}
+    end.
+
+msti2(G, ThId) ->
     {IsReady, G2, Es} = is_ready_to_go(G, {G, []}),
     if IsReady ->
             %% START GAME!

@@ -23,7 +23,9 @@
          sum_stat/2
         ]).
 
-%% utilities
+-export([get_wd2_threads/0,
+         get_wd2_threads/1]).
+
 -export([update_stat/2,
          compress_txt_files/0,
          iterate_all_game_msgs/3,
@@ -58,6 +60,38 @@
          last_msg_time,
          last_msg_id
         }).
+
+-spec get_wd2_threads() -> [{ThId    :: integer(),
+                             ThTitle :: string()}]
+                               | no_thread_ids_found.
+get_wd2_threads() ->
+    GameForumPage =
+        os:cmd("curl --max-time 5 "
+               "http://webdiplomacy.net/contrib/phpBB3/viewforum.php?f=4 "
+               "2> /dev/null | grep 'class=\"topictitle\"'"),
+    try get_wd2_threads(GameForumPage) of
+        ThLinks -> ThLinks
+    catch EType : Error ->
+            ?dbg({get_wd2_threads, EType, Error, GameForumPage}),
+            no_thread_ids_found
+    end.
+
+-define(Wd2GameForumId, 4).
+
+get_wd2_threads(GameForumPage) ->
+    Lines = string:lexemes(GameForumPage, "\n"),
+    FTTs =
+        [begin
+             [_, A0] = string:split(L, "viewtopic.php?f="),
+             [FIdStr, A1] = string:split(A0, "&amp;t="),
+             [ThIdStr, A2] = string:split(A1, "&amp;"),
+             [_, A3] = string:split(A2, "topictitle\">"),
+             [ThTitle, _] = string:split(A3, "</a>"),
+             {?l2i(FIdStr), ?l2i(ThIdStr), ThTitle}
+         end || L <- Lines],
+    lists:reverse(
+      lists:sort([{ThId, Title} || {FId, ThId, Title} <- FTTs,
+                                   FId == ?Wd2GameForumId])).
 
 %% -----------------------------------------------------------------------------
 %% MANUAL
@@ -1106,8 +1140,8 @@ limit_clean_r(MsgR) ->
     Tags = #{tags => []},
     limit_clean_r(Msg, ?out, ?NUM_QUOTE_CHAR, Tags, "").
 
-limit_clean_r("", _, _, Tags, Acc) -> maybe_add_tags(Tags, "", Acc);
-limit_clean_r(_, _, 0, Tags, Acc) -> maybe_add_tags(Tags, "...", Acc);
+limit_clean_r("", _, _, Tags, Acc) -> maybe_add_tags(Tags#{dots => ""}, Acc);
+limit_clean_r(_, _, 0, Tags, Acc) -> maybe_add_tags(Tags#{dots => "..."}, Acc);
 limit_clean_r("<" ++ T, _, Num, Tags, Acc) ->
     Tags2 = check_tags_beg(Tags, T),
     limit_clean_r(T, ?in, Num, Tags2, [$< | Acc]);
@@ -1121,7 +1155,7 @@ limit_clean_r([H | T], InOut, Num, Tags, Acc) ->
            end,
     limit_clean_r(T, InOut, Num2, Tags, [H | Acc]).
 
-maybe_add_tags(#{tags := Tags}, Dots, Acc) ->
+maybe_add_tags(#{tags := Tags, dots := Dots}, Acc) ->
     TagEnds =
         lists:foldl(fun(b, Acc2) -> ?lrev("</b>") ++ Acc2;
                        (i, Acc2) -> ?lrev("</i>") ++ Acc2;

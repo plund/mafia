@@ -398,6 +398,11 @@ game_time_zone(#mafia_game{time_zone = TZ}) -> ?i2l(TZ).
 game_dst_zone(#mafia_game{dst_zone = ?undefined}) -> ?UNSET;
 game_dst_zone(#mafia_game{dst_zone = DstZone}) -> ?a2l(DstZone).
 
+-type response() :: {info | error, list()}.
+-spec maybe_update_game(string(), string(), string(), string()) ->
+                               {IsRunning :: boolean(),
+                                IsStartAlllowed :: boolean(),
+                                [response()]}.
 maybe_update_game(GNStr, User, Pass, GameSett) ->
     GNum = ?l2i(GNStr),
     G = hd(?rgame(GNum)),
@@ -461,7 +466,7 @@ maybe_update_game2(G, User, Pass, GameSett) ->
     Es4 = Es3 ++ UpdateInfo,
     {false, IsReady, Es4}.
 
-mug0(_G, User, Pass, _GameSett)
+mug0(_, User, Pass, _)
   when User == ""; Pass == "" ->
     Es = if User == "" -> [{warning, "No User Given."}];
             true -> []

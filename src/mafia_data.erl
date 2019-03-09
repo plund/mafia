@@ -66,7 +66,7 @@
                                | no_thread_ids_found.
 get_wd2_threads() ->
     GameForumPage =
-        os:cmd("curl --max-time 5 "
+        os:cmd("curl --max-time 10 "
                "http://webdiplomacy.net/contrib/phpBB3/viewforum.php?f=4 "
                "2> /dev/null | grep 'class=\"topictitle\"'"),
     try get_wd2_threads(GameForumPage) of
@@ -791,12 +791,10 @@ get_thread_section(#s{thread_id = ThId}, Body) ->
     {_, ThreadStr} = read_to_before(B2, ThEndStr),
     ThreadStr.
 
--define('2secs', 2000).
-
 http_request(S2) ->
     ?inc_cnt(http_requests),
     A = erlang:monotonic_time(millisecond),
-    HttpOpts = [{timeout, ?'2secs'}],
+    HttpOpts = [{timeout, 10000}], % 10 secs
     Opts = [{body_format, binary}],
     case httpc:request(get, {S2#s.url, []}, HttpOpts, Opts) of
         {ok, {_StatusLine, _Headers, BodyBin}} ->

@@ -87,6 +87,7 @@
 -define(short, short).
 -define(long, long).
 -define(local, local).
+-define(date_only, date_only).
 -define(human, human).
 -define(extensive, extensive).
 %% -define(time, time).

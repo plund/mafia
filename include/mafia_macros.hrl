@@ -99,7 +99,7 @@
 -define(WordBoundaryChars, "\s\t\r\n!\"@#€$%?&/\\|()[]{}=≈≠´`^*'™’-_.:…·,;‚„<>≥≤").
 
 %% background: #ffeeff;
--define(HTML_TAB_START_LINKS(Title, TabAttrStr, PrevL, NextL),
+-define(HTML_PAGE_START_LINKS(Title, TabAttrStr, PrevL, NextL),
  "<!DOCTYPE html>
 <html>
   <head>
@@ -134,11 +134,11 @@
            </table>
         </td></tr>\r\n").
 
--define(HTML_TAB_END, "
+-define(HTML_PAGE_END, "
       </table>
     </center>
   </body>
 </html>").
 
--define(HTML_TAB_START(Title, TabAttrStr),
-        ?HTML_TAB_START_LINKS(Title, TabAttrStr, "", "")).
+-define(HTML_PAGE_START(Title, TabAttrStr),
+        ?HTML_PAGE_START_LINKS(Title, TabAttrStr, "", "")).

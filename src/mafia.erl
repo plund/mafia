@@ -118,7 +118,8 @@
          print_all_cnts/1,
          save_cnts_to_file/0,
 
-         fix_user_bug/0, fix_user_bug/1
+         fix_user_bug/0, fix_user_bug/1,
+         get_user_names_for_site/1
         ]).
 
 -export([cmp_vote_raw/0
@@ -646,6 +647,13 @@ show_all_users(Site) when is_atom(Site) ->
 show_all_users(Search) when is_list(Search) ->
     UserKeys = match_user_keys(Search),
     show_usersI(?standard_io, UserKeys, ?all).
+
+get_user_names_for_site(Site) ->
+    [begin
+         [#user{name = {User, _}}] = mafia_lib:ruserUB(UserB, Site),
+         unicode:characters_to_list(User)
+     end
+     || {UserB, _} <- get_user_keys_for_site(Site)].
 
 get_user_keys_for_site(Site) ->
     if Site == ?all -> all_keys(user);

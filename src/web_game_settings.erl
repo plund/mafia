@@ -11,7 +11,7 @@
 
 -define(UNSET, "(unset)").
 -define(BInitGame, "Initiate New Game").
--define(BCreateGame, "Create New Game").
+-define(BNewGmPw, "New GM Password").
 -define(BUpdate, "Update Game Settings").
 -define(BReload, "Reload Game").
 -define(BStart, "Start Game").
@@ -22,9 +22,11 @@ game_settings(Sid, Env, In) ->
     Button = proplists:get_value("button", PQ),
     GNum = proplists:get_value("game_num", PQ),
 
-    if Button == ?BInitGame;
-       Button == ?BCreateGame  ->
+    if Button == ?BInitGame ->
             init_new_game(Sid, Env, PQ);
+
+       Button == ?BNewGmPw  ->
+            new_gm_password(Sid, Env, PQ);
 
        GNum == ?undefined  ->
             game_settings_list(Sid);
@@ -58,6 +60,7 @@ game_settings_list(Sid) ->
           "<tr><td align=center>"
           "<form action=\"/e/web/game_settings\" method=post>\r\n"
           "<input name=button value=\"", ?BInitGame, "\" type=submit>\r\n"
+          "<input name=button value=\"", ?BNewGmPw, "\" type=submit>\r\n"
           "</form>\r\n"
           "<br><a href=\"/\">Back to Front Page</a>\r\n"
           "</td></tr>\r\n"]
@@ -67,19 +70,146 @@ game_settings_list(Sid) ->
     {A + B + C, ?none}.
 
 init_new_game(Sid, Env, PQ) ->
-    IsSecure = web:is_secure(Env),
-    Pass = web_impl:get_arg(PQ, "password"),
+    PageTitle = ?BInitGame,
     GNStr = web_impl:get_arg(PQ, "game_num"),
+    GNumErrors =
+        lists:filtermap(
+          fun({'EXIT', _}) ->
+                  {true, {error, "You must give a game number"}};
+             (GN) when is_integer(GN) ->
+                  case ?rgame(GN) of
+                      [] -> false;
+                      _ -> {true, {error, "Game exists already"}}
+                  end
+          end,
+          [catch ?l2i(GNStr)]),
     Site = case web_impl:get_arg(PQ, "site") of
-               ?undefined -> ?wd2;
+               "" -> ?wd2;
                SiteStr -> ?l2a(SiteStr)
            end,
-    Responses = init_game(IsSecure, Pass, catch ?l2i(GNStr), Site),
-    GNums = web_impl:game_nums_rev_sort(),
-    GNumsGrps = mafia_lib:split_into_groups(10, GNums),
-    ExStrs = string:join(
-               [string:join([?i2l(N) || N <- GNs], ", ")
-                || GNs <- GNumsGrps], "<br>"),
+    DoFun = fun() -> do_init_game(GNStr, Site) end,
+
+    %% Present Init New Game page
+    SpecBodyFun =
+        fun() ->
+                Sites = [?wd2, ?vDip, ?webDip],
+                Attr = fun(S) when S == Site -> " selected";
+                          (_) -> ""
+                       end,
+                POpt = fun(S) ->
+                               ["<option value=\"", ?a2l(S), "\"", Attr(S),
+                                ">", ?a2l(S), "</option>\r\n"]
+                       end,
+                Opts = ["<select name=\"site\">\r\n",
+                        [POpt(S) || S <- Sites],
+                        "</select>"],
+                GNums = web_impl:game_nums_rev_sort(),
+                GNumsGrps = mafia_lib:split_into_groups(10, GNums),
+                ExStrs = string:join(
+                           [string:join([?i2l(N) || N <- GNs], ", ")
+                            || GNs <- GNumsGrps], "<br>"),
+                ["<tr><td align=center>"
+                 "New Game Number: <input name=game_num type=text size=5 "
+                 "value=\"",
+                 GNStr, "\"> "
+                 "Site: ", Opts,
+                 "</td></tr>\r\n"
+                 "<tr><td align=center>"
+                 "<font size=-2>\r\n"
+                 "(Existing non-selectable game numbers: <br>", ExStrs, ")"
+                 "</font>"
+                 "</td></tr>\r\n"
+                ]
+        end,
+    do_serverkeeper_action(
+      #{sid => Sid, env => Env, pq => PQ,
+        spec_errors => GNumErrors,
+        do_fun => DoFun,
+        page_title => PageTitle,
+        spec_body => SpecBodyFun}).
+
+do_init_game(GNumStr, Site) ->
+    GNum = ?l2i(GNumStr),
+    mafia:initiate_game(GNum, Site),
+    [{info, "Game number " ++ ?i2l(GNum) ++ " created"}].
+
+-define(UserNotSet, "*select a user*").
+
+new_gm_password(Sid, Env, PQ) ->
+    PageTitle = ?BNewGmPw,
+    User = web_impl:get_arg(PQ, "user"),
+    UserErrors =
+        if User == ?UserNotSet ->
+                [{error, "You must select a user"}];
+           true -> []
+        end,
+    Site = case web_impl:get_arg(PQ, "site") of
+               "" -> ?wd2;
+               SiteStr -> ?l2a(SiteStr)
+           end,
+    DoFun = fun() -> do_set_new_gm_password(User, Site) end,
+
+    %% Present Init New Game page
+    SpecBodyFun =
+        fun() ->
+                Sites = [?wd2, ?vDip, ?webDip],
+                Attr = fun(S, Def) when S == Def -> " selected";
+                          (_, _) -> ""
+                       end,
+                POpt = fun(S, Def) ->
+                               ["<option value=\"", to_list(S), "\"",
+                                Attr(S, Def),
+                                ">", to_list(S), "</option>\r\n"]
+                       end,
+                Opts = ["<select name=\"site\""
+                        " onchange='document.getElementById(\"",
+                        PageTitle,
+                        "\").click()'>\r\n",
+                        [POpt(S, Site) || S <- Sites],
+                        "</select>"],
+                Users = [?UserNotSet |
+                         lists:sort(mafia:get_user_names_for_site(Site))],
+                UserOpts =
+                    ["<select name=\"user\">\r\n",
+                     [POpt(U, User) || U <- Users],
+                     "</select>"],
+                ["<tr><td align=center>"
+                 "User: ", UserOpts, " ",
+                 "Site: ", Opts,
+                 "</td></tr>\r\n"
+                ]
+        end,
+    do_serverkeeper_action(
+      #{sid => Sid, env => Env, pq => PQ,
+        spec_errors => UserErrors,
+        do_fun => DoFun,
+        page_title => PageTitle,
+        spec_body => SpecBodyFun}).
+
+do_set_new_gm_password(User, Site) ->
+    {ok,{User, Site, Password, Date}} =
+        mafia_lib:set_new_password(User, Site),
+    DateStr = mafia_print:print_time({Date, {0, 0, 0}}, ?date_only),
+    [{info, lists:concat(["Password: \"", Password,
+                          "\" set for user: \"", User,
+                          "\" at date: ", DateStr, "."])}].
+
+to_list(A) when is_atom(A) -> ?a2l(A);
+to_list(L) when is_list(L) -> L.
+
+do_serverkeeper_action(#{sid := Sid, env := Env, pq := PQ,
+                         page_title := PageTitle,
+                         spec_errors := SpecErrors,
+                         do_fun := DoFun,
+                         spec_body := SpecBodyFun
+                        }) ->
+    IsSecure = web:is_secure(Env),
+    Password = web_impl:get_arg(PQ, "password"),
+    LoginErrors = login_errors(IsSecure, Password),
+    Errors = SpecErrors ++ LoginErrors,
+    Responses = if Errors == [] -> DoFun();
+                   true -> Errors
+                end,
     ServerKeeperInfo =
         case ?getv(?server_keeper) of
             {SK, _} ->
@@ -89,88 +219,58 @@ init_new_game(Sid, Env, PQ) ->
         end,
     PwF =
         fun(user) -> "serverkeeper";
-           (pass) -> Pass;
+           (pass) -> Password;
            (info) ->
                 [
                  "<tr><td colspan=2 width=400>\r\n"
                  "<font size=-1>\r\n"
                  "Only the \r\n",
                  ServerKeeperInfo,
-                 " may initiate the creation of a new game.<br>\r\n"
+                 " may perform this operation.<br>\r\n"
                  "</font>"
                  "</td></tr>"
                 ];
-           (buttons) -> [?BCreateGame];
-           (extra_fields) -> []
+           (buttons) -> [PageTitle];
+           (extra_fields) -> [];
+           (user_hidden) -> true
         end,
-    Sites = [?wd2, ?vDip, ?webDip],
-    Attr = fun(S) when S == Site -> " selected";
-              (_) -> ""
-           end,
-    POpt = fun(S) ->
-                   ["<option value=\"", ?a2l(S), "\"", Attr(S),
-                    ">", ?a2l(S), "</option>\r\n"]
-           end,
-    Opts = ["<select name=\"site\">>\r\n",
-            [POpt(S) || S <- Sites],
-            "</select>"],
 
-    {A, Body} =
-        {web_impl:del_start(Sid, ?BInitGame, 0),
-         ["<tr><td align=center>"
-          "<form action=\"/e/web/game_settings\" method=post>\r\n"
-          "New Game Number: <input name=game_num type=text size=5 value=\"",
-          GNStr, "\"> "
-          "Site: ", Opts,
-          "</td></tr>\r\n"
-          "<tr><td align=center>"
-          "<font size=-2>\r\n"
-          "(Existing non-selectable game numbers: <br>", ExStrs, ")"
-          "</font>"
-          "</td></tr>\r\n"
-          "<tr><td  align=center>\r\n",
-          if not IsSecure ->
-                  display_tls_info(Env, "?button=" ++ ?BInitGame);
-             true ->
-                  enter_user_pw_box(PwF)
-          end,
-          "\r\n</form>\r\n",
-          "</td></tr>"
-          "<tr><td  align=center>\r\n",
-          "<a href=\"/\">Back to Front Page</a>"
-          "</td></tr>"
-         ]
-        },
+    A = web_impl:del_start(Sid, PageTitle, 0),
+    Body = ["<tr><td>\r\n" %%"<table>\r\n"
+            "<form action=\"/e/web/game_settings\" method=post>\r\n",
+            "<table>",
+            SpecBodyFun(),
+            "<tr><td  align=center>\r\n",
+            if not IsSecure ->
+                    display_tls_info(Env, "?button=" ++ PageTitle);
+               true ->
+                    enter_user_pw_box(PwF)
+            end,
+            "</td></tr>\r\n"
+            "</table>"
+            "</form>\r\n",
+            "<tr><td  align=center>\r\n",
+            "<a href=\"/\">Back to Front Page</a>"
+            "</td></tr>"
+           ],
     RBody = present_responses(Responses),
     R = web:deliver(Sid, RBody),
     B = web:deliver(Sid, Body),
     C = web_impl:del_end(Sid),
     {A + R + B + C, ?none}.
 
-init_game(IsSec, Pass, GNum, Site) ->
-    Fun =
-        fun({sec, false}) ->
-                {true, {error, "You must use secure connection"}};
-           ({gn, {'EXIT', _}}) ->
-                {true, {error, "You must give a game number"}};
-           ({gn, GN}) when is_integer(GN) ->
-                case ?rgame(GN) of
-                    [] -> false;
-                    _ -> {true, {error, "Game exists already"}}
-                end;
-           (password) ->
-                case is_serverkeeper_password_ok(Pass) of
-                    true -> false;
-                    false -> {true, {error, "Wrong password"}}
-                end;
-           (_) -> false
-        end,
-    case lists:filtermap(Fun, [{sec, IsSec}, {gn, GNum}, password]) of
-        [] ->
-            mafia:initiate_game(GNum, Site),
-            [{info, "Game number " ++ ?i2l(GNum) ++ " created"}];
-        Errors -> Errors
-    end.
+login_errors(IsSec, Pass) ->
+    lists:filtermap(
+      fun({sec, false}) ->
+              {true, {error, "You must use secure connection"}};
+         (password) ->
+              case is_serverkeeper_password_ok(Pass) of
+                  true -> false;
+                  false -> {true, {error, "Wrong password"}}
+              end;
+         (_) -> false
+      end,
+      [{sec, IsSec}, password]).
 
 game_settings_update(Sid, Env, Button, PQ) ->
     IsSecure = web:is_secure(Env),
@@ -225,7 +325,8 @@ game_settings_update(Sid, Env, Button, PQ) ->
                     if StartAllowed -> [?BStart];
                        true -> []
                     end;
-           (extra_fields) -> []
+           (extra_fields) -> [];
+           (user_hidden) -> false
         end,
     {A, Body} =
         {web_impl:del_start(Sid, "M" ++ GNStr ++ " Settings", 0),
@@ -317,18 +418,30 @@ enter_user_pw_box(F) ->
        "</td></tr>\r\n"]
       || {Title, Name, Value, Size} <- F(extra_fields)],
 
-     "<tr><td>User"
-     "</td><td>"
-     "<input name=user type=text size=20 value=\"", F(user), "\">"
-     "</td></tr>\r\n"
-
+     case F(user_hidden) of
+         false ->
+             ["<tr><td>User"
+              "</td><td>"];
+         true -> ""
+     end,
+     "<input name=user",
+     case F(user_hidden) of
+         false -> " type=text size=20";
+         true -> " type=hidden"
+     end,
+     " value=\"", F(user), "\">",
+     case F(user_hidden) of
+         false -> "</td></tr>\r\n";
+         true -> ""
+     end,
      "<tr><td>Password"
      "</td><td>"
      "<input name=password type=text size=20 value=\"", F(pass), "\">"
      "</td></tr>\r\n"
 
      "<tr><td colspan=2>",
-     [["<input name=button value=\"", BStr, "\" type=submit>\r\n"]
+     [["<input name=button id=\"", BStr, "\" value=\"", BStr,
+       "\" type=submit>\r\n"]
       || BStr <- F(buttons)],
      "</td></tr></table>"
     ].
@@ -779,12 +892,16 @@ pr_int({Field, IntStr}, {G, Es}) ->
     end.
 
 pr_int2({"signup_thid" = Field, Int}, {G, Es}) ->
-    case check_thread_id(Int, min_thid(G), G#mafia_game.site, Field) of
-        thread_id_ok ->
-            G2 = G#mafia_game{signup_thid = Int},
-            {G2, Es};
-        ErrMsgs ->
-            {G, Es ++ ErrMsgs}
+    if Int /= G#mafia_game.signup_thid ->
+            case check_thread_id(Int, min_thid(G), G#mafia_game.site, Field) of
+                thread_id_ok ->
+                    G2 = G#mafia_game{signup_thid = Int},
+                    {G2, Es};
+                ErrMsgs ->
+                    {G, Es ++ ErrMsgs}
+            end;
+       true ->
+            {G, Es}
     end;
 pr_int2({Field, Int}, {G, Es})
   when Field == "day_hours" orelse Field == "night_hours",
@@ -951,7 +1068,8 @@ game_settings_start(Sid, Env, _Button, PQ) ->
                        (buttons) ->
                             [?BStartNow];
                        (extra_fields) ->
-                            [{"Thread Id", "thread_id", ThreadId, 20}]
+                            [{"Thread Id", "thread_id", ThreadId, 20}];
+                       (user_hidden) -> false
                     end,
                 [present_responses(Responses),
                  "<tr><td><table width=600>"

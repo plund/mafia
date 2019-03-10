@@ -56,9 +56,9 @@ catch_debug(Sid, Tag, F) ->
             {'EXIT', Term} ->
                 ?dbg({catch_debug, {Tag, Term}}),
                 deliver(Sid,
-                        [?HTML_TAB_START(?a2l(Tag), ""),
+                        [?HTML_PAGE_START(?a2l(Tag), ""),
                          "<tr><td>", "An error occured!", "</td></tr>",
-                         ?HTML_TAB_END]);
+                         ?HTML_PAGE_END]);
             {NumBytes, Args} ->
                 ?inc_cnt(total, reqs, 1),
                 ?inc_cnt(total, ?bytes, NumBytes),
@@ -71,9 +71,20 @@ catch_debug(Sid, Tag, F) ->
                 end,
                 TimeB = erlang:monotonic_time(millisecond),
                 MilliSecs = TimeB - TimeA,
-                ?dbg({Req, sent, [{bytes, NumBytes}, {millisecs, MilliSecs}]}),
+                ?dbg({hide_pws(Req),
+                      sent,
+                      [{bytes, NumBytes}, {millisecs, MilliSecs}]}),
                 ok
         end.
+
+hide_pws({Path, ArgStr}) ->
+    Args = [case A of
+                "password=" ++ _ ->
+                    "password=*****";
+                 A -> A
+             end
+            || A <- string:lexemes(ArgStr, "&")],
+    {Path, string:join(Args, "&")}.
 
 deliver(Sid, Html) ->
     mod_esi:deliver(Sid, Html),

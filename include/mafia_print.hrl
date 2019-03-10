@@ -19,8 +19,8 @@
     match_expr :: term(),
     dev = ?standard_io,
     mode = ?text :: ?text | ?html,
-    t_mode = ?long :: ?short | ?long | ?local | ?human | ?extensive
-                    | ?file_suffix,
+    t_mode = ?long :: ?file_suffix | ?short | ?long | ?local | ?human
+                    | ?date_only | ?extensive,
     period :: ?undefined | number(),   %% Poll period
     use_time :: ?undefined | seconds1970(),
     %% use_time = time to next DL (current game status)

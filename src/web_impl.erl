@@ -252,9 +252,9 @@ game_status4(Sid, GNum, PQ) ->
             {?history, Phase} ->
                 game_status_out(?history, GNum, Phase);
             {?error, ErrorHtml} ->
-                [?HTML_TAB_START("Game Status", " border=\"0\""),
+                [?HTML_PAGE_START("Game Status", " border=\"0\""),
                  ErrorHtml,
-                 ?HTML_TAB_END]
+                 ?HTML_PAGE_END]
         end,
     web:deliver(Sid, ""), %% No special headers
     NumBytes = web:deliver(Sid, Html),
@@ -308,9 +308,9 @@ game_status_out_hist(GNum, Phase, FileName, _) ->
                     CurTitle = ["Game Status ", mafia_print:print_phase(Phase)],
                     game_status_out_current(GNum, Phase, CurTitle);
                true ->
-                    [?HTML_TAB_START(Title, " border=\"0\""),
+                    [?HTML_PAGE_START(Title, " border=\"0\""),
                      "<tr><td align=center>Phase has not begun yet.</td></tr>",
-                     ?HTML_TAB_END]
+                     ?HTML_PAGE_END]
             end
     end.
 
@@ -724,11 +724,11 @@ del_start(Sid, Title, BordInt) when is_integer(BordInt) ->
     Border = " border=\"" ++ ?i2l(BordInt) ++ "\"",
     del_start(Sid, Title, Border);
 del_start(Sid, Title, Border) ->
-    Start = ?HTML_TAB_START(Title, Border),
+    Start = ?HTML_PAGE_START(Title, Border),
     web:deliver(Sid, Start).
 
 del_end(Sid) ->
-    web:deliver(Sid, ?HTML_TAB_END).
+    web:deliver(Sid, ?HTML_PAGE_END).
 
 get_arg(PQ, ArgStr) ->
     case lists:keyfind(ArgStr, 1, PQ) of
@@ -759,9 +759,9 @@ get_gnum2(NumStr) ->
 %% ----------------------------------------------------------------------------
 
 error_resp(Sid, Specific) ->
-    Html = [?HTML_TAB_START("Game Status", " border=\"0\""),
+    Html = [?HTML_PAGE_START("Game Status", " border=\"0\""),
             ["<tr align=center><td>", Specific, "</td></tr>"],
-            ?HTML_TAB_END],
+            ?HTML_PAGE_END],
     web:deliver(Sid, ""), %% No special headers
     NumBytes = web:deliver(Sid, Html),
     Args = [],

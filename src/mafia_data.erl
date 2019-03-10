@@ -822,9 +822,9 @@ http_request(S2) ->
 
 get_body_from_file(S) ->
     %% Do we have body on file?
-    %% we only store complete pages on file!
+    %% We only store complete pages on file!
     %% Store full pages as compressed files:
-    %%     thread_pages/m24_threadid_page.txt.tgz
+    %%     thread_pages/m24_<threadid>/<pageno>.txt.tgz
     {_FileName, TarBallName} = th_filenames_read(S),
     case erl_tar:extract(TarBallName, [memory, compressed]) of
         {ok, [{_, BodyBin}]} ->

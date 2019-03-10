@@ -1458,6 +1458,8 @@ print_timeI(PP = #pp{}) ->
                       io_lib:format(
                         "~s-~s-~s ~s:~s:~s ~s",
                         [p(Y), p(M), p(D), p(HH), p(MM), p(SS), TzStr]);
+                  ?date_only ->
+                      io_lib:format("~s-~s-~s", [p(Y), p(M), p(D)]);
                   ?extensive ->
                       io_lib:format(
                         "~s-~s-~s ~s:~s:~s ~s",

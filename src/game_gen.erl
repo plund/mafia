@@ -61,9 +61,9 @@ update_current_html([G], Phase, Opts) ->
 get_html(Title, Opts) ->
     {PrevLink, NextLink} = get_links(Opts),
     Body = mafia_print:print_votes(Opts),
-    [?HTML_TAB_START_LINKS(Title, " border=0", PrevLink, NextLink),
+    [?HTML_PAGE_START_LINKS(Title, " border=0", PrevLink, NextLink),
      Body,
-     ?HTML_TAB_END].
+     ?HTML_PAGE_END].
 
 %%%===================================================================
 %%% Internal functions

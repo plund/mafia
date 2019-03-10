@@ -190,9 +190,9 @@ do_set_new_gm_password(User, Site) ->
     {ok,{User, Site, Password, Date}} =
         mafia_lib:set_new_password(User, Site),
     DateStr = mafia_print:print_time({Date, {0, 0, 0}}, ?date_only),
-    [{info, lists:concat(["Password: \"", Password,
-                          "\" set for user: \"", User,
-                          "\" at date: ", DateStr, "."])}].
+    %% Password "MTAzNDkw" set for user "Attorney", site wd2, 2019-03-10.
+    [{info, lists:concat(["Password \"", Password, "\" set for user \"", User,
+                          "\", site ", Site, ", ", DateStr, "."])}].
 
 to_list(A) when is_atom(A) -> ?a2l(A);
 to_list(L) when is_list(L) -> L.

@@ -11,6 +11,7 @@
 
 -define(UNSET, "(unset)").
 -define(BInitGame, "Initiate New Game").
+-define(BDeleteGame, "Delete Game").
 -define(BNewGmPw, "New GM Password").
 -define(BUpdate, "Update Game Settings").
 -define(BReload, "Reload Game").
@@ -24,6 +25,9 @@ game_settings(Sid, Env, In) ->
 
     if Button == ?BInitGame ->
             init_new_game(Sid, Env, PQ);
+
+       Button == ?BDeleteGame  ->
+            delete_game(Sid, Env, PQ);
 
        Button == ?BNewGmPw  ->
             new_gm_password(Sid, Env, PQ);
@@ -60,6 +64,7 @@ game_settings_list(Sid) ->
           "<tr><td align=center>"
           "<form action=\"/e/web/game_settings\" method=post>\r\n"
           "<input name=button value=\"", ?BInitGame, "\" type=submit>\r\n"
+          "<input name=button value=\"", ?BDeleteGame, "\" type=submit>\r\n"
           "<input name=button value=\"", ?BNewGmPw, "\" type=submit>\r\n"
           "</form>\r\n"
           "<br><a href=\"/\">Back to Front Page</a>\r\n"
@@ -133,11 +138,93 @@ do_init_game(GNumStr, Site) ->
     mafia:initiate_game(GNum, Site),
     [{info, "Game number " ++ ?i2l(GNum) ++ " created"}].
 
+-define(GameNotSet, "*select a game*").
+
+delete_game(Sid, Env, PQ) ->
+    PageTitle = ?BDeleteGame,
+    GNStr = web_impl:get_arg(PQ, "game_num"),
+    IsReload = web_impl:get_arg(PQ, "is_reload", "false"),
+    [GNum, GNumErrors] =
+        try ?l2i(GNStr) of
+            Int -> [Int, []]
+        catch _:_ ->
+                [-1, [{error, "You must give a game number"}]]
+        end,
+    DoFun =
+        fun() ->
+                if IsReload == "false" -> do_delete_game(GNum);
+                   true -> []
+                end
+        end,
+
+    %% Present Delete Game page
+    OnChangeScript =
+        ["'document.getElementById(\"is_reload\").value = \"true\";"
+         " document.getElementById(\"", PageTitle, "\").click()'"],
+
+    SpecBodyFun =
+        fun() ->
+                Attr = fun({GN, _}) when GN == GNStr -> " selected";
+                          (_) -> ""
+                       end,
+                POpt = fun({Str}) ->
+                               ["<option value=\"none\">", Str, "</option>\r\n"];
+                          (S = {GN, GName}) ->
+                               ["<option value=\"", GN, "\"", Attr(S),
+                                ">", GN, " - ", GName, "</option>\r\n"]
+                       end,
+                GNums = web_impl:game_nums_rev_sort(),
+                Games =
+                    [begin
+                         [#mafia_game{name = GNameB}] = ?rgame(GN),
+                         GName =
+                             if GNameB == ?undefined -> "";
+                                true -> GNameB
+                             end,
+                         {?i2l(GN), GName}
+                     end
+                     || GN <- GNums],
+                GameOpts = [{"*Select a game*"} | Games],
+                GameChoise =
+                    ["<select name=\"game_num\""
+                     " onchange=", OnChangeScript,
+                     ">\r\n",
+                     [POpt(G) || G <- GameOpts],
+                     "</select>"],
+                ["<tr><td align=center>"
+                 "Game to be deleted: ", GameChoise,
+                 "</td></tr>\r\n"
+                 "<tr><td align=left>",
+                 if GNum > 0 ->
+                         ["<pre>",
+                          mafia:show_game_data(GNum, ?html),
+                          "</pre>"];
+                    true -> []
+                 end,
+                 "<input type=hidden id=is_reload "
+                 "name=is_reload value=\"false\"/>"
+                 "</td></tr>\r\n"
+                ]
+        end,
+    do_serverkeeper_action(
+      #{sid => Sid, env => Env, pq => PQ,
+        spec_errors => GNumErrors,
+        do_fun => DoFun,
+        page_title => PageTitle,
+        spec_body => SpecBodyFun}).
+
+do_delete_game(GNum) when GNum > 0 ->
+    mafia_data:delete_game_data_in_other_tabs(GNum),
+    mnesia:dirty_delete(mafia_game, GNum),
+    [{info, ?i2l(GNum) ++ " deleted"}];
+do_delete_game(_) -> [].
+
 -define(UserNotSet, "*select a user*").
 
 new_gm_password(Sid, Env, PQ) ->
     PageTitle = ?BNewGmPw,
     User = web_impl:get_arg(PQ, "user"),
+    IsReload = web_impl:get_arg(PQ, "is_reload", "false"),
     UserErrors =
         if User == ?UserNotSet ->
                 [{error, "You must select a user"}];
@@ -147,9 +234,16 @@ new_gm_password(Sid, Env, PQ) ->
                "" -> ?wd2;
                SiteStr -> ?l2a(SiteStr)
            end,
-    DoFun = fun() -> do_set_new_gm_password(User, Site) end,
+    DoFun = fun() ->
+                    if IsReload == "false" ->  do_set_new_gm_password(User, Site);
+                       true -> []
+                    end
+            end,
 
     %% Present Init New Game page
+    OnChangeScript =
+        ["'document.getElementById(\"is_reload\").value = \"true\";"
+         " document.getElementById(\"", PageTitle, "\").click()'"],
     SpecBodyFun =
         fun() ->
                 Sites = [?wd2, ?vDip, ?webDip],
@@ -162,9 +256,8 @@ new_gm_password(Sid, Env, PQ) ->
                                 ">", to_list(S), "</option>\r\n"]
                        end,
                 Opts = ["<select name=\"site\""
-                        " onchange='document.getElementById(\"",
-                        PageTitle,
-                        "\").click()'>\r\n",
+                        " onchange=", OnChangeScript,
+                        ">\r\n",
                         [POpt(S, Site) || S <- Sites],
                         "</select>"],
                 Users = [?UserNotSet |
@@ -176,6 +269,8 @@ new_gm_password(Sid, Env, PQ) ->
                 ["<tr><td align=center>"
                  "User: ", UserOpts, " ",
                  "Site: ", Opts,
+                 "<input type=hidden id=is_reload "
+                 "name=is_reload value=\"false\"/>"
                  "</td></tr>\r\n"
                 ]
         end,
@@ -190,7 +285,6 @@ do_set_new_gm_password(User, Site) ->
     {ok,{User, Site, Password, Date}} =
         mafia_lib:set_new_password(User, Site),
     DateStr = mafia_print:print_time({Date, {0, 0, 0}}, ?date_only),
-    %% Password "MTAzNDkw" set for user "Attorney", site wd2, 2019-03-10.
     [{info, lists:concat(["Password \"", Password, "\" set for user \"", User,
                           "\", site ", Site, ", ", DateStr, "."])}].
 
@@ -418,9 +512,10 @@ enter_user_pw_box(F) ->
        "</td></tr>\r\n"]
       || {Title, Name, Value, Size} <- F(extra_fields)],
 
+     "<tr><td>",
      case F(user_hidden) of
          false ->
-             ["<tr><td>User"
+             ["User"
               "</td><td>"];
          true -> ""
      end,
@@ -429,12 +524,12 @@ enter_user_pw_box(F) ->
          false -> " type=text size=20";
          true -> " type=hidden"
      end,
-     " value=\"", F(user), "\">",
+     " value=\"", F(user), "\"/>",
      case F(user_hidden) of
-         false -> "</td></tr>\r\n";
+         false -> "</td></tr>\r\n<tr><td>";
          true -> ""
      end,
-     "<tr><td>Password"
+     "Password"
      "</td><td>"
      "<input name=password type=text size=20 value=\"", F(pass), "\">"
      "</td></tr>\r\n"

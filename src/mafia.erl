@@ -1,48 +1,24 @@
 -module(mafia).
 
 -include("mafia.hrl").
-%% get links/emojs/Unicode to work for web_msgs:msg/3
 %% Change title "M35 Game Status Day 1"  "M35 History"
-%% Add page for server admins(keeper+more) to initiate_new_game (GNum and site)
-%% automatic start_poll when signup, site been set for game
-%% init_game(34, wd2), set signup, set start_time, tz, dst, start_poll(GNum),
 %% remove global values timezone_game, dst_game...
-%% MUST add site into thread_page dir name!!
 %% Check out free CA LetsEncrypt
-%%  - will a game with signup only, poll the thread?
-%%    - dont think so, BUT it should
-%% Poll signup until game start
-%% Poll also game thread before game start
-%% Why is GNum needed (default game_key) to show a message using "msg"?
-%%  Answer: we display phase and a link to page and pages in a game
-%%  Conclusion: Change to always require g=<gamenum> (remove use of game_key)
-%%    OR do not display phase and links when GNum is missing.
-%% Vote switch should remove end vote
-%% - disregard votes when more than one vote is present in the same message
-%% - make sure vote order applies also to ##end
 %% Coordinate poll_timer and dl_timer. "No poll at dl"
 %% Make use of dl_poll_info.txt when generating history pages at:
 %%    1) deadline 2) player death at End of Day/Night
 %%    - use quickcheck license
-%% Bug?: Why does not manual poll() trigger vote counting Site?
 %% Useful? io:format("~*s~*s~*s~n", [-15, "aaa", 5, "bbb", -5, "cc"]).
-%% Multiple active games and pollings
-%% - do LATE read of signup thread
-%% try autostart again
+%% try MacOs autostart again
 %% vhosts in inets - no support - try patch inets :)
 %% LOW - Add Last&more link also on game_end page
-%% - balki vote on Jamie g29? d1 46:13 did not get the correct part in console
-%%   due to unicode
-%% http://mafia_test.peterlund.se/e/web/msgs?part=p3-5#msg_id=1480166
 %% Instead add ServerKeeper/GM commands:
 %% ##bot endgame <msgid> | unendgame
 %% ##bot endphase|unendphase <msgid>
 %% ##bot replaceplayer <msgid> <old> <new>
 %% ##bot deadline <msgid> earlier|later <time>
 %% ##bot assistant add|remove <msgid> <player>
-%%   - define how and when to use a smarter vote reader!! ??
 %% - Display msgs since last login with a browser (cookie)
-%% - fix a better player name recognition in votes and deaths?
 %%    - check if abbrev code can loop forever
 %%    - add unit tests for abbreviations
 
@@ -110,10 +86,8 @@
 
 %% utilities
 -export([show_game_pages/1,
-         show_game_data/1,
-
+         show_game_data/2,
          l/0,
-
          print_all_cnts/0,
          print_all_cnts/1,
          save_cnts_to_file/0,
@@ -172,33 +146,61 @@ show_game_pagesI(ThId, Site) ->
     [{Page, length((hd(?rpage(Key)))#page_rec.message_ids)}
      || Key = {_, Page, _} <- mafia_lib:all_page_keys({ThId, Site})].
 
-show_game_data(GNum) ->
-    case ?rgame(GNum) of
-        [] ->
-            io:format("No game record exist\n");
-        [#mafia_game{thread_id = ThId, site = Site}] ->
-            io:format("Game record exist\n"),
-            io:format("Thread id ~p\n", [ThId]),
-            PageKeys = [K || K = {Th, _, _} <- all_keys(page_rec),
-                             Th == ThId],
-            io:format("Num Page records ~p\n", [length(PageKeys)]),
-            MsgIds = [MsgId || {_, MsgId} <- mafia_lib:all_msgids(ThId, Site),
-                               [] /= ?rmess({MsgId, Site})
-                     ],
-            io:format("There are ~p messages in mnesia for this game\n",
-                      [length(MsgIds)])
-    end,
+-spec show_game_data(integer(), ?text | ?html ) -> ok | list().
+show_game_data(GNum, Mode) ->
+    Html =
+        case ?rgame(GNum) of
+            [] ->
+                if Mode == ?text ->
+                        io:format("No game record exist\n");
+                   Mode == ?html -> ["No game record exist\r\n"]
+                end;
+            [#mafia_game{thread_id = ThId, site = Site}] ->
+                PageKeys = [K || K = {Th, _, _} <- all_keys(page_rec),
+                                 Th == ThId],
+                NumPageKeys = length(PageKeys),
+                MsgIds = [MsgId || {_, MsgId}
+                                       <- mafia_lib:all_msgids(ThId, Site),
+                                   [] /= ?rmess({MsgId, Site})
+                         ],
+                NumMsgs = length(MsgIds),
+                if Mode == ?text ->
+                        io:format("Game record exist\n"),
+                        io:format("Thread id ~p\n", [ThId]),
+                        io:format("Num Page records ~p\n", [NumPageKeys]),
+                        io:format(
+                          "There are ~p messages in mnesia for this game\n",
+                          [NumMsgs]);
+                   Mode == ?html ->
+                        ["Game record exist\r\n",
+                         "Thread id ",
+                         if is_integer(ThId) -> ?i2l(ThId);
+                            true -> "none" end,
+                         "\r\n",
+                         "Num Page records ", ?i2l(NumPageKeys), "\r\n",
+                         "There are ", ?i2l(NumMsgs),
+                         " messages in mnesia for this game\r\n"]
+                end
+        end,
     DayKeys = mafia_lib:all_day_keys(GNum),
-    io:format("Num Day records ~p\n", [length(DayKeys)]),
-    io:format("Day keys ~p\n", [DayKeys]),
-
+    NumDayKeys = length(DayKeys),
     IsStatKey = fun(Id, {_, Id}) -> true;
                    (Id, {_, Id, _}) -> true;
                    (_, _) -> false
                 end,
     StatKeys = [K || K <- mnesia:dirty_all_keys(stat), IsStatKey(GNum, K)],
-    io:format("Num Stat records ~p\n", [length(StatKeys)]).
-
+    NumStatRecs = length(StatKeys),
+    if Mode == ?text ->
+            io:format("Num Day records ~p\n", [NumDayKeys]),
+            io:format("Day keys ~p\n", [DayKeys]),
+            io:format("Num Stat records ~p\n", [NumStatRecs]);
+       Mode == ?html ->
+            [Html,
+             ["Num Day records ", ?i2l(NumDayKeys), "\r\n",
+              "Day keys ", io_lib:format("~p", [DayKeys]), "\r\n",
+              "Num Stat records ", ?i2l(NumStatRecs), "\r\n"
+             ]]
+    end.
 
 %% -----------------------------------------------------------------------------
 %% @doc Initiate game that has not started yet
@@ -263,17 +265,12 @@ delete_game_and_all_data(GNum) when is_integer(GNum) ->
     case ?rgame(GNum) of
         [G] ->
             GName = if is_binary(G#mafia_game.name) ->
-                            ?b2l(G#mafia_game.name);
+                            unicode:characters_to_list(G#mafia_game.name);
                        true -> "(no name)"
                     end,
             io:format("Deleting Game ~p - ~s\n",
                       [GNum, GName]),
-            show_game_data(GNum),
-            CurrentGameNum = ?getv(game_key),
-            if GNum == CurrentGameNum ->
-                    io:format("WARNING: This is the current game.\n");
-               true -> ok
-            end,
+            show_game_data(GNum, ?text),
             Answer = io:get_line(?l2a("Are you really sure you want to "
                                       "delete this game (NO/yes)> ")),
             case string:to_upper(Answer) of

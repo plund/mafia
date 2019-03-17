@@ -13,7 +13,8 @@
         ]).
 
 %% for other web modules
--export([del_start/3, del_end/1, get_arg/2,
+-export([del_start/3, del_end/1,
+         get_arg/2, get_arg/3,
          game_nums_rev_sort/0]).
 
 %% for web_msgs
@@ -731,8 +732,11 @@ del_end(Sid) ->
     web:deliver(Sid, ?HTML_PAGE_END).
 
 get_arg(PQ, ArgStr) ->
+    get_arg(PQ, ArgStr, "").
+
+get_arg(PQ, ArgStr, Default) ->
     case lists:keyfind(ArgStr, 1, PQ) of
-        ?false -> "";
+        ?false -> Default;
         {_, V} -> V
     end.
 

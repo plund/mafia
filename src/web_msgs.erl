@@ -248,7 +248,6 @@ is_part_ok(G, IMsg, MsgPhase, {Ua, Na, Ub, Nb}) ->
     GThId = G#mafia_game.thread_id,
     GSuId = G#mafia_game.signup_thid,
     MThId = IMsg#message.thread_id,
-    %% ?dbg({GThId, GSuId, MThId}),
     Page = IMsg#message.page_num,
     IsAok =
         fun() ->
@@ -289,13 +288,15 @@ is_part_ok(G, IMsg, MsgPhase, {Ua, Na, Ub, Nb}) ->
                         MsgPhase =< SPhaseB
                 end
         end,
-    IsNotLateSuMsg =
-        fun() ->
-                MThId == GThId orelse
-                    Ub == ?su_page orelse
-                    MsgPhase#phase.ptype == ?game_start
-        end,
-    IsAok() andalso IsBok() andalso IsNotLateSuMsg().
+    %% What was the point with this? - keep as comment for a while
+    %% IsNotLateSuMsg =
+    %%     fun() ->
+    %%             MThId == GThId orelse
+    %%                 Ub == ?su_page orelse
+    %%                 MsgPhase#phase.ptype == ?game_start
+    %%     end,
+    %% ?dbg(IsNotLateSuMsg()),
+    IsAok() andalso IsBok(). %% andalso IsNotLateSuMsg().
 
 deliver_div(Sid, DivStr) ->
     deliver_div(Sid, DivStr, "#aaaaff").

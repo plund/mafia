@@ -54,19 +54,48 @@ game_settings_list(Sid) ->
              [G] ->
                  {GNum, ?b2l(G#mafia_game.name)}
          end || GNum <- GNums],
+    OnClickScript =
+        fun(Str) when Str == "adm"; Str == "gm" ->
+                ["'document.getElementById(\"", Str, "_cmd\").value = "
+                 " document.getElementById(\"", Str, "_opts\").value;"
+                 " document.getElementById(\"", Str, "_form\").submit();'"]
+        end,
+    CmdForm =
+        fun(Title, Type, Cmds) ->
+                [Title,
+                 "<br>"
+                 "<form id=", Type, "_form action=\"/e/web/game_settings\" "
+                 "   method=post>\r\n",
+                 ["<select id=", Type, "_opts>\r\n",
+                  [["<option value=\"", Cmd, "\">", Cmd, "</option>\r\n"]
+                   || Cmd <- Cmds],
+                  "</select>"],
+                 "<input type=submit onClick=", OnClickScript(Type),
+                 "    value=Select>\r\n"
+                 "<input type=hidden id=", Type, "_cmd name=button>\r\n"
+                 "</form>\r\n"
+                ]
+        end,
+    AdminCmds = ["&lt;select&gt;", ?BInitGame, ?BDeleteGame, ?BNewGmPw],
+    %% GmCmds = ["&lt;select&gt;", "Ignore GM message",  "Kill Player",
+    %%           "Add GM", "Refresh Vote Count"],
+
     {A, Body} =
         {web_impl:del_start(Sid, "Game Settings", 0),
-         [[["<tr><td>\r\n",
+         [
+          "<tr><td><table border=1 bgcolor=#ddddff>"
+          "<tr><td>",
+          CmdForm("Server admin commands:", "adm", AdminCmds),
+          %% "</td><td>",
+          %% CmdForm("GM commands:", "gm", GmCmds),
+          "</td></tr>"
+          "</table></td></tr>",
+          [["<tr><td>\r\n",
             "<a href=\"?game_num=", ?i2l(GNum), "\">",
             ?i2l(GNum), " - ", Title, "</a>"
             "</td></tr>\r\n"]
            || {GNum, Title} <- GNumTitles],
           "<tr><td align=center>"
-          "<form action=\"/e/web/game_settings\" method=post>\r\n"
-          "<input name=button value=\"", ?BInitGame, "\" type=submit>\r\n"
-          "<input name=button value=\"", ?BDeleteGame, "\" type=submit>\r\n"
-          "<input name=button value=\"", ?BNewGmPw, "\" type=submit>\r\n"
-          "</form>\r\n"
           "<br><a href=\"/\">Back to Front Page</a>\r\n"
           "</td></tr>\r\n"]
         },

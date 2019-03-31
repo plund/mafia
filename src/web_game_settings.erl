@@ -17,6 +17,14 @@
 -define(BReload, "Reload Game").
 -define(BStart, "Start Game").
 -define(BStartNow, "Start Game Now").
+-define(BRefreshVotes, "Refresh Vote Count").
+-define(BRemPlayer, "Remove Player").
+-define(BAddGm, "Add GM").
+
+-define(CmdNotSelected, "*Select a Command*").
+-define(GameNotSelected, "*Select a Game*").
+-define(UserNotSelected, "*Select a User*").
+%% -define(UserNotSelected, "&lt;Select a User&gt;").
 
 game_settings(Sid, Env, In) ->
     PQ = httpd:parse_query(In),
@@ -31,6 +39,14 @@ game_settings(Sid, Env, In) ->
 
        Button == ?BNewGmPw  ->
             new_gm_password(Sid, Env, PQ);
+
+       Button == ?BRefreshVotes  ->
+            refresh_votes(Sid, Env, PQ);
+
+       %% Button == ?BRemPlayer  ->
+       %%      ok;
+       %% Button == ?BAddGm  ->
+       %%      ok;
 
        GNum == ?undefined  ->
             game_settings_list(Sid);
@@ -76,18 +92,18 @@ game_settings_list(Sid) ->
                  "</form>\r\n"
                 ]
         end,
-    AdminCmds = ["&lt;select&gt;", ?BInitGame, ?BDeleteGame, ?BNewGmPw],
-    %% GmCmds = ["&lt;select&gt;", "Ignore GM message",  "Kill Player",
-    %%           "Add GM", "Refresh Vote Count"],
+    AdminCmds = [?CmdNotSelected, ?BInitGame, ?BDeleteGame, ?BNewGmPw],
+    GmCmds = [?CmdNotSelected, ?BRefreshVotes],
+    %%, ?BRemPlayer, ?BAddGm, "Ignore GM message",  "Kill Player"],
 
     {A, Body} =
         {web_impl:del_start(Sid, "Game Settings", 0),
          [
-          "<tr><td><table border=1 bgcolor=#ddddff>"
-          "<tr><td>",
+          "<tr><td><table border=1>"
+          "<tr><td bgcolor=#ddddff>",
           CmdForm("Server admin commands:", "adm", AdminCmds),
-          %% "</td><td>",
-          %% CmdForm("GM commands:", "gm", GmCmds),
+          "</td><td bgcolor=#ffdddd>",
+          CmdForm("GM commands:", "gm", GmCmds),
           "</td></tr>"
           "</table></td></tr>",
           [["<tr><td>\r\n",
@@ -96,7 +112,8 @@ game_settings_list(Sid) ->
             "</td></tr>\r\n"]
            || {GNum, Title} <- GNumTitles],
           "<tr><td align=center>"
-          "<br><a href=\"/\">Back to Front Page</a>\r\n"
+          "<br>",
+          back_links(),
           "</td></tr>\r\n"]
         },
     B = web:deliver(Sid, Body),
@@ -155,7 +172,7 @@ init_new_game(Sid, Env, PQ) ->
                  "</td></tr>\r\n"
                 ]
         end,
-    do_serverkeeper_action(
+    do_server_admin_cmd(
       #{sid => Sid, env => Env, pq => PQ,
         spec_errors => GNumErrors,
         do_fun => DoFun,
@@ -166,8 +183,6 @@ do_init_game(GNumStr, Site) ->
     GNum = ?l2i(GNumStr),
     mafia:initiate_game(GNum, Site),
     [{info, "Game number " ++ ?i2l(GNum) ++ " created"}].
-
--define(GameNotSet, "*select a game*").
 
 delete_game(Sid, Env, PQ) ->
     PageTitle = ?BDeleteGame,
@@ -193,33 +208,7 @@ delete_game(Sid, Env, PQ) ->
 
     SpecBodyFun =
         fun() ->
-                Attr = fun({GN, _}) when GN == GNStr -> " selected";
-                          (_) -> ""
-                       end,
-                POpt = fun({Str}) ->
-                               ["<option value=\"none\">", Str, "</option>\r\n"];
-                          (S = {GN, GName}) ->
-                               ["<option value=\"", GN, "\"", Attr(S),
-                                ">", GN, " - ", GName, "</option>\r\n"]
-                       end,
-                GNums = web_impl:game_nums_rev_sort(),
-                Games =
-                    [begin
-                         [#mafia_game{name = GNameB}] = ?rgame(GN),
-                         GName =
-                             if GNameB == ?undefined -> "";
-                                true -> GNameB
-                             end,
-                         {?i2l(GN), GName}
-                     end
-                     || GN <- GNums],
-                GameOpts = [{"*Select a game*"} | Games],
-                GameChoise =
-                    ["<select name=\"game_num\""
-                     " onchange=", OnChangeScript,
-                     ">\r\n",
-                     [POpt(G) || G <- GameOpts],
-                     "</select>"],
+                GameChoise = game_select(GNStr, OnChangeScript),
                 ["<tr><td align=center>"
                  "Game to be deleted: ", GameChoise,
                  "</td></tr>\r\n"
@@ -235,12 +224,43 @@ delete_game(Sid, Env, PQ) ->
                  "</td></tr>\r\n"
                 ]
         end,
-    do_serverkeeper_action(
+    do_server_admin_cmd(
       #{sid => Sid, env => Env, pq => PQ,
         spec_errors => GNumErrors,
         do_fun => DoFun,
         page_title => PageTitle,
         spec_body => SpecBodyFun}).
+
+game_select(GNStr, OnChangeScript) ->
+    game_select(GNStr, OnChangeScript, fun(_) -> true end).
+
+game_select(GNStr, OnChangeScript, GameFilter) ->
+    Attr = fun({GN, _}) when GN == GNStr -> " selected";
+              (_) -> ""
+           end,
+    POpt = fun({Str}) ->
+                   ["<option value=\"none\">", Str, "</option>\r\n"];
+              (S = {GN, GName}) ->
+                   ["<option value=\"", GN, "\"", Attr(S),
+                    ">", GN, " - ", GName, "</option>\r\n"]
+           end,
+    GNums = [GNum || GNum <- web_impl:game_nums_rev_sort(),
+                     GameFilter(GNum)],
+    Games =
+        [begin
+             [#mafia_game{name = GNameB}] = ?rgame(GN),
+             GName =
+                 if GNameB == ?undefined -> "";
+                    true -> GNameB
+                 end,
+             {?i2l(GN), GName}
+         end
+         || GN <- GNums],
+    GameOpts = [{?GameNotSelected
+                } | Games],
+    ["<select name=\"game_num\" onchange=", OnChangeScript, ">\r\n",
+     [POpt(G) || G <- GameOpts],
+     "</select>"].
 
 do_delete_game(GNum) when GNum > 0 ->
     mafia_data:delete_game_data_in_other_tabs(GNum),
@@ -248,14 +268,12 @@ do_delete_game(GNum) when GNum > 0 ->
     [{info, ?i2l(GNum) ++ " deleted"}];
 do_delete_game(_) -> [].
 
--define(UserNotSet, "*select a user*").
-
 new_gm_password(Sid, Env, PQ) ->
     PageTitle = ?BNewGmPw,
     User = web_impl:get_arg(PQ, "user"),
     IsReload = web_impl:get_arg(PQ, "is_reload", "false"),
     UserErrors =
-        if User == ?UserNotSet ->
+        if User == ?UserNotSelected ->
                 [{error, "You must select a user"}];
            true -> []
         end,
@@ -289,7 +307,7 @@ new_gm_password(Sid, Env, PQ) ->
                         ">\r\n",
                         [POpt(S, Site) || S <- Sites],
                         "</select>"],
-                Users = [?UserNotSet |
+                Users = [?UserNotSelected |
                          lists:sort(mafia:get_user_names_for_site(Site))],
                 UserOpts =
                     ["<select name=\"user\">\r\n",
@@ -303,7 +321,7 @@ new_gm_password(Sid, Env, PQ) ->
                  "</td></tr>\r\n"
                 ]
         end,
-    do_serverkeeper_action(
+    do_server_admin_cmd(
       #{sid => Sid, env => Env, pq => PQ,
         spec_errors => UserErrors,
         do_fun => DoFun,
@@ -320,46 +338,124 @@ do_set_new_gm_password(User, Site) ->
 to_list(A) when is_atom(A) -> ?a2l(A);
 to_list(L) when is_list(L) -> L.
 
-do_serverkeeper_action(#{sid := Sid, env := Env, pq := PQ,
-                         page_title := PageTitle,
-                         spec_errors := SpecErrors,
-                         do_fun := DoFun,
-                         spec_body := SpecBodyFun
-                        }) ->
-    IsSecure = web:is_secure(Env),
-    Password = web_impl:get_arg(PQ, "password"),
-    LoginErrors = login_errors(IsSecure, Password),
-    Errors = SpecErrors ++ LoginErrors,
-    Responses = if Errors == [] -> DoFun();
-                   true -> Errors
-                end,
-    ServerKeeperInfo =
-        case ?getv(?server_keeper) of
-            {SK, _} ->
-                ["Server Keeper (", SK, ")"];
-            _ ->
-                ""
+%% -----------------------------------------------------------------------------
+
+refresh_votes(Sid, Env, PQ) ->
+    PageTitle = ?BRefreshVotes,
+    GNStr = web_impl:get_arg(PQ, "game_num"),
+    [GNum, Errors] =
+        try ?l2i(GNStr) of
+            Int -> [Int, []]
+        catch _:_ ->
+                [-1, [{error, "You must select a game"}]]
         end,
-    PwF =
-        fun(user) -> "serverkeeper";
-           (pass) -> Password;
-           (info) ->
+    DoFun = fun() ->
+                    mafia:refresh_votes(GNum),
+                    [{info, "Refresh complete!"}]
+            end,
+    GameFilter = fun(_GNum) -> mafia_lib:is_ongoing_game(_GNum) end,
+    SpecBodyFun =
+        fun() ->
+                GameSelect = game_select(GNStr, "", GameFilter),
+                ["<tr><td align=center>"
+                 "<font size=-1><i>",
+                 "Sometime there is a need to tell the bot to reread all "
+                 "messages in a game and do a recount of all votes starting "
+                 "from day 1.<br>\r\n"
+                 "This operation will also recreate all historical "
+                 "pages.<br>\r\n"
+                 "Use this page to tell the bot to do a refresh of a running "
+                 "game where you are a GM.\r\n"
+                 "</i></font>"
+                 "</td></tr>\r\n"
+                 "<tr><td align=center>",
+                 GameSelect,
+                 "</td></tr>\r\n"
+                ]
+        end,
+    do_game_master_cmd(
+      #{sid => Sid, env => Env, pq => PQ,
+        spec_errors => Errors,
+        do_fun => DoFun,
+        page_title => PageTitle,
+        spec_body => SpecBodyFun,
+        game_num => GNum
+       }).
+
+%% -----------------------------------------------------------------------------
+do_server_admin_cmd(Args) ->
+    Info =
+        fun(ServerAdminInfo) ->
                 [
                  "<tr><td colspan=2 width=400>\r\n"
                  "<font size=-1>\r\n"
                  "Only the \r\n",
-                 ServerKeeperInfo,
+                 ServerAdminInfo,
                  " may perform this operation.<br>\r\n"
                  "</font>"
                  "</td></tr>"
-                ];
-           (buttons) -> [PageTitle];
-           (extra_fields) -> [];
-           (user_hidden) -> true
+                ]
         end,
+    do_command(
+      Args#{user => "serveradmin",
+            info => Info,
+            user_hidden => true}
+     ).
+
+do_game_master_cmd(Args = #{pq := PQ}) ->
+    Info =
+        fun(ServerAdminInfo) ->
+                [
+                 "<tr><td colspan=2 width=400>\r\n"
+                 "<font size=-1>\r\n"
+                 "Only the GMs of the selected game and the \r\n",
+                 ServerAdminInfo,
+                 " may perform this command.<br>\r\n"
+                 "</font>"
+                 "</td></tr>"
+                ]
+        end,
+    User = web_impl:get_arg(PQ, "user"),
+    do_command(
+      Args#{user => User,
+            info => Info,
+            user_hidden => false
+           }
+     ).
+
+do_command(#{sid := Sid, env := Env, pq := PQ,
+             page_title := PageTitle,
+             spec_errors := SpecErrors,
+             user := User,
+             info := Info,
+             user_hidden := UserHidden,
+             do_fun := DoFun,
+             spec_body := SpecBodyFun
+            } = Args) ->
+    IsSecure = web:is_secure(Env),
+    Password = web_impl:get_arg(PQ, "password"),
+    LoginErrors = login_errors(IsSecure, User, Password, Args),
+    Errors = SpecErrors ++ LoginErrors,
+    Responses = if Errors == [] -> DoFun();
+                   true -> Errors
+                end,
+    ServerAdminInfo =
+        case ?getv(?server_keeper) of
+            {SK, _} ->
+                ["server administrator (", SK, ")"];
+            _ ->
+                ""
+        end,
+    PwF = fun(user) -> User;
+             (pass) -> Password;
+             (info) -> Info(ServerAdminInfo);
+             (buttons) -> [PageTitle];
+             (extra_fields) -> [];
+             (user_hidden) -> UserHidden
+          end,
 
     A = web_impl:del_start(Sid, PageTitle, 0),
-    Body = ["<tr><td>\r\n" %%"<table>\r\n"
+    Body = ["<tr><td>\r\n"
             "<form action=\"/e/web/game_settings\" method=post>\r\n",
             "<table>",
             SpecBodyFun(),
@@ -373,7 +469,7 @@ do_serverkeeper_action(#{sid := Sid, env := Env, pq := PQ,
             "</table>"
             "</form>\r\n",
             "<tr><td  align=center>\r\n",
-            "<a href=\"/\">Back to Front Page</a>"
+            back_links(),
             "</td></tr>"
            ],
     RBody = present_responses(Responses),
@@ -382,12 +478,16 @@ do_serverkeeper_action(#{sid := Sid, env := Env, pq := PQ,
     C = web_impl:del_end(Sid),
     {A + R + B + C, ?none}.
 
-login_errors(IsSec, Pass) ->
+back_links() ->
+    ["<a href=\"/\">Front Page</a> - "
+     "<a href=\"/e/web/game_settings\">Game Settings Page</a>\r\n"].
+
+login_errors(IsSec, User, Pass, Args) ->
     lists:filtermap(
       fun({sec, false}) ->
               {true, {error, "You must use secure connection"}};
          (password) ->
-              case is_serverkeeper_password_ok(Pass) of
+              case is_user_and_password_ok2(User, Pass, Args) of
                   true -> false;
                   false -> {true, {error, "Wrong password"}}
               end;
@@ -418,10 +518,10 @@ game_settings_update(Sid, Env, Button, PQ) ->
            true ->
                 get_game_settings(GNum)
         end,
-    ServerKeeperInfo =
+    ServerAdminInfo =
         case ?getv(?server_keeper) of
             {SK, _} ->
-                [" and the Server Keeper (", SK, ")"];
+                [" and the Server Admin (", SK, ")"];
             _ ->
                 ""
         end,
@@ -434,12 +534,12 @@ game_settings_update(Sid, Env, Button, PQ) ->
                  "<font size=-1>\r\n"
                  "Only GMs (listed in the unmodified settings "
                  "above)\r\n",
-                 ServerKeeperInfo,
+                 ServerAdminInfo,
                  " may change the settings of a game.<br>\r\n"
                  "The GMs need a password to modify the game settings or to "
                  "start the game.<br>\r\n"
                  "A randomly generated password can be retrieved from the "
-                 "Server Keeper.\r\n"
+                 "Server Admin.\r\n"
                  "</font>"
                  "</td></tr>"
                 ];
@@ -466,7 +566,8 @@ game_settings_update(Sid, Env, Button, PQ) ->
              true -> ""
           end,
           "\r\n</form>\r\n"
-          "<br><a href=\"/\">Back to Front Page</a>\r\n"
+          "<br>",
+          back_links(),
           "</center>",
           settings_info(),
           "</td></tr>"]
@@ -719,18 +820,34 @@ mug0(G, User, Pass, GameSett) ->
             [{error, "This combination of user and password does not exist."}]
     end.
 
-is_user_and_password_ok(_, "serverkeeper", Pass) ->
-    is_serverkeeper_password_ok(Pass);
+is_user_and_password_ok2("serveradmin", Pass, _) ->
+    is_serveradmin_password_ok(Pass);
+is_user_and_password_ok2(User, Pass, Args) ->
+    case Args of
+        #{game_num := GNum} when is_integer(GNum) ->
+            case ?rgame(GNum) of
+                [G] ->
+                    is_user_and_password_ok(G, User, Pass);
+                _ ->
+                    false
+            end;
+        _ ->
+            false
+    end.
+
+is_user_and_password_ok(_, "serveradmin", Pass) ->
+    is_serveradmin_password_ok(Pass);
 is_user_and_password_ok(G, User, Pass) ->
     GSite = G#mafia_game.site,
     Allowed = [?b2l(U) || U <- G#mafia_game.gms],
     case lists:member(User, Allowed) of
-        false -> false;
+        false ->
+            false;
         true ->
             ok == mafia_lib:check_password(User, GSite, Pass)
     end.
 
-is_serverkeeper_password_ok(Pass) ->
+is_serveradmin_password_ok(Pass) ->
     case ?getv(?server_keeper) of
         {SkName, SkSite} ->
             ok == mafia_lib:check_password(SkName, SkSite, Pass);
@@ -902,9 +1019,9 @@ pri([F={"dst_zone", _} | T], Acc) -> pri(T, pr_dst_zone(F, Acc));
 pri([F={"players", _} | T], Acc) ->  pri(T, pr_user_list(F, Acc));
 pri([{Par, Value} | T], {G, Es}) ->
     pri(T, {G, Es ++
-               [{error,
-                 "Unknown parameter: '" ++ Par ++ "' and value '" ++
-                     Value ++ "'"}]});
+                [{error,
+                  "Unknown parameter: '" ++ Par ++ "' and value '" ++
+                      Value ++ "'"}]});
 pri([], Acc) -> Acc.
 
 pr_user_list({Field, GmStr}, {G, Es}) ->
@@ -1033,8 +1150,8 @@ pr_int2({Field, Int}, {G, Es})
     {G, Es ++ [{error, Field ++ ": " ++ ?i2l(Int) ++ " is negative"}]};
 pr_int2({Field = "time_zone", Int}, {G, Es})
   when Int < -12; Int > 12 ->
-            {G, Es ++ [{error, Field ++ ": " ++ ?i2l(Int) ++
-                            " must be an integer between -12 and +12"}]};
+    {G, Es ++ [{error, Field ++ ": " ++ ?i2l(Int) ++
+                    " must be an integer between -12 and +12"}]};
 pr_int2({"day_hours", Int}, {G, Es}) ->
     {G#mafia_game{day_hours = Int}, Es};
 pr_int2({"night_hours", Int}, {G, Es}) ->
@@ -1173,8 +1290,8 @@ game_settings_start(Sid, Env, _Button, PQ) ->
            IsThreadSet ->
                 ["<tr><td><center>"
                  "GAME M", GNStr, " IS RUNNING NOW!"
-                 "<p>"
-                 "<a href=/>Go back to the mafia front page</a>"
+                 "<p>",
+                 back_links(),
                  "</center></td></tr>\r\n"
                 ];
            not IsThreadSet ->
@@ -1268,7 +1385,8 @@ game_settings_start(Sid, Env, _Button, PQ) ->
                          enter_user_pw_box(F)
                  end,
                  "\r\n</form>\r\n"
-                 "<center><br><a href=\"/\">Back to Front Page</a>"
+                 "<center><br>",
+                 back_links(),
                  "</center>\r\n"
                  "</td></tr>"
                 ]

@@ -37,11 +37,9 @@ game_settings(Sid, Env, In) ->
        Button == ?BNewGmPw -> new_gm_password(Sid, Env, PQ);
        Button == ?BRefreshVotes -> refresh_votes(Sid, Env, PQ);
        Button == ?BRemPlayer -> remove_player(Sid, Env, PQ);
-       %% Button == ?BAddGm -> ok;
-
+       Button == ?BAddGm -> add_gm(Sid, Env, PQ);
        GNum == ?undefined ->
             game_settings_list(Sid);
-
        Button == ?BStart;
        Button == ?BStartNow ->
             game_settings_start(Sid, Env, Button, PQ);
@@ -84,8 +82,8 @@ game_settings_list(Sid) ->
                 ]
         end,
     AdminCmds = [?CmdNotSelected, ?BInitGame, ?BDeleteGame, ?BNewGmPw],
-    GmCmds = [?CmdNotSelected, ?BRemPlayer, ?BRefreshVotes],
-    %%, ?BAddGm, "Ignore GM message",  "Kill Player"],
+    GmCmds = [?CmdNotSelected, ?BRemPlayer, ?BAddGm, ?BRefreshVotes],
+    %%, "Ignore GM message",  "Kill Player"],
 
     {A, Body} =
         {web_impl:del_start(Sid, "Game Settings", 0),
@@ -272,10 +270,9 @@ new_gm_password(Sid, Env, PQ) ->
                "" -> ?wd2;
                SiteStr -> ?l2a(SiteStr)
            end,
-    DoFun = fun() ->
-                    if IsReload == "false" ->  do_set_new_gm_password(User, Site);
-                       true -> []
-                    end
+    DoFun = fun() when IsReload == "false" ->
+                    do_set_new_gm_password(User, Site);
+               () ->  []
             end,
 
     %% Present Init New Game page
@@ -299,7 +296,8 @@ new_gm_password(Sid, Env, PQ) ->
                         [POpt(S, Site) || S <- Sites],
                         "</select>"],
                 Users = [?UserNotSelected |
-                         lists:sort(mafia:get_user_names_for_site(Site))],
+                         mafia_lib:alpha_sort(
+                           mafia:get_user_names_for_site(Site))],
                 UserOpts =
                     ["<select name=\"user\">\r\n",
                      [POpt(U, User) || U <- Users],
@@ -410,7 +408,7 @@ remove_player(Sid, Env, PQ) ->
         end,
     Errors =
         if MsgId == ?undefined ->
-                Errors2 ++ [{error, "You must give a message id"}];
+                Errors2;
            MsgId < FirstGameMsgId, is_integer(FirstGameMsgId) ->
                 Errors2 ++ [{error, "Message id is too low."}];
            MsgId > LastGameMsgId, is_integer(LastGameMsgId) ->
@@ -425,8 +423,11 @@ remove_player(Sid, Env, PQ) ->
                 end;
            true -> Errors2
         end,
+    CmdMsgId = if MsgId == ?undefined -> LastGameMsgId;
+                  true -> MsgId
+               end,
     DoFun = fun() when IsReload == "false" ->
-                    case mafia:remove_player(GNum, MsgId, Player) of
+                    case mafia:remove_player(GNum, CmdMsgId, Player) of
                         ok ->
                             [{info, "Player " ++ Player ++
                                   " has been removed from game"}];
@@ -453,19 +454,9 @@ remove_player(Sid, Env, PQ) ->
                  "</i></font>"
                  "</td></tr>\r\n"
                  "<tr><td align=center>",
-                 GameSelect, "<br>\r\n",PlayerOpts, "<br>\r\n",
-                 "<font size=-1><i>"
-                 "You need to give the message id when this change happened in "
-                 "the next field. <br>\r\n"
-                 "Lookup the message in the bot game thread. <br>\r\n"
-                 "Copy the link address of the \"Page\" link of that message. "
-                 "(The address contains \"msg_id=\").<br>\r\n"
-                 "Paste in the address in the \"Message id\" field below."
-                 "\r\n"
-                 "</i></font>"
-                 "<br>\r\n"
-                 "Message id: "
-                 "<input size=20 name=msg_id value=\"", MsgIdStr, "\">"
+                 GameSelect, "<br>\r\n",
+                 PlayerOpts, "<br>\r\n",
+                 msg_id_field_text(MsgIdStr),
                  "<input type=hidden id=is_reload "
                  "name=is_reload value=\"false\"/>"
                  "</td></tr>\r\n"
@@ -479,6 +470,135 @@ remove_player(Sid, Env, PQ) ->
         spec_body => SpecBodyFun,
         game_num => GNum
        }).
+
+msg_id_field_text(MsgIdStr) ->
+    [
+     "Message id: "
+     "<input size=20 name=msg_id value=\"", MsgIdStr, "\">"
+     "<br>\r\n"
+     "<font size=-2><i>"
+     "You may leave the  \"Message id\" field empty.<br>\r\n"
+     "If you leave it empty, the change will occur \"now\".<br>\r\n"
+     "But if you want this change to have happened earlier in "
+     "the game, <br>\r\n"
+     "you need to give the message id for when this "
+     "change happened in the \"Message id\" field. <br>\r\n"
+     "Lookup the message in the bot game thread. <br>\r\n"
+     "Copy the link address of the \"Page\" link of that message. "
+     "(The address contains \"msg_id=\").<br>\r\n"
+     "Paste in the link address (or just the message id number) "
+     "into the \"Message id\" field."
+     "\r\n"
+     "</i></font>"
+    ].
+
+%% add_gm/3 HAS LOTS IN COMMOM WITH remove_player/3, REUSE SOME!
+add_gm(Sid, Env, PQ) ->
+    PageTitle = ?BAddGm,
+    GNStr = web_impl:get_arg(PQ, "game_num"),
+    Candidate = web_impl:get_arg(PQ, "gm_cand", ?UserNotSelected),
+    MsgIdStr = web_impl:get_arg(PQ, "msg_id"),
+    IsReload = web_impl:get_arg(PQ, "is_reload", "false"),
+    [GNum, Errors1] =
+        try ?l2i(GNStr) of
+            Int -> [Int, []]
+        catch _:_ ->
+                [-1, [{error, "You must select a game"}]]
+        end,
+    Errors2 =
+        if Candidate == ?UserNotSelected ->
+                Errors1 ++ [{error, "You must select a player"}];
+           true -> Errors1
+        end,
+    MsgId = read_msg_id(MsgIdStr),
+    {PlayersB, GmsB, FirstGameMsgId, LastGameMsgId, ThId, Site} =
+        case ?rgame(GNum) of
+            [] ->
+                {[], [], ?undefined, ?undefined, ?undefined, ?undefined};
+            [#mafia_game{gms = GmsB2,
+                         players_orig = PsB,
+                         thread_id = ThId2,
+                         site = Site2,
+                         last_msg_id = LMsgId}] ->
+                FMsgId =
+                    case ?rpage(ThId2, 1, Site2) of
+                        [#page_rec{message_ids = [FId | _]}] ->
+                            FId;
+                        [] -> ?undefined
+                    end,
+                {PsB, GmsB2, FMsgId, LMsgId, ThId2, Site2}
+        end,
+    AllSiteUsersB =
+        mafia_lib:alpha_sort(
+          mafia:get_user_names_for_site_binary(Site)),
+    Users = [?UserNotSelected | (AllSiteUsersB -- PlayersB) -- GmsB],
+    Errors =
+        if MsgId == ?undefined ->
+                Errors2;
+           MsgId < FirstGameMsgId, is_integer(FirstGameMsgId) ->
+                Errors2 ++ [{error, "Message id is too low."}];
+           MsgId > LastGameMsgId, is_integer(LastGameMsgId) ->
+                Errors2 ++ [{error, "Message id is too high."}];
+           ThId /= ?undefined, Site /= ?undefined ->
+                case ?rmess({MsgId, Site}) of
+                    [#message{thread_id = ThId}] ->
+                        Errors2;
+                    _ ->
+                        Errors2 ++
+                            [{error, "Message is not part of game thread."}]
+                end;
+           true -> Errors2
+        end,
+    CmdMsgId = if MsgId == ?undefined -> LastGameMsgId;
+                  true -> MsgId
+               end,
+    DoFun =
+        fun() when IsReload == "false" ->
+                case mafia:add_gm(GNum, CmdMsgId, Candidate) of
+                    ok ->
+                        [{info,
+                          "User " ++ Candidate ++ " has been added as GM"}];
+                    _ ->
+                        [{error,
+                          "User " ++ Candidate ++ " has NOT been added as GM"}]
+                end;
+           () -> []
+        end,
+    CandOpts = select_opts("gm_cand", Users, Candidate),
+    OnChangeScript =
+        ["'document.getElementById(\"is_reload\").value = \"true\";"
+         " document.getElementById(\"", PageTitle, "\").click()'"],
+    GameFilter = fun(_GNum) -> mafia_lib:is_ongoing_game(_GNum) end,
+    SpecBodyFun =
+        fun() ->
+                GameSelect = game_select(GNStr, OnChangeScript, GameFilter),
+                ["<tr><td align=center>"
+                 "<font size=-1><i>",
+                 "Use this page to add a GM, that is to promote a user not "
+                 "playing in this game, <br>\r\n"
+                 "to become a GM. You need to be a GM and the player must "
+                 "registered on this site"
+                 "\r\n"
+                 "</i></font>"
+                 "</td></tr>\r\n"
+                 "<tr><td align=center>",
+                 GameSelect, "<br>\r\n",
+                 CandOpts, "<br>\r\n",
+                 msg_id_field_text(MsgIdStr),
+                 "<input type=hidden id=is_reload "
+                 "name=is_reload value=\"false\"/>"
+                 "</td></tr>\r\n"
+                ]
+        end,
+    do_game_master_cmd(
+      #{sid => Sid, env => Env, pq => PQ,
+        spec_errors => Errors,
+        do_fun => DoFun,
+        page_title => PageTitle,
+        spec_body => SpecBodyFun,
+        game_num => GNum
+       }).
+
 
 to_int(Str) -> to_int(Str, no_function).
 

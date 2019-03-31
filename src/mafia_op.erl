@@ -3,6 +3,7 @@
 -export([kill_player/4,
          resurrect_player/3,
          remove_player/2,
+         add_gm/2,
          set_death_msgid/5,
          replace_player/4
         ]).
@@ -152,6 +153,26 @@ remove_player(G, PlayerB) ->
             ?dwrite_game(G2),
             ok;
        true -> {?error, game_not_updated}
+    end.
+
+%% -----------------------------------------------------------------------------
+%% @doc
+%% @end
+%% -----------------------------------------------------------------------------
+add_gm(G, UserB) ->
+    #mafia_game{gms = GmsB, players_orig = PsOrigB} = G,
+    case {lists:member(UserB, GmsB), lists:member(UserB, PsOrigB)} of
+        {false, false} ->
+            %% Not complete check, in case add_gm is not for "now"!
+            G2 = G#mafia_game{gms = GmsB ++ [UserB]},
+            if G2 /= G ->
+                    ?dwrite_game(G2),
+                    ok;
+               true ->
+                    {?error, game_not_updated}
+            end;
+        {true, _} -> {?error, user_is_gm};
+        {_, true} -> {?error, user_is_player}
     end.
 
 %% -----------------------------------------------------------------------------

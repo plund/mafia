@@ -47,6 +47,7 @@
          resurrect_player/3,
          ignore_message/2,
          remove_player/3,
+         add_gm/3,
 
          set_death_msgid/5,
 
@@ -94,7 +95,8 @@
          save_cnts_to_file/0,
 
          fix_user_bug/0, fix_user_bug/1,
-         get_user_names_for_site/1
+         get_user_names_for_site/1,
+         get_user_names_for_site_binary/1
         ]).
 
 -export([cmp_vote_raw/0
@@ -611,6 +613,33 @@ remove_player(GNum, MsgId, Player) ->
 
 %% -----------------------------------------------------------------------------
 
+-spec add_gm(GNum :: game_num(),
+             MsgId :: msg_id(),
+             User :: string())
+            -> ok |
+               {?error, msg_not_found | game_not_found} |
+               {?error, term()}.
+add_gm(GNum, MsgId, User) ->
+    case find_mess_game(GNum, MsgId) of
+        {ok, G, M} ->
+            Time = M#message.time,
+            Cmd = #cmd{time = Time,
+                       msg_id = MsgId,
+                       mfa = {mafia, add_gm,
+                              [GNum, MsgId, User]}},
+            UserB = unicode:characters_to_binary(User),
+            case mafia_op:add_gm(G, UserB) of
+                ok ->
+                    ?man(Time, Cmd),
+                    mafia_file:manual_cmd_to_file(G, Cmd),
+                    ok;
+                {?error, _} = E -> E
+            end;
+        {?error, _} = E -> E
+    end.
+
+%% -----------------------------------------------------------------------------
+
 -spec find_mess_game(GNum :: game_num(),
                      MsgId :: msg_id())
                     -> {ok, #mafia_game{}, #message{}} |
@@ -673,9 +702,13 @@ show_all_users(Search) when is_list(Search) ->
     show_usersI(?standard_io, UserKeys, ?all).
 
 get_user_names_for_site(Site) ->
+    [unicode:characters_to_list(UserB)
+     || UserB <- get_user_names_for_site_binary(Site)].
+
+get_user_names_for_site_binary(Site) ->
     [begin
          [#user{name = {User, _}}] = mafia_lib:ruserUB(UserB, Site),
-         unicode:characters_to_list(User)
+         User
      end
      || {UserB, _} <- get_user_keys_for_site(Site)].
 

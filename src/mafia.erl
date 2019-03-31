@@ -46,6 +46,7 @@
          kill_player/4,
          resurrect_player/3,
          ignore_message/2,
+         remove_player/3,
 
          set_death_msgid/5,
 
@@ -472,7 +473,7 @@ set_death_msgid(GNum, MsgId, Player, DeathMsgId, DeathComment) ->
                        msg_id = MsgId,
                        mfa = {mafia, set_death_msgid,
                               [GNum, MsgId, Player, DeathMsgId, DeathComment]}},
-            PlayerB = ?l2b(Player),
+            PlayerB = unicode:characters_to_binary(Player),
             case mafia_op:set_death_msgid(G, M,
                                           PlayerB,
                                           ?rmess({DeathMsgId, Site}),
@@ -506,7 +507,7 @@ kill_player(GNum, MsgId, Player, Comment) ->
                        msg_id = MsgId,
                        mfa = {mafia, kill_player,
                               [GNum, MsgId, Player, Comment]}},
-            PlayerB = ?l2b(Player),
+            PlayerB = unicode:characters_to_binary(Player),
             case mafia_op:kill_player(G, M, PlayerB, Comment) of
                 {{ok, DeathPhase}, _G2} ->
                     ?man(Time, Cmd),
@@ -537,7 +538,7 @@ kill_player(GNum, MsgId, Player, Comment) ->
                        Player :: string())
                  -> ok |
                     {?error, msg_not_found | game_not_found} |
-                    {player_not_dead}.
+                    {?error, player_not_dead}.
 resurrect_player(GNum, MsgId, Player) ->
     case find_mess_game(GNum, MsgId) of
         {ok, G, M} ->
@@ -546,14 +547,14 @@ resurrect_player(GNum, MsgId, Player) ->
                        msg_id = MsgId,
                        mfa = {mafia, resurrect_player,
                               [GNum, MsgId, Player]}},
-            PlayerB = ?l2b(Player),
+            PlayerB = unicode:characters_to_binary(Player),
             case mafia_op:resurrect_player(G, M, PlayerB) of
                 {ok, _G2} ->
                     ?man(Time, Cmd),
                     mafia_file:manual_cmd_to_file(G, Cmd),
                     ok;
-                not_found ->
-                    not_found
+                {?error, player_not_dead} ->
+                    {?error, player_not_dead}
             end;
         {?error, _} = E -> E
     end.
@@ -581,6 +582,32 @@ ignore_message(GNum, MsgId) when is_integer(GNum), is_integer(MsgId)  ->
             end;
         {?error, _} = E -> E
     end.
+%% -----------------------------------------------------------------------------
+
+-spec remove_player(GNum :: game_num(),
+                    MsgId :: msg_id(),
+                    Player :: string())
+                   -> ok |
+                      {?error, msg_not_found | game_not_found} |
+                      {?error, term()}.
+remove_player(GNum, MsgId, Player) ->
+    case find_mess_game(GNum, MsgId) of
+        {ok, G, M} ->
+            Time = M#message.time,
+            Cmd = #cmd{time = Time,
+                       msg_id = MsgId,
+                       mfa = {mafia, remove_player,
+                              [GNum, MsgId, Player]}},
+            PlayerB = unicode:characters_to_binary(Player),
+            case mafia_op:remove_player(G, PlayerB) of
+                ok ->
+                    ?man(Time, Cmd),
+                    mafia_file:manual_cmd_to_file(G, Cmd),
+                    ok;
+                {?error, _} = E -> E
+            end;
+        {?error, _} = E -> E
+    end.
 
 %% -----------------------------------------------------------------------------
 
@@ -591,10 +618,10 @@ ignore_message(GNum, MsgId) when is_integer(GNum), is_integer(MsgId)  ->
 find_mess_game(GNum, MsgId) when is_integer(MsgId) ->
     case ?rgame(GNum) of
         [] -> {?error, game_not_found};
-        [G] ->
+        [G = #mafia_game{thread_id = ThId}] ->
             case ?rmess({MsgId, G#mafia_game.site}) of
-                [] -> {?error, msg_not_found};
-                [M] -> {ok, G, M}
+                [M = #message{thread_id = ThId}] -> {ok, G, M};
+                _ -> {?error, msg_not_found}
             end
     end.
 

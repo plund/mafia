@@ -1,9 +1,10 @@
 -module(mafia_op).
 
 -export([kill_player/4,
+         resurrect_player/3,
+         remove_player/2,
          set_death_msgid/5,
-         replace_player/4,
-         resurrect_player/3
+         replace_player/4
         ]).
 
 -include("mafia.hrl").
@@ -81,7 +82,7 @@ resurrect_player(G, M, PlayerB) ->
                          end,
                          G#mafia_game.player_deaths) of
         {[], _} ->
-            not_found;
+            {?error, player_not_dead};
         {[#death{msg_key = DMK, time = DTime}], NewDeaths} ->
             NewRems =
                 mafia_lib:to_bin_sort([PlayerB | G#mafia_game.players_rem]),
@@ -137,6 +138,20 @@ resurrect_player(G, M, PlayerB) ->
              end
              || Phase <- RegenPhases],
             {ok, G2}
+    end.
+
+%% -----------------------------------------------------------------------------
+%% @doc
+%% @end
+%% -----------------------------------------------------------------------------
+remove_player(G, PlayerB) ->
+    #mafia_game{players_rem = PsRem, players_orig = PsOrig} = G,
+    G2 = G#mafia_game{players_rem = PsRem -- [PlayerB],
+                      players_orig = PsOrig -- [PlayerB]},
+    if G2 /= G ->
+            ?dwrite_game(G2),
+            ok;
+       true -> {?error, game_not_updated}
     end.
 
 %% -----------------------------------------------------------------------------

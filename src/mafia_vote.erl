@@ -133,7 +133,7 @@ check_for_player_resurrect(Reg = #regex{}, M, G) ->
             case mafia_op:resurrect_player(G, M, PlayerB) of
                 {ok, G2} ->
                     check_for_player_resurrect(Reg2, M, G2);
-                not_found ->
+                {?error, player_not_dead} ->
                     G
             end
     end.

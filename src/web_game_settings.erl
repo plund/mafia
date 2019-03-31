@@ -25,30 +25,21 @@
 -define(GameNotSelected, "*Select a Game*").
 -define(UserNotSelected, "*Select a User*").
 %% -define(UserNotSelected, "&lt;Select a User&gt;").
+-define(PlayerNotSelected, "*Select a Player*").
 
 game_settings(Sid, Env, In) ->
     PQ = httpd:parse_query(In),
     Button = proplists:get_value("button", PQ),
     GNum = proplists:get_value("game_num", PQ),
 
-    if Button == ?BInitGame ->
-            init_new_game(Sid, Env, PQ);
+    if Button == ?BInitGame -> init_new_game(Sid, Env, PQ);
+       Button == ?BDeleteGame -> delete_game(Sid, Env, PQ);
+       Button == ?BNewGmPw -> new_gm_password(Sid, Env, PQ);
+       Button == ?BRefreshVotes -> refresh_votes(Sid, Env, PQ);
+       Button == ?BRemPlayer -> remove_player(Sid, Env, PQ);
+       %% Button == ?BAddGm -> ok;
 
-       Button == ?BDeleteGame  ->
-            delete_game(Sid, Env, PQ);
-
-       Button == ?BNewGmPw  ->
-            new_gm_password(Sid, Env, PQ);
-
-       Button == ?BRefreshVotes  ->
-            refresh_votes(Sid, Env, PQ);
-
-       %% Button == ?BRemPlayer  ->
-       %%      ok;
-       %% Button == ?BAddGm  ->
-       %%      ok;
-
-       GNum == ?undefined  ->
+       GNum == ?undefined ->
             game_settings_list(Sid);
 
        Button == ?BStart;
@@ -93,8 +84,8 @@ game_settings_list(Sid) ->
                 ]
         end,
     AdminCmds = [?CmdNotSelected, ?BInitGame, ?BDeleteGame, ?BNewGmPw],
-    GmCmds = [?CmdNotSelected, ?BRefreshVotes],
-    %%, ?BRemPlayer, ?BAddGm, "Ignore GM message",  "Kill Player"],
+    GmCmds = [?CmdNotSelected, ?BRemPlayer, ?BRefreshVotes],
+    %%, ?BAddGm, "Ignore GM message",  "Kill Player"],
 
     {A, Body} =
         {web_impl:del_start(Sid, "Game Settings", 0),
@@ -336,6 +327,7 @@ do_set_new_gm_password(User, Site) ->
                           "\", site ", Site, ", ", DateStr, "."])}].
 
 to_list(A) when is_atom(A) -> ?a2l(A);
+to_list(B) when is_binary(B) -> unicode:characters_to_list(B);
 to_list(L) when is_list(L) -> L.
 
 %% -----------------------------------------------------------------------------
@@ -381,6 +373,152 @@ refresh_votes(Sid, Env, PQ) ->
         spec_body => SpecBodyFun,
         game_num => GNum
        }).
+
+remove_player(Sid, Env, PQ) ->
+    PageTitle = ?BRemPlayer,
+    GNStr = web_impl:get_arg(PQ, "game_num"),
+    Player = web_impl:get_arg(PQ, "player", ?PlayerNotSelected),
+    MsgIdStr = web_impl:get_arg(PQ, "msg_id"),
+    IsReload = web_impl:get_arg(PQ, "is_reload", "false"),
+    [GNum, Errors1] =
+        try ?l2i(GNStr) of
+            Int -> [Int, []]
+        catch _:_ ->
+                [-1, [{error, "You must select a game"}]]
+        end,
+    Errors2 =
+        if Player == ?PlayerNotSelected ->
+                Errors1 ++ [{error, "You must select a player"}];
+           true -> Errors1
+        end,
+    MsgId = read_msg_id(MsgIdStr),
+    {PlayersB, FirstGameMsgId, LastGameMsgId, ThId, Site} =
+        case ?rgame(GNum) of
+            [] ->
+                {[], ?undefined, ?undefined, ?undefined, ?undefined};
+            [#mafia_game{players_orig = PsB,
+                         thread_id = ThId2,
+                         site = Site2,
+                         last_msg_id = LMsgId}] ->
+                FMsgId =
+                    case ?rpage(ThId2, 1, Site2) of
+                        [#page_rec{message_ids = [FId | _]}] ->
+                            FId;
+                        [] -> ?undefined
+                    end,
+                {PsB, FMsgId, LMsgId, ThId2, Site2}
+        end,
+    Errors =
+        if MsgId == ?undefined ->
+                Errors2 ++ [{error, "You must give a message id"}];
+           MsgId < FirstGameMsgId, is_integer(FirstGameMsgId) ->
+                Errors2 ++ [{error, "Message id is too low."}];
+           MsgId > LastGameMsgId, is_integer(LastGameMsgId) ->
+                Errors2 ++ [{error, "Message id is too high."}];
+           ThId /= ?undefined, Site /= ?undefined ->
+                case ?rmess({MsgId, Site}) of
+                    [#message{thread_id = ThId}] ->
+                        Errors2;
+                    _ ->
+                        Errors2 ++
+                            [{error, "Message is not part of game thread."}]
+                end;
+           true -> Errors2
+        end,
+    DoFun = fun() when IsReload == "false" ->
+                    case mafia:remove_player(GNum, MsgId, Player) of
+                        ok ->
+                            [{info, "Player " ++ Player ++
+                                  " has been removed from game"}];
+                        _ ->
+                            [{error, "Player " ++ Player ++
+                                  " has NOT been removed from game"}]
+                    end;
+               () -> []
+            end,
+    Players = [?PlayerNotSelected | PlayersB],
+    PlayerOpts = select_opts("player", Players, Player),
+    OnChangeScript =
+        ["'document.getElementById(\"is_reload\").value = \"true\";"
+         " document.getElementById(\"", PageTitle, "\").click()'"],
+    GameFilter = fun(_GNum) -> mafia_lib:is_ongoing_game(_GNum) end,
+    SpecBodyFun =
+        fun() ->
+                GameSelect = game_select(GNStr, OnChangeScript, GameFilter),
+                ["<tr><td align=center>"
+                 "<font size=-1><i>",
+                 "Use this page to remove a player from one running game "
+                 "where you are a GM, maybe in order to make him/her GM."
+                 "\r\n"
+                 "</i></font>"
+                 "</td></tr>\r\n"
+                 "<tr><td align=center>",
+                 GameSelect, "<br>\r\n",PlayerOpts, "<br>\r\n",
+                 "<font size=-1><i>"
+                 "You need to give the message id when this change happened in "
+                 "the next field. <br>\r\n"
+                 "Lookup the message in the bot game thread. <br>\r\n"
+                 "Copy the link address of the \"Page\" link of that message. "
+                 "(The address contains \"msg_id=\").<br>\r\n"
+                 "Paste in the address in the \"Message id\" field below."
+                 "\r\n"
+                 "</i></font>"
+                 "<br>\r\n"
+                 "Message id: "
+                 "<input size=20 name=msg_id value=\"", MsgIdStr, "\">"
+                 "<input type=hidden id=is_reload "
+                 "name=is_reload value=\"false\"/>"
+                 "</td></tr>\r\n"
+                ]
+        end,
+    do_game_master_cmd(
+      #{sid => Sid, env => Env, pq => PQ,
+        spec_errors => Errors,
+        do_fun => DoFun,
+        page_title => PageTitle,
+        spec_body => SpecBodyFun,
+        game_num => GNum
+       }).
+
+to_int(Str) -> to_int(Str, no_function).
+
+to_int(Str, Otherwise) ->
+    try list_to_integer(Str) of
+        _I -> _I
+    catch _:_ ->
+            if is_function(Otherwise) -> Otherwise(Str);
+               true ->
+                    ?undefined
+            end
+    end.
+
+read_msg_id(Str) ->
+    case string:split(Str, "msg_id=", trailing) of
+        [MaybeInt] -> %% no "msg_id=" found
+            to_int(MaybeInt, fun read_msg_id2/1);
+        [_, Tail] ->
+            read_msg_id2(Tail)
+    end.
+
+read_msg_id2(Str) ->
+    case string:split(Str, ":", trailing) of
+        [MaybeInt] ->
+            to_int(MaybeInt, fun to_int/1);
+        [_, Tail] ->
+            to_int(Tail)
+    end.
+
+select_opts(FieldName, List, Default) ->
+    Attr = fun(Opt) when Opt == Default -> " selected";
+              (_) -> ""
+           end,
+    POpt = fun(Opt) ->
+                   ["<option value=\"", Opt, "\"", Attr(Opt), ">",
+                    Opt, "</option>\r\n"]
+           end,
+    ["<select name=\"", FieldName, "\">\r\n",
+     [POpt(to_list(E)) || E <- List],
+     "</select>"].
 
 %% -----------------------------------------------------------------------------
 do_server_admin_cmd(Args) ->
@@ -489,7 +627,7 @@ login_errors(IsSec, User, Pass, Args) ->
          (password) ->
               case is_user_and_password_ok2(User, Pass, Args) of
                   true -> false;
-                  false -> {true, {error, "Wrong password"}}
+                  {false, Error} -> {true, Error}
               end;
          (_) -> false
       end,
@@ -821,18 +959,25 @@ mug0(G, User, Pass, GameSett) ->
     end.
 
 is_user_and_password_ok2("serveradmin", Pass, _) ->
-    is_serveradmin_password_ok(Pass);
+    case is_serveradmin_password_ok(Pass) of
+        true -> true;
+        false -> {false, {error, "Wrong password"}}
+    end;
 is_user_and_password_ok2(User, Pass, Args) ->
     case Args of
         #{game_num := GNum} when is_integer(GNum) ->
             case ?rgame(GNum) of
                 [G] ->
-                    is_user_and_password_ok(G, User, Pass);
+                    case is_user_and_password_ok(G, User, Pass) of
+                        false ->
+                            {false, {error, "Wrong user/password combination"}};
+                        true -> true
+                    end;
                 _ ->
-                    false
+                    true
             end;
         _ ->
-            false
+            true
     end.
 
 is_user_and_password_ok(_, "serveradmin", Pass) ->

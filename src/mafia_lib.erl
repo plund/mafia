@@ -44,6 +44,8 @@
          is_url_char/1,
          get_url/1,
          split_on_url_boundary/1,
+         strip_br_white_rev/1,
+         strip_br_white_fwd/1,
          get_url_begin/1,
 
          bgcolor/1,
@@ -637,6 +639,24 @@ split_on_url_boundary([H | T] = Msg, Acc) ->
         false -> {?lrev(Acc), Msg}
     end.
 
+%% Remove "<br>" and white space in both ends of string (but not elsewhere)
+%% Msg comes in and is returned reverted.
+strip_br_white_rev(Msg) ->
+    Msg2 = strip_br_white_b(Msg),
+    ?lrev(strip_br_white_f(?lrev(Msg2))).
+
+strip_br_white_fwd(Msg) ->
+    Msg2 = strip_br_white_f(Msg),
+    ?lrev(strip_br_white_b(?lrev(Msg2))).
+
+strip_br_white_f([H | T]) when H =< $\s -> strip_br_white_f(T);
+strip_br_white_f("<br>" ++ Msg) -> strip_br_white_f(Msg);
+strip_br_white_f(Msg) -> Msg.
+
+strip_br_white_b([H | T]) when H =< $\s -> strip_br_white_b(T);
+strip_br_white_b(">rb<" ++ Msg) -> strip_br_white_b(Msg);
+strip_br_white_b(Msg) -> Msg.
+
 get_url_begin(#mafia_game{site = Site}) -> get_url_begin(Site);
 get_url_begin(?webDip) -> ?UrlBeg;
 get_url_begin(?vDip) -> ?UrlvDip;
@@ -1008,12 +1028,14 @@ to_list(V) -> V.
 dbg(Mod, Term) ->
     io:format("~s DBG ~p ~999p\n",
               [mafia_print:print_time(?console),
-               Mod, Term]).
+               Mod, Term]),
+    Term.
 
 dbg(Mod, Time, Term) ->
     io:format("~s DBG ~p ~999p\n",
               [mafia_print:print_time(?console, Time),
-               Mod, Term]).
+               Mod, Term]),
+    Term.
 
 dbg_str(Str) ->
     io:format("~s DBG ~s\n",

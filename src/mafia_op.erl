@@ -73,18 +73,23 @@ kill_player(G, M, DeadB, DeathComment, false) ->
     end.
 
 %% -----------------------------------------------------------------------------
-%% @doc
+%% @doc ##RESURRECT PLAYER
 %% @end
 %% -----------------------------------------------------------------------------
-resurrect_player(G, M, PlayerB) ->
-    %% ##RESURRECT PLAYER
+resurrect_player(G, M, PlayerU) ->
+    resurrect_player2(G, M, PlayerU, ?ruserUB(PlayerU, G#mafia_game.site)).
+
+resurrect_player2(_, _, PlayerU, []) ->
+    ?dbg({?error, {PlayerU, does_not_exist}});
+resurrect_player2(G, M, _, [#user{name = {PlayerB, _}}]) ->
     case lists:partition(fun(#death{player = P}) -> P == PlayerB;
                             (_) -> ?false
                          end,
                          G#mafia_game.player_deaths) of
         {[], _} ->
-            {?error, player_not_dead};
+            ?dbg({?error, {PlayerB, not_dead}});
         {[#death{msg_key = DMK, time = DTime}], NewDeaths} ->
+            ?dbg({resurrect, PlayerB, M#message.msg_key}),
             NewRems =
                 mafia_lib:to_bin_sort([PlayerB | G#mafia_game.players_rem]),
             %% reinsert PLAYER into #mafia_game.player_rem

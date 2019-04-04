@@ -127,13 +127,13 @@ check_for_player_resurrect(Reg = #regex{}, M, G) ->
     case regex_find_words(SearchU1, Reg) of
         {?nomatch, _} -> G;
         {?match, Reg2} ->
-            PostMatch = Reg2#regex.msg_text,
+            PostMatch = Reg2#regex.msg_text_u,
             [Player | _] = string:tokens(PostMatch, ".\n"),
-            PlayerB = ?l2b(string:strip(Player)),
-            case mafia_op:resurrect_player(G, M, PlayerB) of
+            PlayerU = string:strip(Player),
+            case mafia_op:resurrect_player(G, M, PlayerU) of
                 {ok, G2} ->
                     check_for_player_resurrect(Reg2, M, G2);
-                {?error, player_not_dead} ->
+                {?error, _} ->
                     G
             end
     end.
@@ -194,6 +194,7 @@ read_death_line(MsgLong, Reg, LookForUsers) ->
     %% Extend the search list with already dead players to make an update
     %% of the death comment possible.
     PreLineU = pre_to_nl(Reg#regex.pre_match_u),
+    io:format("~p", [PreLineU]),
     Users =
         lists:dropwhile(
           fun(User) ->
@@ -229,13 +230,14 @@ read_death_line(MsgLong, Reg, LookForUsers) ->
                     end,
                 Match ++ After
         end,
-    {DeadPlayer, WasComment}.
+    io:format("~p", [WasComment]),
+    {DeadPlayer, mafia_lib:strip_br_white_fwd(WasComment)}.
 
 
 %% return previous part of line stopping early at ".:;!"
 pre_to_nl(HStrU) ->
     RevStr = ?lrev(HStrU),
-    RevStr2 = lists:takewhile(fun(C) -> not lists:member(C, ".;:!\n") end,
+    RevStr2 = lists:takewhile(fun(C) -> not lists:member(C, ";:!\n") end,
                               RevStr),
     ?lrev(RevStr2).
 
@@ -1188,10 +1190,19 @@ NIGHT 4 HAS BEGUN. YOU MAY NOW POST").
 check_for_deaths2_test() ->
     ?assertMatch(
        {<<"Balki Bartokomous">>,
-        "He was Auric Goldfinger a VANILLA TOWN.", _},
+        "He was Auric Goldfinger a VANILLA TOWN.",
+        _},
        check_for_deaths2(death_re(?DeathTxt1),
                          ?undefined,
                          [<<"peterlund">>, <<"Balki Bartokomous">>])
+      ),
+    ?assertMatch(
+       {<<"e.m.c^42">>,
+        "HE WAS THE ALIEN",
+        _},
+       check_for_deaths2(death_re("e.m.c^42 HAS DIED. HE WAS THE ALIEN"),
+                         ?undefined,
+                         [<<"peterlund">>, <<"e.m.c^42">>])
       ).
 
 death_re(Msg) ->

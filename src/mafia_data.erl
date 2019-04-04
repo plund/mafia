@@ -965,13 +965,6 @@ analyse_body(S) when S#s.site == ?wd2 ->
     Msg = strip(Msg3),
     analyse_body(S#s{body = B9}, {UserStr, MsgIdStr, UTime, Msg}).
 
-%% mydeb(X) ->
-%%     case get(xxx) of
-%%         true ->
-%%             ?dbg(X);
-%%         _ -> ok
-%%     end.
-
 %% /2
 analyse_body(S, {"", _MsgIdStr, _UTime, _Msg}) -> S;
 analyse_body(S, {UserStr, MsgIdStr, UTime, Msg}) ->
@@ -1084,7 +1077,7 @@ shorten_blockquotes(?BQ_END ++ Msg,
                             ++ RefUser ++ "</a>";
                    true -> ""
                 end,
-            LocAccStrip = strip_br_white(LocAcc),
+            LocAccStrip = mafia_lib:strip_br_white_rev(LocAcc),
             QText = limit_clean_r(LocAccStrip),
             CiteApp =
                 if is_list(RefUser), is_list(RefIdStr) ->
@@ -1186,20 +1179,6 @@ check_tags_end(Tags = #{tags := Ts}, Acc) ->
         {"gnorts/<" ++ _, [ strong | Ts2]} -> Tags#{tags => Ts2};
         _ -> Tags
     end.
-
-%% Remove "<br>" and white space in both ends of string (but not elsewhere)
-%% Msg comes in and is returned reverted.
-strip_br_white(MsgR) ->
-    MsgR2 = strip_br_white_b(MsgR),
-    ?lrev(strip_br_white_f(?lrev(MsgR2))).
-
-strip_br_white_f([H | T]) when H =< $\s -> strip_br_white_f(T);
-strip_br_white_f("<br>" ++ Msg) -> strip_br_white_f(Msg);
-strip_br_white_f(Msg) -> Msg.
-
-strip_br_white_b([H | T]) when H =< $\s -> strip_br_white_b(T);
-strip_br_white_b(">rb<" ++ Msg) -> strip_br_white_b(Msg);
-strip_br_white_b(Msg) -> Msg.
 
 rm_to_after(Str, []) -> Str;
 rm_to_after(Str, [Search|T]) when is_list(Search) ->

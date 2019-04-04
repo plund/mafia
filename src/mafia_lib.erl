@@ -23,6 +23,7 @@
 
          is_alpha_num/1,
          remove_blockquotes/1,
+         remove_all_br/1,
 
          get_unicode_msg/1,
          escapes_to_unicode/1,
@@ -384,6 +385,10 @@ rm_bq("</blockquote>" ++ Msg, Lvl) -> rm_bq(Msg, Lvl - 1);
 rm_bq([H | T], 0) -> [H | rm_bq(T, 0)];
 rm_bq([_ | T], Lvl) -> rm_bq(T, Lvl);
 rm_bq([], _) -> [].
+
+remove_all_br("<br>" ++ Msg) -> remove_all_br(Msg);
+remove_all_br([H | T]) -> [H | remove_all_br(T)];
+remove_all_br("") -> "".
 
 -spec get_unicode_msg(MsgB :: binary()) -> string().
 get_unicode_msg(MsgB) ->

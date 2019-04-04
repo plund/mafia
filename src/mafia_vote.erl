@@ -32,9 +32,10 @@ get_regexs() ->
           }.
 
 insert_msg_into_re(Msg, Re) ->
-    Msg2 = mafia_lib:remove_blockquotes(
-             mafia_lib:escapes_to_unicode(
-               unicode:characters_to_list(Msg))),
+    Msg2 = mafia_lib:remove_all_br(
+             mafia_lib:remove_blockquotes(
+               mafia_lib:escapes_to_unicode(
+                 unicode:characters_to_list(Msg)))),
     MsgU = ?l2u(Msg2),
     Re#regex{msg_text_u = MsgU, msg_text = Msg2}.
 
@@ -194,7 +195,6 @@ read_death_line(MsgLong, Reg, LookForUsers) ->
     %% Extend the search list with already dead players to make an update
     %% of the death comment possible.
     PreLineU = pre_to_nl(Reg#regex.pre_match_u),
-    io:format("~p", [PreLineU]),
     Users =
         lists:dropwhile(
           fun(User) ->
@@ -230,8 +230,7 @@ read_death_line(MsgLong, Reg, LookForUsers) ->
                     end,
                 Match ++ After
         end,
-    io:format("~p", [WasComment]),
-    {DeadPlayer, mafia_lib:strip_br_white_fwd(WasComment)}.
+    {DeadPlayer, WasComment}.
 
 
 %% return previous part of line stopping early at ".:;!"

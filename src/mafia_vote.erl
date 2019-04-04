@@ -100,7 +100,7 @@ log_unallowed_msg(Type, M) ->
 
 %% Removes player from Game if dead
 check_for_gm_cmds(Re, M, G, DoGenerate) ->
-    G3 = check_for_early_end(Re, M#message.time, G),
+    G3 = check_for_early_end(Re, M#message.time, G, M),
     G4 = check_for_deadline_move(Re, M, G3),
     G5 = check_for_player_replacement(Re, M, G4),
     G6 = check_for_player_resurrect(Re, M, G5),
@@ -257,7 +257,7 @@ is_first_non_letter([H|_]) ->
 
 %% -----------------------------------------------------------------------------
 
-check_for_early_end(#regex{msg_text_u = MsgText}, Time, G) ->
+check_for_early_end(#regex{msg_text_u = MsgText}, Time, G, M) ->
     case find_early_end(MsgText) of
         {?error, _} -> G;
         {ok, Ptype} ->
@@ -266,6 +266,7 @@ check_for_early_end(#regex{msg_text_u = MsgText}, Time, G) ->
                     ?dbg(Time, "GM early end command for game that has ended"),
                     G;
                 #phase{ptype = Ptype} = Phase ->
+                    ?dbg({early_end, Phase, M#message.msg_key}),
                     mafia_time:end_phase(G, Phase, Time);
                 _ ->
                     ?dbg(Time,
@@ -335,6 +336,7 @@ find_early_end(MsgText) ->
 check_for_deadline_move(#regex{msg_text_u = MsgText}, M, G) ->
     G3 = case find_deadline_move(MsgText) of
              {found, DeltaSecs} ->
+                 ?dbg({deadline_move, M#message.msg_key}),
                  {_, G2} = mafia_time:move_next_deadline(G, M, DeltaSecs),
                  G2;
              not_found -> G;

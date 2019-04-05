@@ -593,23 +593,7 @@ ignore_message(GNum, MsgId) when is_integer(GNum), is_integer(MsgId)  ->
                       {?error, msg_not_found | game_not_found} |
                       {?error, term()}.
 remove_player(GNum, MsgId, Player) ->
-    case find_mess_game(GNum, MsgId) of
-        {ok, G, M} ->
-            Time = M#message.time,
-            Cmd = #cmd{time = Time,
-                       msg_id = MsgId,
-                       mfa = {mafia, remove_player,
-                              [GNum, MsgId, Player]}},
-            PlayerB = unicode:characters_to_binary(Player),
-            case mafia_op:remove_player(G, PlayerB) of
-                ok ->
-                    ?man(Time, Cmd),
-                    mafia_file:manual_cmd_to_file(G, Cmd),
-                    ok;
-                {?error, _} = E -> E
-            end;
-        {?error, _} = E -> E
-    end.
+    kill_player(GNum, MsgId, Player, "(Was removed as player)").
 
 %% -----------------------------------------------------------------------------
 

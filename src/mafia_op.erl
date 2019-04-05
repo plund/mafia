@@ -165,8 +165,8 @@ remove_player(G, PlayerB) ->
 %% @end
 %% -----------------------------------------------------------------------------
 add_gm(G, UserB) ->
-    #mafia_game{gms = GmsB, players_orig = PsOrigB} = G,
-    case {lists:member(UserB, GmsB), lists:member(UserB, PsOrigB)} of
+    #mafia_game{gms = GmsB, players_rem = PsRemB} = G,
+    case {lists:member(UserB, GmsB), lists:member(UserB, PsRemB)} of
         {false, false} ->
             %% Not complete check, in case add_gm is not for "now"!
             G2 = G#mafia_game{gms = GmsB ++ [UserB]},

@@ -1197,9 +1197,9 @@ is_ready_to_go(night_hours, _, Acc) -> Acc;
 is_ready_to_go(role_pm, _, Acc) -> Acc;
 is_ready_to_go(site, _, Acc) -> Acc;
 is_ready_to_go(duplicates, CurG, {_, G, Es}) ->
-    %% check not same user in both gms and players_orig
+    %% check not same user in both gms and players_rem
     %% if problem reset both fields to orignal before writing
-    #mafia_game{gms = GMs, players_orig = Ps} = G,
+    #mafia_game{gms = GMs, players_rem = Ps} = G,
     {_Uniqs, Dupls} =
         lists:foldl(fun(E, {U, D}) ->
                             case lists:member(E, U) of

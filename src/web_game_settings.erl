@@ -428,7 +428,7 @@ remove_player(Sid, Env, PQ) ->
                end,
     DoFun = fun() when IsReload == "false" ->
                     case mafia:remove_player(GNum, CmdMsgId, Player) of
-                        ok ->
+                        {player_killed, _} ->
                             [{info, "Player " ++ Player ++
                                   " has been removed from game"}];
                         _ ->
@@ -558,9 +558,10 @@ add_gm(Sid, Env, PQ) ->
                     ok ->
                         [{info,
                           "User " ++ Candidate ++ " has been added as GM"}];
-                    _ ->
+                    {?error, Err} ->
                         [{error,
-                          "User " ++ Candidate ++ " has NOT been added as GM"}]
+                          "User " ++ Candidate ++ " has NOT been added as GM: "
+                          ++ ?a2l(Err)}]
                 end;
            () -> []
         end,

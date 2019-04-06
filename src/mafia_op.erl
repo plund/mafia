@@ -3,7 +3,7 @@
 -export([kill_player/4,
          resurrect_player/3,
          remove_player/2,
-         add_gm/2,
+         add_gm/3,
          set_death_msgid/5,
          replace_player/4
         ]).
@@ -17,40 +17,35 @@
 -spec kill_player(#mafia_game{}, #message{}, user(), string())
                  -> {Resp :: term(), #mafia_game{}}.
 kill_player(G, M, DeadB, DeathComment) ->
-    IsMember = lists:member(DeadB, G#mafia_game.players_rem),
-    kill_player(G, M, DeadB, DeathComment, IsMember).
+    case death_status(G, M, DeadB) of
+        alive_and_kicking ->
+            %% Remaining player. Kill him/her..
+            %% remove player from _rem lists.
+            NewRems = G#mafia_game.players_rem -- [DeadB],
+            io:format("~s Player ~s died\n",
+                      [mafia_print:print_time(M#message.time, short),
+                       ?b2l(DeadB)]),
+            {IsEnd, DeathPhase} = is_end_of_phase(M, G),
+            Death = #death{player = DeadB,
+                           is_end = IsEnd,
+                           phase = DeathPhase,
+                           msg_key = M#message.msg_key,
+                           time = M#message.time,
+                           comment = unicode:characters_to_binary(DeathComment),
+                           is_deleted = false
+                          },
+            NewDeaths = add_modify_deaths(Death, G),
+            G2 = G#mafia_game{players_rem = NewRems,
+                              player_deaths = NewDeaths},
+            ?dwrite_game(game_v1, G2),
+            {{ok, DeathPhase}, G2};
 
-%% Remaining player. Kill him/her..
-kill_player(G, M, DeadB, DeathComment, true) ->
-    %% remove player from _rem lists.
-    NewRems = G#mafia_game.players_rem -- [DeadB],
-    io:format("~s Player ~s died\n",
-              [mafia_print:print_time(M#message.time, short),
-               ?b2l(DeadB)]),
-    {IsEnd, DeathPhase} = is_end_of_phase(M, G),
-    Death = #death{player = DeadB,
-                   is_end = IsEnd,
-                   phase = DeathPhase,
-                   msg_key = M#message.msg_key,
-                   time = M#message.time,
-                   comment = unicode:characters_to_binary(DeathComment),
-                   is_deleted = false
-                  },
-    NewDeaths = add_modify_deaths(Death, G),
-    G2 = G#mafia_game{players_rem = NewRems,
-                      player_deaths = NewDeaths},
-    ?dwrite_game(game_v1, G2),
-    {{ok, DeathPhase}, G2};
-%% Not remaining. Do update if already dead
-kill_player(G, M, DeadB, DeathComment, false) ->
-    %% check in death records (allow edit of text and msgid)
-    Deaths = [D || D = #death{player = P} <- G#mafia_game.player_deaths,
-                  P == DeadB],
-    case Deaths of
-        [D] ->
-            io:format(
-              "~s Update death for player ~s\n",
-              [mafia_print:print_time(M#message.time, short), ?b2l(DeadB)]),
+        {Res, D} when Res == dead_already; Res == not_dead_yet ->
+            %% Not remaining. Do update if already dead
+            %% check in death records (allow edit of text and msgid)
+            io:format("~s Update death for player ~s\n",
+                      [mafia_print:print_time(M#message.time, short),
+                       ?b2l(DeadB)]),
             {IsEnd, DeathPhase} = is_end_of_phase(M, G),
             OldPhase = D#death.phase,
             Death = D#death{msg_key = M#message.msg_key,
@@ -68,8 +63,23 @@ kill_player(G, M, DeadB, DeathComment, false) ->
                ?true -> ok
             end,
             {{ok, DeathPhase}, G2};
-        _ ->
+        not_player_in_game ->
             {not_remaining_player, G}
+    end.
+
+death_status(G, #message{msg_key = MsgKey}, PlayerB) ->
+    death_status(G, MsgKey, PlayerB);
+death_status(G, MsgKey, PlayerB) ->
+    IsRemaining = lists:member(PlayerB, G#mafia_game.players_rem),
+    Deaths = [D || D = #death{player = P} <- G#mafia_game.player_deaths,
+                   P == PlayerB],
+    case Deaths of
+        _ when IsRemaining -> alive_and_kicking;
+        [D = #death{msg_key = DeathMsgKey}] when MsgKey < DeathMsgKey ->
+            {not_dead_yet, D};
+        [D = #death{}] ->
+            {dead_already, D};
+        [] -> not_player_in_game
     end.
 
 %% -----------------------------------------------------------------------------
@@ -164,20 +174,20 @@ remove_player(G, PlayerB) ->
 %% @doc
 %% @end
 %% -----------------------------------------------------------------------------
-add_gm(G, UserB) ->
-    #mafia_game{gms = GmsB, players_rem = PsRemB} = G,
-    case {lists:member(UserB, GmsB), lists:member(UserB, PsRemB)} of
-        {false, false} ->
-            %% Not complete check, in case add_gm is not for "now"!
-            G2 = G#mafia_game{gms = GmsB ++ [UserB]},
-            if G2 /= G ->
-                    ?dwrite_game(G2),
-                    ok;
-               true ->
-                    {?error, game_not_updated}
-            end;
+add_gm(G, M, UserB) ->
+    IsDeathStatusOk =
+        case death_status(G, M, UserB) of
+            {dead_already, _} -> true;
+            not_player_in_game -> true;
+            _ -> false
+        end,
+    case {lists:member(UserB, G#mafia_game.gms), IsDeathStatusOk} of
+        {false, true} ->
+            G2 = G#mafia_game{gms = G#mafia_game.gms ++ [UserB]},
+            ?dwrite_game(G2),
+            ok;
         {true, _} -> {?error, user_is_gm};
-        {_, true} -> {?error, user_is_player}
+        {_, false} -> {?error, user_is_player_still}
     end.
 
 %% -----------------------------------------------------------------------------

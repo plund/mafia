@@ -589,9 +589,9 @@ ignore_message(GNum, MsgId) when is_integer(GNum), is_integer(MsgId)  ->
 -spec remove_player(GNum :: game_num(),
                     MsgId :: msg_id(),
                     Player :: string())
-                   -> ok |
+                   -> {player_killed, #phase{}} |
                       {?error, msg_not_found | game_not_found} |
-                      {?error, term()}.
+                      {player_other_case | not_remaining_player, string()}.
 remove_player(GNum, MsgId, Player) ->
     kill_player(GNum, MsgId, Player, "(Was removed as player)").
 
@@ -612,7 +612,7 @@ add_gm(GNum, MsgId, User) ->
                        mfa = {mafia, add_gm,
                               [GNum, MsgId, User]}},
             UserB = unicode:characters_to_binary(User),
-            case mafia_op:add_gm(G, UserB) of
+            case mafia_op:add_gm(G, M, UserB) of
                 ok ->
                     ?man(Time, Cmd),
                     mafia_file:manual_cmd_to_file(G, Cmd),

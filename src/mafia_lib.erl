@@ -38,6 +38,7 @@
          get_arg/1,
          my_string_substr/3,
          alpha_sort/1,
+         all_players_in_game/1,
          to_bin_sort/1,
 
          split_into_groups/2,
@@ -589,6 +590,17 @@ alpha_sort(Bs = [Bin | _]) when is_binary(Bin) ->
 alpha_sort(Strings) ->
     LE = fun(A, B) -> ?l2u(A) =< ?l2u(B) end,
     lists:sort(LE, Strings).
+
+%% -----------------------------------------------------------------------------
+
+all_players_in_game(G) ->
+    alpha_sort(
+      G#mafia_game.players_orig ++
+          [New
+           || #replacement{new_player = New}
+                  <- G#mafia_game.player_deaths]).
+
+%% -----------------------------------------------------------------------------
 
 to_bin_sort([]) -> [];
 to_bin_sort(LoL = [[_|_]|_]) ->

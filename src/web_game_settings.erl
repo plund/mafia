@@ -400,17 +400,16 @@ kill_player(Sid, Env, PQ) ->
         case ?rgame(GNum) of
             [] ->
                 {[], ?undefined, ?undefined, ?undefined, ?undefined};
-            [#mafia_game{players_orig = PsB,
-                         thread_id = ThId2,
-                         site = Site2,
-                         last_msg_id = LMsgId}] ->
+            [G = #mafia_game{thread_id = ThId2,
+                             site = Site2,
+                             last_msg_id = LMsgId}] ->
                 FMsgId =
                     case ?rpage(ThId2, 1, Site2) of
                         [#page_rec{message_ids = [FId | _]}] ->
                             FId;
                         [] -> ?undefined
                     end,
-                {PsB, FMsgId, LMsgId, ThId2, Site2}
+                {mafia_lib:all_players_in_game(G), FMsgId, LMsgId, ThId2, Site2}
         end,
     Errors =
         if MsgId == ?undefined ->

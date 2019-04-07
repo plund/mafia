@@ -323,7 +323,10 @@ start_web(S) ->
          {erl_script_alias, {"/e", [web]}},
          {error_log, "logs/error_log.txt"},
          {security_log, "logs/security_log.txt"},
-         {transfer_log, "logs/transfer_log.txt"}],
+         {transfer_log, "logs/transfer_log.txt"},
+         {erl_script_timeout, 60} %% http waits upto 60 secs
+         %% "Refresh Vote Count" takes more that the default 15 secs
+        ],
     WebParams =
         [{port, ?WEBPORT}] ++ CommonParams,
     CertFN = filename:join(CertDir, "server.crt"),

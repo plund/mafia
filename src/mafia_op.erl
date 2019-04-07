@@ -38,31 +38,33 @@ kill_player(G, M, DeadB, DeathComment) ->
             G2 = G#mafia_game{players_rem = NewRems,
                               player_deaths = NewDeaths},
             ?dwrite_game(game_v1, G2),
-            {{ok, DeathPhase}, G2};
-
-        {Res, D} when Res == dead_already; Res == not_dead_yet ->
-            %% Not remaining. Do update if already dead
-            %% check in death records (allow edit of text and msgid)
-            io:format("~s Update death for player ~s\n",
-                      [mafia_print:print_time(M#message.time, short),
-                       ?b2l(DeadB)]),
-            {IsEnd, DeathPhase} = is_end_of_phase(M, G),
-            OldPhase = D#death.phase,
-            Death = D#death{msg_key = M#message.msg_key,
-                            time = M#message.time,
-                            phase = DeathPhase,
-                            is_end = IsEnd,
-                            comment = ?l2b(DeathComment)},
-            NewDeaths = add_modify_deaths(Death, G),
-            G2 = G#mafia_game{player_deaths = NewDeaths},
-            ?dwrite_game(game_v2, G2),
             MsgPhase = mafia_time:calculate_phase(G, M#message.time),
-            if DeathPhase#phase.num == OldPhase#phase.num,
-               DeathPhase /= MsgPhase ->
+            if DeathPhase /= MsgPhase ->
                     ?regen_history(update_death, M, {G2, DeathPhase});
                ?true -> ok
             end,
             {{ok, DeathPhase}, G2};
+
+        {Res, D} when Res == dead_already; Res == not_dead_yet ->
+            %% Not remaining. Do update if already dead
+            io:format("~s Update death for player ~s\n",
+                      [mafia_print:print_time(M#message.time, short),
+                       ?b2l(DeadB)]),
+            D2 = D#death{comment = unicode:characters_to_binary(DeathComment)},
+            Death =
+                if Res == not_dead_yet ->
+                        %% moving death to earlier message
+                        {IsEnd, DeathPhase} = is_end_of_phase(M, G),
+                        D2#death{msg_key = M#message.msg_key,
+                                 time = M#message.time,
+                                 phase = DeathPhase,
+                                 is_end = IsEnd};
+                   true -> D2
+                end,
+            NewDeaths = add_modify_deaths(Death, G),
+            G2 = G#mafia_game{player_deaths = NewDeaths},
+            ?dwrite_game(game_v2, G2),
+            {{ok, Death#death.phase}, G2};
         not_player_in_game ->
             {not_remaining_player, G}
     end.
@@ -206,19 +208,15 @@ set_death_msgid(G, M, DeadB, [DeathMsg], DeathComment) ->
               [mafia_print:print_time(M#message.time, short), ?b2l(DeadB)]),
             {IsEnd, DeathPhase} = is_end_of_phase(DeathMsg, G),
             io:format("~p\n", [{IsEnd, DeathPhase}]),
-            OldPhase = D#death.phase,
             Death = D#death{msg_key = DeathMsg#message.msg_key,
                             time = DeathMsg#message.time,
                             phase = DeathPhase,
                             is_end = IsEnd,
-                            comment = ?l2b(DeathComment)
+                            comment = unicode:characters_to_binary(DeathComment)
                            },
             NewDeaths = add_modify_deaths(Death, G),
             G2 = G#mafia_game{player_deaths = NewDeaths},
-            if DeathPhase#phase.num == OldPhase#phase.num ->
-                    ?regen_history(set_death_msgid, DeathMsg, {G2, DeathPhase});
-               ?true -> ok
-            end,
+            ?dwrite_game(G2),
             ok;
         _ ->
             {?error, player_not_dead}
@@ -299,32 +297,21 @@ is_end_of_phase(M, G) ->
 
 -spec add_modify_deaths(#death{},
                         #mafia_game{} | #mafia_day{}
-                       )
-                       -> NewDeaths :: [#death{} | #replacement{}].
-add_modify_deaths(D, G = #mafia_game{}) ->
+                       ) -> NewDeaths :: [#death{} | #replacement{}].
+add_modify_deaths(Death, G = #mafia_game{}) ->
     Deaths = G#mafia_game.player_deaths,
-    add_deathI(D, Deaths).
+    Deaths1 = [D || D = #death{} <- Deaths],
+    Deaths2 =
+        case lists:keyfind(Death#death.player, #death.player, Deaths1) of
+            false -> [Death | Deaths];
+            _ ->
+                Match = fun(#death{player = Player}) ->
+                                Player == Death#death.player;
+                           (_) -> false
+                        end,
+                mafia_lib:replace_p(Match, Deaths, Death)
+        end,
+    lists:sort(fun(A, B) -> msg_key(B) =< msg_key(A) end, Deaths2).
 
-add_deathI(D, Deaths) ->
-    Match = fun(#death{player = P}) -> P == D#death.player;
-               (_) -> false
-            end,
-    case find(Match, Deaths) of
-        false -> [D | Deaths];
-        D2 ->
-            D3 = if D#death.comment /= ?undefined -> D;
-                    true ->
-                         %% remove delete marking on D2
-                         D2#death{is_deleted = false}
-                 end,
-            mafia_lib:replace_p(Match, Deaths, D3)
-    end.
-
-%% -----------------------------------------------------------------------------
-%% @doc Find matching element or false
--spec find(MatchF :: function(), list()) -> false | any().
-find(MatchF, List) ->
-    case lists:dropwhile(fun(E) -> not MatchF(E) end, List) of
-        [] -> false;
-        [MatchElement | _] -> MatchElement
-    end.
+msg_key(D = #death{}) -> D#death.msg_key;
+msg_key(R = #replacement{}) -> R#replacement.msg_key.

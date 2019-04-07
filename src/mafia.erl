@@ -46,7 +46,6 @@
          kill_player/4,
          resurrect_player/3,
          ignore_message/2,
-         remove_player/3,
          add_gm/3,
 
          set_death_msgid/5,
@@ -483,7 +482,6 @@ set_death_msgid(GNum, MsgId, Player, DeathMsgId, DeathComment) ->
                 ok ->
                     ?man(Time, Cmd),
                     mafia_file:manual_cmd_to_file(G, Cmd),
-                    %%io:format("Do mafia:refresh_votes().\n"),
                     {set_death_msgid, Player, DeathMsgId};
                 {?error, _} = E -> E
             end;
@@ -584,16 +582,6 @@ ignore_message(GNum, MsgId) when is_integer(GNum), is_integer(MsgId)  ->
             end;
         {?error, _} = E -> E
     end.
-%% -----------------------------------------------------------------------------
-
--spec remove_player(GNum :: game_num(),
-                    MsgId :: msg_id(),
-                    Player :: string())
-                   -> {player_killed, #phase{}} |
-                      {?error, msg_not_found | game_not_found} |
-                      {player_other_case | not_remaining_player, string()}.
-remove_player(GNum, MsgId, Player) ->
-    kill_player(GNum, MsgId, Player, "(Was removed as player)").
 
 %% -----------------------------------------------------------------------------
 

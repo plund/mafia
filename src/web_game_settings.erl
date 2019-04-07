@@ -18,7 +18,8 @@
 -define(BStart, "Start Game").
 -define(BStartNow, "Start Game Now").
 -define(BRefreshVotes, "Refresh Vote Count").
--define(BRemPlayer, "Remove Player").
+-define(BKillPlayer, "Kill Player").
+-define(DefKillComment, "(Was removed as player)").
 -define(BAddGm, "Add GM").
 
 -define(CmdNotSelected, "*Select a Command*").
@@ -36,7 +37,7 @@ game_settings(Sid, Env, In) ->
        Button == ?BDeleteGame -> delete_game(Sid, Env, PQ);
        Button == ?BNewGmPw -> new_gm_password(Sid, Env, PQ);
        Button == ?BRefreshVotes -> refresh_votes(Sid, Env, PQ);
-       Button == ?BRemPlayer -> remove_player(Sid, Env, PQ);
+       Button == ?BKillPlayer -> kill_player(Sid, Env, PQ);
        Button == ?BAddGm -> add_gm(Sid, Env, PQ);
        GNum == ?undefined ->
             game_settings_list(Sid);
@@ -82,7 +83,7 @@ game_settings_list(Sid) ->
                 ]
         end,
     AdminCmds = [?CmdNotSelected, ?BInitGame, ?BDeleteGame, ?BNewGmPw],
-    GmCmds = [?CmdNotSelected, ?BRemPlayer, ?BAddGm, ?BRefreshVotes],
+    GmCmds = [?CmdNotSelected, ?BKillPlayer, ?BAddGm, ?BRefreshVotes],
     %%, "Ignore GM message",  "Kill Player"],
 
     {A, Body} =
@@ -356,7 +357,10 @@ refresh_votes(Sid, Env, PQ) ->
                  "pages.<br>\r\n"
                  "Use this page to tell the bot to do a refresh of a running "
                  "game where you are a GM.\r\n"
-                 "</i></font>"
+                 "</i></font><br>"
+                 "PLEASE NOTE: This command takes TIME!!<br>"
+                 "Be prepared to wait up to one minute in worst case for "
+                 "results.<br>\r\n"
                  "</td></tr>\r\n"
                  "<tr><td align=center>",
                  GameSelect,
@@ -372,10 +376,12 @@ refresh_votes(Sid, Env, PQ) ->
         game_num => GNum
        }).
 
-remove_player(Sid, Env, PQ) ->
-    PageTitle = ?BRemPlayer,
+
+kill_player(Sid, Env, PQ) ->
+    PageTitle = ?BKillPlayer,
     GNStr = web_impl:get_arg(PQ, "game_num"),
     Player = web_impl:get_arg(PQ, "player", ?PlayerNotSelected),
+    DeathComment = web_impl:get_arg(PQ, "death_comment", ?DefKillComment),
     MsgIdStr = web_impl:get_arg(PQ, "msg_id"),
     IsReload = web_impl:get_arg(PQ, "is_reload", "false"),
     [GNum, Errors1] =
@@ -427,13 +433,14 @@ remove_player(Sid, Env, PQ) ->
                   true -> MsgId
                end,
     DoFun = fun() when IsReload == "false" ->
-                    case mafia:remove_player(GNum, CmdMsgId, Player) of
+                    case mafia:kill_player(GNum, CmdMsgId, Player,
+                                           DeathComment) of
                         {player_killed, _} ->
                             [{info, "Player " ++ Player ++
-                                  " has been removed from game"}];
+                                  " has been killed"}];
                         _ ->
                             [{error, "Player " ++ Player ++
-                                  " has NOT been removed from game"}]
+                                  " has NOT been killed"}]
                     end;
                () -> []
             end,
@@ -448,14 +455,20 @@ remove_player(Sid, Env, PQ) ->
                 GameSelect = game_select(GNStr, OnChangeScript, GameFilter),
                 ["<tr><td align=center>"
                  "<font size=-1><i>",
-                 "Use this page to remove a player from one running game "
+                 "Use this page to kill a player from one running game "
                  "where you are a GM, maybe in order to make him/her GM."
                  "\r\n"
                  "</i></font>"
                  "</td></tr>\r\n"
                  "<tr><td align=center>",
-                 GameSelect, "<br>\r\n",
-                 PlayerOpts, "<br>\r\n",
+                 "Game: ", GameSelect, "<br>\r\n"
+                 "Player: ", PlayerOpts, "<br>\r\n"
+                 "Death comment: "
+                 "<input size=20 name=death_comment value=\"", DeathComment, "\">"
+                 "<br>\r\n",
+                 "<font size=-2><i>Death comment will be \"", ?DefKillComment,
+                 "\" if not given</i></font>"
+                 "<br>\r\n",
                  msg_id_field_text(MsgIdStr),
                  "<input type=hidden id=is_reload "
                  "name=is_reload value=\"false\"/>"
@@ -480,19 +493,20 @@ msg_id_field_text(MsgIdStr) ->
      "You may leave the  \"Message id\" field empty.<br>\r\n"
      "If you leave it empty, the change will occur \"now\".<br>\r\n"
      "But if you want this change to have happened earlier in "
-     "the game, <br>\r\n"
-     "you need to give the message id for when this "
-     "change happened in the \"Message id\" field. <br>\r\n"
+     "the game, you need to <br>\r\n"
+     "attach this event to a message id for when this happened. <br>\r\n"
      "Lookup the message in the bot game thread. <br>\r\n"
-     "Copy the link address of the \"Page\" link of that message. "
+     "Copy the link address of the <b>\"Page\" link</b> of that message. "
      "(The address contains \"msg_id=\").<br>\r\n"
      "Paste in the link address (or just the message id number) "
      "into the \"Message id\" field."
-     "\r\n"
+     "<br>\r\n"
+     "Consider doing a \"Refresh Vote Count\" if you give an early "
+     "\"Message id\"\r\n"
      "</i></font>"
     ].
 
-%% add_gm/3 HAS LOTS IN COMMOM WITH remove_player/3, REUSE SOME!
+%% add_gm/3 HAS LOTS IN COMMOM WITH kill_player/3, REUSE SOME!
 add_gm(Sid, Env, PQ) ->
     PageTitle = ?BAddGm,
     GNStr = web_impl:get_arg(PQ, "game_num"),
@@ -516,7 +530,7 @@ add_gm(Sid, Env, PQ) ->
             [] ->
                 {[], [], ?undefined, ?undefined, ?undefined, ?undefined};
             [#mafia_game{gms = GmsB2,
-                         players_orig = PsB,
+                         players_rem = PsB,
                          thread_id = ThId2,
                          site = Site2,
                          last_msg_id = LMsgId}] ->
@@ -575,16 +589,19 @@ add_gm(Sid, Env, PQ) ->
                 GameSelect = game_select(GNStr, OnChangeScript, GameFilter),
                 ["<tr><td align=center>"
                  "<font size=-1><i>",
-                 "Use this page to add a GM, that is to promote a user not "
-                 "playing in this game, <br>\r\n"
-                 "to become a GM. You need to be a GM and the player must "
-                 "registered on this site"
-                 "\r\n"
+                 "Use this page to add another GM to your game that you are "
+                 "GMing.\r\n"
+                 "The user you want to promote is not a remaning player in "
+                 "this game, and the user is a registered on the site. <br>\r\n"
+                 "If this new GM already has entered GM commands after the "
+                 "time he/she is being added as GM, you should do a "
+                 "\"Refresh Vote Count\" so the bot read in and act on those "
+                 "commands.<br>\r\n"
                  "</i></font>"
                  "</td></tr>\r\n"
                  "<tr><td align=center>",
-                 GameSelect, "<br>\r\n",
-                 CandOpts, "<br>\r\n",
+                 "Game: ", GameSelect, "<br>\r\n"
+                 "User: ", CandOpts, "<br>\r\n",
                  msg_id_field_text(MsgIdStr),
                  "<input type=hidden id=is_reload "
                  "name=is_reload value=\"false\"/>"
@@ -698,6 +715,7 @@ do_command(#{sid := Sid, env := Env, pq := PQ,
     Responses = if Errors == [] -> DoFun();
                    true -> Errors
                 end,
+    ?dbg({"GOT RESPONSES", Responses}),
     ServerAdminInfo =
         case ?getv(?server_keeper) of
             {SK, _} ->

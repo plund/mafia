@@ -319,7 +319,7 @@ new_gm_password(Sid, Env, PQ) ->
         spec_body => SpecBodyFun}).
 
 do_set_new_gm_password(User, Site) ->
-    {ok,{User, Site, Password, Date}} =
+    {ok, {User, Site, Password, Date}} =
         mafia_lib:set_new_password(User, Site),
     DateStr = mafia_print:print_time({Date, {0, 0, 0}}, ?date_only),
     [{info, lists:concat(["Password \"", Password, "\" set for user \"", User,
@@ -659,54 +659,38 @@ select_opts(FieldName, List, Default) ->
 
 %% -----------------------------------------------------------------------------
 do_server_admin_cmd(Args) ->
-    Info =
-        fun(ServerAdminInfo) ->
-                [
-                 "<tr><td colspan=2 width=400>\r\n"
-                 "<font size=-1>\r\n"
-                 "Only the \r\n",
-                 ServerAdminInfo,
-                 " may perform this operation.<br>\r\n"
-                 "</font>"
-                 "</td></tr>"
-                ]
-        end,
-    do_command(
-      Args#{user => "serveradmin",
-            info => Info,
-            user_hidden => true}
-     ).
+    UserInfo =
+        [
+         "<tr><td colspan=2 width=400>\r\n"
+         "<font size=-1>\r\n"
+         "Only server admins and the server keeper",
+         " may perform this operation.<br>\r\n"
+         "</font>"
+         "</td></tr>"
+        ],
+    do_command(Args#{info => UserInfo}).
 
-do_game_master_cmd(Args = #{pq := PQ}) ->
-    Info =
-        fun(ServerAdminInfo) ->
-                [
-                 "<tr><td colspan=2 width=400>\r\n"
-                 "<font size=-1>\r\n"
-                 "Only the GMs of the selected game and the \r\n",
-                 ServerAdminInfo,
-                 " may perform this command.<br>\r\n"
-                 "</font>"
-                 "</td></tr>"
-                ]
-        end,
-    User = web_impl:get_arg(PQ, "user"),
-    do_command(
-      Args#{user => User,
-            info => Info,
-            user_hidden => false
-           }
-     ).
+do_game_master_cmd(Args) ->
+    UserInfo =
+        [
+         "<tr><td colspan=2 width=400>\r\n"
+         "<font size=-1>\r\n"
+         "Only the GMs of the selected game, \r\n",
+         " the server admins and the server keeper",
+         " may perform this command.<br>\r\n"
+         "</font>"
+         "</td></tr>"
+        ],
+    do_command(Args#{info => UserInfo}).
 
 do_command(#{sid := Sid, env := Env, pq := PQ,
              page_title := PageTitle,
              spec_errors := SpecErrors,
-             user := User,
-             info := Info,
-             user_hidden := UserHidden,
+             info := UserInfo,
              do_fun := DoFun,
              spec_body := SpecBodyFun
             } = Args) ->
+    User = web_impl:get_arg(PQ, "user"),
     IsSecure = web:is_secure(Env),
     Password = web_impl:get_arg(PQ, "password"),
     LoginErrors = login_errors(IsSecure, User, Password, Args),
@@ -715,19 +699,11 @@ do_command(#{sid := Sid, env := Env, pq := PQ,
                    true -> Errors
                 end,
     ?dbg({"GOT RESPONSES", Responses}),
-    ServerAdminInfo =
-        case ?getv(?server_keeper) of
-            {SK, _} ->
-                ["server administrator (", SK, ")"];
-            _ ->
-                ""
-        end,
     PwF = fun(user) -> User;
              (pass) -> Password;
-             (info) -> Info(ServerAdminInfo);
+             (info) -> UserInfo;
              (buttons) -> [PageTitle];
-             (extra_fields) -> [];
-             (user_hidden) -> UserHidden
+             (extra_fields) -> []
           end,
 
     A = web_impl:del_start(Sid, PageTitle, 0),
@@ -794,13 +770,6 @@ game_settings_update(Sid, Env, Button, PQ) ->
            true ->
                 get_game_settings(GNum)
         end,
-    ServerAdminInfo =
-        case ?getv(?server_keeper) of
-            {SK, _} ->
-                [" and the Server Admin (", SK, ")"];
-            _ ->
-                ""
-        end,
     PwF =
         fun(user) -> User;
            (pass) -> Pass;
@@ -809,8 +778,7 @@ game_settings_update(Sid, Env, Button, PQ) ->
                  "<tr><td colspan=2 width=400>\r\n"
                  "<font size=-1>\r\n"
                  "Only GMs (listed in the unmodified settings "
-                 "above)\r\n",
-                 ServerAdminInfo,
+                 "above), the server admins and the server keeper\r\n"
                  " may change the settings of a game.<br>\r\n"
                  "The GMs need a password to modify the game settings or to "
                  "start the game.<br>\r\n"
@@ -824,8 +792,7 @@ game_settings_update(Sid, Env, Button, PQ) ->
                     if StartAllowed -> [?BStart];
                        true -> []
                     end;
-           (extra_fields) -> [];
-           (user_hidden) -> false
+           (extra_fields) -> []
         end,
     {A, Body} =
         {web_impl:del_start(Sid, "M" ++ GNStr ++ " Settings", 0),
@@ -919,23 +886,9 @@ enter_user_pw_box(F) ->
       || {Title, Name, Value, Size} <- F(extra_fields)],
 
      "<tr><td>",
-     case F(user_hidden) of
-         false ->
-             ["User"
-              "</td><td>"];
-         true -> ""
-     end,
-     "<input name=user",
-     case F(user_hidden) of
-         false -> " type=text size=20";
-         true -> " type=hidden"
-     end,
-     " value=\"", F(user), "\"/>",
-     case F(user_hidden) of
-         false -> "</td></tr>\r\n<tr><td>";
-         true -> ""
-     end,
-     "Password"
+     "User</td><td>"
+     "<input name=user type=text size=20 value=\"", F(user), "\"/>",
+     "</td></tr>\r\n<tr><td>Password"
      "</td><td>"
      "<input name=password type=text size=20 value=\"", F(pass), "\">"
      "</td></tr>\r\n"
@@ -1096,47 +1049,42 @@ mug0(G, User, Pass, GameSett) ->
             [{error, "This combination of user and password does not exist."}]
     end.
 
-is_user_and_password_ok2("serveradmin", Pass, _) ->
-    case is_serveradmin_password_ok(Pass) of
-        true -> true;
-        false -> {false, {error, "Wrong password"}}
-    end;
 is_user_and_password_ok2(User, Pass, Args) ->
-    case Args of
-        #{game_num := GNum} when is_integer(GNum) ->
-            case ?rgame(GNum) of
-                [G] ->
-                    case is_user_and_password_ok(G, User, Pass) of
-                        false ->
-                            {false, {error, "Wrong user/password combination"}};
-                        true -> true
-                    end;
-                _ ->
-                    true
-            end;
-        _ ->
-            true
-    end.
-
-is_user_and_password_ok(_, "serveradmin", Pass) ->
-    is_serveradmin_password_ok(Pass);
-is_user_and_password_ok(G, User, Pass) ->
-    GSite = G#mafia_game.site,
-    Allowed = [?b2l(U) || U <- G#mafia_game.gms],
-    case lists:member(User, Allowed) of
+    Res = case Args of
+              #{game_num := GNum} when is_integer(GNum) ->
+                  case ?rgame(GNum) of
+                      [_G] -> {game, _G};
+                      _ -> no_game
+                  end;
+              _ -> no_game
+          end,
+    PwFun = case Res of
+                {game, G} ->
+                    fun() -> is_user_and_password_ok(G, User, Pass) end;
+                no_game ->
+                    fun() -> is_user_and_password_ok(User, Pass) end
+            end,
+    case PwFun() of
         false ->
-            false;
-        true ->
-            ok == mafia_lib:check_password(User, GSite, Pass)
+            {false, {error, "Wrong user/password combination"}};
+        true -> true
     end.
 
-is_serveradmin_password_ok(Pass) ->
-    case ?getv(?server_keeper) of
-        {SkName, SkSite} ->
-            ok == mafia_lib:check_password(SkName, SkSite, Pass);
-        _ ->
-            false
-    end.
+is_user_and_password_ok(User, Pass) ->
+    is_user_and_password_ok_impl([], User, Pass).
+
+is_user_and_password_ok(G, User, Pass) ->
+    GameSite = G#mafia_game.site,
+    GameGms = [{?b2l(U), GameSite} || U <- G#mafia_game.gms],
+    is_user_and_password_ok_impl(GameGms, User, Pass).
+
+is_user_and_password_ok_impl(GameGms, User, Pass) ->
+    Allowed = GameGms ++ ?getv(?server_admins) ++ [?getv(?server_keeper)],
+    lists:any(fun({PwUser, PwSite}) when PwUser == User ->
+                      ok == mafia_lib:check_password(User, PwSite, Pass);
+                 (_) -> false
+              end,
+              Allowed).
 
 is_ready_to_go(CurG, {G, Es}) ->
     %% Check if ready to update and go
@@ -1592,8 +1540,7 @@ game_settings_start(Sid, Env, _Button, PQ) ->
                        (buttons) ->
                             [?BStartNow];
                        (extra_fields) ->
-                            [{"Thread Id", "thread_id", ThreadId, 20}];
-                       (user_hidden) -> false
+                            [{"Thread Id", "thread_id", ThreadId, 20}]
                     end,
                 [present_responses(Responses),
                  "<tr><td><table width=600>"

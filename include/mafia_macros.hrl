@@ -67,6 +67,7 @@
 -define(inc_cnt(CntName, Args, Inc), mafia_lib:inc_cnt(CntName, Args, Inc)).
 -define(set(K, V), mafia_db:set(K, V)).
 -define(getv(K), mafia_db:getv(K)).
+-define(getv(K, Default), mafia_db:getv(K, Default)).
 
 %% -define(dwrite(Obj), mafia_lib:dwrite(gen, Obj)).
 -define(dwrite_kv(Obj), mafia_lib:dwrite(kv, Obj)).

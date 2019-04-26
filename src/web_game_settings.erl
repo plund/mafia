@@ -1117,7 +1117,7 @@ is_user_and_password_ok(G, User, Pass) ->
     is_user_and_password_ok_impl(GameGms, User, Pass).
 
 is_user_and_password_ok_impl(GameGms, User, Pass) ->
-    Allowed = GameGms ++ ?getv(?server_admins) ++ [?getv(?server_keeper)],
+    Allowed = GameGms ++ ?getv(?server_admins, []) ++ [?getv(?server_keeper)],
     lists:any(fun({PwUser, PwSite}) when PwUser == User ->
                       ok == mafia_lib:check_password(User, PwSite, Pass);
                  (_) -> false

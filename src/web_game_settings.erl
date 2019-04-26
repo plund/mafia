@@ -3,7 +3,6 @@
 -export([game_settings/3,
          is_ready_to_go/2,
          write_settings_file/1,
-
          update_game_settings/2
         ]).
 
@@ -12,7 +11,9 @@
 -define(UNSET, "(unset)").
 -define(BInitGame, "Initiate New Game").
 -define(BDeleteGame, "Delete Game").
--define(BNewGmPw, "New GM Password").
+-define(BNewPassword, "New User Password").
+-define(BSetMod, "Set Message of Day").
+%%-define(BModAlias, "Modify User Aliases").
 -define(BUpdate, "Update Game Settings").
 -define(BReload, "Reload Game").
 -define(BStart, "Start Game").
@@ -35,7 +36,8 @@ game_settings(Sid, Env, In) ->
 
     if Button == ?BInitGame -> init_new_game(Sid, Env, PQ);
        Button == ?BDeleteGame -> delete_game(Sid, Env, PQ);
-       Button == ?BNewGmPw -> new_gm_password(Sid, Env, PQ);
+       Button == ?BNewPassword -> new_user_password(Sid, Env, PQ);
+       Button == ?BSetMod -> set_mod_message(Sid, Env, PQ);
        Button == ?BRefreshVotes -> refresh_votes(Sid, Env, PQ);
        Button == ?BKillPlayer -> kill_player(Sid, Env, PQ);
        Button == ?BAddGm -> add_gm(Sid, Env, PQ);
@@ -82,7 +84,8 @@ game_settings_list(Sid) ->
                  "</form>\r\n"
                 ]
         end,
-    AdminCmds = [?CmdNotSelected, ?BInitGame, ?BDeleteGame, ?BNewGmPw],
+    AdminCmds = [?CmdNotSelected, ?BInitGame, ?BDeleteGame, ?BNewPassword,
+                 ?BSetMod],
     GmCmds = [?CmdNotSelected, ?BKillPlayer, ?BAddGm, ?BRefreshVotes],
     %%, "Ignore GM message",  "Kill Player"],
 
@@ -258,9 +261,9 @@ do_delete_game(GNum) when GNum > 0 ->
     [{info, ?i2l(GNum) ++ " deleted"}];
 do_delete_game(_) -> [].
 
-new_gm_password(Sid, Env, PQ) ->
-    PageTitle = ?BNewGmPw,
-    User = web_impl:get_arg(PQ, "user"),
+new_user_password(Sid, Env, PQ) ->
+    PageTitle = ?BNewPassword,
+    User = web_impl:get_arg(PQ, "pw_user"),
     IsReload = web_impl:get_arg(PQ, "is_reload", "false"),
     UserErrors =
         if User == ?UserNotSelected ->
@@ -272,7 +275,7 @@ new_gm_password(Sid, Env, PQ) ->
                SiteStr -> ?l2a(SiteStr)
            end,
     DoFun = fun() when IsReload == "false" ->
-                    do_set_new_gm_password(User, Site);
+                    do_set_new_user_password(User, Site);
                () ->  []
             end,
 
@@ -300,7 +303,7 @@ new_gm_password(Sid, Env, PQ) ->
                          mafia_lib:alpha_sort(
                            mafia:get_user_names_for_site(Site))],
                 UserOpts =
-                    ["<select name=\"user\">\r\n",
+                    ["<select name=\"pw_user\">\r\n",
                      [POpt(U, User) || U <- Users],
                      "</select>"],
                 ["<tr><td align=center>"
@@ -318,7 +321,7 @@ new_gm_password(Sid, Env, PQ) ->
         page_title => PageTitle,
         spec_body => SpecBodyFun}).
 
-do_set_new_gm_password(User, Site) ->
+do_set_new_user_password(User, Site) ->
     {ok, {User, Site, Password, Date}} =
         mafia_lib:set_new_password(User, Site),
     DateStr = mafia_print:print_time({Date, {0, 0, 0}}, ?date_only),
@@ -328,6 +331,41 @@ do_set_new_gm_password(User, Site) ->
 to_list(A) when is_atom(A) -> ?a2l(A);
 to_list(B) when is_binary(B) -> unicode:characters_to_list(B);
 to_list(L) when is_list(L) -> L.
+
+%% -----------------------------------------------------------------------------
+
+set_mod_message(Sid, Env, PQ) ->
+    PageTitle = ?BSetMod,
+    CurModMsg = ?getv(mod_msg),
+    ModMsg = web_impl:get_arg(PQ, "mod_message", CurModMsg),
+    User = web_impl:get_arg(PQ, "user", ""),
+    Sign = fun(Str) -> Str ++ " (" ++ User ++ ")" end,
+    DoFun =
+        fun() ->
+                if ModMsg /= CurModMsg ->
+                        ?set(mod_msg, Sign(ModMsg)),
+                        [{info, "Message of Day updated"}];
+                   true ->
+                        [{info, "Message of Day not updated"}]
+                end
+        end,
+    TextArea =
+        ["<textarea name=\"mod_message\" rows=3 cols=70>\r\n",
+         ModMsg,
+         "</textarea>\r\n"],
+    SpecBodyFun =
+        fun() ->
+                ["<tr><td align=center>"
+                 "Message of Day:<br/>", TextArea, " ",
+                 "</td></tr>\r\n"
+                ]
+        end,
+    do_server_admin_cmd(
+      #{sid => Sid, env => Env, pq => PQ,
+        spec_errors => [],
+        do_fun => DoFun,
+        page_title => PageTitle,
+        spec_body => SpecBodyFun}).
 
 %% -----------------------------------------------------------------------------
 

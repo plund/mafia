@@ -13,6 +13,8 @@
 
          set_current_game/0,
          is_ongoing_game/1,
+         is_finished_game/1,
+         game_run_status/1,
 
          rday/2,
          rgame/1,
@@ -202,16 +204,32 @@ is_upcoming_game(#mafia_game{game_end = GE})
   when GE /= ?undefined -> ?false;
 is_upcoming_game(#mafia_game{}) -> ?true.
 
+is_finished_game(G = #mafia_game{}) ->
+    not is_upcoming_game(G) andalso not is_ongoing_game(G);
+is_finished_game(GNum) when is_integer(GNum) ->
+    is_finished_game(hd(?rgame(GNum))).
+
+-spec game_run_status(game_num() | #mafia_game{}
+                     ) -> upcoming | ongoing | finished.
+game_run_status(G = #mafia_game{}) ->
+    case is_upcoming_game(G) of
+        ?true -> upcoming;
+        ?false ->
+            case is_ongoing_game(G) of
+                ?true -> ongoing;
+                ?false -> finished
+            end
+    end;
+game_run_status(GNum) when is_integer(GNum) ->
+    game_run_status(hd(?rgame(GNum))).
+
 sort_for_current(Gs) ->
     Type =
         fun(G) ->
-                case is_ongoing_game(G) of
-                    ?true -> 1;
-                    ?false ->
-                        case is_upcoming_game(G) of
-                            ?true -> 2;
-                            ?false -> 3
-                        end
+                case game_run_status(G) of
+                    ongoing -> 1;
+                    upcoming -> 2;
+                    finished -> 3
                 end
         end,
     TimeOrderF =

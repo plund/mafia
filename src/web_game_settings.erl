@@ -131,7 +131,10 @@ init_new_game(Sid, Env, PQ) ->
                "" -> ?wd2;
                SiteStr -> ?l2a(SiteStr)
            end,
-    DoFun = fun() -> do_init_game(GNStr, Site) end,
+    DoFun = fun(User) ->
+                    ?dbg({do_init_game, User, GNStr, Site}),
+                    do_init_game(GNStr, Site)
+            end,
 
     %% Present Init New Game page
     SpecBodyFun =
@@ -188,8 +191,10 @@ delete_game(Sid, Env, PQ) ->
                 [-1, [{error, "You must give a game number"}]]
         end,
     DoFun =
-        fun() ->
-                if IsReload == "false" -> do_delete_game(GNum);
+        fun(User) ->
+                if IsReload == "false" ->
+                        ?dbg({do_delete_game, User, GNum}),
+                        do_delete_game(GNum);
                    true -> []
                 end
         end,
@@ -205,9 +210,15 @@ delete_game(Sid, Env, PQ) ->
                 ["<tr><td align=center>"
                  "Game to be deleted: ", GameChoise,
                  "</td></tr>\r\n"
+                 "<tr><td><font size=-1><i><br/>"
+                 "Please note: Finished games can only be deleted by the "
+                 "server keeper.<br/></i></font>"
+                 "</td></tr>\r\n"
                  "<tr><td align=left>",
                  if GNum > 0 ->
-                         ["<pre>",
+                         ["This game is: <b>",
+                          ?a2l(mafia_lib:game_run_status(GNum)),
+                          "</b><pre>",
                           mafia:show_game_data(GNum, ?html),
                           "</pre>"];
                     true -> []
@@ -217,12 +228,19 @@ delete_game(Sid, Env, PQ) ->
                  "</td></tr>\r\n"
                 ]
         end,
+    Args = if GNum > 0 ->
+                   case mafia_lib:is_finished_game(GNum) of
+                       true -> #{only_server_keeper => ?true};
+                       false -> #{}
+                   end;
+              true -> #{}
+           end,
     do_server_admin_cmd(
-      #{sid => Sid, env => Env, pq => PQ,
-        spec_errors => GNumErrors,
-        do_fun => DoFun,
-        page_title => PageTitle,
-        spec_body => SpecBodyFun}).
+      Args#{sid => Sid, env => Env, pq => PQ,
+            spec_errors => GNumErrors,
+            do_fun => DoFun,
+            page_title => PageTitle,
+            spec_body => SpecBodyFun}).
 
 game_select(GNStr, OnChangeScript) ->
     game_select(GNStr, OnChangeScript, fun(_) -> true end).
@@ -249,8 +267,7 @@ game_select(GNStr, OnChangeScript, GameFilter) ->
              {?i2l(GN), GName}
          end
          || GN <- GNums],
-    GameOpts = [{?GameNotSelected
-                } | Games],
+    GameOpts = [{?GameNotSelected} | Games],
     ["<select name=\"game_num\" onchange=", OnChangeScript, ">\r\n",
      [POpt(G) || G <- GameOpts],
      "</select>"].
@@ -274,9 +291,10 @@ new_user_password(Sid, Env, PQ) ->
                "" -> ?wd2;
                SiteStr -> ?l2a(SiteStr)
            end,
-    DoFun = fun() when IsReload == "false" ->
+    DoFun = fun(_User) when IsReload == "false" ->
+                    ?dbg({do_set_new_user_password, _User, User, Site}),
                     do_set_new_user_password(User, Site);
-               () ->  []
+               (_User) ->  []
             end,
 
     %% Present Init New Game page
@@ -338,11 +356,11 @@ set_mod_message(Sid, Env, PQ) ->
     PageTitle = ?BSetMod,
     CurModMsg = ?getv(mod_msg),
     ModMsg = web_impl:get_arg(PQ, "mod_message", CurModMsg),
-    User = web_impl:get_arg(PQ, "user", ""),
-    Sign = fun(Str) -> Str ++ " (" ++ User ++ ")" end,
     DoFun =
-        fun() ->
+        fun(User) ->
                 if ModMsg /= CurModMsg ->
+                        Sign = fun(Str) -> Str ++ " (" ++ User ++ ")" end,
+                        ?dbg({set_mod_msg, ModMsg}),
                         ?set(mod_msg, Sign(ModMsg)),
                         [{info, "Message of Day updated"}];
                    true ->
@@ -378,10 +396,12 @@ refresh_votes(Sid, Env, PQ) ->
         catch _:_ ->
                 [-1, [{error, "You must select a game"}]]
         end,
-    DoFun = fun() ->
-                    mafia:refresh_votes(GNum),
-                    [{info, "Refresh complete!"}]
-            end,
+    DoFun =
+        fun(User) ->
+                ?dbg({refresh_votes, User, GNum}),
+                mafia:refresh_votes(GNum),
+                [{info, "Refresh complete!"}]
+        end,
     GameFilter = fun(_GNum) -> mafia_lib:is_ongoing_game(_GNum) end,
     SpecBodyFun =
         fun() ->
@@ -469,18 +489,21 @@ kill_player(Sid, Env, PQ) ->
     CmdMsgId = if MsgId == ?undefined -> LastGameMsgId;
                   true -> MsgId
                end,
-    DoFun = fun() when IsReload == "false" ->
-                    case mafia:kill_player(GNum, CmdMsgId, Player,
-                                           DeathComment) of
-                        {player_killed, _} ->
-                            [{info, "Player " ++ Player ++
-                                  " has been killed"}];
-                        _ ->
-                            [{error, "Player " ++ Player ++
-                                  " has NOT been killed"}]
-                    end;
-               () -> []
-            end,
+    DoFun =
+        fun(_User) when IsReload == "false" ->
+                ?dbg({kill_player, _User, GNum, CmdMsgId,
+                      Player, DeathComment}),
+                case mafia:kill_player(GNum, CmdMsgId, Player,
+                                       DeathComment) of
+                    {player_killed, _} ->
+                        [{info, "Player " ++ Player ++
+                              " has been killed"}];
+                    _ ->
+                        [{error, "Player " ++ Player ++
+                              " has NOT been killed"}]
+                end;
+           (_User) -> []
+        end,
     Players = [?PlayerNotSelected | PlayersB],
     PlayerOpts = select_opts("player", Players, Player),
     OnChangeScript =
@@ -604,7 +627,8 @@ add_gm(Sid, Env, PQ) ->
                   true -> MsgId
                end,
     DoFun =
-        fun() when IsReload == "false" ->
+        fun(_User) when IsReload == "false" ->
+                ?dbg({add_gm, _User, GNum, CmdMsgId, Candidate}),
                 case mafia:add_gm(GNum, CmdMsgId, Candidate) of
                     ok ->
                         [{info,
@@ -614,7 +638,7 @@ add_gm(Sid, Env, PQ) ->
                           "User " ++ Candidate ++ " has NOT been added as GM: "
                           ++ ?a2l(Err)}]
                 end;
-           () -> []
+           (_User) -> []
         end,
     CandOpts = select_opts("gm_cand", Users, Candidate),
     OnChangeScript =
@@ -733,7 +757,7 @@ do_command(#{sid := Sid, env := Env, pq := PQ,
     Password = web_impl:get_arg(PQ, "password"),
     LoginErrors = login_errors(IsSecure, User, Password, Args),
     Errors = SpecErrors ++ LoginErrors,
-    Responses = if Errors == [] -> DoFun();
+    Responses = if Errors == [] -> DoFun(User);
                    true -> Errors
                 end,
     ?dbg({"GOT RESPONSES", Responses}),
@@ -1089,18 +1113,23 @@ mug0(G, User, Pass, GameSett) ->
 
 is_user_and_password_ok2(User, Pass, Args) ->
     Res = case Args of
+              #{only_server_keeper := ?true} ->
+                  only_server_keeper;
               #{game_num := GNum} when is_integer(GNum) ->
                   case ?rgame(GNum) of
-                      [_G] -> {game, _G};
-                      _ -> no_game
+                      [_G] -> {game_master, _G};
+                      _ -> server_admins
                   end;
-              _ -> no_game
+              _ ->
+                  server_admins
           end,
     PwFun = case Res of
-                {game, G} ->
+                {game_master, G} ->
                     fun() -> is_user_and_password_ok(G, User, Pass) end;
-                no_game ->
-                    fun() -> is_user_and_password_ok(User, Pass) end
+                server_admins ->
+                    fun() -> is_user_and_password_ok(User, Pass) end;
+                only_server_keeper ->
+                    fun() -> is_keeper_user_and_password_ok(User, Pass) end
             end,
     case PwFun() of
         false ->
@@ -1108,16 +1137,23 @@ is_user_and_password_ok2(User, Pass, Args) ->
         true -> true
     end.
 
+is_keeper_user_and_password_ok(User, Pass) ->
+    is_user_and_password_ok_impl([], User, Pass, ?true).
+
 is_user_and_password_ok(User, Pass) ->
-    is_user_and_password_ok_impl([], User, Pass).
+    is_user_and_password_ok_impl([], User, Pass, ?false).
 
 is_user_and_password_ok(G, User, Pass) ->
     GameSite = G#mafia_game.site,
     GameGms = [{?b2l(U), GameSite} || U <- G#mafia_game.gms],
-    is_user_and_password_ok_impl(GameGms, User, Pass).
+    is_user_and_password_ok_impl(GameGms, User, Pass, ?false).
 
-is_user_and_password_ok_impl(GameGms, User, Pass) ->
-    Allowed = GameGms ++ ?getv(?server_admins, []) ++ [?getv(?server_keeper)],
+is_user_and_password_ok_impl(GameGms, User, Pass, OnlyKeeper) ->
+    Allowed =
+        if OnlyKeeper -> [?getv(?server_keeper)];
+           true ->
+                GameGms ++ ?getv(?server_admins, []) ++ [?getv(?server_keeper)]
+        end,
     lists:any(fun({PwUser, PwSite}) when PwUser == User ->
                       ok == mafia_lib:check_password(User, PwSite, Pass);
                  (_) -> false

@@ -1149,10 +1149,14 @@ is_user_and_password_ok(G, User, Pass) ->
     is_user_and_password_ok_impl(GameGms, User, Pass, ?false).
 
 is_user_and_password_ok_impl(GameGms, User, Pass, OnlyKeeper) ->
+    Keepers =
+        case ?getv(?server_keeper) of
+            SK when is_tuple(SK) -> [SK];
+            _ -> []
+        end,
     Allowed =
-        if OnlyKeeper -> [?getv(?server_keeper)];
-           true ->
-                GameGms ++ ?getv(?server_admins, []) ++ [?getv(?server_keeper)]
+        if OnlyKeeper -> Keepers;
+           true -> GameGms ++ ?getv(?server_admins, []) ++ Keepers
         end,
     lists:any(fun({PwUser, PwSite}) when PwUser == User ->
                       ok == mafia_lib:check_password(User, PwSite, Pass);

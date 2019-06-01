@@ -87,12 +87,16 @@ game_settings_list(Sid) ->
     AdminCmds = [?CmdNotSelected, ?BInitGame, ?BDeleteGame, ?BNewPassword,
                  ?BSetMod],
     GmCmds = [?CmdNotSelected, ?BKillPlayer, ?BAddGm, ?BRefreshVotes],
-    %%, "Ignore GM message",  "Kill Player"],
+    %%, "Ignore GM message"],
 
     {A, Body} =
         {web_impl:del_start(Sid, "Game Settings", 0),
          [
           "<tr><td><table border=1>"
+          "<tr><td colspan=2></td>Server admins: ",
+          string:join([["<b>", SA, "</b>", " (", ?a2l(Site), ")"]
+                       || {SA, Site} <- ?getv(server_admins, [])], ", "),
+          "</tr>",
           "<tr><td bgcolor=#ddddff>",
           CmdForm("Server admin commands:", "adm", AdminCmds),
           "</td><td bgcolor=#ffdddd>",

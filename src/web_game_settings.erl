@@ -1402,9 +1402,10 @@ show_threads() ->
 show_threads(no_thread_ids_found) ->
     "No game forum threads found. Please try again.";
 show_threads(Threads) ->
-    ["The last 5 game forum threads are:<br>",
-     string:left([[?i2l(Id), " - ", Title, "<br>"]
-                  || {Id, Title} <- Threads], 5)
+    ["The last 7 game forum threads are:<br>",
+     string:left([[?i2l(Id), " - ", unicode:characters_to_binary(Title), "<br>"]
+                  || {Id, Title} <- Threads],
+                 7)
     ].
 
 check_thread_id(ThId, MinThId, Site, ThreadIdName) ->

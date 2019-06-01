@@ -1554,36 +1554,38 @@ pr_dst_zone({Field, Zone}, {G, Es}) ->
     end.
 
 settings_info() ->
-    "<ul>"
-        "<li>"
-        "Any values that are " ++ ?UNSET ++ " must be set before "
-        "the game starts. "
-        "</li><li>"
-        "Please check the settings for previous games for a format template\r\n"
-        "</li><li>"
-        "'gms' and 'players' are comma separated lists of users "
-        "found in the bot <a href=users>User DB</a> \r\n"
-        "</li><li>"
-        "'name' is your game title."
-        "</li><li>"
-        "'start_time' is the local time in your time zone. "
-        "The correct format is: YYYY-MM-DD HH:MM:SS.<br>\r\n"
-        "</li><li>"
-        "'time_zone' is the <i>normal time (without DST) offset</i> to "
-        "Greenwich (UTC). "
-        "Some examples: Sweden 1, UK 0, New York -5, California -8, Sydney 10 "
-        "and Wellington 12.<br>\r\n"
-        "</li><li>"
-        "'dst_zone' is either 'eu', 'usa', 'australia', "
-        "'new_zeeland' or 'none'. "
-        "See <a href=dst_changes>DST Changes</a>. "
-        "Please make a request for other DST zones if you need it.\r\n"
-        "</li><li>"
-        "When all these values are OK, you may set off the bot listen in "
-        "on the game thread (after starting it), by also giving the bot "
-        "the thread id of your webdiplomacy.net forum thread."
-        "</li>"
-        "</ul>".
+    ["<ul>"
+     "<li>"
+     "Any values that are ", ?UNSET, " must be set before "
+     "the game starts. "
+     "</li><li>"
+     "Please check the settings for previous games for a format template\r\n"
+     "</li><li>"
+     "'gms' and 'players' are comma separated lists of users "
+     "found in the bot <a href=users>User DB</a> \r\n"
+     "</li><li>"
+     "'name' is your game title."
+     "</li><li>"
+     "'start_time' is the local time in your time zone. "
+     "The correct format is: YYYY-MM-DD HH:MM:SS.<br>\r\n"
+     "</li><li>"
+     "'time_zone' is the <i>normal time (without DST) offset</i> to "
+     "Greenwich (UTC). "
+     "Some examples: Sweden 1, UK 0, New York -5, California -8, Sydney 10 "
+     "and Wellington 12.<br>\r\n"
+     "</li><li>"
+     "'dst_zone' is either 'eu', 'usa', 'australia', "
+     "'new_zeeland' or 'none'. "
+     "See <a href=dst_changes>DST Changes</a>. "
+     "Please make a request for other DST zones if you need it.\r\n"
+     "</li><li>"
+     "When all these values are OK, you may set off the bot listen in "
+     "on the game thread (after starting it), by also giving the bot "
+     "the thread id of your webdiplomacy.net forum thread."
+     "</li>"
+     "</ul>",
+     find_thread_id_text(signup)
+    ].
 
 game_settings_start(Sid, Env, _Button, PQ) ->
     IsSecure = web:is_secure(Env),
@@ -1630,62 +1632,8 @@ game_settings_start(Sid, Env, _Button, PQ) ->
                  "<tr><td>After you have started the game thread on "
                  "webdiplomacy.net or on vdiplomacy.com you need to tell the "
                  "bot what thread id your new game thread has.\r\n"
-                 "<p>"
-
-                 "<ol><li>"
-                 "Find the game thread id\r\n"
-
-                 "<ol type=a><li>"
-                 "For a webdiplomacy.net/New forum game do the following: "
-                 "<ol type=i><li>"
-                 "Go to the Game Forum by clicking "
-                 "<a href=\""
-                 "http://webdiplomacy.net/contrib/phpBB3/viewforum.php?f=4"
-                 "\">"
-                 "http://webdiplomacy.net/contrib/phpBB3/viewforum.php?f=4"
-                 "</a>"
-                 "</li><li>"
-                 "Click on the <b>TITLE</b> of the game thread"
-                 "\r\n"
-                 "</li><li>"
-                 "In the location window in the top you find an URL that looks "
-                 "like this:<br>\r\n"
-                 "<pre>\r\n"
-                 "   http://webdiplomacy.net/contrib/phpBB3/viewtopic.php"
-                 "?f=4&t=NNN\r\n"
-                 "</li><li>"
-                 "The thread id, that you are looking for, is the "
-                 "number marked above as NNN that you find after "
-                 "<code>\"?f=4&t=\"</code>\r\n"
-                 "</li></ol>"
-
-                 "<li>"
-                 "For a vdiplomacy.com game do the following: "
-                 "<ol type=i><li>"
-                 "Open the newly created game thread,"
-                 "</li><li>"
-                 "In the location window in your browser you find an URL that "
-                 "looks like shown below:<br>\r\n"
-                 "<pre>\r\n"
-                 "   http://vdiplomacy.com/forum.php?threadID=NNN\r\n"
-                 "</pre>\r\n"
-                 "</li><li>"
-                 "The thread id, that you are looking for, is the "
-                 "number marked above as NNN, that you find after "
-                 "<code>\"?threadID=\"</code>\r\n"
-                 "</li>"
-                 "</ol></li>"
-
-                 "</li></ol>"
-
-                 "<li>"
-                 "Start your game by inserting the game thread id in the "
-                 "field below, and press the \"",
-                 ?BStartNow,
-                 "\" button. \r\n"
-                 "</li></ol>"
-                 "</ol>"
-
+                 "<p>",
+                 find_thread_id_text(game),
                  "</td></tr>\r\n"
                  "</table></td></tr>\r\n"
                  "<tr><td>"
@@ -1708,6 +1656,66 @@ game_settings_start(Sid, Env, _Button, PQ) ->
     B = web:deliver(Sid, Body),
     C = web_impl:del_end(Sid),
     {A + B + C, ?none}.
+
+find_thread_id_text(Type) ->
+    ThreadType =
+        if Type == game -> "game";
+           Type == signup -> "sign-up"
+        end,
+    ["\r\n"
+     "<ol><li>"
+     "Find the ", ThreadType, " thread id\r\n"
+     "<ol type=a><li>"
+     "For a webdiplomacy.net/New forum game do the following:\r\n"
+     "  <ol type=i><li>"
+     "Go to the Game Forum by clicking "
+     "<a href=\""
+     "http://webdiplomacy.net/contrib/phpBB3/viewforum.php?f=4"
+     "\">"
+     "http://webdiplomacy.net/contrib/phpBB3/viewforum.php?f=4"
+     "</a>"
+     "</li><li>"
+     "\r\n"
+     "Click on the <b>TITLE</b> of the ", ThreadType, " thread"
+     "\r\n"
+     "</li><li>"
+     "In the location window in the top you find an URL that looks "
+     "like this:<br>\r\n"
+     "<pre>\r\n"
+     "   http://webdiplomacy.net/contrib/phpBB3/viewtopic.php"
+     "?f=4&t=NNN</pre>"
+     "</li>\r\n<li>"
+     "The thread id, that you are looking for, is the "
+     "number marked above as NNN that you find after "
+     "<code>\"?f=4&t=\"</code>\r\n"
+     "</li></ol>"
+     "<li>"
+     "For a vdiplomacy.com game do the following:\r\n"
+     "   <ol type=i><li>"
+     "Open the newly created ", ThreadType, " thread,"
+     "</li><li>"
+     "In the location window in your browser you find an URL that "
+     "looks like shown below:<br>\r\n"
+     "<pre>\r\n"
+     "   http://vdiplomacy.com/forum.php?threadID=NNN\r\n"
+     "</pre>\r\n"
+     "</li><li>"
+     "The thread id, that you are looking for, is the "
+     "number marked above as NNN, that you find after "
+     "<code>\"?threadID=\"</code>\r\n"
+     "</li>"
+     "</ol></li></ol>",
+     if Type == game ->
+             ["<li>"
+              "Start your game by inserting the game thread id in the "
+              "field below, and press the \"",
+              ?BStartNow,
+              "\" button. \r\n"
+              "</li>"];
+        true -> []
+     end,
+     "</ol>"
+    ].
 
 maybe_set_thread_id(_, _, _, {'EXIT', _}) ->
     {false, [{error, "Thread id is not an integer"}]};

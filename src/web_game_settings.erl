@@ -277,6 +277,7 @@ game_select(GNStr, OnChangeScript, GameFilter) ->
      "</select>"].
 
 do_delete_game(GNum) when GNum > 0 ->
+    game:stop(GNum),
     mafia_data:delete_game_data_in_other_tabs(GNum),
     mnesia:dirty_delete(mafia_game, GNum),
     [{info, ?i2l(GNum) ++ " deleted"}];
@@ -1366,7 +1367,8 @@ min_thid(#mafia_game{site = Site}) -> min_thid(Site);
 min_thid(?webDip) -> ?MinThId;
 min_thid(?vDip) -> ?MinThIdvDip;
 min_thid(?wd2) ->
-    %% check max value of signup_thid and thread_id in games older than 2 weeks
+    %% check max value of signup_thid and thread_id in games older than 6 months
+    NumDaysIn6Mon = 182,
     Ginfo =
         [#{utc_day => mafia_time:date2utc_day(Date),
            game_th => T,
@@ -1376,7 +1378,7 @@ min_thid(?wd2) ->
                 <- ets:tab2list(mafia_game)],
     Today = mafia_time:utc_day1970(),
     Gs2weeksOld = [G || G = #{utc_day := GStart} <- Ginfo,
-                        GStart < Today - 14],
+                        GStart < Today - NumDaysIn6Mon],
     MinThId =
         lists:foldl(
           fun(#{signup_th := S, game_th := T}, Top) ->

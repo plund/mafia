@@ -141,7 +141,7 @@ handle_call(?stop_polling, _From, State) ->
                                                poll_minutes = ?stopped}};
 handle_call('stop', _From, State) ->
     timer:cancel(State#state.poll_timer),
-    {stop, stopped, stop_reply, State#state{poll_timer = ?undefined}};
+    {stop, normal, stop_reply, State#state{poll_timer = ?undefined}};
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.

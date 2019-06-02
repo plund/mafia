@@ -210,7 +210,7 @@ is_finished_game(GNum) when is_integer(GNum) ->
     is_finished_game(hd(?rgame(GNum))).
 
 -spec game_run_status(game_num() | #mafia_game{}
-                     ) -> upcoming | ongoing | finished.
+                     ) -> upcoming | ongoing | finished | deleted.
 game_run_status(G = #mafia_game{}) ->
     case is_upcoming_game(G) of
         ?true -> upcoming;
@@ -221,7 +221,11 @@ game_run_status(G = #mafia_game{}) ->
             end
     end;
 game_run_status(GNum) when is_integer(GNum) ->
-    game_run_status(hd(?rgame(GNum))).
+    case ?rgame(GNum) of
+        [] -> deleted;
+        [G = #mafia_game{}] ->
+            game_run_status(G)
+    end.
 
 sort_for_current(Gs) ->
     Type =

@@ -32,7 +32,8 @@
 
          delete_game_data_in_other_tabs/1,
          delete_msgs_and_pages_for_thread/2,
-         reset_game/1
+         reset_game/1,
+         clear_mafia_day_and_stat/1
         ]).
 
 -include("mafia.hrl").
@@ -560,7 +561,7 @@ do_check_fun(G) ->
             Resp
     end.
 
-%% clear #mafia_day and #stat for this ThId
+%% clear #mafia_day and #stat for this GNum
 clear_mafia_day_and_stat(GNum) ->
     clear_mafia_day(GNum),
     clear_stat(GNum),

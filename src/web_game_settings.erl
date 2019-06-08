@@ -1765,6 +1765,7 @@ msti2(G, ThId) ->
             G4 = mafia_time:initial_deadlines(G3),
             ?dwrite_game(game_w2, G4),
             write_settings_file(G4),
+            mafia_data:clear_mafia_day_and_stat(G4#mafia_game.game_num),
             game:start_polling(G4#mafia_game.game_num),
             {true, Es ++ [{info, "Thread Id was set"},
                           {info, "GAME STARTED!"}]};

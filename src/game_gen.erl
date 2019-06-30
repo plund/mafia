@@ -120,14 +120,14 @@ regen_hist_html(FNHtml, Phase = #phase{}, Opts) ->
 %%--------------------------------------------------------------------
 
 write_text(FileName, Opts) ->
-    {ok, Fd} = file:open(FileName, [write]),
+    {ok, Fd} = file:open(FileName, [write, {encoding, utf8}]),
     Opts2 = Opts ++ [{?dev, Fd}],
     mafia_print:print_votes(Opts2),
     file:close(Fd).
 
 write_html(FileName, Title, Opts) ->
     Opts2 = Opts ++ [{?mode, ?html}],
-    {ok, Fd} = file:open(FileName, [write]),
+    {ok, Fd} = file:open(FileName, [write, {encoding, utf8}]),
     io:format(Fd, "~s", [get_html(Title, Opts2)]),
     file:close(Fd),
     ok.

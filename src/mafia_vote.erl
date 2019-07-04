@@ -83,7 +83,7 @@ check_cmds_votes2(G, Re, M) ->
             case player_type(M, G) of
                 ?gm ->
                     G2 = check_for_deaths(Re, M, G),
-                    check_for_game_unend(Re, M, G2);
+                    check_for_game_unend(Re, G2);
                 _ -> ignore
             end
     end,
@@ -468,12 +468,12 @@ find_game_end(#regex{msg_text_u = MsgTextU, game_end = RE}) ->
 
 %% -----------------------------------------------------------------------------
 
-check_for_game_unend(S, M, G) ->
-    case find_game_unend(S) of
+check_for_game_unend(Re, G) ->
+    case find_game_unend(Re) of
         nomatch ->
             G;
         {match, _Ms} ->
-            {_Reply, G2} = mafia_time:end_game(M, G),
+            {_Reply, G2} = mafia_time:unend_game(G),
             G2
     end.
 

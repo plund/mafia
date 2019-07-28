@@ -276,7 +276,21 @@ game_status_out(?history, GNum, Phase) ->
 read_file(FileName) ->
     case file:read_file_info(FileName) of
         {ok, _} ->
-            file:read_file(FileName);
+            {ok, Fd} = file:open(FileName, [read, binary, {encoding, utf8}]),
+            NumBytes = 10000,
+            ReadResult = read_file_loop(Fd, NumBytes, <<>>),
+            file:close(Fd),
+            ReadResult;
+        _ ->
+            not_on_file
+    end.
+
+read_file_loop(Fd, NumBytes, Acc) ->
+    case file:read(Fd, NumBytes) of
+        {ok, Data} ->
+            read_file_loop(Fd, NumBytes, <<Acc/binary, Data/binary>>);
+        eof when Acc /= <<>>  ->
+            {ok, Acc};
         _ ->
             not_on_file
     end.

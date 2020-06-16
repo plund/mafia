@@ -317,7 +317,7 @@ print_votesI(PPin) ->
                 Fmt = "The GAME HAS ENDED after phase ~s and the time was ~s\n",
                 Args = [EndPhase, EndTimeStr],
                 Html =
-                    ["The game as ended after phase ",
+                    ["The game has ended after phase ",
                      EndPhase,
                      " and the time was ", EndTimeStr
                     ],

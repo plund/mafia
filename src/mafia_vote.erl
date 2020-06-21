@@ -32,10 +32,12 @@ get_regexs() ->
           }.
 
 insert_msg_into_re(Msg, Re) ->
-    Msg2 = mafia_lib:remove_all_br(
-             mafia_lib:remove_blockquotes(
-               mafia_lib:escapes_to_unicode(
-                 unicode:characters_to_list(Msg)))),
+    RemoveNonAscii = fun(Txt) -> [C || C <- Txt,  C =< 127] end,
+    Msg2 = RemoveNonAscii(
+             mafia_lib:remove_all_br(
+               mafia_lib:remove_blockquotes(
+                 mafia_lib:escapes_to_unicode(
+                   unicode:characters_to_list(Msg))))),
     MsgU = ?l2u(Msg2),
     Re#regex{msg_text_u = MsgU, msg_text = Msg2}.
 

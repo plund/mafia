@@ -36,8 +36,8 @@
 -define(Unvote, "Unvote").
 -define(END, "END").
 -define(UNEND, "UNEND").
--define(NoLynch, "No-Lynch").
--define(Extra, [?END, ?UNEND, ?NoLynch]).
+-define(NoKill, "No-Kill").
+-define(Extra, [?END, ?UNEND, ?NoKill]).
 
 %% simple macros
 -define(a2l(A), atom_to_list(A)).

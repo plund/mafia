@@ -771,7 +771,7 @@ show_msgI(G, M, Variant) ->
         case Variant of
             "vote" -> ["*##VOTE*", "*##UNVOTE*"];
             "replacement" -> ["*HAS REPLACED*", "*IS REPLACING*"];
-            "death" -> ["*DIED*", "*DEAD*", "*BEEN LYNCHED*"];
+            "death" -> ["*DIED*", "*DEAD*", "*BEEN KILLED*", "*BEEN LYNCHED*"];
             _ -> []
         end,
     msg_display(G, M, HighLigths).

@@ -166,13 +166,16 @@ check_for_deaths2(Reg = #regex{}, M, LookForUsers) ->
     %% find "has died" on line
     SearchU1 = "DIED",
     SearchU2 = "DEAD",
-    SearchU3 = "BEEN LYNCHED",
-    SearchU4 = "BEEN EATEN",
+    SearchU3 = "BEEN KILLED",
+    SearchU4 = "BEEN LYNCHED",
+    SearchU5 = "BEEN EATEN",
     case [regex_find_words(SearchU1, Reg),
           regex_find_words(SearchU2, Reg),
           regex_find_words(SearchU3, Reg),
-          regex_find_words(SearchU4, Reg)] of
-        [{?nomatch, _}, {?nomatch, _}, {?nomatch, _}, {?nomatch, _}] ->
+          regex_find_words(SearchU4, Reg),
+          regex_find_words(SearchU5, Reg)] of
+        [{?nomatch, _}, {?nomatch, _}, {?nomatch, _},
+         {?nomatch, _}, {?nomatch, _}] ->
             %% no-one has died
             ?nomatch;
         Matches ->

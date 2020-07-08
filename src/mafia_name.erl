@@ -20,7 +20,7 @@ get3l(V, Abbrs, Def3l) ->
 %% calculate_3letter_abbrevs_for_remaining_players
 -spec get_abbrevs([player()]) -> [abbr_calc()].
 get_abbrevs(PlayerRem) ->
-    Rems = ["INVALID", ?Unvote, ?NoLynch]
+    Rems = ["INVALID", ?Unvote, ?NoKill]
             ++ [?b2l(UserB) || UserB <- PlayerRem],
     %%        Uniqu  Orig,  Head, Tail
     Rems2 = [{false, User, "", User} || User <- Rems],

@@ -83,23 +83,36 @@ print_stats_match(PP) ->
 do_print_stats(PP) ->
     MatchExpr = PP#pp.match_expr,
     Stats = mnesia:dirty_select(stat, MatchExpr),
-    PrStats = [mk_prstat(S, PP) || S <- Stats],
+    PrStats =
+        lists:foldr(
+          fun(S, Acc) ->
+                  case mk_prstat(S, PP) of
+                      #prstat{} = PrStat ->
+                          [PrStat | Acc];
+                      _ -> Acc
+                  end
+          end,
+          [],
+          Stats),
     do_print_stats(PP, PrStats).
 
 -spec mk_prstat(#stat{}, #pp{}) -> #prstat{}.
 mk_prstat(S = #stat{}, PP) ->
     #mafia_game{site = Site} = PP#pp.game,
     LastMsgId = lists:max(S#stat.msg_ids),
-    M = hd(?rmess({LastMsgId, Site})),
-    #prstat{key = S#stat.key,
-            seq_no = 1,
-            msg_ids = S#stat.msg_ids,
-            num_chars = S#stat.num_chars,
-            num_words = S#stat.num_words,
-            num_postings = S#stat.num_postings,
-            words_per_post = S#stat.num_words / S#stat.num_postings,
-            last_msg = {M#message.time, LastMsgId}
-           }.
+    case ?rmess({LastMsgId, Site}) of
+        [M] ->
+            #prstat{key = S#stat.key,
+                    seq_no = 1,
+                    msg_ids = S#stat.msg_ids,
+                    num_chars = S#stat.num_chars,
+                    num_words = S#stat.num_words,
+                    num_postings = S#stat.num_postings,
+                    words_per_post = S#stat.num_words / S#stat.num_postings,
+                    last_msg = {M#message.time, LastMsgId}
+                   };
+        _ -> stat_rec_without_message_ids
+    end.
 
 do_print_stats(PP, PrStats) ->
     SortFun =

@@ -285,10 +285,11 @@ do_delete_game(_) -> [].
 
 new_user_password(Sid, Env, PQ) ->
     PageTitle = ?BNewPassword,
-    User = web_impl:get_arg(PQ, "pw_user"),
+    PwUser = web_impl:get_arg(PQ, "pw_user"),
     IsReload = web_impl:get_arg(PQ, "is_reload", "false"),
+    ServerKeepers = [SK || {SK, _Site} <- get_server_keepers()],
     UserErrors =
-        if User == ?UserNotSelected ->
+        if PwUser == ?UserNotSelected ->
                 [{error, "You must select a user"}];
            true -> []
         end,
@@ -296,11 +297,19 @@ new_user_password(Sid, Env, PQ) ->
                "" -> ?wd2;
                SiteStr -> ?l2a(SiteStr)
            end,
-    DoFun = fun(_User) when IsReload == "false" ->
-                    ?dbg({do_set_new_user_password, _User, User, Site}),
-                    do_set_new_user_password(User, Site);
-               (_User) ->  []
-            end,
+    DoFun =
+        fun(User) when IsReload == "false" ->
+                ?dbg({do_set_new_user_password, User, PwUser, Site}),
+                IsSK = lists:member(User, ServerKeepers),
+                IsPwSK = lists:member(PwUser, ServerKeepers),
+                if IsSK; not IsPwSK ->
+                        do_set_new_user_password(PwUser, Site);
+                   true ->
+                        [{error,
+                          "Not allowed to change ServerKeeper password"}]
+                end;
+           (_User) ->  []
+        end,
 
     %% Present Init New Game page
     OnChangeScript =
@@ -327,7 +336,7 @@ new_user_password(Sid, Env, PQ) ->
                            mafia:get_user_names_for_site(Site))],
                 UserOpts =
                     ["<select name=\"pw_user\">\r\n",
-                     [POpt(U, User) || U <- Users],
+                     [POpt(U, PwUser) || U <- Users],
                      "</select>"],
                 ["<tr><td align=center>"
                  "User: ", UserOpts, " ",
@@ -1154,11 +1163,7 @@ is_user_and_password_ok(G, User, Pass) ->
     is_user_and_password_ok_impl(GameGms, User, Pass, ?false).
 
 is_user_and_password_ok_impl(GameGms, User, Pass, OnlyKeeper) ->
-    Keepers =
-        case ?getv(?server_keeper) of
-            SK when is_tuple(SK) -> [SK];
-            _ -> []
-        end,
+    Keepers = get_server_keepers(),
     Allowed =
         if OnlyKeeper -> Keepers;
            true -> GameGms ++ ?getv(?server_admins, []) ++ Keepers
@@ -1168,6 +1173,12 @@ is_user_and_password_ok_impl(GameGms, User, Pass, OnlyKeeper) ->
                  (_) -> false
               end,
               Allowed).
+
+get_server_keepers() ->
+    case ?getv(?server_keeper) of
+        SK when is_tuple(SK) -> [SK];
+        _ -> []
+    end.
 
 is_ready_to_go(CurG, {G, Es}) ->
     %% Check if ready to update and go

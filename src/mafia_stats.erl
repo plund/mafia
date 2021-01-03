@@ -83,17 +83,7 @@ print_stats_match(PP) ->
 do_print_stats(PP) ->
     MatchExpr = PP#pp.match_expr,
     Stats = mnesia:dirty_select(stat, MatchExpr),
-    PrStats =
-        lists:foldr(
-          fun(S, Acc) ->
-                  case mk_prstat(S, PP) of
-                      #prstat{} = PrStat ->
-                          [PrStat | Acc];
-                      _ -> Acc
-                  end
-          end,
-          [],
-          Stats),
+    PrStats = [mk_prstat(S, PP) || S <- Stats],
     do_print_stats(PP, PrStats).
 
 -spec mk_prstat(#stat{}, #pp{}) -> #prstat{}.
@@ -111,7 +101,11 @@ mk_prstat(S = #stat{}, PP) ->
                     words_per_post = S#stat.num_words / S#stat.num_postings,
                     last_msg = {M#message.time, LastMsgId}
                    };
-        _ -> stat_rec_without_message_ids
+        [] ->
+            %% For some unknown reason the message referred to in the
+            %% stat record is missing in DB. We should reread the messages
+            %% into DB. Delete game and recreate it worked last time.
+            throw({message_missing_in_db, {LastMsgId, Site}})
     end.
 
 do_print_stats(PP, PrStats) ->

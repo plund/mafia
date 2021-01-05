@@ -58,6 +58,7 @@ po(P, [{?use_time, V} | T]) -> po(P#pp{use_time = V}, T);
 po(P, [{?time_zone, V} | T]) -> po(P#pp{time_zone = V}, T);
 po(P, [{?dst, D} | T]) -> po(P#pp{dst = D}, T);
 po(P, [{?sort, S} | T]) -> po(P#pp{sort = S}, T);
+po(P, [{?dl_time_diff, I} | T]) -> po(P#pp{dl_time_diff = I}, T);
 po(P, []) -> P.
 
 %% -----------------------------------------------------------------------------
@@ -358,8 +359,25 @@ print_votesI(PPin) ->
                 print_headline_time_info(PP, Fmt, Args, Html)
         end,
 
+    DlTimeDiff = PP#pp.dl_time_diff,
+    NearDlSecs = -60, %% Removes message info just before EoD
+    %% Not strictly needed since code now seems fast enough anyhow.
+    IsCloseToEoD =
+        if DlTimeDiff == ?undefined  -> false;
+           PhaseType == ?day, NearDlSecs < DlTimeDiff, DlTimeDiff < 0 -> true;
+           true ->  false
+        end,
+    ?dbg([{ptype, PhaseType},
+          {?dl_time_diff, DlTimeDiff},
+          {is_close, IsCloseToEoD}
+         ]),
+
     %% Part - Thread Links
-    HThreadLinks = pr_thread_links(PP, DoDispTime2DL),
+    HThreadLinks =
+        if not IsCloseToEoD ->
+                pr_thread_links(PP, DoDispTime2DL);
+           IsCloseToEoD -> []
+        end,
 
     %% votes, from remaining players only
     HVoteCount =
@@ -551,11 +569,22 @@ print_votesI(PPin) ->
         end,
 
     %% Part - Posting stats
-    PPstat = if (PP#pp.phase)#phase.ptype == ?game_ended ->
-                     PP#pp{phase = ?total_stats};
-                true -> PP
-             end,
-    [HStats, HNonPosters] = mafia_stats:print_statsI(PPstat),
+    [HStats, HNonPosters] =
+        if not IsCloseToEoD ->
+                PPstat =
+                    if (PP#pp.phase)#phase.ptype == ?game_ended ->
+                            PP#pp{phase = ?total_stats};
+                       true -> PP
+                    end,
+                mafia_stats:print_statsI(PPstat);
+           IsCloseToEoD ->
+                PostLn = mafia_stats:sort_link(PP),
+                [["<table align=center>",
+                  "<tr><td colspan=2 align=left>",
+                  "<a href=\"", PostLn, "\">Posting Statistics</a>"
+                  "</td></tr></table>\r\n"
+                 ],  ""]
+        end,
 
     %% Part - Dead players
     DoReport =

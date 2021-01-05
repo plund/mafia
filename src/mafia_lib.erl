@@ -6,7 +6,6 @@
          rpage/1,
          rpage/3,
          pages_for_thread/1,
-         all_page_keys/0,
          all_page_keys/1,
          all_day_keys/1,
          all_keys/1,
@@ -162,10 +161,9 @@ pages_for_thread(Key = {_ThId, _Site}) ->
     [P || {_, P, _} <- all_page_keys(Key)].
 
 all_page_keys({ThId, Site}) ->
-    [K || K = {N, _, S} <- all_page_keys(), N == ThId, S == Site].
+    lists:sort([K || K = {N, _, S} <- all_page_keys(), N == ThId, S == Site]).
 
-all_page_keys() ->
-    lists:sort([ K || K <- mnesia:dirty_all_keys(page_rec), [] /= rpage(K)]).
+all_page_keys() -> mnesia:dirty_all_keys(page_rec).
 
 all_day_keys(GNum) -> [K || K = {GN, _} <- all_keys(mafia_day), GN == GNum].
 

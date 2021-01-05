@@ -4,7 +4,9 @@
 -export([print_stats/0, print_stats/1, print_stats/2]).
 
 %% mafia_print
--export([print_statsI/1]).
+-export([print_statsI/1,
+         sort_link/1
+        ]).
 
 -import(mafia_print,
         [po/2,
@@ -226,15 +228,12 @@ do_print_stats(PP, PrStats) ->
                            "Posts", " Words", "  Chars", "Word/P", "Player"]),
                 [];
            PP#pp.mode == ?html ->
-                ArgBeg =
-                    "stats" ++
-                    "?g=" ++ ?i2l(GNum) ++
-                    "&" ++ phase_args(PP#pp.phase) ++
-                    "&sort=",
+                ArgBeg = sort_link_beg(PP),
                 PostLn = ArgBeg ++ "normal",
                 WordLn = ArgBeg ++ "words",
                 WPostLn = ArgBeg ++ "words_per_post",
                 LMsgLn = ArgBeg ++ "last_msg_time",
+
                 Last = "Last (" ++ RelativeStr ++ ")",
                 {PostTitle, WordTitle, WPostTitle, LMsgTitle} =
                     case PP#pp.sort of
@@ -334,6 +333,20 @@ do_print_stats(PP, PrStats) ->
                  "</table>"],
             [HtmlStats, HtmlNonPosters]
     end.
+
+sort_link(PP) when is_record(PP, pp) ->
+    sort_link(PP, "normal").
+
+sort_link(PP, Type) when is_record(PP,  pp) ->
+    sort_link_beg(PP) ++ Type.
+
+sort_link_beg(PP) ->
+    G = PP#pp.game,
+    GNum = G#mafia_game.game_num,
+    "stats" ++
+        "?g=" ++ ?i2l(GNum) ++
+        "&" ++ phase_args(PP#pp.phase) ++
+        "&sort=".
 
 %% INTERNAL
 

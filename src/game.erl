@@ -18,7 +18,7 @@
          poll/1,
          start_polling/1,
          stop_polling/1,
-         poll_minutes/1,
+         poll_minutes_tdiff/1,
          regen_history/4,
          update_current/0,
          get_id/1
@@ -252,7 +252,10 @@ update_current(#state{game_num = GameNum,
 maybe_change_poll_int(S = #state{poll_timer = TRef,
                                  poll_minutes = TMins,
                                  game_num = GNum}) ->
-    Mins = poll_minutes(GNum),
+    Mins = case poll_minutes_tdiff(GNum) of
+               {MinsR, _} -> MinsR;
+               ?none -> ?none
+           end,
     if TMins == ?stopped -> {no_change, S};
        Mins == ?none ->
             case mafia_lib:is_ongoing_game(GNum) of
@@ -347,12 +350,12 @@ flush(Msg) ->
 
 %% -----------------------------------------------------------------------------
 
--spec poll_minutes(GNum :: thread_id()) -> ?none | number().
-poll_minutes(GNum) ->
+-spec poll_minutes_tdiff(GNum :: thread_id()) -> ?none | {number(), integer()}.
+poll_minutes_tdiff(GNum) ->
     case mafia_time:nearest_deadline(GNum) of
         ?none -> ?none;
         {RelTimeSecs, #dl{phase = #phase{ptype = Ptype}}} ->
-            t_mins(Ptype, RelTimeSecs)
+            {t_mins(Ptype, RelTimeSecs), RelTimeSecs}
     end.
 
 %% 2 weeks is 14 * 24 * 60 minutes

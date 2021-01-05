@@ -1,6 +1,6 @@
 -define(NumColsInGrp, 6).
 
-%% print params
+%% print params: -record(pp,
 -record(
    pp,
    {game  :: ?undefined | #mafia_game{},
@@ -29,5 +29,6 @@
     sort = ?sort_normal :: ?sort_normal
                          | ?sort_words
                          | ?sort_words_per_post
-                         | ?sort_last_msg_time
+                         | ?sort_last_msg_time,
+    dl_time_diff :: ?undefined | integer()
    }).

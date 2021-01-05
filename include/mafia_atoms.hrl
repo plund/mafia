@@ -94,6 +94,7 @@
 -define(use_time, use_time).
 -define(time_zone, time_zone).
 -define(dst, dst).
+-define(dl_time_diff, dl_time_diff).
 
 -define(sorted, sorted).
 -define(seconds, seconds).

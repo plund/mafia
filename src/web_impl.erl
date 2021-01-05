@@ -296,8 +296,15 @@ read_file_loop(Fd, NumBytes, Acc) ->
     end.
 
 game_status_out_current(GNum, Phase, Title) ->
+    {PollMins, DlSecs} =
+        case game:poll_minutes_tdiff(GNum) of
+            ?none -> {?none, ?undefined};
+            Resp -> Resp
+        end,
     Opts = [{?use_time, mafia_time:utc_secs1970()},
-            {?period, game:poll_minutes(GNum)}],
+            {?period, PollMins},
+            {?dl_time_diff, DlSecs} %% negative just before deadline
+           ],
     do_game_status_out(GNum, Phase, Title, Opts).
 
 game_status_out_hist(_GNum, _Phase, _FileName, {ok, Bin}) ->

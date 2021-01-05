@@ -140,8 +140,8 @@ handle_call(?stop_polling, _From, State) ->
     {reply, {ok, polling_stopped}, State#state{poll_timer = ?undefined,
                                                poll_minutes = ?stopped}};
 handle_call('stop', _From, State) ->
-    timer:cancel(State#state.poll_timer),
-    {stop, normal, stop_reply, State#state{poll_timer = ?undefined}};
+    S2 = cancel_poll_timer(State),
+    {stop, normal, stop_reply, S2};
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -185,14 +185,20 @@ handle_info({?deadline, DL}, State) ->
     S2 = set_dl_timer(State, DL#dl.time),
     {noreply, S2};
 handle_info(do_polling, State) ->
-    {_Reply, S2} = maybe_change_poll_int(State),
-    if is_integer(S2#state.game_num) ->
-            mafia_data:downl_web(S2#state.game_num),
-            flush(do_polling);
-       true -> ok
-    end,
-    update_current(S2),
-    {noreply, S2};
+    case ?rgame(State#state.game_num) of
+        [_] ->
+            {_Reply, S2} = maybe_change_poll_int(State),
+            if is_integer(S2#state.game_num) ->
+                    mafia_data:downl_web(S2#state.game_num),
+                    flush(do_polling);
+               true -> ok
+            end,
+            update_current(S2),
+            {noreply, S2};
+        [] -> % 'stop'
+            S2 = cancel_poll_timer(State),
+            {stop, normal, S2}
+    end;
 handle_info(die, S) ->
     io:format(?MODULE_STRING ++ " got die ~p ~p\n",
               [S#state.game_num, time()]),

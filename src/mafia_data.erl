@@ -68,8 +68,9 @@
 get_wd2_threads() ->
     %% "curl" can be done with httpc:request(Url) also with "http"
     %% if inets:start() and ssl:start() have been done.
+    %% "--insecure" due to "certificate has expired"
     GameForumPage =
-        os:cmd("curl --max-time 10 "
+        os:cmd("curl --insecure --max-time 10 "
                "https://webdiplomacy.net/contrib/phpBB3/viewforum.php?f=4 "
                "2> /dev/null | grep 'class=\"topictitle\"'"),
     try get_wd2_threads(GameForumPage) of

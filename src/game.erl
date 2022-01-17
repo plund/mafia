@@ -36,6 +36,7 @@
 -include("mafia.hrl").
 
 -define(SERVER, ?MODULE).
+-define(TIMEOUT, 20000).
 
 -record(state,
         {game_num :: ?undefined | integer(),
@@ -52,8 +53,8 @@ get_state(GNum) when is_integer(GNum) -> sys:get_state(get_id(GNum)).
 
 poll(GNum) -> get_id(GNum) ! do_polling.
 
-start_polling(GNum) -> gen_server:call(get_id(GNum), ?start_polling).
-stop_polling(GNum) -> gen_server:call(get_id(GNum), ?stop_polling).
+start_polling(GNum) -> call_gid(GNum, ?start_polling).
+stop_polling(GNum) -> call_gid(GNum, ?stop_polling).
 
 get_id(GNum) when is_integer(GNum) -> ?l2a("game_" ++ ?i2l(GNum)).
 
@@ -83,12 +84,12 @@ update_current() ->
 %% @end
 %%--------------------------------------------------------------------
 start_link(Id, GNum) ->
-    gen_server:start_link({local, Id}, ?MODULE, [GNum], []).
+    gen_server:start_link({local, Id}, ?MODULE, [GNum], [{timeout, ?TIMEOUT}]).
 
 %% Start new game - from init game procedure
 start_new_game(GNum) -> mafia_sup:start_child(GNum).
 
-stop(GNum) -> gen_server:call(get_id(GNum), 'stop').
+stop(GNum) -> call_gid(GNum, 'stop').
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -393,3 +394,5 @@ t_mins(?game_ended, T) when T < ?m2s(?EndPollMins) -> 120;
 t_mins(?game_ended, T) when T >= ?m2s(?EndPollMins) -> ?none.
 
 %% -----------------------------------------------------------------------------
+
+call_gid(GNum, Msg) -> gen_server:call(get_id(GNum), Msg, ?TIMEOUT).

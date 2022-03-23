@@ -143,11 +143,11 @@ get_fp(G) ->
         ["<br>\r\n"
          "<table cellspacing=4>",
          ["<tr ", ?BG_MED_GREEN, ">"],
-         "<th colspan=3>\r\n"
+         "<td colspan=3 align=center><b>\r\n"
          "<a href=\"game_status?g=", GNStr, "\">M",
          GNStr,
          " Game Status </a>"
-         "</th></tr>\r\n",
+         "</b></td></tr>\r\n",
          ["<tr ", ?BG_MED_GREEN, ">"],
          "<th>History"
          "</th><th>Statistics"

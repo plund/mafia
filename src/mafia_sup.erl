@@ -79,7 +79,7 @@ all_child_specs() ->
      | all_game_child_specs()].
 
 all_game_child_specs() ->
-    [game_child_spec(GNum) || GNum <- mafia_lib:all_keys(mafia_game)].
+    [game_child_spec(GNum) || GNum <- mnesia:dirty_all_keys(mafia_game)].
 
 game_child_spec(GNum) ->
     Id = game:get_id(GNum),

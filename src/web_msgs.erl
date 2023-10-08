@@ -344,7 +344,9 @@ modify_message(Msg, WordsU) ->
              ({fix, _} = F, Acc) ->
                   Acc ++ [F];
              ({url, _} = F, Acc) ->
-                  Acc ++ [F]
+                  Acc ++ [F];
+             ({link_text, B}, Acc) ->
+                  Acc ++ [{fix, add_parenteses(B)}]
           end,
           [],
           Parts1
@@ -432,13 +434,18 @@ bold_mark_words(Msg, WordsU) ->
 
 -define(H0, "<a href=\"msg?id=w:").
 -define(HREF, "<a href=\"").
+
 -define(U1, "forum.php?").
 -define(R1, "http://webdiplomacy.net/forum.php?").
 -define(U2, "contrib/phpBB3/viewtopic.php?").
 -define(R2, "http://www.webdiplomacy.net/contrib/phpBB3/viewtopic.php?").
+-define(U3, "./").
+-define(R3, "https://webdiplomacy.net/contrib/phpBB3/").
 
 norm_url(?U1 ++ Msg) -> ?R1 ++ Msg;
 norm_url(?U2 ++ Msg) -> ?R2 ++ Msg;
+
+norm_url("./" ++ Msg) -> ?R3 ++ Msg;
 norm_url(Msg) -> Msg.
 
 %% removes all '<a' tags
@@ -447,6 +454,9 @@ norm_url(Msg) -> Msg.
 -spec normalize_links(string()) -> [{out | url | fix, string()}].
 normalize_links(Msg) ->
     normalize_links(Msg, {out, ""}, []).
+
+normalize_links("<noscript>" ++ Msg, SB, Acc) -> normalize_links(Msg, SB, Acc);
+normalize_links("</noscript>" ++ Msg, SB, Acc) -> normalize_links(Msg, SB, Acc);
 
 %% Cite links should be unchanged - state 'keep'
 normalize_links(?H0 ++ Msg, {out, B}, Acc) ->
@@ -470,13 +480,28 @@ normalize_links("<a" ++ Msg, {out, B}, Acc) ->
 normalize_links(">" ++ Msg, {in, B}, Acc) ->
     normalize_links(Msg, {out, B}, Acc);
 
+%% Need to ignore:
+%% <img data-cfsrc=\"https://i.imgur.com/r2ie9Yb.jpg\"
+%%  class=\"postimage\" alt=\"Image\" style=\"display:none;visibility:hidden;\">
+
 %%<img class="smilies" src="./images/smilies/icon_e_smile.gif"
 %% Add http://webdiplomacy.net/contrib/phpBB3/
-normalize_links("<img " ++ Msg,
-                {S, B}, Acc) ->
+normalize_links("<img " ++ Msg, {S, B}, Acc) ->
     normalize_links(Msg, {img, "<img "}, [{S, B} | Acc]);
+
+normalize_links("data-cfsrc=\"" ++ Msg, {img, B}, Acc) ->
+    normalize_links(Msg, {img2, B}, Acc);
+normalize_links(">" ++ Msg, {img2, _}, [H | Acc]) ->
+    normalize_links(Msg, H, Acc);
+
 normalize_links("src=\"./images" ++ Msg, {img, B}, Acc) ->
     Repl = "src=\"http://webdiplomacy.net/contrib/phpBB3/images",
+    normalize_links(Msg, {img, B ++ Repl}, Acc);
+normalize_links("src=\"./download/" ++ Msg, {img, B}, Acc) ->
+    Repl = "src=\"" ++ ?R3 ++ "/download/",
+    normalize_links(Msg, {img, B ++ Repl}, Acc);
+normalize_links("src=\"" ++ Msg, {img, B}, Acc) ->
+    Repl = "src=\"",
     normalize_links(Msg, {img, B ++ Repl}, Acc);
 normalize_links(">" ++ Msg, {img, B}, [{S, _} | _] = Acc) ->
     normalize_links(Msg, {S, ""}, [{fix, B ++ ">"} | Acc]);
@@ -488,7 +513,7 @@ normalize_links([H | T], {S, B}, Acc)
   when S == out; S == link_text; S == keep; S == img ->
     normalize_links(T, {S, B ++ [H]}, Acc);
 
-normalize_links([_ | T], {S, B}, Acc) when S == in; S == link ->
+normalize_links([_ | T], {S, B}, Acc) when S == in; S == link; S == img2 ->
     normalize_links(T, {S, B}, Acc);
 
 normalize_links([], {out, B}, Acc) -> ?lrev([{out, B} | Acc]);
@@ -496,6 +521,7 @@ normalize_links([], {S, _}, Acc)
   when S == in; S == link; S == link_text ->
     ?lrev(Acc).
 
+add_parenteses("") -> "";
 add_parenteses(B) -> " (" ++ B ++ ")".
 
 %% Split string into url and no_url segments, so no bold marking is performed

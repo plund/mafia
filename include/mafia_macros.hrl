@@ -92,12 +92,19 @@
 
 -define(regen_history(Term, M, G), game:regen_history(?MODULE, Term, M, G)).
 
+-define(unicode_list(StrBin), mafia_lib:unicode_list(StrBin)).
+-define(unicode_noesc_list(StrBin), mafia_lib:unicode_noesc_list(StrBin)).
+-define(unicode_noesc_binary(StrBin), mafia_lib:unicode_noesc_binary(StrBin)).
+-define(unicode_noesc_upper_binary(StrBin),
+        mafia_lib:unicode_noesc_upper_binary(StrBin)).
+
 -define(dbg(Term), mafia_lib:dbg(?MODULE, Term)).
 -define(dbg(Time, Term), mafia_lib:dbg(?MODULE, Time, Term)).
 -define(dbg_str(Str), mafia_lib:dbg_str(Str)).
 -define(man(Time, Cmd), mafia_lib:man(Time, Cmd)).
 
--define(WordBoundaryChars, "\s\t\r\n!\"@#€$%?&/\\|()[]{}=≈≠´`^*'™’-_.:…·,;‚„<>≥≤").
+-define(WordBoundaryChars,
+        "\s\t\r\n!\"@#€$%?&/\\|()[]{}=≈≠´`^*'™’-_.:…·,;‚„<>≥≤").
 
 %% background: #ffeeff;
 -define(HTML_PAGE_START_LINKS(Title, TabAttrStr, PrevL, NextL),

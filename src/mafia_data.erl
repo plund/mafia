@@ -5,6 +5,7 @@
          refresh_messages/1,
          refresh_votes/0,
          refresh_votes/1,
+         refresh_votes/2,
          checkvote_fun/2,
          refresh_stat/0,
          refresh_stat/1
@@ -378,7 +379,7 @@ refresh_votes() ->
     GNum = ?getv(?game_key),
     refresh_votes(GNum).
 
-refresh_votes(all) ->
+refresh_votes(all_games) ->
     AllGNums = mafia_lib:all_keys(mafia_game),
     T = fun() -> erlang:monotonic_time(millisecond) end,
     Start = T(),
@@ -390,7 +391,13 @@ refresh_votes(all) ->
 refresh_votes(GNum) when is_integer(GNum) ->
     print_log_header(GNum),
     clear_mafia_day_and_stat(GNum),
-    refresh_votes(?rgame(GNum), all).
+    refresh_votesI(?rgame(GNum), all).
+
+%% all pages upto and including
+refresh_votes(GNum, #{page := Page})
+  when is_integer(GNum), is_integer(Page) ->
+    Filter = fun(P) -> P =< Page end,
+    refresh_votesI(?rgame(GNum), Filter).
 
 print_log_header(GNum) ->
     GNumStr = ?i2l(GNum),
@@ -399,13 +406,13 @@ print_log_header(GNum) ->
     io:format("===== REFRESH VOTES game ~s ~s\n" , [GNumStr, Fill]),
     io:format("===================================\n").
 
-refresh_votes([], _F) ->
+refresh_votesI([], _F) ->
     ok;
-refresh_votes([G], PageFilter) ->
-    refresh_votes(G, PageFilter);
-refresh_votes(#mafia_game{thread_id = ?undefined}, _) ->
+refresh_votesI([G], PageFilter) ->
+    refresh_votesI(G, PageFilter);
+refresh_votesI(#mafia_game{thread_id = ?undefined}, _) ->
     {error, game_not_started};
-refresh_votes(G0 = #mafia_game{}, PageFilter) ->
+refresh_votesI(G0 = #mafia_game{}, PageFilter) ->
     %% Reinitialize the game table
     G = reset_game(G0),
     ThId = G#mafia_game.thread_id,

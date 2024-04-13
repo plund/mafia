@@ -32,14 +32,18 @@ get_regexs() ->
           }.
 
 insert_msg_into_re(Msg, Re) ->
-    RemoveNonAscii = fun(Txt) -> [C || C <- Txt,  C =< 127] end,
-    Msg2 = RemoveNonAscii(
-             mafia_lib:remove_all_br(
-               mafia_lib:remove_blockquotes(
-                 mafia_lib:escapes_to_unicode(
-                   unicode:characters_to_list(Msg))))),
-    MsgU = ?l2u(Msg2),
-    Re#regex{msg_text_u = MsgU, msg_text = Msg2}.
+    MsgU = ?l2u(Msg),
+    Re#regex{msg_text_u = MsgU, msg_text = Msg}.
+
+%% due to odd thing on source:
+%% For the bot:<br>
+%% <br>
+%% Diplomacy&amp;amp;Warfare has died. He was Fink Angel.</div>
+fixup_esc(Msg) ->
+    Msg2 = ?unicode_noesc_list(Msg),
+    if Msg2 /= Msg -> fixup_esc(Msg2);
+       true -> Msg
+    end.
 
 %% -----------------------------------------------------------------------------
 %% Returns ignore when #message or #mafia_game cannot be found
@@ -47,7 +51,17 @@ insert_msg_into_re(Msg, Re) ->
 -spec check_cmds_votes(#mafia_game{},
                        #regex{}, #message{})
                       -> MsgTime :: seconds1970().
-check_cmds_votes(G = #mafia_game{}, Re, M = #message{}) ->
+check_cmds_votes(G = #mafia_game{},
+                 Re,
+                 M = #message{message = MsgIn}) ->
+    %% Fixup message before processing
+    Msg2 = mafia_lib:remove_all_br(
+             mafia_lib:remove_blockquotes(
+               fixup_esc(MsgIn))),
+    M2 = M#message{message = Msg2},
+    check_cmds_votes1(G, Re, M2).
+
+check_cmds_votes1(G, Re, M) ->
     mafia_data:update_stat(G, M),
     Re2 = insert_msg_into_re(M#message.message, Re),
     check_cmds_votes2(G, Re2, M).
@@ -69,20 +83,21 @@ check_cmds_votes2(G, Re, M) ->
                 PhasePrevM /= PhaseM
                     andalso PhasePrevM#phase.ptype /= ?game_start
         end,
+    PlayerType = player_type(M, G),
     if not IsStarted ->
-            case player_type(M, G) of
+            case PlayerType of
                 ?gm -> check_for_gm_cmds(Re, M, G, true);
                 UserType -> log_unallowed_msg(UserType, M)
             end;
        not IsEnded ->
-            case player_type(M, G) of
+            case PlayerType of
                 ?gm -> check_for_gm_cmds(Re, M, G, DoGenerate);
                 ?player -> check_for_votes(G, M, Re, PhaseM);
                 ?dead_player -> log_unallowed_msg(?dead_player, M);
                 ?other -> log_unallowed_msg(?other, M)
             end;
        IsEnded ->
-            case player_type(M, G) of
+            case PlayerType of
                 ?gm ->
                     G2 = check_for_deaths(Re, M, G),
                     check_for_game_unend(Re, G2);
@@ -1212,5 +1227,6 @@ check_for_deaths2_test() ->
       ).
 
 death_re(Msg) ->
-    MsgUni = unicode:characters_to_binary(Msg),
+%%%    MsgUni = ?unicode_noesc_unicode:characters_to_binary(Msg),
+    MsgUni = ?unicode_noesc_binary(Msg),
     insert_msg_into_re(MsgUni, get_regexs()).

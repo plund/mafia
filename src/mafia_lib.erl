@@ -26,6 +26,10 @@
          remove_blockquotes/1,
          remove_all_br/1,
 
+         unicode_list/1,
+         unicode_noesc_list/1,
+         unicode_noesc_binary/1,
+         unicode_noesc_upper_binary/1,
          get_unicode_msg/1,
          escapes_to_unicode/1,
 
@@ -372,23 +376,31 @@ rgameI(GameNum) ->
 %% -----------------------------------------------------------------------------
 %% Read on primary key
 -spec ruserUB(string() | binary(), site()) -> [#user{}].
-ruserUB(User, Site) when is_list(User) -> ruserUBI(?l2ub(User), Site);
-ruserUB(UserB, Site) when is_binary(UserB) -> ruserUBI(?b2ub(UserB), Site).
+ruserUB(User, Site) when is_list(User) ->
+    ruserUBI(User, Site);
+ruserUB(UserB, Site) when is_binary(UserB) ->
+    ruserUBI(UserB, Site).
 
 -spec ruserUB({binary(), site()}) -> [#user{}].
-ruserUB({UserB, Site}) when is_binary(UserB) -> ruserUBI(?b2ub(UserB), Site).
+ruserUB({UserB, Site}) when is_binary(UserB) ->
+    ruserUBI(UserB, Site).
 
 -spec ruserUBI(binary(), site()) -> [#user{}].
-ruserUBI(UserUB, Site) -> mnesia:dirty_read(user, {UserUB, Site}).
+ruserUBI(User, Site) ->
+    UserUB = ?unicode_noesc_upper_binary(User),
+    mnesia:dirty_read(user, {UserUB, Site}).
 
 %% Read on secondary key
 -spec ruser(string() | binary(), site()) -> [#user{}].
-ruser(User, Site) when is_list(User) -> ruserI(?l2b(User), Site);
-ruser(UserB, Site) when is_binary(UserB) -> ruserI(UserB, Site).
+ruser(UserB, Site) when is_binary(UserB) ->
+    ruserI(UserB, Site);
+ruser(User, Site) when is_list(User) ->
+    ruserI(User, Site).
 
 -spec ruserI(binary(), site()) -> [#user{}].
 ruserI(UserB, Site) ->
-    mnesia:dirty_index_read(user, {UserB, Site}, #user.name).
+    UserB2 = ?unicode_noesc_binary(UserB),
+    mnesia:dirty_index_read(user, {UserB2, Site}, #user.name).
 
 %% -----------------------------------------------------------------------------
 
@@ -411,12 +423,32 @@ remove_all_br("<br>" ++ Msg) -> remove_all_br(Msg);
 remove_all_br([H | T]) -> [H | remove_all_br(T)];
 remove_all_br("") -> "".
 
--spec get_unicode_msg(MsgB :: binary()) -> string().
-get_unicode_msg(MsgB) ->
-    Msg0 = unicode:characters_to_list(MsgB),
-    escapes_to_unicode(Msg0).
+%% -----------------------------------------------------------------------------
 
--spec escapes_to_unicode(Msg :: string()) -> string().
+unicode_list(StrBin) when is_list(StrBin); is_binary(StrBin) ->
+    unicode:characters_to_list(StrBin).
+
+unicode_noesc_list(StrBin) when is_list(StrBin); is_binary(StrBin) ->
+    escapes_to_unicode(StrBin).
+
+unicode_noesc_binary(StrBin) ->
+    WoutEsc = escapes_to_unicode(StrBin),
+    unicode:characters_to_binary(WoutEsc).
+
+unicode_noesc_upper_binary(StrBin) ->
+    WoutEsc = escapes_to_unicode(StrBin),
+    unicode:characters_to_binary(?l2u(WoutEsc)).
+
+%% -----------------------------------------------------------------------------
+
+-spec get_unicode_msg(Msg :: binary()) -> string().
+get_unicode_msg(Msg) when is_binary(Msg) ->
+    escapes_to_unicode(Msg).
+
+-spec escapes_to_unicode(Msg :: string() | binary()) -> string().
+escapes_to_unicode(Msg) when is_binary(Msg) ->
+    Msg2 = unicode:characters_to_list(Msg),
+    escapes_to_unicode(Msg2);
 escapes_to_unicode("&#x" ++ T) ->
     %% Hexadecimal
     case find_semicolon(T) of

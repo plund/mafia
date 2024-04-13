@@ -60,6 +60,7 @@
          refresh_messages/1,
          refresh_votes/0,
          refresh_votes/1,
+         refresh_votes/2,
 
          show_game_users/1,
          show_game_users/2,
@@ -124,6 +125,7 @@ refresh_votes() ->
     %% fprof:trace(stop),
     ok.
 refresh_votes(GNum) -> mafia_data:refresh_votes(GNum).
+refresh_votes(GNum, Opts) -> mafia_data:refresh_votes(GNum, Opts).
 
 %% 1. run refresh_votes()
 %% 2. fprof:profile().
@@ -507,7 +509,7 @@ kill_player(GNum, MsgId, Player, Comment) ->
                        msg_id = MsgId,
                        mfa = {mafia, kill_player,
                               [GNum, MsgId, Player, Comment]}},
-            PlayerB = unicode:characters_to_binary(Player),
+            PlayerB = ?unicode_noesc_binary(Player),
             case mafia_op:kill_player(G, M, PlayerB, Comment) of
                 {{ok, DeathPhase}, _G2} ->
                     ?man(Time, Cmd),
@@ -515,14 +517,16 @@ kill_player(GNum, MsgId, Player, Comment) ->
                     ?regen_history(mankill, M, G),
                     {player_killed, DeathPhase};
                 {not_remaining_player, _G2} ->
-                    case ?ruser(Player, G#mafia_game.site) of
+                    case ?ruser(PlayerB, G#mafia_game.site) of
                         [] ->
                             {player_no_exist, Player};
                         [#user{name = {NameB, _}}] ->
                             if NameB /= PlayerB ->
-                                    {player_other_case, ?b2l(NameB)};
+                                    {player_other_case,
+                                     ?unicode_noesc_list(NameB)};
                                true ->
-                                    {not_remaining_player, ?b2l(PlayerB)}
+                                    {not_remaining_player,
+                                     ?unicode_noesc_list(PlayerB)}
                             end
                     end
             end;
@@ -790,15 +794,20 @@ show_aliasesI(UserSite) ->
 -spec add_user(Name :: (string() | binary()),
                site())
               -> ok | {error, eexists}.
-add_user(NameB, Site) when is_binary(NameB) ->
-    add_user(?b2l(NameB), Site);
+add_user(NameB, Site)
+  when is_binary(NameB), ?IS_SITE_OK(Site) ->
+    add_userI(NameB, Site);
 add_user(Name, Site)
-  when is_list(Name) andalso ?IS_SITE_OK(Site) ->
-    case ?ruser(Name, Site) of
+  when is_list(Name), ?IS_SITE_OK(Site) ->
+    add_userI(Name, Site).
+
+add_userI(Name, Site) ->
+    NameB = ?unicode_noesc_binary(Name),
+    NameUB = ?unicode_noesc_upper_binary(Name),
+    case ?ruser(NameB, Site) of
         [] ->
-            NameU = string:to_upper(Name),
-            User = #user{name_upper = {?l2b(NameU), Site},
-                         name = {?l2b(Name), Site},
+            User = #user{name_upper = {NameUB, Site},
+                         name = {NameB, Site},
                          site = Site,
                          verification_status = verified},
             ?dwrite_user(User);

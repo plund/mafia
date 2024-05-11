@@ -622,14 +622,14 @@ print_votesI(PPin) ->
         end,
     if PP#pp.mode == ?text ->
             if not IsZeroDeaths ->
-                    {Fmt, Div} =
+                    {Fmt2, Div} =
                         {"\n"
                          "Dead Players\n"
                          "------------\n"
                          "~s\n",
                          "\n"},
                     io:format(PP#pp.dev,
-                              Fmt,
+                              Fmt2,
                               [string:join(
                                  [?b2l(DeadPl) ++ PrFun(IsEnd, Ph) ++
                                       if Comment == ?undefined ->

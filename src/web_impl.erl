@@ -32,7 +32,7 @@
 -define(CUR_END_MARK, "<!-- END CURRENT GAME SECTION -->").
 
 front_page(Sid, _Env, In) ->
-    PQ = httpd:parse_query(In),
+    PQ = uri_string:dissect_query(In),
     mafia_lib:set_current_game(),
     CurGameNum = mafia_db:getv(game_key),
     GameNum = get_gnum(get_arg(PQ, "g")),
@@ -216,7 +216,7 @@ dptypestr(?day) -> "Day".
 %% http://mafia.peterlund.se/e/web/game_status?game=m28phase=night&num=2
 %% http://mafia.peterlund.se/e/web/game_status?game=m28phase=end
 game_status(Sid, _Env, In) ->
-    PQ = httpd:parse_query(In) -- [{[],[]}],
+    PQ = uri_string:dissect_query(In) -- [{[],[]}],
     NotAllowed = [Key || {Key, _} <- PQ] -- ["g", "phase", "num"],
     GNum = get_gnum(get_arg(PQ, "g")),
     game_status2(Sid, GNum, PQ, NotAllowed).
@@ -417,7 +417,7 @@ gs_phase(_, _) ->
 %% http://mafia.peterlund.se/e/web/vote_tracker?day=1
 %% http://mafia.peterlund.se/e/web/vote_tracker?msg_id=1420335
 vote_tracker(Sid, _Env, In) ->
-    PQ = httpd:parse_query(In) -- [{[],[]}],
+    PQ = uri_string:dissect_query(In) -- [{[],[]}],
     GameNumStrArg = get_arg(PQ, "g"),
     GNum = get_gnum(GameNumStrArg),
     GameNumStr = ?i2l(GNum),
@@ -470,7 +470,7 @@ vote_tracker2(_, "", "") ->
 %% http://mafia.peterlund.se/e/web/stats?phase=end
 %% http://mafia.peterlund.se/e/web/stats?phase=total
 stats(Sid, _Env, In) ->
-    PQ = httpd:parse_query(In) -- [{[],[]}],
+    PQ = uri_string:dissect_query(In) -- [{[],[]}],
     GNum = get_gnum(get_arg(PQ, "g")),
     PhType = get_arg(PQ, "phase"),
     Num = get_arg(PQ, "num"),
@@ -544,7 +544,7 @@ conv_to_num(Str) ->
 %% -----------------------------------------------------------------------------
 
 'forum.php'(Sid, _Env, In) ->
-    PQ = httpd:parse_query(In),
+    PQ = uri_string:dissect_query(In),
     ThId = get_arg(PQ, "threadID"),
     UrlDisp = ["http://webdiplomacy.net/forum.php?", In],
     Url = [UrlDisp, "#", ThId],
@@ -561,7 +561,7 @@ conv_to_num(Str) ->
 %% -----------------------------------------------------------------------------
 
 dst_changes(Sid, _Env, In) ->
-    PQ = httpd:parse_query(In),
+    PQ = uri_string:dissect_query(In),
     CAbbr = get_arg(PQ, "country"),
     Year =
         case get_arg(PQ, "year") of
@@ -667,7 +667,7 @@ dst_changes(Sid, _Env, In) ->
 %% -----------------------------------------------------------------------------
 %% http://mafia.peterlund.se/e/web/users
 users(Sid, _Env, In) ->
-    PQ = httpd:parse_query(In),
+    PQ = uri_string:dissect_query(In),
     GNumStr = get_arg(PQ, "g"),
     Site = case get_arg(PQ, "site") of
                "all" -> ?all;

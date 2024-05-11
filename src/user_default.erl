@@ -130,7 +130,7 @@ mafia:set_role_pm(GNum, Url) - to set role pm after start
 
 Maintenance
 -----------
-mafia:refresh_votes(GNum) - Recount votes in current game
+mafia:refresh_votes(GNum) - Recount votes in one game
 mafia:refresh_votes(GNums)
 mafia:refresh_votes(all)        - refresh all games
 

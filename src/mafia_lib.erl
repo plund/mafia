@@ -79,8 +79,7 @@
          dbg/2,
          dbg/3,
          dbg_str/1,
-         man/2,
-         stacktrace/0
+         man/2
         ]).
 
 -include("mafia.hrl").
@@ -1115,14 +1114,6 @@ man(Time, Cmd) ->
     io:format("~s MANUAL ~999p\n",
               [mafia_print:print_time(?console, Time),
                Cmd]).
-
-%% -----------------------------------------------------------------------------
-
-stacktrace() ->
-    try throw(a)
-    catch throw:a ->
-            erlang:get_stacktrace()
-    end.
 
 %% -----------------------------------------------------------------------------
 %% EUNIT tests

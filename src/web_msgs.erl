@@ -66,7 +66,7 @@ search(Sid, _Env, _In) ->
 
 %% http://mafia.peterlund.se/e/web/msgs
 msgs(Sid, _Env, In) ->
-    PQ = httpd:parse_query(In) -- [{[],[]}],
+    PQ = uri_string:dissect_query(In) -- [{[],[]}],
     NotAllowed = [Key || {Key, _} <- PQ]
         -- ["g", "user", "word", "part", "UorW", "button"],
     case web_impl:get_gnum2(get_arg(PQ, "g")) of
@@ -675,14 +675,12 @@ s_unit("DAY") -> ?day;
 s_unit("N") -> ?night;
 s_unit("NIGHT") -> ?night.
 
-
-
 %% -----------------------------------------------------------------------------
 %% http://mafia.peterlund.se/e/web/msg?\
 %% g=24&id=(msgid)&var=vote&player=(playername)
 msg(Sid, _Env, In) ->
     %% msgs
-    PQ = httpd:parse_query(In),
+    PQ = uri_string:dissect_query(In),
     GNumStr = get_arg(PQ, "g"),
     GNum = web_impl:get_gnum(GNumStr),
     MsgIdText = get_arg(PQ, "id"),

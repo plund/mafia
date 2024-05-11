@@ -30,7 +30,7 @@
 -define(PlayerNotSelected, "*Select a Player*").
 
 game_settings(Sid, Env, In) ->
-    PQ = httpd:parse_query(In),
+    PQ = uri_string:dissect_query(In),
     Button = proplists:get_value("button", PQ),
     GNum = proplists:get_value("game_num", PQ),
 
